@@ -12,13 +12,18 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 
 ### Getting Started
 1) Data sources
-- current_export.csv is a small sample taken from the database containing the National Library's catalog in Intermarc NG, implementing the RDA-FR conceptual model. 
-  - The goal was to gather all works whose agent (field 700, 701 or 702) is Comtesse de Ségur, the expressions pointing to those works, and the manifestations pointing to those manifestations.
-  - The initial list of works was obtained from NOEMI, the internal website of the National Library that gives access to its catalog.
-  - In the SQL query, we also had to retrieve all entities (agents, works, expressions, manifestations, *valeur contrôlée*, *brand*) whose ark appears in any field of the initial matches, to be able to display the record of those initial matches with all values in human-readable format, as at, the time of writing, there is no API access to the new catalog.
-- The list of initial works and the SQL query can be found in folder [sql](sql).
+- The starting point of our project is a database containing the **French National Library's catalog** in Intermarc Nouvelle Génération (NG), a format that's compatible with IFLA LRM and implements the RDA-FR cataloguing code. Information about the purpose of the migration can be found [here](https://www.rdatoolkit.org/sites/default/files/rsc/BNF_intermarc_Foucher.pdf). This format belongs to the broad family of MARC (*Machine-Readable Cataloging Record*) formats, about which please see this page of the [Library of Congress](https://www.loc.gov/marc/umb/um01to06.html).
+  - Cataloging guidelines for Intermarc NG can be found on [Kitcat NG](https://kitcatng-ext.bnf.fr/consignes-catalogage), the BNF's cataloging reference guide for the new format, but the description of Intermarc NG fields is not publicly available yet. Meanwhile, one can rely on [Kitcat](https://kitcat.bnf.fr/manuel-intermarc), the previous reference guide, which contains a detailed description of fields in Intermarc.
+- We accessed the database through the current version of NOEMI, an internal website of the National Library that allows its teams to access, modify and augment the catalog. NOEMI is still in a pre-release phase during which migration tests are regularly conducted, from Intermarc to Intermarc NG. It is populated by a temporary version of the database after a mock migration.
+- current_export.csv is a **small sample taken from this temporary snapshot**.
+  - It comprises all works whose agent (relator fields 700, 701 or 702 for people, 710, 711, or 712 for groups) is the Comtesse de Ségur (technically the ark identifier of her record : ark:/12148/cb130916590), the expressions pointing to those works, and the manifestations pointing to those manifestations.
+  - In the SQL query, we also had to retrieve all entities (agents, works, expressions, manifestations, *valeur contrôlée*, *brand*) whose ark identifier appears in any field of the initial matches, to be able to display the record of those initial matches with all values in human-readable format, as at, the time of writing, there is no API access to the new catalog.
+  - The list of initial works and the SQL query can be found in folder [sql](sql).
 
-2) Run the clustering CLI
+2) Understanding links between entities
+- In addition to the Kitcat pages mentioned above, please see the rough-hewn and schematic "Linked entity ontology" in [AGENTS.md](AGENTS.md)
+
+3) Running the clustering CLI
 - Input CSV must have headers: `id_entitelrm;type_entite;intermarc` and `intermarc` is a JSON string like `{"zones": [...]}`.
 - Operation implemented: cluster works that share same `700$3`, same `015$c`, and whose titles start with the same base substring (ignoring suffixes like "illustrations|vignettes|illustré" followed by "de|par"). NLP is being implemented to strip author and illustrator names from titles when appropriate.
 - For each clustered work (besides the anchor), the anchor gets a new `90F` zone with:
@@ -28,7 +33,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - To build the clusters : ```python -m scripts.cli cluster --input data/current_export.csv --output data/curated.csv --clusters-json data/curated.json```
 
 ---
-📝 
+
 - The current version of curated.csv is not the result of the latest version of the clustering scripts (implementation of NLP is still in progress), but it was curated by hand in Vendange itself to prepare three more or less complete clusters. Adaptations were left out, while an attempt was made to include translations, in abidance with RDA-FR. The anchors of these three clusters are:
   1. ark:/12148/cb205486774 → `150 $3 Ségur Sophie de $a Les |petites filles modèles $9 B245` 
   2. ark:/12148/cb212272085 → `150 $3 Ségur Sophie de $a Les |vacances $9 B245`
@@ -40,7 +45,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - **Styled debug logs** — use `-vv` to unlock Rich-powered logs: the CLI renders colourful panels, syntax-highlighted titles, and tables for matched variants and removed segments.
 - **Test fixtures** — every CLI subcommand accepts `--mock NAME` (alias `--test NAME`). When provided, the file `data/test_NAME.csv` is copied over the `--input` path before the operation starts, making it easy to replay curated scenarios.
 
-3) Review in the Web UI
+4) Review in the Web UI
 - Start the UI: `npm run dev`
 - Default loading: the app automatically loads `/data/curated.csv` and tries `/data/original.csv` or `/data/current_export.csv` at startup.
 - Override by filename: click **Load CSVs** to open the modal dropzone, then drop the pair (curated + original) or pick them manually. A file named `curated.csv` replaces the curated dataset; any other `.csv` replaces the original dataset. You can still drag files anywhere in the app for quick overrides.

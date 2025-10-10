@@ -1,0 +1,215 @@
+{
+  "toolbar": {
+    "loadCsv": "Load CSVs",
+    "viewForest": "View Forest",
+    "darkMode": "Dark mode",
+    "shortcuts": "Shortcuts",
+    "export": "Export curated CSV"
+  },
+  "language": {
+    "ariaLabel": "Interface language",
+    "options": {
+      "en": "English",
+      "fr": "French"
+    }
+  },
+  "aria": {
+    "openWork": "Open work {{id}}"
+  },
+  "theme": {
+    "switchToLight": "Switch to light",
+    "switchToDark": "Switch to dark",
+    "activateLight": "Activate light mode",
+    "activateDark": "Activate dark mode"
+  },
+  "toolbarToggle": {
+    "show": "Show tools",
+    "hide": "Hide tools"
+  },
+  "layout": {
+    "loadPrompt": "Load files to begin.",
+    "selectPrompt": "Select a record from the left panel.",
+    "dropHint": "Drop files here (curated.csv and/or original)",
+    "defaultDataLoaded": "Defaults loaded from /data. You can drop files to override.",
+    "provideFiles": "Provide curated.csv and original/current_export.csv to begin."
+  },
+  "listScope": {
+    "clusters": "Clusters",
+    "inventory": "All entities"
+  },
+  "uploadModal": {
+    "title": "Load CSV files",
+    "instructions": "Drop both curated and original CSVs here or pick them manually.",
+    "drop": "Drop files",
+    "expected": "Expected: curated.csv and original/current_export.csv",
+    "original": "Original CSV",
+    "curated": "Curated CSV",
+    "clear": "Clear",
+    "close": "Close"
+  },
+  "shortcutsModal": {
+    "title": "Keyboard shortcuts",
+    "instructions": "Select a shortcut below and press a new key combination to update it.",
+    "reset": "Reset defaults",
+    "done": "Done",
+    "recordPrompt": "Press keys…"
+  },
+  "shortcuts": {
+    "focusUp": {
+      "label": "Go to parent level",
+      "description": "From a manifestation go to its expression, from an expression go to its work."
+    },
+    "focusDown": {
+      "label": "Go to child level",
+      "description": "From a work enter its expressions, from an expression enter its manifestations."
+    },
+    "listUp": {
+      "label": "Move selection up",
+      "description": "Move to the previous item in the active list."
+    },
+    "listDown": {
+      "label": "Move selection down",
+      "description": "Move to the next item in the active list."
+    },
+    "openExpressionFilter": {
+      "label": "Open expression filter",
+      "description": "Focus the expression filter dropdown."
+    },
+    "openWorkFilter": {
+      "label": "Open work filter",
+      "description": "Focus the work selector dropdown."
+    }
+  },
+  "buttons": {
+    "add": "Add",
+    "viewWorks": "View works",
+    "viewExpressions": "View expressions",
+    "graph3d": "3D Cluster",
+    "modifyRecord": "Modify record",
+    "save": "Save"
+  },
+  "labels": {
+    "curated": "Curated",
+    "original": "Original",
+    "independentExpressions": "Independent expressions",
+    "noClusteredExpressions": "No clustered expressions.",
+    "noManifestations": "No manifestations.",
+    "noExpressionsForWork": "No expressions found for this work.",
+    "uncheckedWork": "Unchecked work",
+    "independentExpressionManifestation": "Independent expression manifestation",
+    "uncheckedTag": "unchecked",
+    "workFallback": "Work",
+    "detachedExpression": "Detached expression",
+    "uncheckedLabel": "Unchecked",
+    "expressionUnchecked": "Expression unchecked",
+    "workUnchecked": "Work unchecked"
+  },
+  "notifications": {
+    "graphPopup": "Unable to open graph window. Check your popup settings.",
+    "needBothCsv": "Load both original and curated CSVs to open the forest graph.",
+    "needCuratedCsv": "Load curated CSV to view the cluster graph.",
+    "expressionMoved": "Expression moved to new anchor",
+    "workAdded": "Work added to cluster",
+    "noExpressions": "No expressions linked to this work",
+    "noManifestations": "No manifestations available for this expression",
+    "manifestationMoved": "Manifestation moved to new expression",
+    "csvLoaded": "CSV files loaded",
+    "needCuratedAndOriginal": "Provide both curated.csv and original CSV files",
+    "workKept": "Work kept in cluster",
+    "workUnchecked": "Work unchecked; linked expressions disabled",
+    "expressionKept": "Expression kept in cluster",
+    "expressionUnchecked": "Expression unchecked from cluster",
+    "invalidClusterWork": "Unable to add this ARK: it does not reference an œuvre"
+  },
+  "messages": {
+    "noClusters": "No clusters detected. Load curated CSV produced by the script.",
+    "filesLoadedFromDrop": "Files loaded from drop.",
+    "loadingIntermarc": "Loading…",
+    "failedIntermarc": "Failed to render intermarc",
+    "noAgents": "No agents linked",
+    "recordNotFound": "Record not found.",
+    "saveFailed": "Failed to save: {{error}}"
+  },
+  "banners": {
+    "pickWork": "Pick work",
+    "allWorks": "All works",
+    "anchorGroup": "Anchor",
+    "clusteredGroup": "Clustered",
+    "anchorSubtitle": "Cluster anchor",
+    "showManifestations": "Show manifestations for",
+    "allExpressions": "All expressions"
+  },
+  "manifestationFilter": {
+    "titleDefault": "Expressions",
+    "subtitleDefault": "Filter manifestations by expression",
+    "subtitleActive": "Filtering manifestations"
+  },
+  "cluster": {
+    "addPlaceholder": "Add ARK to merge (ark:/...)"
+  },
+  "entity": {
+    "work": "Work {{id}}",
+    "expression": "Expression {{id}}",
+    "manifestation": "Manifestation {{id}}",
+    "clusteredExpression": "Clustered expression",
+    "anchorExpression": "Anchor expression",
+    "independentExpression": "Independent expression"
+  },
+  "inventory": {
+    "empty": "No entities available.",
+    "emptyExpressions": "No expressions linked to this work.",
+    "emptyManifestations": "No manifestations linked to this expression.",
+    "sections": {
+      "works": "Unclustered works ({{count}})",
+      "expressions": "Unclustered expressions ({{count}})",
+      "manifestations": "Unclustered manifestations ({{count}})",
+      "persons": "People ({{count}})",
+      "collectives": "Collective identities ({{count}})",
+      "brands": "Brands ({{count}})",
+      "concepts": "Dewey concepts ({{count}})",
+      "controlled": "Controlled values ({{count}})"
+    },
+    "headers": {
+      "expressions": "Expressions ({{count}})",
+      "manifestations": "Manifestations ({{count}})"
+    },
+    "breadcrumb": {
+      "works": "Works"
+    }
+  },
+  "badges": {
+    "expressions_one": "{{count}} expression",
+    "expressions_other": "{{count}} expressions",
+    "manifestations_one": "{{count}} manifestation",
+    "manifestations_other": "{{count}} manifestations"
+  },
+  "graph": {
+    "forestDocumentTitle": "Vendange Forest Graph",
+    "forestTitle": "Forest • {{dataset}}",
+    "documentTitle": "Vendange Graph • {{suffix}}",
+    "clusterTitle": "Cluster • {{label}}",
+    "clusterLabel": "Cluster: {{label}}"
+  },
+  "expressionOption": {
+    "anchor": "Anchor expression {{id}}",
+    "clustered": "Expression {{id}}",
+    "independent": "Independent expression {{id}}"
+  },
+  "selectors": {
+    "navigateWorks": "Navigate works",
+    "navigateExpressions": "Navigate expressions",
+    "navigateManifestations": "Navigate manifestations"
+  },
+  "selectorGroups": {
+    "anchor": "Anchor • {{label}}",
+    "clustered": "Clustered • {{label}}",
+    "independent": "Independent • {{label}}"
+  },
+  "expressionSelector": {
+    "independentOption": "• {{label}}"
+  },
+  "workSelector": {
+    "anchorOption": "Anchor • {{label}}",
+    "clusteredOption": "Clustered • {{label}}"
+  }
+}

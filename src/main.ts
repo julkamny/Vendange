@@ -1560,26 +1560,27 @@ function rebuildInventoryRows() {
 
 function renderCurrentView() {
   clustersEl.innerHTML = ''
-  clustersEl.appendChild(buildListScopeControls())
 
   if (listScope === 'clusters') {
-    if (!clusters.length) {
-      const empty = document.createElement('em')
-      empty.textContent = t('messages.noClusters')
-      clustersEl.appendChild(empty)
-      exportBtn.disabled = true
-      pendingScrollEntity = null
-      return
-    }
-    exportBtn.disabled = false
-    const clusterBreadcrumb = buildClusterBreadcrumb()
-    if (clusterBreadcrumb) clustersEl.appendChild(clusterBreadcrumb)
     if (viewMode === 'works') {
-      renderWorkClusters()
-    } else if (viewMode === 'expressions') {
-      renderExpressionClusters()
+      renderUnifiedWorkList()
     } else {
-      renderManifestationClusters()
+      if (!clusters.length) {
+        const empty = document.createElement('em')
+        empty.textContent = t('messages.noClusters')
+        clustersEl.appendChild(empty)
+        exportBtn.disabled = true
+        pendingScrollEntity = null
+        return
+      }
+      exportBtn.disabled = false
+      const clusterBreadcrumb = buildClusterBreadcrumb()
+      if (clusterBreadcrumb) clustersEl.appendChild(clusterBreadcrumb)
+      if (viewMode === 'expressions') {
+        renderExpressionClusters()
+      } else {
+        renderManifestationClusters()
+      }
     }
   } else {
     exportBtn.disabled = !clusters.length
@@ -1593,43 +1594,319 @@ function renderCurrentView() {
   }
 }
 
-function buildListScopeControls(): HTMLDivElement {
-  const controls = document.createElement('div')
-  controls.className = 'list-scope-controls'
+function renderUnifiedWorkList() {
+  rebuildClusterCoverage()
+  const collator = new Intl.Collator(getCurrentLanguage(), { sensitivity: 'accent' })
 
-  const clustersBtn = document.createElement('button')
-  clustersBtn.type = 'button'
-  clustersBtn.className = 'list-scope-button'
-  clustersBtn.textContent = t('listScope.clusters')
-  if (listScope === 'clusters') clustersBtn.classList.add('active')
-  clustersBtn.onclick = () => {
-    if (listScope === 'clusters') return
-    listScope = 'clusters'
-    viewMode = 'works'
-    inventoryFocusWork = null
-    inventoryFocusExpression = null
+  const clusterEntries = clusters.map(cluster => ({
+    kind: 'cluster' as const,
+    title: cluster.anchorTitle || cluster.anchorId,
+    cluster,
+  }))
+
+  const unclusteredEntries = getUnclusteredWorks().map(work => ({
+    kind: 'unclustered' as const,
+    title: inventoryWorkTitle(work),
+    work,
+  }))
+
+  const combined = [...clusterEntries, ...unclusteredEntries]
+  combined.sort((a, b) => {
+    const cmp = collator.compare(a.title, b.title)
+    if (cmp !== 0) return cmp
+    if (a.kind === b.kind) return 0
+    return a.kind === 'cluster' ? -1 : 1
+  })
+
+  exportBtn.disabled = clusters.length === 0
+
+  if (!combined.length) {
+    const empty = document.createElement('em')
+    empty.textContent = t('messages.noClusters')
+    clustersEl.appendChild(empty)
     pendingScrollEntity = null
-    renderCurrentView()
+    return
   }
-  controls.appendChild(clustersBtn)
 
-  const inventoryBtn = document.createElement('button')
-  inventoryBtn.type = 'button'
-  inventoryBtn.className = 'list-scope-button'
-  inventoryBtn.textContent = t('listScope.inventory')
-  if (listScope === 'inventory') inventoryBtn.classList.add('active')
-  inventoryBtn.onclick = () => {
-    if (listScope === 'inventory') return
-    listScope = 'inventory'
-    viewMode = 'works'
-    inventoryFocusWork = null
-    inventoryFocusExpression = null
-    pendingScrollEntity = null
-    renderCurrentView()
+  combined.forEach(entry => {
+    if (entry.kind === 'cluster') {
+      clustersEl.appendChild(buildClusterElement(entry.cluster))
+    } else {
+      clustersEl.appendChild(buildUnclusteredWorkElement(entry.work))
+    }
+  })
+}
+
+function getUnclusteredWorks(): RecordRow[] {
+  const collator = new Intl.Collator(getCurrentLanguage(), { sensitivity: 'accent' })
+  return originalRecords
+    .filter(rec => rec.typeNorm === 'oeuvre' && !isWorkClustered(rec))
+    .sort((a, b) => collator.compare(inventoryWorkTitle(a), inventoryWorkTitle(b)))
+}
+
+function computeUnclusteredWorkCounts(work: RecordRow): { expressions: number; manifestations: number } {
+  const workArk = work.ark
+  if (!workArk) return { expressions: 0, manifestations: 0 }
+  const expressions = originalExpressionsByWorkArk.get(workArk) ?? []
+  let manifestationCount = 0
+  for (const expr of expressions) {
+    if (!expr.ark) continue
+    manifestationCount += originalManifestationsByExpressionArk.get(expr.ark)?.length ?? 0
   }
-  controls.appendChild(inventoryBtn)
+  return { expressions: expressions.length, manifestations: manifestationCount }
+}
 
-  return controls
+function buildClusterElement(cluster: Cluster): HTMLDivElement {
+  const container = document.createElement('div')
+  container.className = 'cluster'
+  if (cluster.anchorId === activeWorkAnchorId) container.classList.add('active')
+  container.dataset.clusterAnchorId = cluster.anchorId
+  container.dataset.workArk = cluster.anchorArk
+
+  const headerCounts = computeWorkCounts(cluster, cluster.anchorArk)
+  const header = document.createElement('div')
+  header.className = 'cluster-header'
+  const headerTitle = cluster.anchorTitle || cluster.anchorId
+  const workLabel = t('entity.work', { id: cluster.anchorId })
+  header.textContent = `${headerTitle} (${workLabel}) ⚓︎`
+  header.dataset.workArk = cluster.anchorArk
+  header.textContent = ''
+  const anchorMarker = document.createElement('span')
+  anchorMarker.className = 'cluster-anchor-marker'
+  anchorMarker.textContent = '⚓︎'
+  const headerLabel = document.createElement('span')
+  populateEntityLabel(headerLabel, {
+    title: headerTitle,
+    subtitle: t('banners.anchorSubtitle'),
+    badges: [{ type: 'work', text: cluster.anchorId, tooltip: cluster.anchorArk }],
+  })
+  appendCountBadges(headerLabel, {
+    expressions: headerCounts.expressions,
+    manifestations: headerCounts.manifestations,
+  })
+  header.appendChild(anchorMarker)
+  header.appendChild(headerLabel)
+  prependAgentBadge(header, cluster.anchorId)
+  bindSingleAndDouble(
+    header,
+    event => {
+      if ((event.target as HTMLElement | null)?.closest('.agent-badge')) return
+      activeWorkAnchorId = cluster.anchorId
+      highlightedWorkArk = cluster.anchorArk
+      activeExpressionAnchorId = null
+      highlightedExpressionArk = null
+      showRecordDetails(cluster.anchorId, true, {
+        entityType: 'work',
+        clusterAnchorId: cluster.anchorId,
+        isAnchor: true,
+        workArk: cluster.anchorArk,
+      })
+    },
+    event => {
+      if ((event.target as HTMLElement | null)?.closest('.agent-badge')) return
+      activeWorkAnchorId = cluster.anchorId
+      highlightedWorkArk = cluster.anchorArk
+      activeExpressionAnchorId = null
+      highlightedExpressionArk = null
+      viewMode = 'works'
+      renderCurrentView()
+    },
+  )
+  const headerRow = document.createElement('div')
+  headerRow.className = 'cluster-header-row entity-row entity-row--work'
+  const headerHighlighted =
+    (highlightedWorkArk && highlightedWorkArk === cluster.anchorArk) ||
+    (selectedEntity?.entityType === 'work' && selectedEntity.isAnchor && selectedEntity.id === cluster.anchorId)
+  if (headerHighlighted) headerRow.classList.add('highlight')
+  headerRow.appendChild(header)
+  container.appendChild(headerRow)
+
+  const list = document.createElement('div')
+  list.className = 'cluster-items'
+  for (const item of cluster.items) {
+    const row = document.createElement('div')
+    row.className = 'cluster-item entity-row entity-row--work'
+    if (!item.accepted) row.classList.add('unchecked')
+    if (highlightedWorkArk === item.ark) row.classList.add('highlight')
+    row.dataset.workArk = item.ark
+    const itemCounts = computeWorkCounts(cluster, item.ark)
+
+    const cb = document.createElement('input')
+    cb.type = 'checkbox'
+    cb.checked = item.accepted
+    cb.onchange = () => handleWorkCheckboxChange(cluster, item, cb.checked)
+
+    const label = document.createElement('span')
+    const subtitle = item.accepted ? undefined : t('labels.uncheckedWork')
+    populateEntityLabel(label, {
+      title: item.title || item.id || item.ark || t('labels.workFallback'),
+      subtitle,
+      badges: item.id ? [{ type: 'work', text: item.id, tooltip: item.ark }] : undefined,
+    })
+    appendCountBadges(label, {
+      expressions: itemCounts.expressions,
+      manifestations: itemCounts.manifestations,
+    })
+    label.onclick = () => {
+      activeWorkAnchorId = cluster.anchorId
+      highlightedWorkArk = item.ark
+      activeExpressionAnchorId = null
+      highlightedExpressionArk = null
+      if (item.id) {
+        showRecordDetails(item.id, false, {
+          entityType: 'work',
+          clusterAnchorId: cluster.anchorId,
+          isAnchor: false,
+          workArk: item.ark,
+        })
+      } else {
+        renderCurrentView()
+      }
+      highlightedWorkArk = item.ark
+      renderCurrentView()
+    }
+
+    bindSingleAndDouble(
+      row,
+      event => {
+        const target = event.target as HTMLElement | null
+        if (target?.closest('input, button, .entity-label, .agent-badge')) return
+        activeWorkAnchorId = cluster.anchorId
+        highlightedWorkArk = item.ark
+        activeExpressionAnchorId = null
+        highlightedExpressionArk = null
+        if (item.id) {
+          showRecordDetails(item.id, false, {
+            entityType: 'work',
+            clusterAnchorId: cluster.anchorId,
+            isAnchor: false,
+            workArk: item.ark,
+          })
+        } else {
+          renderCurrentView()
+        }
+      },
+      event => {
+        if ((event.target as HTMLElement | null)?.closest('input, button, .agent-badge')) return
+        activeWorkAnchorId = cluster.anchorId
+        highlightedWorkArk = item.ark
+        activeExpressionAnchorId = null
+        highlightedExpressionArk = null
+        viewMode = 'expressions'
+        renderCurrentView()
+      },
+    )
+
+    row.appendChild(cb)
+    row.appendChild(label)
+    prependAgentBadge(row, item.id)
+    list.appendChild(row)
+  }
+
+  const addRow = document.createElement('div')
+  addRow.className = 'cluster-add'
+  const inp = document.createElement('input')
+  inp.placeholder = t('cluster.addPlaceholder')
+  const addBtn = document.createElement('button')
+  addBtn.textContent = t('buttons.add')
+  addBtn.onclick = () => {
+    const ark = inp.value.trim()
+    if (!ark) return
+    const curatedIdx = buildArkIndex(curatedRecords)
+    const originalIdx = buildArkIndex(originalRecords)
+    const target = curatedIdx.get(ark) || originalIdx.get(ark)
+    if (!target || target.typeNorm !== 'oeuvre') {
+      notify(t('notifications.invalidClusterWork'))
+      return
+    }
+    cluster.items.push({
+      ark,
+      id: target?.id,
+      title: target ? titleOf(target) || target.id : undefined,
+      accepted: true,
+      date: new Date().toISOString().slice(0, 10),
+    })
+    const usedExprArks = new Set<string>()
+    for (const group of cluster.expressionGroups) {
+      for (const expr of group.clustered) usedExprArks.add(expr.ark)
+    }
+    for (const expr of cluster.independentExpressions) usedExprArks.add(expr.ark)
+    for (const rec of curatedRecords) {
+      if (rec.typeNorm !== 'expression') continue
+      if (!rec.ark) continue
+      if (usedExprArks.has(rec.ark)) continue
+      if (!expressionWorkArks(rec).includes(ark)) continue
+      cluster.independentExpressions.push({
+        id: rec.id,
+        ark: rec.ark,
+        title: titleOf(rec) || rec.id,
+        workArk: ark,
+        workId: target?.id,
+        manifestations: collectManifestationsForExpression(rec.ark),
+      })
+      usedExprArks.add(rec.ark)
+    }
+    syncWorkClusterIntermarc(cluster)
+    renderCurrentView()
+    notify(t('notifications.workAdded'))
+    renderDetailsPanel()
+  }
+  addRow.appendChild(inp)
+  addRow.appendChild(addBtn)
+
+  container.appendChild(list)
+  container.appendChild(addRow)
+
+  return container
+}
+
+function buildUnclusteredWorkElement(work: RecordRow): HTMLDivElement {
+  const container = document.createElement('div')
+  container.className = 'cluster cluster--unclustered'
+  container.dataset.unclustered = 'true'
+  container.dataset.workId = work.id
+  if (work.ark) container.dataset.workArk = work.ark
+
+  const headerRow = document.createElement('div')
+  headerRow.className = 'cluster-header-row entity-row entity-row--work'
+  const header = document.createElement('div')
+  header.className = 'cluster-header'
+  populateEntityLabel(header, {
+    title: inventoryWorkTitle(work),
+    subtitle: t('labels.unclusteredWork'),
+    badges: [{ type: 'work', text: work.id, tooltip: work.ark }],
+  })
+  const counts = computeUnclusteredWorkCounts(work)
+  appendCountBadges(header, counts)
+  prependAgentBadge(header, work.id)
+
+  const highlightMatches =
+    (work.ark && highlightedWorkArk === work.ark) || (!work.ark && selectedEntity?.id === work.id)
+  if (highlightMatches) headerRow.classList.add('highlight')
+
+  const openDetails = () => {
+    activeWorkAnchorId = null
+    highlightedWorkArk = work.ark || null
+    activeExpressionAnchorId = null
+    highlightedExpressionArk = null
+    showRecordDetails(work.id, false, {
+      entityType: 'work',
+      workArk: work.ark,
+    })
+  }
+
+  bindSingleAndDouble(
+    header,
+    () => openDetails(),
+    event => {
+      if ((event.target as HTMLElement | null)?.closest('.agent-badge')) return
+      openDetails()
+    },
+  )
+
+  headerRow.appendChild(header)
+  container.appendChild(headerRow)
+  return container
 }
 
 function buildClusterBreadcrumb(): HTMLDivElement | null {
@@ -2226,212 +2503,6 @@ function renderInventoryManifestationList(expression: RecordRow) {
   }
 
   clustersEl.appendChild(container)
-}
-
-function renderWorkClusters() {
-  for (const cluster of clusters) {
-    const container = document.createElement('div')
-    container.className = 'cluster'
-    if (cluster.anchorId === activeWorkAnchorId) container.classList.add('active')
-    container.dataset.clusterAnchorId = cluster.anchorId
-    container.dataset.workArk = cluster.anchorArk
-
-    const headerCounts = computeWorkCounts(cluster, cluster.anchorArk)
-    const header = document.createElement('div')
-    header.className = 'cluster-header'
-    const headerTitle = cluster.anchorTitle || cluster.anchorId
-    const workLabel = t('entity.work', { id: cluster.anchorId })
-    header.textContent = `${headerTitle} (${workLabel}) ⚓︎`
-    header.dataset.workArk = cluster.anchorArk
-    header.textContent = ''
-    const anchorMarker = document.createElement('span')
-    anchorMarker.className = 'cluster-anchor-marker'
-    anchorMarker.textContent = '⚓︎'
-    const headerLabel = document.createElement('span')
-    populateEntityLabel(headerLabel, {
-      title: headerTitle,
-      subtitle: t('banners.anchorSubtitle'),
-      badges: [{ type: 'work', text: cluster.anchorId, tooltip: cluster.anchorArk }],
-    })
-    appendCountBadges(headerLabel, {
-      expressions: headerCounts.expressions,
-      manifestations: headerCounts.manifestations,
-    })
-    header.appendChild(anchorMarker)
-    header.appendChild(headerLabel)
-    prependAgentBadge(header, cluster.anchorId)
-    bindSingleAndDouble(
-      header,
-      event => {
-        if ((event.target as HTMLElement | null)?.closest('.agent-badge')) return
-        activeWorkAnchorId = cluster.anchorId
-        highlightedWorkArk = cluster.anchorArk
-        activeExpressionAnchorId = null
-        highlightedExpressionArk = null
-        showRecordDetails(cluster.anchorId, true, {
-          entityType: 'work',
-          clusterAnchorId: cluster.anchorId,
-          isAnchor: true,
-          workArk: cluster.anchorArk,
-        })
-      },
-      event => {
-        if ((event.target as HTMLElement | null)?.closest('.agent-badge')) return
-        activeWorkAnchorId = cluster.anchorId
-        highlightedWorkArk = cluster.anchorArk
-        activeExpressionAnchorId = null
-        highlightedExpressionArk = null
-        viewMode = 'works'
-        renderCurrentView()
-      },
-    )
-    const headerRow = document.createElement('div')
-    headerRow.className = 'cluster-header-row entity-row entity-row--work'
-    const headerHighlighted =
-      (highlightedWorkArk && highlightedWorkArk === cluster.anchorArk) ||
-      (selectedEntity?.entityType === 'work' && selectedEntity.isAnchor && selectedEntity.id === cluster.anchorId)
-    if (headerHighlighted) headerRow.classList.add('highlight')
-    headerRow.appendChild(header)
-    container.appendChild(headerRow)
-
-    const list = document.createElement('div')
-    list.className = 'cluster-items'
-    for (const item of cluster.items) {
-      const row = document.createElement('div')
-      row.className = 'cluster-item entity-row entity-row--work'
-      if (!item.accepted) row.classList.add('unchecked')
-      if (highlightedWorkArk === item.ark) row.classList.add('highlight')
-      row.dataset.workArk = item.ark
-      const itemCounts = computeWorkCounts(cluster, item.ark)
-
-      const cb = document.createElement('input')
-      cb.type = 'checkbox'
-      cb.checked = item.accepted
-      cb.onchange = () => handleWorkCheckboxChange(cluster, item, cb.checked)
-
-      const label = document.createElement('span')
-      const subtitle = item.accepted ? undefined : t('labels.uncheckedWork')
-      populateEntityLabel(label, {
-        title: item.title || item.id || item.ark || t('labels.workFallback'),
-        subtitle,
-        badges: item.id ? [{ type: 'work', text: item.id, tooltip: item.ark }] : undefined,
-      })
-      appendCountBadges(label, {
-        expressions: itemCounts.expressions,
-        manifestations: itemCounts.manifestations,
-      })
-      label.onclick = () => {
-        activeWorkAnchorId = cluster.anchorId
-        highlightedWorkArk = item.ark
-        activeExpressionAnchorId = null
-        highlightedExpressionArk = null
-        if (item.id) {
-          showRecordDetails(item.id, false, {
-            entityType: 'work',
-            clusterAnchorId: cluster.anchorId,
-            isAnchor: false,
-            workArk: item.ark,
-          })
-        } else {
-          renderCurrentView()
-        }
-        highlightedWorkArk = item.ark
-        renderCurrentView()
-      }
-
-      bindSingleAndDouble(
-        row,
-        event => {
-          const target = event.target as HTMLElement | null
-          if (target?.closest('input, button, .entity-label, .agent-badge')) return
-          activeWorkAnchorId = cluster.anchorId
-          highlightedWorkArk = item.ark
-          activeExpressionAnchorId = null
-          highlightedExpressionArk = null
-          if (item.id) {
-            showRecordDetails(item.id, false, {
-              entityType: 'work',
-              clusterAnchorId: cluster.anchorId,
-              isAnchor: false,
-              workArk: item.ark,
-            })
-          } else {
-            renderCurrentView()
-          }
-        },
-        event => {
-          if ((event.target as HTMLElement | null)?.closest('input, button, .agent-badge')) return
-          activeWorkAnchorId = cluster.anchorId
-          highlightedWorkArk = item.ark
-          activeExpressionAnchorId = null
-          highlightedExpressionArk = null
-          viewMode = 'expressions'
-          renderCurrentView()
-        },
-      )
-
-      row.appendChild(cb)
-      row.appendChild(label)
-      prependAgentBadge(row, item.id)
-      list.appendChild(row)
-    }
-
-    const addRow = document.createElement('div')
-    addRow.className = 'cluster-add'
-    const inp = document.createElement('input')
-    inp.placeholder = t('cluster.addPlaceholder')
-    const addBtn = document.createElement('button')
-    addBtn.textContent = t('buttons.add')
-    addBtn.onclick = () => {
-      const ark = inp.value.trim()
-      if (!ark) return
-      const curatedIdx = buildArkIndex(curatedRecords)
-      const originalIdx = buildArkIndex(originalRecords)
-      const target = curatedIdx.get(ark) || originalIdx.get(ark)
-      if (!target || target.typeNorm !== 'oeuvre') {
-        notify(t('notifications.invalidClusterWork'))
-        return
-      }
-      cluster.items.push({
-        ark,
-        id: target?.id,
-        title: target ? titleOf(target) || target.id : undefined,
-        accepted: true,
-        date: new Date().toISOString().slice(0, 10),
-      })
-      const usedExprArks = new Set<string>()
-      for (const group of cluster.expressionGroups) {
-        for (const expr of group.clustered) usedExprArks.add(expr.ark)
-      }
-      for (const expr of cluster.independentExpressions) usedExprArks.add(expr.ark)
-      for (const rec of curatedRecords) {
-        if (rec.typeNorm !== 'expression') continue
-        if (!rec.ark) continue
-        if (usedExprArks.has(rec.ark)) continue
-        if (!expressionWorkArks(rec).includes(ark)) continue
-        cluster.independentExpressions.push({
-          id: rec.id,
-          ark: rec.ark,
-          title: titleOf(rec) || rec.id,
-          workArk: ark,
-          workId: target?.id,
-          manifestations: collectManifestationsForExpression(rec.ark),
-        })
-        usedExprArks.add(rec.ark)
-      }
-      syncWorkClusterIntermarc(cluster)
-      renderCurrentView()
-      notify(t('notifications.workAdded'))
-      renderDetailsPanel()
-    }
-    addRow.appendChild(inp)
-    addRow.appendChild(addBtn)
-
-    container.appendChild(list)
-    container.appendChild(addRow)
-
-    clustersEl.appendChild(container)
-  }
 }
 
 function buildWorkBanner(cluster: Cluster): HTMLDivElement {

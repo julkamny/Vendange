@@ -777,39 +777,6 @@ button:focus-visible {
   color: var(--color-text-soft);
 }
 
-.details-banner-stack {
-  position: sticky;
-  top: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  z-index: 5;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface-alt) 98%, transparent), rgba(0, 0, 0, 0));
-  padding-bottom: 0.6rem;
-}
-.details-banner {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.65rem 0.85rem;
-  border-radius: 12px;
-  border: 1px solid var(--color-border-strong);
-  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
-}
-.details-banner.clustered {
-  border-color: color-mix(in srgb, var(--color-link) 45%, transparent);
-}
-.details-banner.work-banner {
-  border-color: color-mix(in srgb, var(--entity-work) 45%, transparent);
-}
-.details-banner.expression-banner {
-  border-color: color-mix(in srgb, var(--entity-expression) 35%, transparent);
-}
-.details-banner.manifestation-banner {
-  border-color: color-mix(in srgb, var(--entity-manifestation) 45%, transparent);
-}
-
 .entity-label {
   display: flex;
   flex-wrap: wrap;
@@ -1196,11 +1163,6 @@ body.modal-open {
 .shortcut-binding.recording {
   background: var(--color-selection);
   border-style: dashed;
-}
-
-.details-banner-stack .details-banner.expression-banner,
-.details-banner-stack .details-banner.manifestation-banner {
-  transition: opacity 0.25s ease;
 }
 
 .manifestation-label {

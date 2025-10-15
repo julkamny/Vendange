@@ -78,28 +78,6 @@ type ExpressionAnchorGroup = {
   clustered: ExpressionClusterItem[]
 }
 
-type ExpressionSelectOption = {
-  id: string
-  ark: string
-  label: string
-  anchorExpressionId: string | null
-  isAnchor: boolean
-  workArk?: string
-  category: 'anchor' | 'clustered' | 'independent'
-  depth: number
-}
-
-type ManifestationSelectOption = {
-  id: string
-  label: string
-  expressionId?: string
-  expressionArk: string
-  anchorExpressionId?: string | null
-  workArk?: string
-  category: 'anchor' | 'clustered' | 'independent'
-  depth: number
-}
-
 type Cluster = {
   anchorId: string
   anchorArk: string
@@ -225,8 +203,6 @@ let highlightedWorkArk: string | null | undefined = undefined
 let activeExpressionAnchorId: string | null = null
 let highlightedExpressionArk: string | null = null
 let expressionFilterArk: string | null = null
-let detailsBannerFadeBound = false
-
 let selectedEntity: SelectedEntity | null = null
 let pendingScrollEntity: SelectedEntity | null = null
 let uploadModalOpen = false
@@ -883,21 +859,6 @@ function handleExpressionDrop(
   notify(t('notifications.expressionMoved'))
   renderCurrentView()
   renderDetailsPanel()
-}
-
-function formatExpressionLabel(item: ExpressionItem): string {
-  const labelParts: string[] = []
-  if (item.title && item.title !== item.id) labelParts.push(item.title)
-  labelParts.push(t('entity.expression', { id: item.id }))
-  if (item.workId) labelParts.push(t('entity.work', { id: item.workId }))
-  return labelParts.join(' • ')
-}
-
-function formatManifestationLabel(item: ManifestationItem): string {
-  const labelParts: string[] = []
-  if (item.title && item.title !== item.id) labelParts.push(item.title)
-  labelParts.push(t('entity.manifestation', { id: item.id }))
-  return labelParts.join(' • ')
 }
 
 type EntityPillKind = 'work' | 'expression' | 'manifestation' | 'person' | 'collective' | 'brand' | 'concept' | 'controlled'
@@ -4413,22 +4374,6 @@ function renderDetailsPanel() {
   const wrapper = document.createElement('div')
   wrapper.className = 'details-wrapper'
 
-  let cluster: Cluster | undefined
-  if (context.clusterAnchorId) {
-    cluster = clusters.find(c => c.anchorId === context.clusterAnchorId)
-    if (cluster) {
-      const bannerStack = document.createElement('div')
-      bannerStack.className = 'details-banner-stack'
-      const workBanner = buildWorkDetailBanner(cluster, context)
-      bannerStack.appendChild(workBanner)
-      const expressionDetail = buildExpressionDetailBanner(cluster, context)
-      if (expressionDetail) bannerStack.appendChild(expressionDetail)
-      const manifestationDetail = buildManifestationDetailBanner(cluster, context)
-      if (manifestationDetail) bannerStack.appendChild(manifestationDetail)
-      wrapper.appendChild(bannerStack)
-    }
-  }
-
   const pre = document.createElement('pre')
   pre.className = 'intermarc-view'
   pre.textContent = t('messages.loadingIntermarc')
@@ -4463,740 +4408,6 @@ function renderDetailsPanel() {
     wrapper.appendChild(actions)
   }
 
-  if (!detailsBannerFadeBound) {
-    detailsEl.addEventListener('scroll', updateDetailBannerFade)
-    detailsBannerFadeBound = true
-  }
-  updateDetailBannerFade()
-}
-
-function updateDetailBannerFade() {
-  const stack = detailsEl.querySelector('.details-banner-stack')
-  if (!stack) return
-  const banners = stack.querySelectorAll<HTMLDivElement>('.details-banner.expression-banner, .details-banner.manifestation-banner')
-  if (!banners.length) return
-  const fadeDistance = 120
-  const scrollTop = detailsEl.scrollTop
-  const opacity = Math.max(0, Math.min(1, 1 - scrollTop / fadeDistance))
-  banners.forEach(banner => {
-    banner.style.opacity = opacity.toString()
-  })
-}
-
-function buildExpressionOptions(cluster: Cluster): ExpressionSelectOption[] {
-  const options: ExpressionSelectOption[] = []
-  for (const group of cluster.expressionGroups) {
-    options.push({
-      id: group.anchor.id,
-      ark: group.anchor.ark,
-      label: `${group.anchor.title || group.anchor.id} • ${t('expressionOption.anchor', { id: group.anchor.id })}`,
-      anchorExpressionId: group.anchor.id,
-      isAnchor: true,
-      workArk: cluster.anchorArk,
-      category: 'anchor',
-      depth: 0,
-    })
-    for (const expr of group.clustered) {
-      options.push({
-        id: expr.id,
-        ark: expr.ark,
-        label: `${expr.title || expr.id} • ${t('expressionOption.clustered', { id: expr.id })}`,
-        anchorExpressionId: group.anchor.id,
-        isAnchor: false,
-        workArk: expr.workArk,
-        category: 'clustered',
-        depth: 1,
-      })
-    }
-  }
-  for (const expr of cluster.independentExpressions) {
-    options.push({
-      id: expr.id,
-      ark: expr.ark,
-      label: `${expr.title || expr.id} • ${t('expressionOption.independent', { id: expr.id })}`,
-      anchorExpressionId: null,
-      isAnchor: false,
-      workArk: expr.workArk,
-      category: 'independent',
-      depth: 0,
-    })
-  }
-  return options
-}
-
-function buildManifestationOptions(cluster: Cluster): ManifestationSelectOption[] {
-  const options: ManifestationSelectOption[] = []
-  for (const group of cluster.expressionGroups) {
-    for (const man of group.anchor.manifestations) {
-      options.push({
-        id: man.id,
-        label: `${formatManifestationLabel(man)}`,
-        expressionId: group.anchor.id,
-        expressionArk: group.anchor.ark,
-        anchorExpressionId: group.anchor.id,
-        workArk: cluster.anchorArk,
-        category: 'anchor',
-        depth: 0,
-      })
-    }
-    for (const expr of group.clustered) {
-      for (const man of expr.manifestations) {
-        options.push({
-          id: man.id,
-          label: `${formatManifestationLabel(man)}`,
-          expressionId: expr.id,
-          expressionArk: expr.ark,
-          anchorExpressionId: group.anchor.id,
-          workArk: expr.workArk,
-          category: 'clustered',
-          depth: 1,
-        })
-      }
-    }
-  }
-  for (const expr of cluster.independentExpressions) {
-    for (const man of expr.manifestations) {
-      options.push({
-        id: man.id,
-        label: `${formatManifestationLabel(man)}`,
-        expressionId: expr.id,
-        expressionArk: expr.ark,
-        anchorExpressionId: null,
-        workArk: expr.workArk,
-        category: 'independent',
-        depth: 0,
-      })
-    }
-  }
-  return options
-}
-
-function findExpressionInCluster(
-  cluster: Cluster,
-  expressionId?: string | null,
-  expressionArk?: string | null,
-): ExpressionItem | ExpressionClusterItem | undefined {
-  if (!expressionId && !expressionArk) return undefined
-  for (const group of cluster.expressionGroups) {
-    if (expressionId && group.anchor.id === expressionId) return group.anchor
-    if (expressionArk && group.anchor.ark === expressionArk) return group.anchor
-    for (const expr of group.clustered) {
-      if (expressionId && expr.id === expressionId) return expr
-      if (expressionArk && expr.ark === expressionArk) return expr
-    }
-  }
-  for (const expr of cluster.independentExpressions) {
-    if (expressionId && expr.id === expressionId) return expr
-    if (expressionArk && expr.ark === expressionArk) return expr
-  }
-  return undefined
-}
-
-function findManifestationInCluster(cluster: Cluster, manifestationId?: string | null): ManifestationItem | undefined {
-  if (!manifestationId) return undefined
-  for (const group of cluster.expressionGroups) {
-    const anchorMatch = group.anchor.manifestations.find(m => m.id === manifestationId)
-    if (anchorMatch) return anchorMatch
-    for (const expr of group.clustered) {
-      const match = expr.manifestations.find(m => m.id === manifestationId)
-      if (match) return match
-    }
-  }
-  for (const expr of cluster.independentExpressions) {
-    const match = expr.manifestations.find(m => m.id === manifestationId)
-    if (match) return match
-  }
-  return undefined
-}
-
-function findAnchorExpressionFor(
-  cluster: Cluster,
-  expression: ExpressionItem | ExpressionClusterItem | undefined,
-): ExpressionItem | undefined {
-  if (!expression) return undefined
-  for (const group of cluster.expressionGroups) {
-    if (group.anchor.id === expression.id || group.anchor.ark === expression.ark) return group.anchor
-    if (group.clustered.some(expr => expr.id === expression.id || expr.ark === expression.ark)) return group.anchor
-  }
-  return undefined
-}
-
-function findPrimaryExpressionForWork(
-  cluster: Cluster,
-  workArk: string | undefined,
-): ExpressionItem | ExpressionClusterItem | undefined {
-  if (!workArk) return undefined
-  const groups = cluster.expressionGroups
-  if (workArk === cluster.anchorArk) {
-    if (groups.length) return groups[0].anchor
-  }
-  for (const group of groups) {
-    if (group.anchor.workArk === workArk) return group.anchor
-    const clusteredMatch = group.clustered.find(expr => expr.workArk === workArk)
-    if (clusteredMatch) return clusteredMatch
-  }
-  return cluster.independentExpressions.find(expr => expr.workArk === workArk)
-}
-
-function createExpressionSelector(
-  cluster: Cluster,
-  currentArk: string | undefined,
-  labelText: string,
-  onSelect: (option: ExpressionSelectOption) => void,
-): HTMLElement {
-  const wrap = document.createElement('div')
-  wrap.className = 'selector-control'
-  const label = document.createElement('label')
-  label.textContent = labelText
-  const select = document.createElement('select')
-  select.classList.add('expression-selector')
-  const options = buildExpressionOptions(cluster)
-  if (!options.length) {
-    select.disabled = true
-  } else {
-    const lookup = new Map(options.map(o => [o.ark, o]))
-    let separatorCount = 0
-    const appendSeparator = (shouldAppend: boolean) => {
-      if (!shouldAppend) return
-      const sep = document.createElement('option')
-      sep.disabled = true
-      sep.className = 'selector-separator'
-      sep.value = `__sep__${separatorCount++}`
-      sep.textContent = '────────────'
-      select.appendChild(sep)
-    }
-    const appendOption = (groupEl: HTMLOptGroupElement, opt: ExpressionSelectOption | undefined, text: string) => {
-      if (!opt) return
-      const optionEl = document.createElement('option')
-      optionEl.value = opt.ark
-      optionEl.textContent = text
-      groupEl.appendChild(optionEl)
-    }
-
-    cluster.expressionGroups.forEach((group, index) => {
-      const optGroup = document.createElement('optgroup')
-      const anchorLabel = formatExpressionLabel(group.anchor)
-      const anchorGroupLabel = t('selectorGroups.anchor', { label: anchorLabel })
-      optGroup.label = anchorGroupLabel
-      const anchorOption = lookup.get(group.anchor.ark)
-      appendOption(optGroup, anchorOption, anchorGroupLabel)
-      for (const expr of group.clustered) {
-        const option = lookup.get(expr.ark)
-        const exprLabel = formatExpressionLabel(expr)
-        const clusteredLabel = t('selectorGroups.clustered', { label: exprLabel })
-        appendOption(optGroup, option, clusteredLabel)
-      }
-      if (!optGroup.children.length) return
-      select.appendChild(optGroup)
-      const hasRemainingExpressionGroups = cluster.expressionGroups
-        .slice(index + 1)
-        .some(next => {
-          if (next.anchor.ark && lookup.get(next.anchor.ark)) return true
-          return next.clustered.some(expr => lookup.get(expr.ark))
-        })
-      const shouldAppendSeparator = hasRemainingExpressionGroups || cluster.independentExpressions.length > 0
-      appendSeparator(shouldAppendSeparator)
-    })
-
-    if (cluster.independentExpressions.length) {
-      const optGroup = document.createElement('optgroup')
-      optGroup.label = t('labels.independentExpressions')
-      for (const expr of cluster.independentExpressions) {
-        const option = lookup.get(expr.ark)
-        const exprLabel = formatExpressionLabel(expr)
-        const independentOption = t('expressionSelector.independentOption', { label: exprLabel })
-        appendOption(optGroup, option, independentOption)
-      }
-      if (optGroup.children.length) select.appendChild(optGroup)
-    }
-
-    const initial = (currentArk && lookup.get(currentArk)) || options[0]
-    select.value = initial.ark
-    let currentValue = select.value
-    select.onchange = () => {
-      const opt = lookup.get(select.value)
-      if (!opt) {
-        select.value = currentValue
-        return
-      }
-      currentValue = opt.ark
-      onSelect(opt)
-    }
-  }
-  wrap.appendChild(label)
-  wrap.appendChild(select)
-  return wrap
-}
-
-function createManifestationSelector(
-  cluster: Cluster,
-  currentId: string | undefined,
-  labelText: string,
-  onSelect: (option: ManifestationSelectOption) => void,
-): HTMLElement {
-  const wrap = document.createElement('div')
-  wrap.className = 'selector-control'
-  const label = document.createElement('label')
-  label.textContent = labelText
-  const select = document.createElement('select')
-  select.classList.add('manifestation-selector')
-  const options = buildManifestationOptions(cluster)
-  if (!options.length) {
-    select.disabled = true
-  } else {
-    const lookup = new Map(options.map(o => [o.id, o]))
-    const byExpression = new Map<string, ManifestationSelectOption[]>(
-      options.map(opt => [opt.expressionArk, [] as ManifestationSelectOption[]]),
-    )
-    for (const opt of options) {
-      byExpression.get(opt.expressionArk)!.push(opt)
-    }
-
-    const sections: Array<{ expression: ExpressionItem; type: 'anchor' | 'clustered' | 'independent' }> = []
-    for (const group of cluster.expressionGroups) {
-      sections.push({ expression: group.anchor, type: 'anchor' })
-      for (const expr of group.clustered) {
-        sections.push({ expression: expr, type: 'clustered' })
-      }
-    }
-    for (const expr of cluster.independentExpressions) {
-      sections.push({ expression: expr, type: 'independent' })
-    }
-
-    let separatorCount = 0
-    const appendSeparator = (shouldAppend: boolean) => {
-      if (!shouldAppend) return
-      const sep = document.createElement('option')
-      sep.disabled = true
-      sep.className = 'selector-separator'
-      sep.value = `__sep__${separatorCount++}`
-      sep.textContent = '────────────'
-      select.appendChild(sep)
-    }
-
-    const indent = String.fromCharCode(160).repeat(3)
-
-    sections.forEach((section, index) => {
-      const manifOptions = byExpression.get(section.expression.ark) || []
-      if (!manifOptions.length) return
-      const optGroup = document.createElement('optgroup')
-      const baseLabel = formatExpressionLabel(section.expression)
-      const groupKey =
-        section.type === 'anchor'
-          ? 'selectorGroups.anchor'
-          : section.type === 'clustered'
-            ? 'selectorGroups.clustered'
-            : 'selectorGroups.independent'
-      optGroup.label = t(groupKey, { label: baseLabel })
-      for (const opt of manifOptions) {
-        const optionEl = document.createElement('option')
-        optionEl.value = opt.id
-        optionEl.textContent = `${indent}${opt.label}`
-        optGroup.appendChild(optionEl)
-      }
-      select.appendChild(optGroup)
-      const remainingSections = sections.slice(index + 1).some(next => {
-        const opts = byExpression.get(next.expression.ark)
-        return opts && opts.length
-      })
-      appendSeparator(remainingSections)
-    })
-
-    const initial = (currentId && lookup.get(currentId)) || options[0]
-    select.value = initial.id
-    let currentValue = select.value
-    select.onchange = () => {
-      const opt = lookup.get(select.value)
-      if (!opt) {
-        select.value = currentValue
-        return
-      }
-      currentValue = opt.id
-      onSelect(opt)
-    }
-  }
-  wrap.appendChild(label)
-  wrap.appendChild(select)
-  return wrap
-}
-
-type WorkSelectOption = {
-  ark: string
-  id?: string
-  label: string
-  isAnchor: boolean
-}
-
-function createWorkSelector(
-  cluster: Cluster,
-  currentArk: string | undefined,
-  labelText: string,
-  onSelect: (option: WorkSelectOption) => void,
-): HTMLElement {
-  const wrap = document.createElement('div')
-  wrap.className = 'selector-control'
-  const label = document.createElement('label')
-  label.textContent = labelText
-  wrap.appendChild(label)
-  const select = document.createElement('select')
-  select.classList.add('work-selector')
-
-  const options: WorkSelectOption[] = []
-  options.push({
-    ark: cluster.anchorArk,
-    id: cluster.anchorId,
-    label: cluster.anchorTitle || cluster.anchorId,
-    isAnchor: true,
-  })
-  for (const item of cluster.items) {
-    if (!item.ark) continue
-    options.push({
-      ark: item.ark,
-      id: item.id,
-      label: item.title || item.id || item.ark,
-      isAnchor: false,
-    })
-  }
-
-  const lookup = new Map(options.map(opt => [opt.ark, opt]))
-
-  for (const opt of options) {
-    const optionEl = document.createElement('option')
-    optionEl.value = opt.ark
-    const optionText = opt.isAnchor
-      ? t('workSelector.anchorOption', { label: opt.label })
-      : t('workSelector.clusteredOption', { label: opt.label })
-    optionEl.textContent = optionText
-    select.appendChild(optionEl)
-  }
-
-  const initial = (currentArk && lookup.get(currentArk)) || options[0]
-  select.value = initial.ark
-  let currentValue = select.value
-  select.onchange = () => {
-    const opt = lookup.get(select.value)
-    if (!opt) {
-      select.value = currentValue
-      return
-    }
-    currentValue = opt.ark
-    onSelect(opt)
-  }
-
-  wrap.appendChild(select)
-  return wrap
-}
-
-type DiffKey = `${string}#${number}|${string}`
-
-function collectSubfieldMap(intermarc: Intermarc): Map<DiffKey, string[]> {
-  const map = new Map<DiffKey, string[]>()
-  intermarc.zones.forEach((zone, index) => {
-    const zoneKey = `${zone.code}#${index}` as const
-    for (const sub of zone.sousZones) {
-      const key = `${zoneKey}|${sub.code}` as DiffKey
-      if (!map.has(key)) map.set(key, [])
-      map.get(key)!.push(sub.valeur)
-    }
-  })
-  return map
-}
-
-function collectScriptSubfieldMap(intermarc: Intermarc | undefined): Map<DiffKey, string[]> {
-  const map = new Map<DiffKey, string[]>()
-  if (!intermarc) return map
-  intermarc.zones.forEach((zone, index) => {
-    if (zone.code !== '90F') return
-    const hasScript = zone.sousZones.some(
-      sz => sz.code === '90F$q' && (sz.valeur || '').trim().toLowerCase() === 'clusterisation script',
-    )
-    if (!hasScript) return
-    const zoneKey = `${zone.code}#${index}` as const
-    for (const sub of zone.sousZones) {
-      const key = `${zoneKey}|${sub.code}` as DiffKey
-      if (!map.has(key)) map.set(key, [])
-      map.get(key)!.push(sub.valeur || '')
-    }
-  })
-  return map
-}
-
-function parseZoneKey(key: DiffKey): string {
-  return key.split('|', 1)[0]
-}
-
-function computeDiffKeys(current: Intermarc, reference: Intermarc | undefined): Set<DiffKey> {
-  const changed = new Set<DiffKey>()
-  if (!reference) return changed
-  const currentMap = collectSubfieldMap(current)
-  const referenceMap = collectSubfieldMap(reference)
-  const scriptCurrent = collectScriptSubfieldMap(current)
-  const scriptReference = collectScriptSubfieldMap(reference)
-  const keys = new Set<DiffKey>([...currentMap.keys(), ...referenceMap.keys()] as DiffKey[])
-  for (const key of keys) {
-    const currentVals = [...(currentMap.get(key) || [])].sort()
-    const referenceVals = [...(referenceMap.get(key) || [])].sort()
-    const shouldHighlight = () => {
-      if (!key.startsWith('90F#')) return true
-      const scriptCurr = [...(scriptCurrent.get(key) || [])].sort()
-      const scriptRef = [...(scriptReference.get(key) || [])].sort()
-      if (scriptCurr.length !== scriptRef.length) return true
-      for (let i = 0; i < scriptCurr.length; i++) {
-        if (scriptCurr[i] !== scriptRef[i]) return true
-      }
-      return false
-    }
-    if (currentVals.length !== referenceVals.length) {
-      if (shouldHighlight()) changed.add(key)
-      continue
-    }
-    for (let i = 0; i < currentVals.length; i++) {
-      if (currentVals[i] !== referenceVals[i]) {
-        if (shouldHighlight()) changed.add(key)
-        break
-      }
-    }
-  }
-  return changed
-}
-
-function renderIntermarcWithDiff(
-  pre: HTMLElement,
-  text: string,
-  originalDiffKeys: Set<DiffKey>,
-  sessionDiffKeys: Set<DiffKey>,
-) {
-  pre.innerHTML = ''
-  const originalZoneKeys = new Set([...originalDiffKeys].map(parseZoneKey))
-  const sessionZoneKeys = new Set([...sessionDiffKeys].map(parseZoneKey))
-  const zoneCounters = new Map<string, number>()
-  const lines = text.split('\n')
-  lines.forEach((line, idx) => {
-    const lineSpan = document.createElement('span')
-    lineSpan.className = 'intermarc-line'
-    const trimmed = line.trim()
-    if (!trimmed) {
-      pre.appendChild(lineSpan)
-      if (idx < lines.length - 1) pre.appendChild(document.createTextNode('\n'))
-      return
-    }
-
-    const match = trimmed.match(/^(\S+)(.*)$/)
-    if (!match) {
-      lineSpan.textContent = trimmed
-      pre.appendChild(lineSpan)
-      if (idx < lines.length - 1) pre.appendChild(document.createTextNode('\n'))
-      return
-    }
-
-    const zoneCode = match[1]
-    const remainder = match[2].trim()
-    const occurrence = zoneCounters.get(zoneCode) || 0
-    const zoneKey = `${zoneCode}#${occurrence}` as const
-    zoneCounters.set(zoneCode, occurrence + 1)
-
-    const zoneSpan = document.createElement('span')
-    zoneSpan.className = 'intermarc-zone'
-    zoneSpan.textContent = zoneCode
-    if (originalZoneKeys.has(zoneKey)) zoneSpan.classList.add('diff-original')
-    if (sessionZoneKeys.has(zoneKey)) zoneSpan.classList.add('diff-session')
-    lineSpan.appendChild(zoneSpan)
-
-    if (remainder) {
-      const tokens = remainder.split(' $')
-      tokens.forEach((token, index) => {
-        const cleaned = token.trim()
-        if (!cleaned) return
-        const part = index === 0 ? cleaned : `$${cleaned}`
-        const subSpan = document.createElement('span')
-        subSpan.className = 'intermarc-subfield'
-        const codeMatch = part.match(/^\$([^=\s]+)/)
-        if (codeMatch) {
-          const fullCode = `${zoneCode}$${codeMatch[1]}`
-          const diffKey = `${zoneKey}|${fullCode}` as DiffKey
-          if (originalDiffKeys.has(diffKey)) subSpan.classList.add('diff-original')
-          if (sessionDiffKeys.has(diffKey)) subSpan.classList.add('diff-session')
-        }
-        const eqIndex = part.indexOf(' ')
-        const codeSegment = (eqIndex >= 0 ? part.slice(0, eqIndex) : part).trim()
-        const codeSpan = document.createElement('span')
-        codeSpan.className = 'intermarc-subfield-code'
-        codeSpan.textContent = ` ${codeSegment}`
-        subSpan.appendChild(codeSpan)
-        if (eqIndex >= 0) {
-          const valueText = part.slice(eqIndex + 1).trim()
-          const suffix = valueText ? ` ${valueText}` : ' '
-          subSpan.appendChild(document.createTextNode(suffix))
-        }
-        lineSpan.appendChild(subSpan)
-      })
-    }
-
-    pre.appendChild(lineSpan)
-    if (idx < lines.length - 1) pre.appendChild(document.createTextNode('\n'))
-  })
-}
-
-function buildWorkDetailBanner(cluster: Cluster, context: SelectedEntity): HTMLElement {
-  const banner = document.createElement('div')
-  banner.className = 'details-banner work-banner'
-  const label = document.createElement('div')
-  label.className = 'banner-label entity-label detail-entity-label'
-
-  const isAnchor = context.isAnchor || !context.workArk || context.workArk === cluster.anchorArk
-  const currentWork = context.workArk === cluster.anchorArk
-    ? { title: cluster.anchorTitle || cluster.anchorId, id: cluster.anchorId, ark: cluster.anchorArk }
-    : cluster.items.find(i => i.ark === context.workArk) || null
-  const workTitle = currentWork?.title || context.id || cluster.anchorTitle || cluster.anchorId
-  const workId = currentWork?.id || context.id || cluster.anchorId
-
-  label.appendChild(createEntityPill('work', workId || '', context.workArk || cluster.anchorArk))
-  setTooltip(label, workTitle)
-
-  if (isAnchor) {
-    const subtitle = document.createElement('span')
-    subtitle.className = 'entity-subtitle'
-    subtitle.textContent = '⚓︎'
-    label.appendChild(subtitle)
-  } else {
-    const clusterText = document.createElement('span')
-    clusterText.className = 'entity-subtitle cluster-link'
-    clusterText.textContent = '∈'
-    label.appendChild(clusterText)
-    label.appendChild(createEntityPill('work', cluster.anchorId, cluster.anchorArk))
-    banner.classList.add('clustered')
-  }
-  banner.appendChild(label)
-
-  const selector = createWorkSelector(cluster, context.workArk || cluster.anchorArk, t('selectors.navigateWorks'), opt => {
-    const { record, source } = findWorkRecord(cluster, opt.ark)
-    if (!record) return
-    viewMode = 'works'
-    highlightedWorkArk = opt.ark
-    showRecordDetails(record.id, source === 'curated', {
-      entityType: 'work',
-      clusterAnchorId: cluster.anchorId,
-      isAnchor: opt.isAnchor,
-      workArk: opt.ark,
-    })
-  })
-  banner.appendChild(selector)
-  return banner
-}
-
-function buildExpressionDetailBanner(cluster: Cluster, context: SelectedEntity): HTMLElement | null {
-  if (context.entityType !== 'expression' && context.entityType !== 'manifestation') return null
-  const banner = document.createElement('div')
-  banner.className = 'details-banner expression-banner'
-  const label = document.createElement('div')
-  label.className = 'banner-label entity-label detail-entity-label'
-  const options = buildExpressionOptions(cluster)
-  const current = options.find(o => o.ark === context.expressionArk) || options.find(o => o.id === context.expressionId)
-  const expressionData = findExpressionInCluster(cluster, context.expressionId, context.expressionArk)
-  const expressionIdentifier = context.expressionId || expressionData?.id || context.expressionArk || '?'
-  const isAnchor = context.isAnchor ?? current?.isAnchor ?? false
-
-  label.appendChild(createEntityPill('expression', expressionIdentifier, expressionData?.ark))
-
-  if (isAnchor) {
-    const subtitle = document.createElement('span')
-    subtitle.className = 'entity-subtitle'
-    subtitle.textContent = '⚓︎'
-    label.appendChild(subtitle)
-  } else {
-    const anchorExpression = findAnchorExpressionFor(cluster, expressionData)
-    if (anchorExpression) {
-      const clusterText = document.createElement('span')
-      clusterText.className = 'entity-subtitle cluster-link'
-      clusterText.textContent = '∈'
-      label.appendChild(clusterText)
-      label.appendChild(createEntityPill('expression', anchorExpression.id, anchorExpression.ark))
-    }
-    banner.classList.add('clustered')
-  }
-
-  banner.appendChild(label)
-
-  if (options.length) {
-    const initialArk = current?.ark || context.expressionArk || highlightedExpressionArk || options[0].ark
-    const selector = createExpressionSelector(cluster, initialArk, t('selectors.navigateExpressions'), opt => {
-      activeExpressionAnchorId = opt.anchorExpressionId
-      highlightedExpressionArk = opt.ark
-      if (opt.workArk) highlightedWorkArk = opt.workArk
-      showRecordDetails(opt.id, true, {
-        entityType: 'expression',
-        clusterAnchorId: cluster.anchorId,
-        isAnchor: opt.isAnchor,
-        workArk: opt.workArk,
-        expressionId: opt.id,
-        expressionArk: opt.ark,
-      })
-    })
-    banner.appendChild(selector)
-  }
-  return banner
-}
-
-function buildManifestationDetailBanner(cluster: Cluster, context: SelectedEntity): HTMLElement | null {
-  if (context.entityType !== 'manifestation') return null
-  const banner = document.createElement('div')
-  banner.className = 'details-banner manifestation-banner'
-  const label = document.createElement('div')
-  label.className = 'banner-label entity-label detail-entity-label'
-  const expressionOptionList = buildExpressionOptions(cluster)
-  const manifests = buildManifestationOptions(cluster)
-  const current = manifests.find(m => m.id === context.id)
-  const manifestationData = findManifestationInCluster(cluster, context.id)
-  const expressionData = findExpressionInCluster(cluster, context.expressionId, context.expressionArk)
-  const anchorExpression = findAnchorExpressionFor(cluster, expressionData)
-  const manifestationTitle =
-    manifestationData?.title ||
-    current?.label ||
-    (context.id ? t('entity.manifestation', { id: context.id }) : '')
-
-  const titleSpan = document.createElement('span')
-  titleSpan.className = 'entity-title'
-  titleSpan.textContent = manifestationTitle
-  label.appendChild(titleSpan)
-  if (context.id) label.appendChild(createEntityPill('manifestation', context.id, manifestationData?.ark))
-
-  if (expressionData?.id) {
-    if (anchorExpression) {
-      const clusterText = document.createElement('span')
-      clusterText.className = 'entity-subtitle cluster-link'
-      clusterText.textContent = '<'
-      label.appendChild(clusterText)
-      label.appendChild(createEntityPill('expression', expressionData.id, expressionData.ark))
-    } else {
-      const subtitle = document.createElement('span')
-      subtitle.className = 'entity-subtitle'
-      subtitle.textContent = t('labels.independentExpressionManifestation')
-      label.appendChild(subtitle)
-    }
-  }
-
-  banner.classList.toggle('clustered', !!anchorExpression && anchorExpression.id !== expressionData?.id)
-  banner.appendChild(label)
-  const currentId = context.entityType === 'manifestation' ? context.id : current?.id
-  if (manifests.length) {
-    const selector = createManifestationSelector(cluster, currentId, t('selectors.navigateManifestations'), opt => {
-      const expression = expressionOptionList.find(o => o.ark === opt.expressionArk)
-      activeWorkAnchorId = cluster.anchorId
-      activeExpressionAnchorId = expression?.anchorExpressionId || null
-      highlightedExpressionArk = opt.expressionArk
-      highlightedWorkArk = opt.workArk ?? null
-      showRecordDetails(opt.id, true, {
-        entityType: 'manifestation',
-        clusterAnchorId: cluster.anchorId,
-        isAnchor: expression?.isAnchor,
-        workArk: expression?.workArk,
-        expressionId: opt.expressionId,
-        expressionArk: opt.expressionArk,
-      })
-    })
-    banner.appendChild(selector)
-  }
-  return banner
 }
 
 async function handleFilesChanged() {
@@ -5248,7 +4459,6 @@ async function handleFilesChanged() {
 
 async function loadDefaultData() {
   try {
-    // Try curated first
     const curResp = await fetch(`/data/${DEFAULT_CURATED_NAME}`)
     if (curResp.ok) {
       const text = await curResp.text()
@@ -5259,7 +4469,6 @@ async function loadDefaultData() {
     }
   } catch {}
   try {
-    // Try original via candidates
     for (const name of DEFAULT_ORIGINAL_CANDIDATES) {
       try {
         const resp = await fetch(`/data/${name}`)
@@ -5306,8 +4515,16 @@ async function loadDefaultData() {
 function processDroppedFiles(files: FileList | File[]) {
   const list = Array.from(files)
   const curatedFile = list.find(f => f.name.toLowerCase() === DEFAULT_CURATED_NAME)
-  const originalFile = list.find(f => f.name.toLowerCase() !== DEFAULT_CURATED_NAME && f.name.toLowerCase().endsWith('.csv'))
-  const read = (f: File) => new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = () => reject(r.error); r.readAsText(f, 'utf-8') })
+  const originalFile = list.find(
+    f => f.name.toLowerCase() !== DEFAULT_CURATED_NAME && f.name.toLowerCase().endsWith('.csv'),
+  )
+  const read = (f: File) =>
+    new Promise<string>((resolve, reject) => {
+      const r = new FileReader()
+      r.onload = () => resolve(String(r.result))
+      r.onerror = () => reject(r.error)
+      r.readAsText(f, 'utf-8')
+    })
   Promise.resolve()
     .then(async () => {
       if (originalFile) {
@@ -5377,7 +4594,7 @@ function openEditorForRecord(rec: RecordRow) {
   const startDoc = JSON.stringify(rec.intermarc, null, 2)
   const state = EditorState.create({
     doc: startDoc,
-    extensions: [keymap.of(defaultKeymap), json(), EditorView.lineWrapping]
+    extensions: [keymap.of(defaultKeymap), json(), EditorView.lineWrapping],
   })
   editorView = new EditorView({ state, parent: editorWrap })
   const actions = document.createElement('div')
@@ -5390,7 +4607,6 @@ function openEditorForRecord(rec: RecordRow) {
       if (!parsed || !Array.isArray(parsed.zones)) throw new Error('Invalid Intermarc: missing zones[]')
       rec.intermarc = parsed
       rec.intermarcStr = JSON.stringify(parsed)
-      // Also reflect back into curatedCsv rows
       if (curatedCsv) {
         const headers = curatedCsv.headers
         const idIdx = headers.findIndex(h => h.replace(/\"/g, '').replace(/"/g, '') === 'id_entitelrm')
@@ -5398,15 +4614,14 @@ function openEditorForRecord(rec: RecordRow) {
         const row = curatedCsv.rows.find(r => r[idIdx] === rec.id)
         if (row) row[intIdx] = rec.intermarcStr
       }
-      // Re-render details and potentially clusters (title may change)
       renderDetailsPanel()
       const arkIdx = buildArkIndex(originalRecords)
       clusters = detectClusters(curatedRecords, arkIdx)
       rebuildClusterCoverage()
       rebuildInventoryRows()
       renderCurrentView()
-    } catch (e: any) {
-      const errorText = typeof e === 'string' ? e : e?.message || String(e)
+    } catch (e: unknown) {
+      const errorText = typeof e === 'string' ? e : (e as { message?: string })?.message || String(e)
       alert(t('messages.saveFailed', { error: errorText }))
     }
   }
@@ -5416,8 +4631,8 @@ function openEditorForRecord(rec: RecordRow) {
 }
 
 function titleOf(rec: RecordRow): string | undefined {
-  const z = rec.intermarc.zones.find(z => z.code === '150')
-  return z?.sousZones.find(sz => sz.code === '150$a')?.valeur
+  const zone = rec.intermarc.zones.find(z => z.code === '150')
+  return zone?.sousZones.find(sz => sz.code === '150$a')?.valeur
 }
 
 const AGENT_ZONE_CODES = new Set(['700', '701', '702', '710', '711', '712'])
@@ -5602,6 +4817,194 @@ function collectManifestationsForExpression(expressionArk: string): Manifestatio
     })
   }
   return items
+}
+
+function findExpressionInCluster(
+  cluster: Cluster,
+  expressionId?: string | null,
+  expressionArk?: string | null,
+): ExpressionItem | ExpressionClusterItem | undefined {
+  if (!expressionId && !expressionArk) return undefined
+  for (const group of cluster.expressionGroups) {
+    if (expressionId && group.anchor.id === expressionId) return group.anchor
+    if (expressionArk && group.anchor.ark === expressionArk) return group.anchor
+    for (const expr of group.clustered) {
+      if (expressionId && expr.id === expressionId) return expr
+      if (expressionArk && expr.ark === expressionArk) return expr
+    }
+  }
+  for (const expr of cluster.independentExpressions) {
+    if (expressionId && expr.id === expressionId) return expr
+    if (expressionArk && expr.ark === expressionArk) return expr
+  }
+  return undefined
+}
+
+function findPrimaryExpressionForWork(
+  cluster: Cluster,
+  workArk: string | undefined,
+): ExpressionItem | ExpressionClusterItem | undefined {
+  if (!workArk) return undefined
+  const groups = cluster.expressionGroups
+  if (workArk === cluster.anchorArk) {
+    if (groups.length) return groups[0].anchor
+  }
+  for (const group of groups) {
+    if (group.anchor.workArk === workArk) return group.anchor
+    const clusteredMatch = group.clustered.find(expr => expr.workArk === workArk)
+    if (clusteredMatch) return clusteredMatch
+  }
+  return cluster.independentExpressions.find(expr => expr.workArk === workArk)
+}
+
+type DiffKey = `${string}#${number}|${string}`
+
+function collectSubfieldMap(intermarc: Intermarc): Map<DiffKey, string[]> {
+  const map = new Map<DiffKey, string[]>()
+  intermarc.zones.forEach((zone, index) => {
+    const zoneKey = `${zone.code}#${index}` as const
+    for (const sub of zone.sousZones) {
+      const key = `${zoneKey}|${sub.code}` as DiffKey
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(sub.valeur)
+    }
+  })
+  return map
+}
+
+function collectScriptSubfieldMap(intermarc: Intermarc | undefined): Map<DiffKey, string[]> {
+  const map = new Map<DiffKey, string[]>()
+  if (!intermarc) return map
+  intermarc.zones.forEach((zone, index) => {
+    if (zone.code !== '90F') return
+    const hasScript = zone.sousZones.some(
+      sz => sz.code === '90F$q' && (sz.valeur || '').trim().toLowerCase() === 'clusterisation script',
+    )
+    if (!hasScript) return
+    const zoneKey = `${zone.code}#${index}` as const
+    for (const sub of zone.sousZones) {
+      const key = `${zoneKey}|${sub.code}` as DiffKey
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(sub.valeur || '')
+    }
+  })
+  return map
+}
+
+function parseZoneKey(key: DiffKey): string {
+  return key.split('|', 1)[0]
+}
+
+function computeDiffKeys(current: Intermarc, reference: Intermarc | undefined): Set<DiffKey> {
+  const changed = new Set<DiffKey>()
+  if (!reference) return changed
+  const currentMap = collectSubfieldMap(current)
+  const referenceMap = collectSubfieldMap(reference)
+  const scriptCurrent = collectScriptSubfieldMap(current)
+  const scriptReference = collectScriptSubfieldMap(reference)
+  const keys = new Set<DiffKey>([...currentMap.keys(), ...referenceMap.keys()] as DiffKey[])
+  for (const key of keys) {
+    const currentVals = [...(currentMap.get(key) || [])].sort()
+    const referenceVals = [...(referenceMap.get(key) || [])].sort()
+    const shouldHighlight = () => {
+      if (!key.startsWith('90F#')) return true
+      const scriptCurr = [...(scriptCurrent.get(key) || [])].sort()
+      const scriptRef = [...(scriptReference.get(key) || [])].sort()
+      if (scriptCurr.length !== scriptRef.length) return true
+      for (let i = 0; i < scriptCurr.length; i++) {
+        if (scriptCurr[i] !== scriptRef[i]) return true
+      }
+      return false
+    }
+    if (currentVals.length !== referenceVals.length) {
+      if (shouldHighlight()) changed.add(key)
+      continue
+    }
+    for (let i = 0; i < currentVals.length; i++) {
+      if (currentVals[i] !== referenceVals[i]) {
+        if (shouldHighlight()) changed.add(key)
+        break
+      }
+    }
+  }
+  return changed
+}
+
+function renderIntermarcWithDiff(
+  pre: HTMLElement,
+  text: string,
+  originalDiffKeys: Set<DiffKey>,
+  sessionDiffKeys: Set<DiffKey>,
+) {
+  pre.innerHTML = ''
+  const originalZoneKeys = new Set([...originalDiffKeys].map(parseZoneKey))
+  const sessionZoneKeys = new Set([...sessionDiffKeys].map(parseZoneKey))
+  const zoneCounters = new Map<string, number>()
+  const lines = text.split('\n')
+  lines.forEach((line, idx) => {
+    const lineSpan = document.createElement('span')
+    lineSpan.className = 'intermarc-line'
+    const trimmed = line.trim()
+    if (!trimmed) {
+      pre.appendChild(lineSpan)
+      if (idx < lines.length - 1) pre.appendChild(document.createTextNode('\n'))
+      return
+    }
+
+    const match = trimmed.match(/^(\S+)(.*)$/)
+    if (!match) {
+      lineSpan.textContent = trimmed
+      pre.appendChild(lineSpan)
+      if (idx < lines.length - 1) pre.appendChild(document.createTextNode('\n'))
+      return
+    }
+
+    const zoneCode = match[1]
+    const remainder = match[2].trim()
+    const occurrence = zoneCounters.get(zoneCode) || 0
+    const zoneKey = `${zoneCode}#${occurrence}` as const
+    zoneCounters.set(zoneCode, occurrence + 1)
+
+    const zoneSpan = document.createElement('span')
+    zoneSpan.className = 'intermarc-zone'
+    zoneSpan.textContent = zoneCode
+    if (originalZoneKeys.has(zoneKey)) zoneSpan.classList.add('diff-original')
+    if (sessionZoneKeys.has(zoneKey)) zoneSpan.classList.add('diff-session')
+    lineSpan.appendChild(zoneSpan)
+
+    if (remainder) {
+      const tokens = remainder.split(' $')
+      tokens.forEach((token, index) => {
+        const cleaned = token.trim()
+        if (!cleaned) return
+        const part = index === 0 ? cleaned : `$${cleaned}`
+        const subSpan = document.createElement('span')
+        subSpan.className = 'intermarc-subfield'
+        const codeMatch = part.match(/^\$([^=\s]+)/)
+        if (codeMatch) {
+          const fullCode = `${zoneCode}$${codeMatch[1]}`
+          const diffKey = `${zoneKey}|${fullCode}` as DiffKey
+          if (originalDiffKeys.has(diffKey)) subSpan.classList.add('diff-original')
+          if (sessionDiffKeys.has(diffKey)) subSpan.classList.add('diff-session')
+        }
+        const eqIndex = part.indexOf(' ')
+        const codeSegment = (eqIndex >= 0 ? part.slice(0, eqIndex) : part).trim()
+        const codeSpan = document.createElement('span')
+        codeSpan.className = 'intermarc-subfield-code'
+        codeSpan.textContent = ` ${codeSegment}`
+        subSpan.appendChild(codeSpan)
+        if (eqIndex >= 0) {
+          const valueText = part.slice(eqIndex + 1).trim()
+          const suffix = valueText ? ` ${valueText}` : ' '
+          subSpan.appendChild(document.createTextNode(suffix))
+        }
+        lineSpan.appendChild(subSpan)
+      })
+    }
+
+    pre.appendChild(lineSpan)
+    if (idx < lines.length - 1) pre.appendChild(document.createTextNode('\n'))
+  })
 }
 
 function updateManifestationParent(

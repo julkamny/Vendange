@@ -20,3 +20,5 @@
 	- `$3` subfield in fields 700, 701, 702, as well as 710, 711, 712.
 
 ## Incremental agent knowledge
+- Graph visualisation features (forest/cluster graphs) were removed; there is no `ForceGraph` UI anymore and related translations/classes should stay absent.
+- `section#details` now renders only the intermarc/pre content plus editor controls for anchor works; the old detail banners/selectors were removed.

@@ -19,7 +19,6 @@
     "@codemirror/state": "^6.4.1",
     "@codemirror/view": "^6.33.0",
     "@tanstack/virtual-core": "^3.13.12",
-    "force-graph": "^1.51.0",
     "i18next": "^25.5.2"
   }
 }

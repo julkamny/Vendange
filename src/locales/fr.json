@@ -1,7 +1,6 @@
 {
   "toolbar": {
     "loadCsv": "Charger des CSV",
-    "viewForest": "Voir la forêt",
     "darkMode": "Mode sombre",
     "shortcuts": "Raccourcis",
     "export": "Exporter le CSV curé"
@@ -84,7 +83,6 @@
     "add": "Ajouter",
     "viewWorks": "Voir les œuvres",
     "viewExpressions": "Voir les expressions",
-    "graph3d": "Cluster 3D",
     "modifyRecord": "Modifier la notice",
     "save": "Enregistrer"
   },
@@ -105,9 +103,6 @@
     "workUnchecked": "Œuvre non validée"
   },
   "notifications": {
-    "graphPopup": "Impossible d'ouvrir la fenêtre du graphe. Vérifiez vos réglages de pop-up.",
-    "needBothCsv": "Chargez les CSV original et curé pour ouvrir la forêt.",
-    "needCuratedCsv": "Chargez le CSV curé pour voir le graphe du cluster.",
     "expressionMoved": "Expression déplacée vers un nouvel ancrage",
     "workAdded": "Œuvre ajoutée au cluster",
     "noExpressions": "Aucune expression liée à cette œuvre",
@@ -182,13 +177,6 @@
     "expressions_other": "{{count}} expressions",
     "manifestations_one": "{{count}} manifestation",
     "manifestations_other": "{{count}} manifestations"
-  },
-  "graph": {
-    "forestDocumentTitle": "Graphe de la forêt Vendange",
-    "forestTitle": "Forêt • {{dataset}}",
-    "documentTitle": "Graphe Vendange • {{suffix}}",
-    "clusterTitle": "Cluster • {{label}}",
-    "clusterLabel": "Cluster : {{label}}"
   },
   "expressionOption": {
     "anchor": "Expression ancre {{id}}",

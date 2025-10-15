@@ -422,11 +422,6 @@ button:focus-visible {
 .cluster-item.unchecked {
   opacity: 0.6;
 }
-.cluster-graph-btn {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-}
 .cluster-add {
   display: flex;
   gap: 0.5rem;

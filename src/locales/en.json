@@ -1,7 +1,6 @@
 {
   "toolbar": {
     "loadCsv": "Load CSVs",
-    "viewForest": "View Forest",
     "darkMode": "Dark mode",
     "shortcuts": "Shortcuts",
     "export": "Export curated CSV"
@@ -84,7 +83,6 @@
     "add": "Add",
     "viewWorks": "View works",
     "viewExpressions": "View expressions",
-    "graph3d": "3D Cluster",
     "modifyRecord": "Modify record",
     "save": "Save"
   },
@@ -105,9 +103,6 @@
     "workUnchecked": "Work unchecked"
   },
   "notifications": {
-    "graphPopup": "Unable to open graph window. Check your popup settings.",
-    "needBothCsv": "Load both original and curated CSVs to open the forest graph.",
-    "needCuratedCsv": "Load curated CSV to view the cluster graph.",
     "expressionMoved": "Expression moved to new anchor",
     "workAdded": "Work added to cluster",
     "noExpressions": "No expressions linked to this work",
@@ -182,13 +177,6 @@
     "expressions_other": "{{count}} expressions",
     "manifestations_one": "{{count}} manifestation",
     "manifestations_other": "{{count}} manifestations"
-  },
-  "graph": {
-    "forestDocumentTitle": "Vendange Forest Graph",
-    "forestTitle": "Forest • {{dataset}}",
-    "documentTitle": "Vendange Graph • {{suffix}}",
-    "clusterTitle": "Cluster • {{label}}",
-    "clusterLabel": "Cluster: {{label}}"
   },
   "expressionOption": {
     "anchor": "Anchor expression {{id}}",

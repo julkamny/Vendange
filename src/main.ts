@@ -6,7 +6,6 @@ import { EditorState } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { defaultKeymap } from '@codemirror/commands'
 import { json } from '@codemirror/lang-json'
-import ForceGraph from 'force-graph'
 import {
   type VirtualizerOptions,
   type VirtualItem,
@@ -127,7 +126,6 @@ app.innerHTML = `
     <header class="toolbar toolbar-collapsed" id="appToolbar" data-collapsed="true">
       <div class="toolbar-left">
         <button id="uploadBtn" type="button">${t('toolbar.loadCsv')}</button>
-        <button id="forestGraphBtn" type="button">${t('toolbar.viewForest')}</button>
         <button id="themeToggleBtn" type="button" aria-pressed="false">${t('toolbar.darkMode')}</button>
         <button id="shortcutBtn" type="button">${t('toolbar.shortcuts')}</button>
       </div>
@@ -186,7 +184,6 @@ app.appendChild(toastHost)
 const toolbarToggleBtn = document.getElementById('toolbarToggle') as HTMLButtonElement
 const toolbarEl = document.getElementById('appToolbar') as HTMLElement
 const uploadBtn = document.getElementById('uploadBtn') as HTMLButtonElement
-const forestGraphBtn = document.getElementById('forestGraphBtn') as HTMLButtonElement
 const themeToggleBtn = document.getElementById('themeToggleBtn') as HTMLButtonElement
 const shortcutBtn = document.getElementById('shortcutBtn') as HTMLButtonElement
 const uploadModal = document.getElementById('uploadModal') as HTMLDivElement
@@ -328,7 +325,6 @@ function populateLanguageSelect() {
 
 function applyStaticTranslations() {
   uploadBtn.textContent = t('toolbar.loadCsv')
-  forestGraphBtn.textContent = t('toolbar.viewForest')
   shortcutBtn.textContent = t('toolbar.shortcuts')
   exportBtn.textContent = t('toolbar.export')
   const dropHintBox = dropHint.querySelector('.box')
@@ -357,7 +353,6 @@ function applyStaticTranslations() {
 }
 
 uploadBtn.onclick = () => openUploadModal()
-forestGraphBtn.onclick = () => openForestGraphWindow()
 uploadCloseBtn.onclick = () => closeUploadModal()
 uploadDismissBtn.onclick = () => closeUploadModal()
 uploadClearBtn.onclick = () => {
@@ -773,86 +768,6 @@ function notify(message: string) {
   }, 2500)
 }
 
-type GraphEntityType = 'work' | 'expression' | 'manifestation' | 'person' | 'collective'
-
-type GraphNodeData = {
-  id: string
-  label: string
-  entityType: GraphEntityType
-  ark?: string
-  color: string
-  clusterAnchorId?: string
-  recordId?: string
-  dataset: 'original' | 'curated' | 'cluster'
-  x?: number
-  y?: number
-}
-
-type GraphLinkData = {
-  source: string | GraphNodeData
-  target: string | GraphNodeData
-  color: string
-}
-
-type GraphDataSet = { nodes: GraphNodeData[]; links: GraphLinkData[] }
-
-type GraphWindowState =
-  | {
-      mode: 'forest'
-      dataset: 'curated' | 'original'
-      data: { curated: GraphDataSet; original: GraphDataSet }
-    }
-  | {
-      mode: 'cluster'
-      dataset: 'cluster'
-      clusterId: string
-      clusterLabel: string
-      data: GraphDataSet
-    }
-
-let graphWindow: Window | null = null
-let graphInstance: any = null
-let graphState: GraphWindowState | null = null
-let graphNodeLookup = new Map<string, GraphNodeData>()
-let graphHighlightedNodeId: string | null = null
-let graphControlButtons: Record<string, HTMLButtonElement> = {}
-let graphNeighborMap = new Map<string, Set<string>>()
-let graphLinkKeysByNodeId = new Map<string, Set<string>>()
-let graphHoverNodeId: string | null = null
-let graphHoverNeighborIds = new Set<string>()
-let graphHoverLinkKeys = new Set<string>()
-let graphHighlightedNeighborIds = new Set<string>()
-let graphHighlightedLinkKeys = new Set<string>()
-let graphResizeObserver: ResizeObserver | null = null
-
-const GRAPH_COLORS: Record<GraphEntityType, string> = {
-  manifestation: 'rgb(149, 208, 88)',
-  expression: 'rgb(252, 152, 39)',
-  work: 'rgb(190, 7, 18)',
-  person: 'rgb(106, 179, 251)',
-  collective: 'rgb(71, 149, 193)',
-}
-
-function getGraphNodeId(node: string | GraphNodeData | undefined): string | undefined {
-  if (!node) return undefined
-  if (typeof node === 'string') return node
-  return node.id
-}
-
-function getGraphLinkKey(link: { source?: string | GraphNodeData; target?: string | GraphNodeData }): string | null {
-  const sourceId = getGraphNodeId(link.source)
-  const targetId = getGraphNodeId(link.target)
-  if (!sourceId || !targetId) return null
-  return `${sourceId}__${targetId}`
-}
-
-function isLinkEmphasized(key: string | null): boolean {
-  if (!key) return false
-  if (graphHoverLinkKeys.has(key)) return true
-  if (graphHighlightedLinkKeys.has(key)) return true
-  return false
-}
-
 function openUploadModal() {
   if (uploadModalOpen) return
   uploadModalOpen = true
@@ -876,529 +791,6 @@ function maybeCloseUploadModal() {
   if (uploadModalOpen && originalCsv && curatedCsv) {
     closeUploadModal()
   }
-}
-
-function closeGraphWindow() {
-  if (graphWindow && !graphWindow.closed) {
-    graphWindow.close()
-  }
-  graphWindow = null
-  graphInstance = null
-  graphNodeLookup = new Map()
-  graphHighlightedNodeId = null
-  graphState = null
-  graphControlButtons = {}
-  graphNeighborMap = new Map()
-  graphLinkKeysByNodeId = new Map()
-  graphHoverNodeId = null
-  graphHoverNeighborIds = new Set()
-  graphHoverLinkKeys = new Set()
-  graphHighlightedNeighborIds = new Set()
-  graphHighlightedLinkKeys = new Set()
-  if (graphResizeObserver) {
-    graphResizeObserver.disconnect()
-    graphResizeObserver = null
-  }
-}
-
-function initGraphWindow(title: string): { container: HTMLElement; toolbar: HTMLElement } | null {
-  closeGraphWindow()
-  graphWindow = window.open('', 'vendange-graph', 'width=1280,height=900')
-  if (!graphWindow) {
-  notify(t('notifications.graphPopup'))
-    return null
-  }
-  const doc = graphWindow.document
-  doc.open()
-  doc.write('<!DOCTYPE html><html><head></head><body></body></html>')
-  doc.close()
-  doc.title = title
-  doc.body.innerHTML = ''
-  doc.head.innerHTML = ''
-  const style = doc.createElement('style')
-  style.textContent = `
-    :root { color-scheme: dark; }
-    body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #05080f; color: #dfe7ff; display: flex; flex-direction: column; height: 100vh; }
-    .graph-toolbar { display: flex; gap: 0.5rem; align-items: center; padding: 0.75rem 1rem; border-bottom: 1px solid rgba(90,108,150,0.4); background: rgba(10,16,28,0.9); }
-    .graph-toolbar button { background: rgba(20,28,44,0.85); border: 1px solid rgba(90,108,150,0.6); color: #dfe7ff; border-radius: 6px; padding: 0.4rem 0.8rem; cursor: pointer; transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease; }
-    .graph-toolbar button:hover { border-color: #6aa4ff; background: rgba(30,44,70,0.9); }
-    .graph-toolbar button.active { border-color: #f4b76d; color: #f4b76d; }
-    .graph-toolbar .spacer { flex: 1; }
-    #graphContainer { flex: 1; min-height: 0; }
-  `
-  doc.head.appendChild(style)
-  const toolbar = doc.createElement('div')
-  toolbar.className = 'graph-toolbar'
-  doc.body.appendChild(toolbar)
-  const spacer = doc.createElement('div')
-  spacer.className = 'spacer'
-  toolbar.appendChild(spacer)
-  const container = doc.createElement('div')
-  container.id = 'graphContainer'
-  doc.body.appendChild(container)
-
-  graphWindow.addEventListener('beforeunload', () => {
-    graphWindow = null
-    graphInstance = null
-    graphState = null
-    graphNodeLookup = new Map()
-    graphHighlightedNodeId = null
-    graphControlButtons = {}
-    graphNeighborMap = new Map()
-    graphLinkKeysByNodeId = new Map()
-    graphHoverNodeId = null
-    graphHoverNeighborIds = new Set()
-    graphHoverLinkKeys = new Set()
-    graphHighlightedNeighborIds = new Set()
-    graphHighlightedLinkKeys = new Set()
-    if (graphResizeObserver) {
-      graphResizeObserver.disconnect()
-      graphResizeObserver = null
-    }
-  })
-
-  return { container, toolbar }
-}
-
-function resizeGraphToContainer(container: HTMLElement) {
-  if (!graphInstance) return
-  const width = container.clientWidth || container.offsetWidth
-  const height = container.clientHeight || container.offsetHeight
-  if (!width || !height) return
-  if (typeof graphInstance.width === 'function') graphInstance.width(width)
-  if (typeof graphInstance.height === 'function') graphInstance.height(height)
-}
-
-function fitGraphToViewport(delayMs = 150) {
-  if (!graphInstance) return
-  const applyFit = () => {
-    if (!graphInstance) return
-    if (typeof graphInstance.zoomToFit === 'function') {
-      graphInstance.zoomToFit(600, 80)
-    }
-  }
-  if (delayMs <= 0) applyFit()
-  else setTimeout(applyFit, delayMs)
-}
-
-function ensureGraphInstance(container: HTMLElement) {
-  if (graphInstance) return
-  const GraphCtor = ForceGraph as any
-
-  const nodeCanvasRenderer = (
-    node: GraphNodeData & { __bckgDimensions?: [number, number] },
-    ctx: CanvasRenderingContext2D,
-    globalScale: number,
-  ) => {
-    const label = node.label
-    if (!label) return
-    const fontSize = Math.max(14 / globalScale, 6)
-    const isSelected = graphHighlightedNodeId === node.id
-    const isSelectedNeighbor = graphHighlightedNeighborIds.has(node.id)
-    const isHovered = graphHoverNodeId === node.id
-    const isHoverNeighbor = graphHoverNeighborIds.has(node.id) && !isHovered
-    const emphasis = isSelected || isHovered
-    const secondary = isSelectedNeighbor || isHoverNeighbor
-    const fontWeight = emphasis || secondary ? '600' : '400'
-    ctx.save()
-    ctx.font = `${fontWeight} ${fontSize}px "Inter", "Segoe UI", sans-serif`
-    const textWidth = ctx.measureText(label).width
-    const paddingX = fontSize * 0.8
-    const paddingY = fontSize * 0.6
-    const width = textWidth + paddingX
-    const height = fontSize + paddingY
-    const x = node.x ?? 0
-    const y = node.y ?? 0
-    const left = x - width / 2
-    const top = y - height / 2
-
-    let background = 'rgba(6, 12, 22, 0.82)'
-    if (secondary) background = 'rgba(35, 55, 82, 0.36)'
-    if (emphasis) background = 'rgba(255, 255, 255, 0.94)'
-
-    ctx.fillStyle = background
-    ctx.fillRect(left, top, width, height)
-
-    if (emphasis || secondary) {
-      ctx.lineWidth = Math.max(1, emphasis ? 2.1 / globalScale : 1.4 / globalScale)
-      ctx.strokeStyle = emphasis ? node.color : 'rgba(180, 210, 255, 0.65)'
-      ctx.strokeRect(left, top, width, height)
-      if (emphasis) {
-        ctx.shadowColor = node.color
-        ctx.shadowBlur = Math.max(4, 10 / globalScale)
-        ctx.strokeRect(left, top, width, height)
-      }
-    }
-
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillStyle = emphasis ? '#05080f' : node.color
-    ctx.fillText(label, x, y)
-    ctx.restore()
-
-    node.__bckgDimensions = [width, height]
-  }
-
-  const nodePointerRenderer = (
-    node: GraphNodeData & { __bckgDimensions?: [number, number] },
-    color: string,
-    ctx: CanvasRenderingContext2D,
-  ) => {
-    const dims = node.__bckgDimensions
-    if (!dims) return
-    const x = node.x ?? 0
-    const y = node.y ?? 0
-    ctx.fillStyle = color
-    ctx.fillRect(x - dims[0] / 2, y - dims[1] / 2, dims[0], dims[1])
-  }
-
-  graphInstance = new GraphCtor(container)
-    .nodeId('id')
-    .nodeLabel('label')
-    .nodeCanvasObject(nodeCanvasRenderer)
-    .nodeCanvasObjectMode(() => 'replace')
-    .nodePointerAreaPaint(nodePointerRenderer)
-    .linkColor((link: GraphLinkData & { source?: string | GraphNodeData; target?: string | GraphNodeData }) => {
-      const base = link.color || 'rgba(170, 190, 220, 0.45)'
-      const key = getGraphLinkKey(link)
-      const isHover = key ? graphHoverLinkKeys.has(key) : false
-      const isSelected = key ? graphHighlightedLinkKeys.has(key) : false
-      if (!isLinkEmphasized(key)) return 'rgba(70, 90, 120, 0.18)'
-      if (isHover) return 'rgba(255, 255, 255, 0.95)'
-      if (isSelected) return 'rgba(210, 235, 255, 0.85)'
-      return base
-    })
-    .linkWidth((link: GraphLinkData & { source?: string | GraphNodeData; target?: string | GraphNodeData }) => {
-      const key = getGraphLinkKey(link)
-      if (!key) return 1
-      if (graphHoverLinkKeys.has(key)) return 2.8
-      if (graphHighlightedLinkKeys.has(key)) return 2.1
-      return 1.1
-    })
-    .linkDirectionalArrowLength((link: GraphLinkData & { source?: string | GraphNodeData; target?: string | GraphNodeData }) => {
-      const key = getGraphLinkKey(link)
-      if (!key) return 6
-      if (graphHoverLinkKeys.has(key)) return 11
-      if (graphHighlightedLinkKeys.has(key)) return 9
-      return 6
-    })
-    .linkDirectionalArrowRelPos(1)
-    .linkDirectionalArrowColor((link: GraphLinkData & { source?: string | GraphNodeData; target?: string | GraphNodeData }) => {
-      const base = link.color || 'rgba(170, 190, 220, 0.75)'
-      const key = getGraphLinkKey(link)
-      const isHover = key ? graphHoverLinkKeys.has(key) : false
-      const isSelected = key ? graphHighlightedLinkKeys.has(key) : false
-      if (!isLinkEmphasized(key)) return 'rgba(70, 90, 120, 0.18)'
-      if (isHover) return 'rgba(255, 255, 255, 0.95)'
-      if (isSelected) return 'rgba(210, 235, 255, 0.85)'
-      return base
-    })
-    .backgroundColor('#05080f')
-    .autoPauseRedraw(false)
-    .enableZoomInteraction(true)
-    .enablePanInteraction(true)
-    .enableNodeDrag(true)
-    .showPointerCursor(() => true)
-    .onNodeHover((node: GraphNodeData | null) => setGraphHoverNode(node))
-    .onNodeClick((node: GraphNodeData) => handleGraphNodeClick(node))
-
-  resizeGraphToContainer(container)
-  if (graphResizeObserver) graphResizeObserver.disconnect()
-  graphResizeObserver = new ResizeObserver(() => resizeGraphToContainer(container))
-  graphResizeObserver.observe(container)
-  graphWindow?.addEventListener('resize', () => resizeGraphToContainer(container))
-}
-
-function updateGraphHighlight() {
-  graphHighlightedNeighborIds = new Set()
-  graphHighlightedLinkKeys = new Set()
-  if (!graphInstance || !graphHighlightedNodeId) return
-  graphHighlightedNeighborIds.add(graphHighlightedNodeId)
-  const neighbors = graphNeighborMap.get(graphHighlightedNodeId)
-  if (neighbors) neighbors.forEach(id => graphHighlightedNeighborIds.add(id))
-  const linkKeys = graphLinkKeysByNodeId.get(graphHighlightedNodeId)
-  if (linkKeys) linkKeys.forEach(key => graphHighlightedLinkKeys.add(key))
-}
-
-function focusGraphNode(nodeId: string | null, animate = true) {
-  if (!graphInstance || !nodeId) return
-  const node = graphNodeLookup.get(nodeId)
-  if (!node) return
-  const x = node.x ?? 0
-  const y = node.y ?? 0
-  const duration = animate ? 800 : 0
-  if (typeof graphInstance.centerAt === 'function') {
-    graphInstance.centerAt(x, y, duration)
-  }
-  if (typeof graphInstance.zoom === 'function') {
-    const currentZoom = graphInstance.zoom()
-    const targetZoom = currentZoom < 1.6 ? 1.6 : currentZoom
-    graphInstance.zoom(targetZoom, duration)
-  }
-}
-
-function setGraphHoverNode(node: GraphNodeData | null) {
-  graphHoverNodeId = node?.id ?? null
-  graphHoverNeighborIds = new Set()
-  graphHoverLinkKeys = new Set()
-  if (!node) return
-  const neighbors = graphNeighborMap.get(node.id)
-  if (neighbors) neighbors.forEach(id => graphHoverNeighborIds.add(id))
-  graphHoverNeighborIds.add(node.id)
-  const linkKeys = graphLinkKeysByNodeId.get(node.id)
-  if (linkKeys) linkKeys.forEach(key => graphHoverLinkKeys.add(key))
-}
-
-function renderGraphData(data: GraphDataSet, titleSuffix: string) {
-  if (!graphWindow || graphWindow.closed) return
-  const container = graphWindow.document.getElementById('graphContainer') as HTMLElement | null
-  if (!container) return
-  ensureGraphInstance(container)
-  resizeGraphToContainer(container)
-  graphHighlightedNodeId = null
-  graphNeighborMap = new Map()
-  graphLinkKeysByNodeId = new Map()
-  graphHoverNodeId = null
-  graphHoverNeighborIds = new Set()
-  graphHoverLinkKeys = new Set()
-
-  graphInstance.graphData(data)
-  const activeData = graphInstance.graphData() as GraphDataSet
-
-  graphNodeLookup = new Map(activeData.nodes.map(node => [node.id, node]))
-
-  for (const node of activeData.nodes) {
-    graphNeighborMap.set(node.id, new Set())
-    graphLinkKeysByNodeId.set(node.id, new Set())
-  }
-
-  for (const link of activeData.links) {
-    const key = getGraphLinkKey(link)
-    if (!key) continue
-    const [sourceId, targetId] = key.split('__')
-    const sourceNeighbors = graphNeighborMap.get(sourceId)
-    const targetNeighbors = graphNeighborMap.get(targetId)
-    sourceNeighbors?.add(targetId)
-    targetNeighbors?.add(sourceId)
-    graphLinkKeysByNodeId.get(sourceId)?.add(key)
-    graphLinkKeysByNodeId.get(targetId)?.add(key)
-  }
-
-  setGraphHoverNode(null)
-  updateGraphHighlight()
-  fitGraphToViewport(250)
-  graphWindow.document.title = t('graph.documentTitle', { suffix: titleSuffix })
-}
-
-function setGraphControlActive(key: string | null) {
-  Object.entries(graphControlButtons).forEach(([name, button]) => {
-    if (!button) return
-    if (key && name === key) button.classList.add('active')
-    else button.classList.remove('active')
-  })
-}
-
-function openForestGraphWindow() {
-  if (!originalRecords.length || !curatedRecords.length) {
-    notify(t('notifications.needBothCsv'))
-    if (!uploadModalOpen) openUploadModal()
-    return
-  }
-  const data = {
-    original: buildForestGraphData(originalRecords, 'original'),
-    curated: buildForestGraphData(curatedRecords, 'curated'),
-  }
-  const init = initGraphWindow(t('graph.forestDocumentTitle'))
-  if (!init || !graphWindow) return
-  const { container, toolbar } = init
-  graphState = { mode: 'forest', dataset: 'curated', data }
-  graphControlButtons = {}
-  const doc = graphWindow.document
-  const spacer = toolbar.querySelector('.spacer')
-
-  const curatedBtn = doc.createElement('button')
-  curatedBtn.textContent = t('labels.curated')
-  curatedBtn.onclick = () => setForestGraphDataset('curated')
-  graphControlButtons.curated = curatedBtn
-
-  const originalBtn = doc.createElement('button')
-  originalBtn.textContent = t('labels.original')
-  originalBtn.onclick = () => setForestGraphDataset('original')
-  graphControlButtons.original = originalBtn
-
-  toolbar.insertBefore(originalBtn, spacer)
-  toolbar.insertBefore(curatedBtn, originalBtn)
-
-  ensureGraphInstance(container)
-  renderGraphData(data.curated, t('graph.forestTitle', { dataset: t('labels.curated') }))
-  setGraphControlActive('curated')
-  highlightGraphNodeForEntity(selectedEntity)
-}
-
-function setForestGraphDataset(dataset: 'curated' | 'original') {
-  if (!graphState || graphState.mode !== 'forest') return
-  if (graphState.dataset === dataset) {
-    highlightGraphNodeForEntity(selectedEntity)
-    return
-  }
-  graphState.dataset = dataset
-  const data = graphState.data[dataset]
-  const datasetLabel = t(dataset === 'curated' ? 'labels.curated' : 'labels.original')
-  renderGraphData(data, t('graph.forestTitle', { dataset: datasetLabel }))
-  setGraphControlActive(dataset)
-  highlightGraphNodeForEntity(selectedEntity)
-}
-
-function openClusterGraphWindow(cluster: Cluster) {
-  if (!curatedRecords.length) {
-  notify(t('notifications.needCuratedCsv'))
-    return
-  }
-  const clusterLabel = cluster.anchorTitle || cluster.anchorId
-  const init = initGraphWindow(t('graph.clusterTitle', { label: clusterLabel }))
-  if (!init || !graphWindow) return
-  const { container, toolbar } = init
-  const doc = graphWindow.document
-  const spacer = toolbar.querySelector('.spacer')
-  const label = doc.createElement('span')
-  label.textContent = t('graph.clusterLabel', { label: clusterLabel })
-  toolbar.insertBefore(label, spacer)
-
-  const data = buildClusterGraphData(cluster)
-  graphState = {
-    mode: 'cluster',
-    dataset: 'cluster',
-    clusterId: cluster.anchorId,
-    clusterLabel: cluster.anchorTitle || cluster.anchorId,
-    data,
-  }
-  graphControlButtons = {}
-  ensureGraphInstance(container)
-  renderGraphData(data, t('graph.clusterTitle', { label: clusterLabel }))
-  highlightGraphNodeForEntity(selectedEntity)
-}
-
-function handleGraphNodeClick(node: GraphNodeData) {
-  setGraphHoverNode(null)
-  graphHighlightedNodeId = node.id
-  updateGraphHighlight()
-  focusGraphNode(node.id)
-  const normArk = normalizeArkForLookup(node.ark)
-  const record = combinedRecordsById.get(node.id) || (normArk ? combinedRecordsByArk.get(normArk) : undefined)
-  if (!record) return
-  const isCuratedRecord = curatedRecords.some(r => r.id === record.id)
-  if (node.entityType === 'person' || node.entityType === 'collective') {
-    showRecordDetails(record.id, isCuratedRecord)
-    return
-  }
-
-  if (node.entityType === 'work') {
-    const cluster = findClusterForWork(record.id, record.ark)
-    if (cluster) {
-      viewMode = 'works'
-      activeWorkAnchorId = cluster.anchorId
-      highlightedWorkArk = record.ark || cluster.anchorArk
-      const isAnchor = cluster.anchorId === record.id
-      showRecordDetails(record.id, isCuratedRecord, {
-        entityType: 'work',
-        clusterAnchorId: cluster.anchorId,
-        isAnchor,
-        workArk: record.ark || cluster.anchorArk,
-      })
-      return
-    }
-    showRecordDetails(record.id, isCuratedRecord, {
-      entityType: 'work',
-      workArk: record.ark,
-    })
-    return
-  }
-
-  if (node.entityType === 'expression') {
-    const ctx = findClusterContextForExpression(record.id, record.ark)
-    if (ctx) {
-      viewMode = 'expressions'
-      activeWorkAnchorId = ctx.cluster.anchorId
-      activeExpressionAnchorId = ctx.anchorExpressionId
-      highlightedExpressionArk = record.ark || record.id
-      showRecordDetails(record.id, isCuratedRecord, {
-        entityType: 'expression',
-        clusterAnchorId: ctx.cluster.anchorId,
-        isAnchor: ctx.anchorExpressionId === ctx.expressionId,
-        workArk: ctx.cluster.anchorArk,
-        expressionId: record.id,
-        expressionArk: record.ark,
-      })
-      return
-    }
-    showRecordDetails(record.id, isCuratedRecord, {
-      entityType: 'expression',
-      expressionId: record.id,
-      expressionArk: record.ark,
-    })
-    return
-  }
-
-  if (node.entityType === 'manifestation') {
-    const ctx = findClusterContextForManifestation(record.id, record.ark)
-    if (ctx) {
-      viewMode = 'manifestations'
-      activeWorkAnchorId = ctx.cluster.anchorId
-      activeExpressionAnchorId = ctx.anchorExpressionId
-      const expressionArks = manifestationExpressionArks(record)
-      highlightedExpressionArk = expressionArks[0] || null
-      showRecordDetails(record.id, isCuratedRecord, {
-        entityType: 'manifestation',
-        clusterAnchorId: ctx.cluster.anchorId,
-        isAnchor: false,
-        workArk: ctx.cluster.anchorArk,
-        expressionId: ctx.expressionId ?? undefined,
-        expressionArk: expressionArks[0],
-      })
-      return
-    }
-    showRecordDetails(record.id, isCuratedRecord, {
-      entityType: 'manifestation',
-      expressionArk: manifestationExpressionArks(record)[0],
-    })
-  }
-}
-
-function highlightGraphNodeForEntity(entity: SelectedEntity | null) {
-  if (!graphState || !graphInstance || !graphWindow || graphWindow.closed) return
-  if (!entity) {
-    graphHighlightedNodeId = null
-    updateGraphHighlight()
-    setGraphHoverNode(null)
-    return
-  }
-  let node = graphNodeLookup.get(entity.id)
-  if (!node && entity.expressionId) node = graphNodeLookup.get(entity.expressionId)
-  if (!node && entity.expressionArk) {
-    const sought = normalizeArkForLookup(entity.expressionArk)
-    node = [...graphNodeLookup.values()].find(n => normalizeArkForLookup(n.ark) === sought)
-  }
-  if (!node && entity.workArk) {
-    const sought = normalizeArkForLookup(entity.workArk)
-    node = [...graphNodeLookup.values()].find(n => normalizeArkForLookup(n.ark) === sought)
-  }
-  if (!node && entity.id) {
-    const rec = combinedRecordsById.get(entity.id)
-    if (rec?.ark) {
-      const sought = normalizeArkForLookup(rec.ark)
-      node = [...graphNodeLookup.values()].find(n => normalizeArkForLookup(n.ark) === sought)
-    }
-  }
-  if (!node) {
-    graphHighlightedNodeId = null
-    updateGraphHighlight()
-    setGraphHoverNode(null)
-    return
-  }
-  graphHighlightedNodeId = node.id
-  updateGraphHighlight()
-  setGraphHoverNode(null)
-  setTimeout(() => focusGraphNode(node!.id), 300)
 }
 
 function syncWorkClusterIntermarc(cluster: Cluster) {
@@ -2939,16 +2331,6 @@ function renderWorkClusters() {
       (selectedEntity?.entityType === 'work' && selectedEntity.isAnchor && selectedEntity.id === cluster.anchorId)
     if (headerHighlighted) headerRow.classList.add('highlight')
     headerRow.appendChild(header)
-    const clusterGraphBtn = document.createElement('button')
-    clusterGraphBtn.type = 'button'
-    clusterGraphBtn.className = 'cluster-graph-btn'
-    clusterGraphBtn.textContent = t('buttons.graph3d')
-    clusterGraphBtn.onclick = event => {
-      event.stopPropagation()
-      openClusterGraphWindow(cluster)
-    }
-    headerRow.appendChild(clusterGraphBtn)
-
     container.appendChild(headerRow)
 
     const list = document.createElement('div')
@@ -3174,16 +2556,6 @@ function buildWorkBanner(cluster: Cluster): HTMLDivElement {
     selectWrap.appendChild(modeBtn)
   }
 
-  const clusterGraphBtn = document.createElement('button')
-  clusterGraphBtn.type = 'button'
-  clusterGraphBtn.className = 'banner-mode-btn'
-  clusterGraphBtn.textContent = t('buttons.graph3d')
-  clusterGraphBtn.onclick = event => {
-    event.stopPropagation()
-    openClusterGraphWindow(cluster)
-  }
-  selectWrap.appendChild(clusterGraphBtn)
-
   banner.appendChild(selectWrap)
   banner.addEventListener('dblclick', event => {
     event.stopPropagation()
@@ -3387,17 +2759,6 @@ function buildManifestationExpressionFilterBanner(cluster: Cluster): HTMLDivElem
   return banner
 }
 
-function findClusterForWork(workId?: string | null, workArk?: string | null): Cluster | undefined {
-  if (!workId && !workArk) return undefined
-  for (const cluster of clusters) {
-    if (workId && cluster.anchorId === workId) return cluster
-    if (workArk && cluster.anchorArk === workArk) return cluster
-    if (workId && cluster.items.some(item => item.id === workId)) return cluster
-    if (workArk && cluster.items.some(item => item.ark === workArk)) return cluster
-  }
-  return undefined
-}
-
 function findWorkRecord(
   cluster: Cluster,
   workArk: string | null | undefined,
@@ -3419,51 +2780,6 @@ function findWorkRecord(
     if (record) return { record, source: 'original' }
   }
   return { record: undefined, source: 'curated' }
-}
-
-function findClusterContextForExpression(expressionId?: string | null, expressionArk?: string | null) {
-  if (!expressionId && !expressionArk) return null
-  for (const cluster of clusters) {
-    for (const group of cluster.expressionGroups) {
-      if ((expressionId && group.anchor.id === expressionId) || (expressionArk && group.anchor.ark === expressionArk)) {
-        return { cluster, anchorExpressionId: group.anchor.id, expressionId: group.anchor.id }
-      }
-      const clusteredMatch = group.clustered.find(expr => (expressionId && expr.id === expressionId) || (expressionArk && expr.ark === expressionArk))
-      if (clusteredMatch) {
-        return { cluster, anchorExpressionId: group.anchor.id, expressionId: clusteredMatch.id }
-      }
-    }
-    const independent = cluster.independentExpressions.find(expr => (expressionId && expr.id === expressionId) || (expressionArk && expr.ark === expressionArk))
-    if (independent) {
-      return { cluster, anchorExpressionId: null, expressionId: independent.id }
-    }
-  }
-  return null
-}
-
-function findClusterContextForManifestation(manifestationId?: string | null, manifestationArk?: string | null) {
-  if (!manifestationId && !manifestationArk) return null
-  for (const cluster of clusters) {
-    for (const group of cluster.expressionGroups) {
-      const anchorMatch = group.anchor.manifestations.find(man => (manifestationId && man.id === manifestationId) || (manifestationArk && man.ark === manifestationArk))
-      if (anchorMatch) {
-        return { cluster, anchorExpressionId: group.anchor.id, expressionId: group.anchor.id }
-      }
-      for (const expr of group.clustered) {
-        const match = expr.manifestations.find(man => (manifestationId && man.id === manifestationId) || (manifestationArk && man.ark === manifestationArk))
-        if (match) {
-          return { cluster, anchorExpressionId: group.anchor.id, expressionId: expr.id }
-        }
-      }
-    }
-    for (const expr of cluster.independentExpressions) {
-      const match = expr.manifestations.find(man => (manifestationId && man.id === manifestationId) || (manifestationArk && man.ark === manifestationArk))
-      if (match) {
-        return { cluster, anchorExpressionId: null, expressionId: expr.id }
-      }
-    }
-  }
-  return null
 }
 
 function handleWorkSelectionChange(cluster: Cluster, value: string) {
@@ -5075,7 +4391,6 @@ function showRecordDetails(id: string, anchor: boolean, context: Partial<Selecte
   pendingScrollEntity = selectedEntity
   renderDetailsPanel()
   renderCurrentView()
-  highlightGraphNodeForEntity(selectedEntity)
 }
 
 function renderDetailsPanel() {
@@ -5919,7 +5234,6 @@ async function handleFilesChanged() {
     pendingScrollEntity = null
     detailsEl.innerHTML = `<em>${t('layout.selectPrompt')}</em>`
     renderCurrentView()
-    highlightGraphNodeForEntity(null)
     notify(t('notifications.csvLoaded'))
   } else {
     clusters = []
@@ -6032,7 +5346,6 @@ function processDroppedFiles(files: FileList | File[]) {
         renderCurrentView()
         detailsEl.innerHTML = `<em>${t('messages.filesLoadedFromDrop')}</em>`
         notify(t('notifications.csvLoaded'))
-        highlightGraphNodeForEntity(null)
       } else {
         clusters = []
         rebuildClusterCoverage()
@@ -6250,52 +5563,9 @@ function manifestationTitle(rec: RecordRow): string | undefined {
   return zone?.sousZones.find(sz => sz.code === '245$a')?.valeur
 }
 
-function extractReferencedArks(rec: RecordRow): string[] {
-  const matches = new Set<string>()
-  const pattern = /ark:\/12148\/cb\d{8}[a-z0-9]?/gi
-  for (const zone of rec.intermarc.zones) {
-    for (const sub of zone.sousZones) {
-      if (!sub.valeur) continue
-      const value = String(sub.valeur)
-      const found = value.match(pattern)
-      if (found) {
-        for (const ark of found) matches.add(ark.toLowerCase())
-      }
-    }
-  }
-  return [...matches]
-}
-
 function normalizeArkForLookup(ark?: string | null): string | undefined {
   if (!ark) return undefined
   return ark.toLowerCase()
-}
-
-function classifyRecord(rec: RecordRow): GraphEntityType | null {
-  const type = rec.typeNorm
-  if (type === 'oeuvre') return 'work'
-  if (type === 'expression') return 'expression'
-  if (type === 'manifestation') return 'manifestation'
-  if (type === 'identite publique de personne') return 'person'
-  if (type === 'collectivite') return 'collective'
-  return null
-}
-
-function graphNodeLabel(rec: RecordRow, kind: GraphEntityType): string {
-  const title = titleOf(rec)
-  switch (kind) {
-    case 'work':
-      return title || rec.id
-    case 'expression':
-      return rec.id
-    case 'manifestation':
-      return manifestationTitle(rec) || rec.id
-    case 'person':
-    case 'collective':
-      return labelForAgentRecord(rec)
-    default:
-      return title || rec.id
-  }
 }
 
 function manifestationsForExpression(
@@ -6332,133 +5602,6 @@ function collectManifestationsForExpression(expressionArk: string): Manifestatio
     })
   }
   return items
-}
-
-function addNode(nodes: Map<string, GraphNodeData>, rec: RecordRow, dataset: GraphNodeData['dataset']): GraphNodeData | null {
-  if (nodes.has(rec.id)) return nodes.get(rec.id) ?? null
-  const entityType = classifyRecord(rec)
-  if (!entityType) return null
-  const color = GRAPH_COLORS[entityType]
-  const node: GraphNodeData = {
-    id: rec.id,
-    label: graphNodeLabel(rec, entityType),
-    entityType,
-    ark: rec.ark,
-    color,
-    dataset,
-    recordId: rec.id,
-  }
-  if (entityType === 'work') {
-    const cluster = findClusterForWork(rec.id, rec.ark)
-    if (cluster) node.clusterAnchorId = cluster.anchorId
-  } else if (entityType === 'expression') {
-    const ctx = findClusterContextForExpression(rec.id, rec.ark)
-    if (ctx) node.clusterAnchorId = ctx.cluster.anchorId
-  } else if (entityType === 'manifestation') {
-    const ctx = findClusterContextForManifestation(rec.id, rec.ark)
-    if (ctx) node.clusterAnchorId = ctx.cluster.anchorId
-  }
-  nodes.set(node.id, node)
-  return node
-}
-
-function addLink(links: Map<string, GraphLinkData>, source: string, target: string, color = 'rgba(170, 190, 220, 0.45)') {
-  const key = `${source}__${target}`
-  if (!links.has(key)) {
-    links.set(key, { source, target, color })
-  }
-}
-
-function buildGraphData(records: RecordRow[], dataset: GraphNodeData['dataset']): GraphDataSet {
-  const nodes = new Map<string, GraphNodeData>()
-  const links = new Map<string, GraphLinkData>()
-  const recordsById = new Map(records.map(r => [r.id, r]))
-  const recordsByArk = new Map<string, RecordRow>()
-  for (const rec of records) {
-    if (rec.ark) recordsByArk.set(normalizeArkForLookup(rec.ark)!, rec)
-  }
-
-  const ensureRecord = (id?: string | null, ark?: string | null): RecordRow | undefined => {
-    if (id && recordsById.has(id)) return recordsById.get(id)
-    if (ark) {
-      const norm = normalizeArkForLookup(ark)
-      if (norm && recordsByArk.has(norm)) return recordsByArk.get(norm)
-      if (norm && combinedRecordsByArk.has(norm)) return combinedRecordsByArk.get(norm)
-    }
-    if (id && combinedRecordsById.has(id)) return combinedRecordsById.get(id)
-    return undefined
-  }
-
-  for (const rec of records) {
-    const baseNode = addNode(nodes, rec, dataset)
-    if (!baseNode) continue
-
-    if (baseNode.entityType === 'expression') {
-      const relatedArks = expressionWorkArks(rec)
-      for (const workArk of relatedArks) {
-        const workRec = ensureRecord(undefined, workArk)
-        if (!workRec) continue
-        const workNode = addNode(nodes, workRec, dataset)
-        if (!workNode) continue
-        addLink(links, workNode.id, baseNode.id)
-      }
-    }
-
-    if (baseNode.entityType === 'manifestation') {
-      const expressionArks = manifestationExpressionArks(rec)
-      for (const exprArk of expressionArks) {
-        const exprRec = ensureRecord(undefined, exprArk)
-        if (!exprRec) continue
-        const exprNode = addNode(nodes, exprRec, dataset)
-        if (!exprNode) continue
-        addLink(links, exprNode.id, baseNode.id)
-      }
-    }
-
-    const referenced = extractReferencedArks(rec)
-    for (const ark of referenced) {
-      const personRec = ensureRecord(undefined, ark)
-      if (!personRec) continue
-      const type = classifyRecord(personRec)
-      if (type !== 'person' && type !== 'collective') continue
-      const personNode = addNode(nodes, personRec, dataset)
-      if (!personNode) continue
-      addLink(links, personNode.id, rec.id, 'rgba(120, 160, 255, 0.5)')
-    }
-  }
-
-  return { nodes: [...nodes.values()], links: [...links.values()] }
-}
-
-function buildForestGraphData(records: RecordRow[], dataset: 'original' | 'curated'): GraphDataSet {
-  return buildGraphData(records, dataset)
-}
-
-function buildClusterGraphData(cluster: Cluster): GraphDataSet {
-  const recordIds = new Set<string>()
-  recordIds.add(cluster.anchorId)
-  for (const item of cluster.items) {
-    if (item.id) recordIds.add(item.id)
-  }
-  for (const group of cluster.expressionGroups) {
-    recordIds.add(group.anchor.id)
-    for (const expr of group.clustered) recordIds.add(expr.id)
-    const manifestationIds = group.anchor.manifestations.map(m => m.id)
-    manifestationIds.forEach(id => recordIds.add(id))
-    for (const expr of group.clustered) {
-      expr.manifestations.forEach(m => recordIds.add(m.id))
-    }
-  }
-  for (const expr of cluster.independentExpressions) {
-    recordIds.add(expr.id)
-    expr.manifestations.forEach(m => recordIds.add(m.id))
-  }
-  const records: RecordRow[] = []
-  for (const id of recordIds) {
-    const rec = curatedRecords.find(r => r.id === id)
-    if (rec) records.push(rec)
-  }
-  return buildGraphData(records, 'cluster')
 }
 
 function updateManifestationParent(

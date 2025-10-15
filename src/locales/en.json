@@ -177,27 +177,5 @@
     "expressions_other": "{{count}} expressions",
     "manifestations_one": "{{count}} manifestation",
     "manifestations_other": "{{count}} manifestations"
-  },
-  "expressionOption": {
-    "anchor": "Anchor expression {{id}}",
-    "clustered": "Expression {{id}}",
-    "independent": "Independent expression {{id}}"
-  },
-  "selectors": {
-    "navigateWorks": "Navigate works",
-    "navigateExpressions": "Navigate expressions",
-    "navigateManifestations": "Navigate manifestations"
-  },
-  "selectorGroups": {
-    "anchor": "Anchor • {{label}}",
-    "clustered": "Clustered • {{label}}",
-    "independent": "Independent • {{label}}"
-  },
-  "expressionSelector": {
-    "independentOption": "• {{label}}"
-  },
-  "workSelector": {
-    "anchorOption": "Anchor • {{label}}",
-    "clusteredOption": "Clustered • {{label}}"
   }
 }

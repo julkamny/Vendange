@@ -1662,6 +1662,7 @@ function buildClusterElement(cluster: Cluster): HTMLDivElement {
   if (cluster.anchorId === activeWorkAnchorId) container.classList.add('active')
   container.dataset.clusterAnchorId = cluster.anchorId
   container.dataset.workArk = cluster.anchorArk
+  container.dataset.workId = cluster.anchorId
 
   const headerCounts = computeWorkCounts(cluster, cluster.anchorArk)
   const header = document.createElement('div')
@@ -1714,6 +1715,8 @@ function buildClusterElement(cluster: Cluster): HTMLDivElement {
   )
   const headerRow = document.createElement('div')
   headerRow.className = 'cluster-header-row entity-row entity-row--work'
+  headerRow.dataset.workId = cluster.anchorId
+  headerRow.dataset.workArk = cluster.anchorArk
   const headerHighlighted =
     (highlightedWorkArk && highlightedWorkArk === cluster.anchorArk) ||
     (selectedEntity?.entityType === 'work' && selectedEntity.isAnchor && selectedEntity.id === cluster.anchorId)
@@ -1729,6 +1732,7 @@ function buildClusterElement(cluster: Cluster): HTMLDivElement {
     if (!item.accepted) row.classList.add('unchecked')
     if (highlightedWorkArk === item.ark) row.classList.add('highlight')
     row.dataset.workArk = item.ark
+    if (item.id) row.dataset.workId = item.id
     const itemCounts = computeWorkCounts(cluster, item.ark)
 
     const cb = document.createElement('input')
@@ -1885,6 +1889,7 @@ function buildUnclusteredWorkElement(work: RecordRow): HTMLDivElement {
   if (highlightMatches) headerRow.classList.add('highlight')
 
   const openDetails = () => {
+    listScope = 'clusters'
     activeWorkAnchorId = null
     highlightedWorkArk = work.ark || null
     activeExpressionAnchorId = null
@@ -1900,7 +1905,7 @@ function buildUnclusteredWorkElement(work: RecordRow): HTMLDivElement {
     () => openDetails(),
     event => {
       if ((event.target as HTMLElement | null)?.closest('.agent-badge')) return
-      openDetails()
+      openUnclusteredWorkExpressions(work)
     },
   )
 
@@ -1908,6 +1913,53 @@ function buildUnclusteredWorkElement(work: RecordRow): HTMLDivElement {
   container.appendChild(headerRow)
   return container
 }
+
+function resolveWorkRecord(id?: string | null, ark?: string | null): RecordRow | null {
+  if (id) {
+    const curated = curatedRecords.find(r => r.id === id)
+    if (curated) return curated
+    const original = originalRecords.find(r => r.id === id)
+    if (original) return original
+    const combined = combinedRecordsById.get(id)
+    if (combined) return combined
+  }
+  if (ark) {
+    const record = lookupWorkRecordByArk(ark)
+    if (record) return record
+  }
+  return null
+}
+
+function openUnclusteredWorkExpressions(work: RecordRow) {
+  const workRecord = resolveWorkRecord(work.id, work.ark) || work
+
+  inventoryFocusWork = workRecord
+  inventoryFocusExpression = null
+  inventoryExpressionFilterArk = null
+  listScope = 'inventory'
+  viewMode = 'expressions'
+  renderCurrentView()
+
+  const expressions = originalExpressionsByWorkArk.get(workRecord.ark || '') ?? []
+  if (!expressions.length) {
+    listScope = 'clusters'
+    viewMode = 'works'
+    renderCurrentView()
+    notify(t('notifications.noExpressions'))
+    return
+  }
+  const firstExpression = expressions[0]
+  inventoryFocusExpression = firstExpression
+  const curatedExpression = curatedRecords.find(r => r.id === firstExpression.id)
+  const expressionRecord = curatedExpression ?? firstExpression
+  showRecordDetails(expressionRecord.id, !!curatedExpression, {
+    entityType: 'expression',
+    workArk: workRecord.ark,
+    expressionId: expressionRecord.id,
+    expressionArk: expressionRecord.ark,
+  })
+}
+
 
 function buildClusterBreadcrumb(): HTMLDivElement | null {
   if (!clusters.length) return null
@@ -2894,6 +2946,12 @@ function scrollEntityIntoView(entity: SelectedEntity) {
       if (!target && entity.workArk) {
         target = clustersEl.querySelector(`.cluster-item[data-work-ark="${entity.workArk}"]`) as HTMLElement | null
       }
+      if (!target && entity.id) {
+        target = clustersEl.querySelector(`.cluster-header-row[data-work-id="${entity.id}"]`) as HTMLElement | null
+      }
+      if (!target && entity.id) {
+        target = clustersEl.querySelector(`.cluster.cluster--unclustered[data-work-id="${entity.id}"]`) as HTMLElement | null
+      }
     } else {
       target = clustersEl.querySelector('.cluster-banner.work-banner') as HTMLElement | null
     }
@@ -3329,6 +3387,23 @@ function focusInventoryTreeUp() {
     selectInventoryRecord(row)
     return
   }
+  if (entity.entityType === 'work') {
+    const workRecord = resolveWorkRecord(entity.id, entity.workArk)
+    listScope = 'clusters'
+    viewMode = 'works'
+    inventoryFocusWork = null
+    inventoryFocusExpression = null
+    inventoryExpressionFilterArk = null
+    highlightedWorkArk = workRecord?.ark || entity.workArk || null
+    renderCurrentView()
+    if (workRecord) {
+      showRecordDetails(workRecord.id, curatedRecords.some(r => r.id === workRecord.id), {
+        entityType: 'work',
+        workArk: workRecord.ark,
+      })
+    }
+    return
+  }
 }
 
 function focusInventoryTreeDown() {
@@ -3444,6 +3519,11 @@ function focusTreeDown() {
   }
   if (!selectedEntity) return
   const entity = selectedEntity
+  if (entity.entityType === 'work' && !entity.clusterAnchorId) {
+    const workRecord = resolveWorkRecord(entity.id, entity.workArk)
+    if (workRecord) openUnclusteredWorkExpressions(workRecord)
+    return
+  }
   if (entity.entityType === 'work') {
     const clusterId = entity.clusterAnchorId || entity.id
     const cluster = clusters.find(c => c.anchorId === clusterId)
@@ -3614,149 +3694,95 @@ function navigateInventoryManifestationList(direction: 'up' | 'down') {
 }
 
 function navigateWorkList(direction: 'up' | 'down') {
-  const cluster = clusters.find(c => c.anchorId === activeWorkAnchorId) ?? clusters[0]
-  if (!cluster) return
-  const clusterIndex = clusters.findIndex(c => c.anchorId === cluster.anchorId)
-  if (clusterIndex === -1) return
+  const rows = Array.from(
+    clustersEl.querySelectorAll<HTMLElement>(
+      '.cluster-header-row.entity-row--work, .cluster-item.entity-row--work',
+    ),
+  ).filter(row => !row.classList.contains('filtered-out'))
+  if (!rows.length) return
 
-  const collectNodes = (targetCluster: Cluster) => {
-    const result: Array<{
-      type: 'anchor' | 'item'
-      element: HTMLElement
-      workArk: string
-      item?: ClusterItem
-    }> = []
-    const base = `.cluster[data-cluster-anchor-id="${targetCluster.anchorId}"]`
-    const headerEl = clustersEl.querySelector<HTMLElement>(`${base} .cluster-header`)
-    if (headerEl) {
-      result.push({ type: 'anchor', element: headerEl, workArk: targetCluster.anchorArk })
-    }
-    const itemEls = Array.from(
-      clustersEl.querySelectorAll<HTMLElement>(`${base} .cluster-item`),
-    ).filter(el => !el.classList.contains('filtered-out'))
-    for (const el of itemEls) {
-      const workArk = el.dataset.workArk
-      if (!workArk) continue
-      const item = targetCluster.items.find(entry => entry.ark === workArk)
-      result.push({ type: 'item', element: el, workArk, item })
-    }
-    return result
+  const currentId = selectedEntity?.id
+  const currentArk =
+    selectedEntity?.workArk ?? (typeof highlightedWorkArk === 'string' ? highlightedWorkArk : null) ?? null
+
+  const findRowMatch = (row: HTMLElement): boolean => {
+    const rowWorkId = row.dataset.workId || row.closest<HTMLElement>('.cluster')?.dataset.workId || null
+    const rowWorkArk = row.dataset.workArk || row.closest<HTMLElement>('.cluster')?.dataset.workArk || null
+    if (currentId && rowWorkId === currentId) return true
+    if (currentArk && rowWorkArk === currentArk) return true
+    return false
   }
 
-  const nodes = collectNodes(cluster)
-  if (!nodes.length) return
-
-  const currentWorkArk =
-    (selectedEntity?.entityType === 'work' ? selectedEntity.workArk : null) ??
-    (typeof highlightedWorkArk === 'string' ? highlightedWorkArk : null) ??
-    cluster.anchorArk
-
-  let currentIndex = nodes.findIndex(node =>
-    node.type === 'anchor' ? currentWorkArk === cluster.anchorArk : node.workArk === currentWorkArk,
-  )
-
-  if (currentIndex === -1) currentIndex = direction === 'down' ? -1 : nodes.length
+  let currentIndex = rows.findIndex(findRowMatch)
+  if (currentIndex === -1) currentIndex = direction === 'down' ? -1 : rows.length
 
   const delta = direction === 'down' ? 1 : -1
   let nextIndex = currentIndex + delta
+  if (nextIndex < 0) nextIndex = 0
+  if (nextIndex >= rows.length) nextIndex = rows.length - 1
+  if (nextIndex === currentIndex) return
 
-  if (nextIndex < 0) {
-    const previousCluster = clusters[clusterIndex - 1]
-    if (previousCluster) {
-      const previousNodes = collectNodes(previousCluster)
-      if (!previousNodes.length) return
-      let fallback: (typeof previousNodes)[number] | undefined
-      for (let i = previousNodes.length - 1; i >= 0; i--) {
-        const candidate = previousNodes[i]
-        if (candidate.type === 'item' && candidate.item) {
-          fallback = candidate
-          break
-        }
-      }
-      const targetNode = fallback ?? previousNodes[0]
-      activeWorkAnchorId = previousCluster.anchorId
-      highlightedWorkArk = targetNode.workArk
-      activeExpressionAnchorId = null
-      highlightedExpressionArk = null
-      if (targetNode.type === 'anchor') {
-        showRecordDetails(previousCluster.anchorId, true, {
-          entityType: 'work',
-          clusterAnchorId: previousCluster.anchorId,
-          isAnchor: true,
-          workArk: previousCluster.anchorArk,
-        })
-      } else if (targetNode.item) {
-        if (targetNode.item.id) {
-          showRecordDetails(targetNode.item.id, false, {
-            entityType: 'work',
-            clusterAnchorId: previousCluster.anchorId,
-            isAnchor: false,
-            workArk: targetNode.workArk,
-          })
-        } else {
-          renderCurrentView()
-        }
-      }
-      targetNode.element?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-      return
-    }
-    nextIndex = 0
-  }
+  activateWorkRow(rows[nextIndex])
+}
 
-  if (nextIndex >= nodes.length) {
-    const nextCluster = clusters[clusterIndex + 1]
-    if (nextCluster) {
-      const nextNodes = collectNodes(nextCluster)
-      if (!nextNodes.length) return
-      const anchorNode = nextNodes.find(node => node.type === 'anchor') ?? nextNodes[0]
-      activeWorkAnchorId = nextCluster.anchorId
-      highlightedWorkArk = nextCluster.anchorArk
-      activeExpressionAnchorId = null
-      highlightedExpressionArk = null
-      showRecordDetails(nextCluster.anchorId, true, {
-        entityType: 'work',
-        clusterAnchorId: nextCluster.anchorId,
-        isAnchor: true,
-        workArk: nextCluster.anchorArk,
-      })
-      anchorNode.element?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-      return
-    }
-    nextIndex = nodes.length - 1
-  }
+function activateWorkRow(row: HTMLElement) {
+  const clusterEl = row.closest<HTMLElement>('.cluster')
+  const isUnclustered = clusterEl?.dataset.unclustered === 'true'
+  const workArk = row.dataset.workArk || clusterEl?.dataset.workArk || null
+  const workId = row.dataset.workId || clusterEl?.dataset.workId || null
 
-  if (nextIndex === currentIndex && currentIndex !== -1) return
-
-  const target = nodes[nextIndex]
-  if (target.type === 'anchor') {
-    activeWorkAnchorId = cluster.anchorId
-    highlightedWorkArk = cluster.anchorArk
+  if (isUnclustered) {
+    const workRecord =
+      (workId && curatedRecords.find(r => r.id === workId)) ||
+      (workId && originalRecords.find(r => r.id === workId)) ||
+      (workArk ? lookupWorkRecordByArk(workArk) : null)
+    if (!workRecord) return
+    listScope = 'clusters'
+    activeWorkAnchorId = null
+    highlightedWorkArk = workRecord.ark || null
     activeExpressionAnchorId = null
     highlightedExpressionArk = null
+    showRecordDetails(workRecord.id, false, {
+      entityType: 'work',
+      workArk: workRecord.ark,
+    })
+    row.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    return
+  }
+
+  const clusterAnchorId = clusterEl?.dataset.clusterAnchorId
+  if (!clusterAnchorId) return
+  const cluster = clusters.find(c => c.anchorId === clusterAnchorId)
+  if (!cluster) return
+
+  listScope = 'clusters'
+  activeWorkAnchorId = cluster.anchorId
+  activeExpressionAnchorId = null
+  highlightedExpressionArk = null
+
+  if (row.classList.contains('cluster-header-row')) {
+    highlightedWorkArk = cluster.anchorArk
     showRecordDetails(cluster.anchorId, true, {
       entityType: 'work',
       clusterAnchorId: cluster.anchorId,
       isAnchor: true,
       workArk: cluster.anchorArk,
     })
-  } else if (target.item) {
-    activeWorkAnchorId = cluster.anchorId
-    highlightedWorkArk = target.workArk
-    activeExpressionAnchorId = null
-    highlightedExpressionArk = null
-    if (target.item.id) {
-      showRecordDetails(target.item.id, false, {
+  } else {
+    const item = cluster.items.find(entry => entry.ark === workArk)
+    highlightedWorkArk = workArk
+    if (item?.id) {
+      showRecordDetails(item.id, false, {
         entityType: 'work',
         clusterAnchorId: cluster.anchorId,
         isAnchor: false,
-        workArk: target.workArk,
+        workArk: workArk ?? undefined,
       })
     } else {
       renderCurrentView()
     }
   }
-
-  target.element?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  row.scrollIntoView({ block: 'center', behavior: 'smooth' })
 }
 
 function visibleExpressionItems(): HTMLElement[] {
@@ -3786,7 +3812,7 @@ function navigateExpressionList(direction: 'up' | 'down') {
         ? selectedEntity.expressionArk
         : highlightedExpressionArk
 
-  let currentIndex = items.findIndex(item => {
+  let currentIndex = items.findIndex((item: HTMLElement) => {
     const itemId = item.dataset.expressionId
     const itemArk = item.dataset.expressionArk
     if (currentExpressionId && itemId === currentExpressionId) return true
@@ -4701,9 +4727,17 @@ function openEditorForRecord(rec: RecordRow) {
   detailsEl.appendChild(actions)
 }
 
+function zoneText(zone: { sousZones: Array<{ valeur?: unknown }> }): string {
+  const parts = zone.sousZones
+    .map(sz => (sz.valeur ? String(sz.valeur).trim() : ''))
+    .filter(part => part.length > 0)
+  return parts.join(' ').replace(/\s+/g, ' ').trim()
+}
+
 function titleOf(rec: RecordRow): string | undefined {
-  const zone = rec.intermarc.zones.find(z => z.code === '150')
-  return zone?.sousZones.find(sz => sz.code === '150$a')?.valeur
+  const zone = findZones(rec.intermarc, '150')[0]
+  const text = zone ? zoneText(zone) : undefined
+  return text && text.length ? text : undefined
 }
 
 const AGENT_ZONE_CODES = new Set(['700', '701', '702', '710', '711', '712'])
@@ -4846,7 +4880,8 @@ function manifestationExpressionArks(rec: RecordRow): string[] {
 
 function manifestationTitle(rec: RecordRow): string | undefined {
   const zone = findZones(rec.intermarc, '245')[0]
-  return zone?.sousZones.find(sz => sz.code === '245$a')?.valeur
+  const text = zone ? zoneText(zone) : undefined
+  return text && text.length ? text : undefined
 }
 
 function normalizeArkForLookup(ark?: string | null): string | undefined {

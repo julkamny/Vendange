@@ -94,6 +94,7 @@
     "noManifestations": "Aucune manifestation.",
     "noExpressionsForWork": "Aucune expression trouvée pour cette œuvre.",
     "uncheckedWork": "Œuvre non validée",
+    "unclusteredWork": "Œuvre non clusterisée",
     "independentExpressionManifestation": "Manifestation d'une expression indépendante",
     "uncheckedTag": "non validée",
     "workFallback": "Œuvre",

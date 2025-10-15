@@ -21,4 +21,5 @@
 
 ## Incremental agent knowledge
 - Graph visualisation features (forest/cluster graphs) were removed; there is no `ForceGraph` UI anymore and related translations/classes should stay absent.
+- `section#clusters` now renders both clusters and unclustered works in one alphabetically sorted list; inventory toggles/virtual list UI are gone.
 - `section#details` now renders only the intermarc/pre content plus editor controls for anchor works; the old detail banners/selectors were removed.

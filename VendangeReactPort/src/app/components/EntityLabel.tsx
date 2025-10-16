@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type MouseEventHandler } from 'react'
 import { resolveArkLabel } from '../lib/intermarc'
-import type { EntityBadgeSpec } from '../types'
+import type { EntityBadgeSpec, CountBadgeKind } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 
 const ARK_REGEX = /ark:\/\S+/g
@@ -51,9 +51,9 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-type EntityPillProps = EntityBadgeSpec
+export type EntityPillProps = EntityBadgeSpec
 
-function EntityPill({ type, text, tooltip }: EntityPillProps) {
+export function EntityPill({ type, text, tooltip }: EntityPillProps) {
   const tooltipText = tooltip?.trim()
   const className = `entity-pill entity-pill-${type}${tooltipText ? ' has-tooltip' : ''}`
   const commonProps = tooltipText
@@ -66,9 +66,7 @@ function EntityPill({ type, text, tooltip }: EntityPillProps) {
   )
 }
 
-type CountBadgeKind = 'expressions' | 'manifestations'
-
-function CountBadge({ kind, count }: { kind: CountBadgeKind; count: number }) {
+export function CountBadge({ kind, count }: { kind: CountBadgeKind; count: number }) {
   const { t } = useTranslation()
   const tooltip = t(kind === 'expressions' ? 'badges.expressions' : 'badges.manifestations', { count })
   return (
@@ -82,7 +80,7 @@ function CountBadge({ kind, count }: { kind: CountBadgeKind; count: number }) {
   )
 }
 
-function AgentBadge({ names }: { names: string[] }) {
+export function AgentBadge({ names }: { names: string[] }) {
   const { t } = useTranslation()
   const tooltip = names.length ? names.join('\n') : t('messages.noAgents')
   return (

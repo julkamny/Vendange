@@ -1,6 +1,9 @@
+import { useMemo } from 'react'
 import type { Cluster, ExpressionClusterItem, ExpressionItem } from '../../types'
 import type { WorkspaceTabState } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
+import { EntityLabel, EntityPill, CountBadge, AgentBadge } from '../../components/EntityLabel'
+import { useRecordLookup } from '../../hooks/useRecordLookup'
 
 type ExpressionPanelProps = {
   cluster: Cluster | null
@@ -18,73 +21,205 @@ type ExpressionPanelProps = {
   }) => void
 }
 
+type ExpressionGroupLabelProps = {
+  expression: ExpressionItem | ExpressionClusterItem
+  isAnchor: boolean
+  manifestationCount: number
+  agentNames: string[]
+}
+
+function ExpressionGroupLabel({ expression, isAnchor, manifestationCount, agentNames }: ExpressionGroupLabelProps) {
+  const label = expression.title || expression.id
+  const tooltip = label?.trim()
+  return (
+    <span
+      className={`entity-label expression-group-label${tooltip ? ' has-tooltip' : ''}`}
+      data-tooltip={tooltip || undefined}
+      aria-label={tooltip || undefined}
+    >
+      <span className="expression-marker">{isAnchor ? '⚓︎' : '🍇'}</span>
+      <EntityPill type="expression" text={expression.id} tooltip={expression.ark} />
+      {expression.workId ? <EntityPill type="work" text={expression.workId} tooltip={expression.workArk} /> : null}
+      <CountBadge kind="manifestations" count={manifestationCount} />
+      {agentNames.length ? <AgentBadge names={agentNames} /> : null}
+    </span>
+  )
+}
+
+function matchesFilter(target?: string | null, filter?: string | null): boolean {
+  if (!filter) return true
+  if (!target) return false
+  return target === filter
+}
+
 export function ExpressionPanel({ cluster, state, onSelectExpression, onToggleExpression }: ExpressionPanelProps) {
   const { t } = useTranslation()
+  const { getAgentNames } = useRecordLookup()
   if (!cluster) return <em>{t('messages.noClusters')}</em>
 
-  const renderExpressionEntry = (expression: ExpressionItem | ExpressionClusterItem, options: { isAnchor?: boolean }) => {
-    const isActive = state.highlightedExpressionArk === expression.ark || state.activeExpressionAnchorId === expression.id
-    return (
-      <button
-        key={expression.id}
-        type="button"
-        className={`expression-entry${isActive ? ' is-active' : ''}`}
-        onClick={() =>
-          onSelectExpression({
-            expressionId: expression.id,
-            expressionArk: expression.ark,
-            workArk: expression.workArk,
-            anchorId: options.isAnchor ? expression.id : undefined,
-          })
-        }
-      >
-        <span className="expression-entry__title">{expression.title || expression.id}</span>
-        <span className="expression-entry__meta">{expression.manifestations.length} manifest.</span>
-      </button>
-    )
-  }
+  const workFilterArk = state.highlightedWorkArk ?? null
+  const highlightedExpressionArk = state.highlightedExpressionArk ?? null
+  const selectedEntity = state.selectedEntity
+
+  const independentExpressions = useMemo(() => cluster.independentExpressions, [cluster.independentExpressions])
 
   return (
-    <div className="expression-panel">
-      {cluster.expressionGroups.map(group => (
-        <section key={group.anchor.id} className="expression-group">
-          <header className="expression-group__header">⚓︎ {group.anchor.title || group.anchor.id}</header>
-          <div className="expression-group__list">
-            {renderExpressionEntry(group.anchor, { isAnchor: true })}
-            {group.clustered.map(item => (
-              <div key={item.id} className="expression-entry-row">
-                {renderExpressionEntry(item, { isAnchor: false })}
-                {item.ark && (
-                  <label className="expression-entry-toggle">
-                    <input
-                      type="checkbox"
-                      checked={item.accepted}
-                      onChange={event =>
-                        onToggleExpression({
-                          anchorExpressionId: group.anchor.id,
-                          expressionArk: item.ark!,
-                          accepted: event.target.checked,
+    <div className="expression-groups">
+      {cluster.expressionGroups.map(group => {
+        const groupClasses = ['expression-group']
+        if (state.activeExpressionAnchorId === group.anchor.id) groupClasses.push('active')
+
+        const anchorClasses = ['expression-anchor', 'entity-row', 'entity-row--expression']
+        const anchorAgentNames = getAgentNames(group.anchor.id, group.anchor.ark)
+
+        const anchorSelected =
+          selectedEntity?.entityType === 'expression' && selectedEntity.expressionId === group.anchor.id
+        const anchorFromManifestation =
+          selectedEntity?.entityType === 'manifestation' && selectedEntity.expressionId === group.anchor.id
+        const anchorFromWork =
+          selectedEntity?.entityType === 'work' && selectedEntity.workArk === group.anchor.workArk
+        const anchorMatchesWorkFilter = matchesFilter(group.anchor.workArk, workFilterArk)
+
+        if (anchorSelected) anchorClasses.push('selected')
+        else if (anchorFromManifestation || anchorFromWork || (workFilterArk && anchorMatchesWorkFilter)) {
+          anchorClasses.push('highlight')
+        }
+        if (highlightedExpressionArk && highlightedExpressionArk === group.anchor.ark) {
+          anchorClasses.push('highlight')
+        }
+        if (workFilterArk) {
+          if (anchorMatchesWorkFilter) anchorClasses.push('filter-match')
+          else anchorClasses.push('dimmed')
+        }
+
+        return (
+          <div key={group.anchor.id} className={groupClasses.join(' ')} data-anchor-expression-id={group.anchor.id}>
+            <div
+              className={anchorClasses.join(' ')}
+              onClick={() =>
+                onSelectExpression({
+                  expressionId: group.anchor.id,
+                  expressionArk: group.anchor.ark,
+                  workArk: group.anchor.workArk,
+                  anchorId: group.anchor.id,
+                })
+              }
+            >
+              <ExpressionGroupLabel
+                expression={group.anchor}
+                isAnchor
+                manifestationCount={group.anchor.manifestations.length}
+                agentNames={anchorAgentNames}
+              />
+            </div>
+            <div className="expression-items">
+              {group.clustered.length === 0 ? (
+                <div className="expression-empty">{t('labels.noClusteredExpressions')}</div>
+              ) : (
+                group.clustered.map(expr => {
+                  const rowClasses = ['expression-item', 'entity-row', 'entity-row--expression']
+                  if (!expr.accepted) rowClasses.push('unchecked')
+                  const exprAgentNames = getAgentNames(expr.id, expr.ark)
+                  const isSelectedExpression =
+                    (selectedEntity?.entityType === 'expression' && selectedEntity.expressionId === expr.id) ||
+                    (selectedEntity?.entityType === 'manifestation' && selectedEntity.expressionId === expr.id)
+                  const isWorkSelection =
+                    selectedEntity?.entityType === 'work' && selectedEntity.workArk === expr.workArk
+                  const matchesWork = matchesFilter(expr.workArk, workFilterArk)
+                  if (isSelectedExpression) rowClasses.push('selected')
+                  else if (isWorkSelection || (workFilterArk && matchesWork)) rowClasses.push('highlight')
+                  if (!matchesWork && workFilterArk) rowClasses.push('filtered-out')
+                  else if (workFilterArk && matchesWork) rowClasses.push('filter-match')
+                  if (highlightedExpressionArk && highlightedExpressionArk === expr.ark) {
+                    rowClasses.push('highlight')
+                  }
+
+                  return (
+                    <div
+                      key={expr.id}
+                      className={rowClasses.join(' ')}
+                      onClick={() =>
+                        onSelectExpression({
+                          expressionId: expr.id,
+                          expressionArk: expr.ark,
+                          workArk: expr.workArk,
+                          anchorId: group.anchor.id,
                         })
                       }
-                    />
-                    {item.accepted
-                      ? t('labels.checkedLabel', { defaultValue: 'Kept' })
-                      : t('labels.uncheckedLabel')}
-                  </label>
-                )}
+                    >
+                      {expr.ark ? (
+                        <input
+                          type="checkbox"
+                          checked={expr.accepted}
+                          onChange={event =>
+                            onToggleExpression({
+                              anchorExpressionId: group.anchor.id,
+                              expressionArk: expr.ark!,
+                              accepted: event.target.checked,
+                            })
+                          }
+                        />
+                      ) : null}
+                      <ExpressionGroupLabel
+                        expression={expr}
+                        isAnchor={false}
+                        manifestationCount={expr.manifestations.length}
+                        agentNames={exprAgentNames}
+                      />
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        )
+      })}
+
+      {independentExpressions.length ? (
+        <div className="expression-independent">
+          <div className="expression-independent-header">{t('labels.independentExpressions')}</div>
+          {independentExpressions.map(expr => {
+            const rowClasses = ['expression-item', 'entity-row', 'entity-row--expression', 'independent']
+            const agentNames = getAgentNames(expr.id, expr.ark)
+            const matchesWork = matchesFilter(expr.workArk, workFilterArk)
+            const isSelectedExpression =
+              (selectedEntity?.entityType === 'expression' && selectedEntity.expressionId === expr.id) ||
+              (selectedEntity?.entityType === 'manifestation' && selectedEntity.expressionId === expr.id)
+            const isWorkSelection =
+              selectedEntity?.entityType === 'work' && selectedEntity.workArk === expr.workArk
+            if (isSelectedExpression) rowClasses.push('selected')
+            else if (isWorkSelection || (workFilterArk && matchesWork)) rowClasses.push('highlight')
+            if (!matchesWork && workFilterArk) rowClasses.push('filtered-out')
+            else if (workFilterArk && matchesWork) rowClasses.push('filter-match')
+            if (highlightedExpressionArk && highlightedExpressionArk === expr.ark) rowClasses.push('highlight')
+
+            return (
+              <div
+                key={expr.id}
+                className={rowClasses.join(' ')}
+                onClick={() =>
+                  onSelectExpression({
+                    expressionId: expr.id,
+                    expressionArk: expr.ark,
+                    workArk: expr.workArk,
+                  })
+                }
+              >
+                <EntityLabel
+                  title={expr.title || expr.id}
+                  subtitle={t('entity.independentExpression')}
+                  badges={[
+                    { type: 'expression', text: expr.id, tooltip: expr.ark },
+                    ...(expr.workId ? [{ type: 'work', text: expr.workId, tooltip: expr.workArk }] : []),
+                  ]}
+                  counts={{ manifestations: expr.manifestations.length }}
+                  agentNames={agentNames}
+                />
               </div>
-            ))}
-          </div>
-        </section>
-      ))}
-      {cluster.independentExpressions.length > 0 && (
-        <section className="expression-group expression-group--independent">
-          <header className="expression-group__header">{t('labels.independentExpressions')}</header>
-          <div className="expression-group__list">
-            {cluster.independentExpressions.map(expr => renderExpressionEntry(expr, { isAnchor: false }))}
-          </div>
-        </section>
-      )}
+            )
+          })}
+        </div>
+      ) : null}
     </div>
   )
 }

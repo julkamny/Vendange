@@ -6,7 +6,7 @@ import { computeWorkCounts, computeUnclusteredWorkCounts } from '../../core/work
 import { titleOf } from '../../core/entities'
 import { EntityLabel } from '../../components/EntityLabel'
 import { useAppData } from '../../providers/AppDataContext'
-import { extractAgentNames } from '../../core/agents'
+import { useRecordLookup } from '../../hooks/useRecordLookup'
 
 type WorkListPanelProps = {
   clusters: Cluster[]
@@ -26,37 +26,8 @@ export function WorkListPanel({
   onToggleWork,
 }: WorkListPanelProps) {
   const { t, language } = useTranslation()
-  const { original, curated, originalIndexes } = useAppData()
-
-  const recordLookup = useMemo(() => {
-    const byId = new Map<string, RecordRow>()
-    const byArk = new Map<string, RecordRow>()
-    const ingest = (rec: RecordRow) => {
-      if (!byId.has(rec.id)) byId.set(rec.id, rec)
-      if (rec.ark) byArk.set(rec.ark.toLowerCase(), rec)
-    }
-    curated?.records.forEach(ingest)
-    original?.records.forEach(ingest)
-    return { byId, byArk }
-  }, [curated?.records, original?.records])
-
-  const getAgentNames = useMemo(() => {
-    const cache = new Map<string, string[]>()
-    const { byId, byArk } = recordLookup
-    return (id?: string | null, ark?: string | null): string[] => {
-      const normalizedArk = ark ? ark.toLowerCase() : undefined
-      const record =
-        (id && byId.get(id)) ||
-        (normalizedArk ? byArk.get(normalizedArk) : undefined)
-      if (!record) return []
-      if (cache.has(record.id)) return cache.get(record.id)!
-      const names = extractAgentNames(record, {
-        lookupRecordByArk: value => byArk.get(value.toLowerCase()),
-      })
-      cache.set(record.id, names)
-      return names
-    }
-  }, [recordLookup])
+  const { originalIndexes } = useAppData()
+  const { getAgentNames } = useRecordLookup()
 
   const collator = useMemo(() => new Intl.Collator(language, { sensitivity: 'accent' }), [language])
   const sortedEntries = useMemo(() => {

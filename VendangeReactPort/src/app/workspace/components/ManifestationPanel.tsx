@@ -130,6 +130,7 @@ export function ManifestationPanel({
         data-manifestation-id={manifestation.id}
         data-expression-ark={manifestation.expressionArk}
         data-expression-id={expression.id}
+        data-anchor-expression-id={anchorExpressionId ?? undefined}
       >
         <button
           type="button"

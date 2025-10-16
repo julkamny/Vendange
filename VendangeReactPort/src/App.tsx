@@ -40,7 +40,7 @@ function AppShell() {
         exportDisabled={!clusters.length}
       />
       <main className="app-main">
-        <WorkspaceTabs />
+        <WorkspaceTabs shortcutModalOpen={shortcutOpen} />
       </main>
       <UploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
       <ShortcutModal open={shortcutOpen} onClose={() => setShortcutOpen(false)} />

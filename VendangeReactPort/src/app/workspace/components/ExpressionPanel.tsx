@@ -57,7 +57,7 @@ export function ExpressionPanel({ cluster, state, onSelectExpression, onToggleEx
   const { getAgentNames } = useRecordLookup()
   if (!cluster) return <em>{t('messages.noClusters')}</em>
 
-  const workFilterArk = state.highlightedWorkArk ?? null
+  const highlightedWorkArk = state.highlightedWorkArk ?? null
   const highlightedExpressionArk = state.highlightedExpressionArk ?? null
   const selectedEntity = state.selectedEntity
 
@@ -78,19 +78,16 @@ export function ExpressionPanel({ cluster, state, onSelectExpression, onToggleEx
           selectedEntity?.entityType === 'manifestation' && selectedEntity.expressionId === group.anchor.id
         const anchorFromWork =
           selectedEntity?.entityType === 'work' && selectedEntity.workArk === group.anchor.workArk
-        const anchorMatchesWorkFilter = matchesFilter(group.anchor.workArk, workFilterArk)
+        const anchorMatchesHighlight = matchesFilter(group.anchor.workArk, highlightedWorkArk)
 
         if (anchorSelected) anchorClasses.push('selected')
-        else if (anchorFromManifestation || anchorFromWork || (workFilterArk && anchorMatchesWorkFilter)) {
+        else if (anchorFromManifestation || anchorFromWork || (highlightedWorkArk && anchorMatchesHighlight)) {
           anchorClasses.push('highlight')
         }
         if (highlightedExpressionArk && highlightedExpressionArk === group.anchor.ark) {
           anchorClasses.push('highlight')
         }
-        if (workFilterArk) {
-          if (anchorMatchesWorkFilter) anchorClasses.push('filter-match')
-          else anchorClasses.push('dimmed')
-        }
+        if (highlightedWorkArk && anchorMatchesHighlight) anchorClasses.push('filter-match')
 
         return (
           <div key={group.anchor.id} className={groupClasses.join(' ')} data-anchor-expression-id={group.anchor.id}>
@@ -125,11 +122,10 @@ export function ExpressionPanel({ cluster, state, onSelectExpression, onToggleEx
                     (selectedEntity?.entityType === 'manifestation' && selectedEntity.expressionId === expr.id)
                   const isWorkSelection =
                     selectedEntity?.entityType === 'work' && selectedEntity.workArk === expr.workArk
-                  const matchesWork = matchesFilter(expr.workArk, workFilterArk)
+                  const matchesHighlight = matchesFilter(expr.workArk, highlightedWorkArk)
                   if (isSelectedExpression) rowClasses.push('selected')
-                  else if (isWorkSelection || (workFilterArk && matchesWork)) rowClasses.push('highlight')
-                  if (!matchesWork && workFilterArk) rowClasses.push('filtered-out')
-                  else if (workFilterArk && matchesWork) rowClasses.push('filter-match')
+                  else if (isWorkSelection || (highlightedWorkArk && matchesHighlight)) rowClasses.push('highlight')
+                  if (highlightedWorkArk && matchesHighlight) rowClasses.push('filter-match')
                   if (highlightedExpressionArk && highlightedExpressionArk === expr.ark) {
                     rowClasses.push('highlight')
                   }
@@ -181,16 +177,15 @@ export function ExpressionPanel({ cluster, state, onSelectExpression, onToggleEx
           {independentExpressions.map(expr => {
             const rowClasses = ['expression-item', 'entity-row', 'entity-row--expression', 'independent']
             const agentNames = getAgentNames(expr.id, expr.ark)
-            const matchesWork = matchesFilter(expr.workArk, workFilterArk)
+            const matchesHighlight = matchesFilter(expr.workArk, highlightedWorkArk)
             const isSelectedExpression =
               (selectedEntity?.entityType === 'expression' && selectedEntity.expressionId === expr.id) ||
               (selectedEntity?.entityType === 'manifestation' && selectedEntity.expressionId === expr.id)
             const isWorkSelection =
               selectedEntity?.entityType === 'work' && selectedEntity.workArk === expr.workArk
             if (isSelectedExpression) rowClasses.push('selected')
-            else if (isWorkSelection || (workFilterArk && matchesWork)) rowClasses.push('highlight')
-            if (!matchesWork && workFilterArk) rowClasses.push('filtered-out')
-            else if (workFilterArk && matchesWork) rowClasses.push('filter-match')
+            else if (isWorkSelection || (highlightedWorkArk && matchesHighlight)) rowClasses.push('highlight')
+            if (highlightedWorkArk && matchesHighlight) rowClasses.push('filter-match')
             if (highlightedExpressionArk && highlightedExpressionArk === expr.ark) rowClasses.push('highlight')
 
             const badges: EntityBadgeSpec[] = [{ type: 'expression', text: expr.id, tooltip: expr.ark }]

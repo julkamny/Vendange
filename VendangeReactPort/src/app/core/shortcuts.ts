@@ -26,18 +26,6 @@ export const SHORTCUTS: ShortcutConfig[] = [
     descriptionKey: 'shortcuts.listDown.description',
     defaultBinding: 'ArrowDown',
   },
-  {
-    action: 'openExpressionFilter',
-    labelKey: 'shortcuts.openExpressionFilter.label',
-    descriptionKey: 'shortcuts.openExpressionFilter.description',
-    defaultBinding: 'Ctrl+Alt+E',
-  },
-  {
-    action: 'openWorkFilter',
-    labelKey: 'shortcuts.openWorkFilter.label',
-    descriptionKey: 'shortcuts.openWorkFilter.description',
-    defaultBinding: 'Ctrl+Alt+W',
-  },
 ]
 
 export type ShortcutBindings = Record<ShortcutAction, string>

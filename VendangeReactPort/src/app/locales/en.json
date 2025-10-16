@@ -86,14 +86,6 @@
     "listDown": {
       "label": "Move selection down",
       "description": "Move to the next item in the active list."
-    },
-    "openExpressionFilter": {
-      "label": "Open expression filter",
-      "description": "Focus the expression filter dropdown."
-    },
-    "openWorkFilter": {
-      "label": "Open work filter",
-      "description": "Focus the work selector dropdown."
     }
   },
   "buttons": {

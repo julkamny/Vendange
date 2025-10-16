@@ -192,6 +192,8 @@ export function WorkListPanel({
           <div key={`unclustered-${work.id}`} className={containerClasses.join(' ')} data-work-id={work.id} data-work-ark={work.ark}>
             <div
               className={headerClasses.join(' ')}
+              data-work-id={work.id}
+              data-work-ark={work.ark}
               onClick={event => {
                 if (shouldIgnoreAgentBadge(event)) return
                 onSelectWork({ workId: work.id, workArk: work.ark })

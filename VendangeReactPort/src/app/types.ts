@@ -129,8 +129,6 @@ export type ShortcutAction =
   | 'focusDown'
   | 'listUp'
   | 'listDown'
-  | 'openExpressionFilter'
-  | 'openWorkFilter'
 
 export type ShortcutConfig = {
   action: ShortcutAction

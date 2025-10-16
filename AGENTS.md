@@ -24,3 +24,5 @@
 - `WorkspaceTabs` owns per-tab UI state; each tab renders `WorkspaceView`, which delegates to list/detail panels. Works, expressions, and manifestations are split into components under `workspace/components`.
 - `IntermarcView` renders pretty-printed records by decoding token markers from `prettyPrintIntermarc`; tokens are turned into spans with `data-ark` attributes for hover labels.
 - `workspace/components/WorkListPanel` now merges clustered and unclustered works into a single list sorted with `Intl.Collator`, and uses `titleOf` so orphan works display the same titles as clustered anchors.
+- `WorkspaceView` pipes selected records through `RecordEditor`, a CodeMirror JSON editor that locks clustered entities via coverage from `useWorkspaceData`; saving uses `AppDataContext.updateRecordIntermarc` to rewrite curated rows and recompute clusters so exports stay in sync.
+- Record editing relies on direct `@codemirror/*` dependencies (`commands`, `lang-json`, `state`, `view`) pinned in `package.json` to avoid multiple module instances when bundling.

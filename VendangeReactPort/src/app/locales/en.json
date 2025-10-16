@@ -142,7 +142,9 @@
     "failedIntermarc": "Failed to render intermarc",
     "noAgents": "No agents linked",
     "recordNotFound": "Record not found.",
-    "saveFailed": "Failed to save: {{error}}"
+    "saveFailed": "Failed to save: {{error}}",
+    "clusteredRecordReadOnly": "Editing disabled for clustered entities.",
+    "recordNotInCurated": "Editing is only available for records present in the curated CSV."
   },
   "banners": {
     "pickWork": "Pick work",

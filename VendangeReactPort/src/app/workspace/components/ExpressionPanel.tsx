@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type MouseEvent } from 'react'
 import type { Cluster, ExpressionClusterItem, ExpressionItem, EntityBadgeSpec } from '../../types'
 import type { WorkspaceTabState } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
@@ -18,6 +18,12 @@ type ExpressionPanelProps = {
     anchorExpressionId: string
     expressionArk: string
     accepted: boolean
+  }) => void
+  onOpenManifestations: (payload: {
+    expressionId: string
+    expressionArk?: string
+    workArk?: string
+    anchorId?: string
   }) => void
 }
 
@@ -52,7 +58,23 @@ function matchesFilter(target?: string | null, filter?: string | null): boolean 
   return target === filter
 }
 
-export function ExpressionPanel({ cluster, state, onSelectExpression, onToggleExpression }: ExpressionPanelProps) {
+function shouldIgnoreAnchorEvent(event: MouseEvent<HTMLElement>): boolean {
+  const target = event.target as HTMLElement | null
+  return !!target?.closest('.agent-badge')
+}
+
+function shouldIgnoreExpressionEvent(event: MouseEvent<HTMLElement>): boolean {
+  const target = event.target as HTMLElement | null
+  return !!target?.closest('input, button, .agent-badge')
+}
+
+export function ExpressionPanel({
+  cluster,
+  state,
+  onSelectExpression,
+  onToggleExpression,
+  onOpenManifestations,
+}: ExpressionPanelProps) {
   const { t } = useTranslation()
   const { getAgentNames } = useRecordLookup()
   if (!cluster) return <em>{t('messages.noClusters')}</em>
@@ -101,6 +123,15 @@ export function ExpressionPanel({ cluster, state, onSelectExpression, onToggleEx
                   anchorId: group.anchor.id,
                 })
               }
+              onDoubleClick={event => {
+                if (shouldIgnoreAnchorEvent(event)) return
+                onOpenManifestations({
+                  expressionId: group.anchor.id,
+                  expressionArk: group.anchor.ark,
+                  workArk: group.anchor.workArk,
+                  anchorId: group.anchor.id,
+                })
+              }}
             >
               <ExpressionGroupLabel
                 expression={group.anchor}
@@ -142,6 +173,15 @@ export function ExpressionPanel({ cluster, state, onSelectExpression, onToggleEx
                           anchorId: group.anchor.id,
                         })
                       }
+                      onDoubleClick={event => {
+                        if (shouldIgnoreExpressionEvent(event)) return
+                        onOpenManifestations({
+                          expressionId: expr.id,
+                          expressionArk: expr.ark,
+                          workArk: expr.workArk,
+                          anchorId: group.anchor.id,
+                        })
+                      }}
                     >
                       {expr.ark ? (
                         <input
@@ -202,6 +242,14 @@ export function ExpressionPanel({ cluster, state, onSelectExpression, onToggleEx
                     workArk: expr.workArk,
                   })
                 }
+                onDoubleClick={event => {
+                  if (shouldIgnoreExpressionEvent(event)) return
+                  onOpenManifestations({
+                    expressionId: expr.id,
+                    expressionArk: expr.ark,
+                    workArk: expr.workArk,
+                  })
+                }}
               >
                 <EntityLabel
                   title={expr.title || expr.id}

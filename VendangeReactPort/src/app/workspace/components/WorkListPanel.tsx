@@ -1,9 +1,12 @@
-import { useMemo } from 'react'
+import { useMemo, type MouseEvent } from 'react'
 import type { Cluster, RecordRow } from '../../types'
 import type { WorkspaceTabState } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
-import { computeWorkCounts } from '../../core/workCounts'
+import { computeWorkCounts, computeUnclusteredWorkCounts } from '../../core/workCounts'
 import { titleOf } from '../../core/entities'
+import { EntityLabel } from '../../components/EntityLabel'
+import { useAppData } from '../../providers/AppDataContext'
+import { extractAgentNames } from '../../core/agents'
 
 type WorkListPanelProps = {
   clusters: Cluster[]
@@ -14,8 +17,46 @@ type WorkListPanelProps = {
   onToggleWork: (payload: { clusterId: string; workArk: string; accepted: boolean }) => void
 }
 
-export function WorkListPanel({ clusters, unclusteredWorks, state, onSelectWork, onOpenExpressions, onToggleWork }: WorkListPanelProps) {
+export function WorkListPanel({
+  clusters,
+  unclusteredWorks,
+  state,
+  onSelectWork,
+  onOpenExpressions,
+  onToggleWork,
+}: WorkListPanelProps) {
   const { t, language } = useTranslation()
+  const { original, curated, originalIndexes } = useAppData()
+
+  const recordLookup = useMemo(() => {
+    const byId = new Map<string, RecordRow>()
+    const byArk = new Map<string, RecordRow>()
+    const ingest = (rec: RecordRow) => {
+      if (!byId.has(rec.id)) byId.set(rec.id, rec)
+      if (rec.ark) byArk.set(rec.ark.toLowerCase(), rec)
+    }
+    curated?.records.forEach(ingest)
+    original?.records.forEach(ingest)
+    return { byId, byArk }
+  }, [curated?.records, original?.records])
+
+  const getAgentNames = useMemo(() => {
+    const cache = new Map<string, string[]>()
+    const { byId, byArk } = recordLookup
+    return (id?: string | null, ark?: string | null): string[] => {
+      const normalizedArk = ark ? ark.toLowerCase() : undefined
+      const record =
+        (id && byId.get(id)) ||
+        (normalizedArk ? byArk.get(normalizedArk) : undefined)
+      if (!record) return []
+      if (cache.has(record.id)) return cache.get(record.id)!
+      const names = extractAgentNames(record, {
+        lookupRecordByArk: value => byArk.get(value.toLowerCase()),
+      })
+      cache.set(record.id, names)
+      return names
+    }
+  }, [recordLookup])
 
   const collator = useMemo(() => new Intl.Collator(language, { sensitivity: 'accent' }), [language])
   const sortedEntries = useMemo(() => {
@@ -56,27 +97,59 @@ export function WorkListPanel({ clusters, unclusteredWorks, state, onSelectWork,
     return <em>{t('messages.noClusters', { defaultValue: 'No clusters yet.' })}</em>
   }
 
+  const shouldIgnoreAgentBadge = (event: MouseEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement | null
+    return !!target?.closest('.agent-badge')
+  }
+
+  const shouldIgnoreWorkRowEvent = (event: MouseEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement | null
+    return !!target?.closest('input, button, .agent-badge')
+  }
+
   return (
     <div className="work-list-panel">
       {sortedEntries.map(entry => {
         if (entry.kind === 'cluster') {
           const { cluster } = entry
+          const anchorCounts = computeWorkCounts(cluster, cluster.anchorArk)
+          const clusterClasses = ['cluster']
+          if (state.activeWorkAnchorId === cluster.anchorId) clusterClasses.push('active')
+          const anchorRowClasses = ['cluster-header-row', 'entity-row', 'entity-row--work']
+          if (state.highlightedWorkArk && state.highlightedWorkArk === cluster.anchorArk) {
+            anchorRowClasses.push('highlight')
+          }
+          const anchorAgentNames = getAgentNames(cluster.anchorId, cluster.anchorArk)
           return (
-            <article
-              key={cluster.anchorId}
-              className={`cluster-card${state.activeWorkAnchorId === cluster.anchorId ? ' is-active' : ''}`}
-            >
-              <header
-                className="cluster-card__header"
-                onClick={() => onSelectWork({ workId: cluster.anchorId, workArk: cluster.anchorArk })}
+            <div key={cluster.anchorId} className={clusterClasses.join(' ')} data-cluster-anchor-id={cluster.anchorId}>
+              <div
+                className={anchorRowClasses.join(' ')}
+                data-work-id={cluster.anchorId}
+                data-work-ark={cluster.anchorArk}
               >
-                <h4>{entry.title}</h4>
-                <span className="cluster-card__badge">
-                  ⚓︎ {t('labels.workFallback', { defaultValue: 'Work' })}
-                </span>
+                <div
+                  className="cluster-header"
+                  onClick={event => {
+                    if (shouldIgnoreAgentBadge(event)) return
+                    onSelectWork({ workId: cluster.anchorId, workArk: cluster.anchorArk })
+                  }}
+                  onDoubleClick={event => {
+                    if (shouldIgnoreAgentBadge(event)) return
+                    onOpenExpressions({ workId: cluster.anchorId, workArk: cluster.anchorArk })
+                  }}
+                >
+                  <span className="cluster-anchor-marker">⚓︎</span>
+                  <EntityLabel
+                    title={entry.title}
+                    subtitle={t('banners.anchorSubtitle')}
+                    badges={[{ type: 'work', text: cluster.anchorId, tooltip: cluster.anchorArk }]}
+                    counts={anchorCounts}
+                    agentNames={anchorAgentNames}
+                  />
+                </div>
                 <button
                   type="button"
-                  className="cluster-card__expressions"
+                  className="cluster-open-expressions"
                   onClick={event => {
                     event.stopPropagation()
                     onOpenExpressions({ workId: cluster.anchorId, workArk: cluster.anchorArk })
@@ -84,64 +157,86 @@ export function WorkListPanel({ clusters, unclusteredWorks, state, onSelectWork,
                 >
                   {t('entity.viewExpressions', { defaultValue: 'Expressions' })}
                 </button>
-              </header>
-              <ul>
+              </div>
+              <div className="cluster-items">
                 {cluster.items.map(item => {
-                  const counts = computeWorkCounts(cluster, item.ark)
+                  const itemCounts = computeWorkCounts(cluster, item.ark)
+                  const rowClasses = ['cluster-item', 'entity-row', 'entity-row--work']
+                  if (!item.accepted) rowClasses.push('unchecked')
+                  if (state.highlightedWorkArk && state.highlightedWorkArk === item.ark) {
+                    rowClasses.push('highlight')
+                  }
+                  const agentNames = getAgentNames(item.id, item.ark)
                   return (
-                    <li key={`${cluster.anchorId}-${item.ark || item.id}`}>
-                      <button
-                        type="button"
-                        className="cluster-item-btn"
-                        onClick={() => onSelectWork({ workId: item.id || '', workArk: item.ark })}
-                      >
-                        <span>{item.title || item.id || item.ark}</span>
-                        <span className="cluster-item-counts">
-                          {counts.expressions}·{counts.manifestations}
-                        </span>
-                      </button>
-                      <label className="cluster-item-toggle">
-                        <input
-                          type="checkbox"
-                          checked={item.accepted}
-                          onChange={event =>
-                            onToggleWork({
-                              clusterId: cluster.anchorId,
-                              workArk: item.ark,
-                              accepted: event.target.checked,
-                            })
-                          }
-                        />
-                        {item.accepted
-                          ? t('labels.checkedLabel', { defaultValue: 'Kept' })
-                          : t('labels.uncheckedLabel')}
-                      </label>
-                    </li>
+                    <div
+                      key={`${cluster.anchorId}-${item.ark || item.id}`}
+                      className={rowClasses.join(' ')}
+                      data-work-id={item.id}
+                      data-work-ark={item.ark}
+                      onClick={event => {
+                        if (shouldIgnoreWorkRowEvent(event)) return
+                        onSelectWork({ workId: item.id || '', workArk: item.ark })
+                      }}
+                      onDoubleClick={event => {
+                        if (shouldIgnoreWorkRowEvent(event)) return
+                        onOpenExpressions({ workId: cluster.anchorId, workArk: item.ark })
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={item.accepted}
+                        onChange={event =>
+                          onToggleWork({
+                            clusterId: cluster.anchorId,
+                            workArk: item.ark,
+                            accepted: event.target.checked,
+                          })
+                        }
+                      />
+                      <EntityLabel
+                        title={item.title || item.id || item.ark || t('labels.workFallback')}
+                        subtitle={item.accepted ? undefined : t('labels.uncheckedWork')}
+                        badges={item.id ? [{ type: 'work', text: item.id, tooltip: item.ark }] : undefined}
+                        counts={itemCounts}
+                        agentNames={agentNames}
+                      />
+                    </div>
                   )
                 })}
-              </ul>
-            </article>
+              </div>
+            </div>
           )
         }
 
         const { work, title } = entry
+        const containerClasses = ['cluster', 'cluster--unclustered']
+        const headerClasses = ['cluster-header-row', 'entity-row', 'entity-row--work']
+        const highlight =
+          (work.ark && state.highlightedWorkArk === work.ark) ||
+          (!work.ark && state.selectedEntity?.entityType === 'work' && state.selectedEntity.id === work.id)
+        if (highlight) headerClasses.push('highlight')
+        const counts = computeUnclusteredWorkCounts(work, originalIndexes ?? null)
+        const agentNames = getAgentNames(work.id, work.ark)
         return (
-          <article
-            key={`unclustered-${work.id}`}
-            className={`cluster-card cluster-card--unclustered${
-              state.activeWorkAnchorId === work.id ? ' is-active' : ''
-            }`}
-          >
-            <header
-              className="cluster-card__header"
-              onClick={() => onSelectWork({ workId: work.id, workArk: work.ark })}
+          <div key={`unclustered-${work.id}`} className={containerClasses.join(' ')} data-work-id={work.id} data-work-ark={work.ark}>
+            <div
+              className={headerClasses.join(' ')}
+              onClick={event => {
+                if (shouldIgnoreAgentBadge(event)) return
+                onSelectWork({ workId: work.id, workArk: work.ark })
+              }}
             >
-              <h4>{title}</h4>
-              <span className="cluster-card__badge">
-                {t('labels.unclusteredWork', { defaultValue: 'Unclustered work' })}
-              </span>
-            </header>
-          </article>
+              <div className="cluster-header">
+                <EntityLabel
+                  title={title}
+                  subtitle={t('labels.unclusteredWork', { defaultValue: 'Unclustered work' })}
+                  badges={[{ type: 'work', text: work.id, tooltip: work.ark }]}
+                  counts={counts}
+                  agentNames={agentNames}
+                />
+              </div>
+            </div>
+          </div>
         )
       })}
     </div>

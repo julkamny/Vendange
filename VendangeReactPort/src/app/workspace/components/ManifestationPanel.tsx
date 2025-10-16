@@ -1,7 +1,16 @@
 import { useMemo } from 'react'
-import type { Cluster, ManifestationItem } from '../../types'
+import type {
+  Cluster,
+  ManifestationItem,
+  ExpressionItem,
+  ExpressionClusterItem,
+  EntityBadgeSpec,
+} from '../../types'
 import type { WorkspaceTabState } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
+import { useRecordLookup } from '../../hooks/useRecordLookup'
+import { EntityLabel } from '../../components/EntityLabel'
+import { ExpressionGroupLabel } from './ExpressionPanel'
 
 type ManifestationPanelProps = {
   cluster: Cluster | null
@@ -26,6 +35,9 @@ type ExpressionOption = {
   anchorExpressionId: string | null
 }
 
+type ExpressionSectionKind = 'anchor' | 'clustered' | 'independent'
+type ExpressionWithMeta = ExpressionItem | ExpressionClusterItem
+
 export function ManifestationPanel({
   cluster,
   state,
@@ -33,6 +45,7 @@ export function ManifestationPanel({
   onAssignManifestation,
 }: ManifestationPanelProps) {
   const { t } = useTranslation()
+  const { getAgentNames } = useRecordLookup()
   if (!cluster) return <em>{t('messages.noClusters')}</em>
   const expressionOptions = useMemo<ExpressionOption[]>(() => {
     if (!cluster) return []
@@ -67,38 +80,82 @@ export function ManifestationPanel({
     }
     return options
   }, [cluster])
-  if (!expressionOptions.length) {
-    return <em>{t('messages.noClusters')}</em>
-  }
+  const optionByArk = useMemo(() => {
+    const map = new Map<string, ExpressionOption>()
+    for (const option of expressionOptions) {
+      map.set(option.expressionArk, option)
+    }
+    return map
+  }, [expressionOptions])
+  const defaultOptionArk = expressionOptions[0]?.expressionArk ?? ''
+  const highlightedExpressionArk = state.highlightedExpressionArk ?? null
+  const selectedEntity = state.selectedEntity
 
-  const renderManifestation = (manifestation: ManifestationItem) => {
-    const isActive = state.selectedEntity?.entityType === 'manifestation' && state.selectedEntity.id === manifestation.id
-    const selectedExpression = manifestation.expressionArk
-    const selectValue = expressionOptions.some(option => option.expressionArk === selectedExpression)
-      ? selectedExpression ?? ''
-      : expressionOptions[0]?.expressionArk ?? ''
+  const renderManifestationRow = (
+    expression: ExpressionWithMeta,
+    anchorExpressionId: string | null,
+    manifestation: ManifestationItem,
+  ) => {
+    const rowClasses = ['manifestation-item', 'entity-row', 'entity-row--manifestation']
+    const isSelectedManifestation =
+      selectedEntity?.entityType === 'manifestation' && selectedEntity.id === manifestation.id
+    const isExpressionSelection =
+      selectedEntity?.entityType === 'expression' && selectedEntity.expressionId === expression.id
+    const isWorkSelection =
+      selectedEntity?.entityType === 'work' && selectedEntity.workArk === expression.workArk
+    const matchesExpressionHighlight =
+      highlightedExpressionArk && highlightedExpressionArk === manifestation.expressionArk
+    if (isSelectedManifestation) rowClasses.push('selected')
+    else if (isExpressionSelection || isWorkSelection || matchesExpressionHighlight) {
+      rowClasses.push('highlight')
+    }
+    if (manifestation.expressionArk !== manifestation.originalExpressionArk) {
+      rowClasses.push('changed')
+    }
+    const badges: EntityBadgeSpec[] = [
+      { type: 'manifestation', text: manifestation.id, tooltip: manifestation.ark },
+    ]
+    if (expression.id) {
+      badges.push({ type: 'expression', text: expression.id, tooltip: expression.ark })
+    }
+    const agentNames = getAgentNames(manifestation.id, manifestation.ark)
+    const selectValue = optionByArk.has(manifestation.expressionArk ?? '')
+      ? manifestation.expressionArk ?? ''
+      : defaultOptionArk
+
     return (
-      <li key={manifestation.id}>
-        <div className={`manifestation-entry${isActive ? ' is-active' : ''}`}>
-          <button
-            type="button"
-            onClick={() =>
-              onSelectManifestation({
-                manifestationId: manifestation.id,
-                expressionId: manifestation.expressionId,
-                expressionArk: manifestation.expressionArk,
-              })
-            }
-          >
-            <span>{manifestation.title || manifestation.id}</span>
-          </button>
+      <div
+        key={manifestation.id}
+        className={rowClasses.join(' ')}
+        data-manifestation-id={manifestation.id}
+        data-expression-ark={manifestation.expressionArk}
+        data-expression-id={expression.id}
+      >
+        <button
+          type="button"
+          className="manifestation-item__main"
+          onClick={() =>
+            onSelectManifestation({
+              manifestationId: manifestation.id,
+              expressionId: manifestation.expressionId,
+              expressionArk: manifestation.expressionArk,
+            })
+          }
+        >
+          <EntityLabel
+            title={manifestation.title || manifestation.id}
+            badges={badges}
+            agentNames={agentNames}
+          />
+        </button>
+        {expressionOptions.length ? (
           <select
             className="manifestation-expression-select"
             value={selectValue}
             onChange={event => {
               const nextArk = event.target.value
               if (!nextArk || nextArk === manifestation.expressionArk) return
-              const next = expressionOptions.find(option => option.expressionArk === nextArk)
+              const next = optionByArk.get(nextArk)
               if (!next) return
               onAssignManifestation({
                 manifestationId: manifestation.id,
@@ -109,44 +166,96 @@ export function ManifestationPanel({
             }}
           >
             {expressionOptions.map(option => (
-              <option key={`${option.anchorExpressionId ?? 'independent'}:${option.expressionArk}`} value={option.expressionArk}>
+              <option
+                key={`${option.anchorExpressionId ?? 'independent'}:${option.expressionArk}`}
+                value={option.expressionArk}
+              >
                 {option.label}
               </option>
             ))}
           </select>
-        </div>
-      </li>
+        ) : null}
+      </div>
     )
   }
 
-  const renderManifestationList = (manifestations: ManifestationItem[]) => {
-    if (!manifestations.length) return <p>{t('labels.noManifestations')}</p>
-    return <ul className="manifestation-list">{manifestations.map(renderManifestation)}</ul>
+  const renderManifestationList = (
+    expression: ExpressionWithMeta,
+    anchorExpressionId: string | null,
+  ) => {
+    if (!expression.manifestations.length) {
+      return <div className="manifestation-empty">{t('labels.noManifestations')}</div>
+    }
+    return (
+      <div className="manifestation-list">
+        {expression.manifestations.map(manifestation =>
+          renderManifestationRow(expression, anchorExpressionId, manifestation),
+        )}
+      </div>
+    )
+  }
+
+  const renderExpressionSection = (
+    expression: ExpressionWithMeta,
+    kind: ExpressionSectionKind,
+    anchorExpressionId: string | null,
+  ) => {
+    const sectionClasses = ['manifestation-section']
+    const isExpressionSelected =
+      selectedEntity?.entityType === 'expression' && selectedEntity.expressionId === expression.id
+    const isManifestationSelected =
+      selectedEntity?.entityType === 'manifestation' && selectedEntity.expressionId === expression.id
+    const matchesExpressionHighlight =
+      highlightedExpressionArk && highlightedExpressionArk === expression.ark
+    if (isExpressionSelected || isManifestationSelected || matchesExpressionHighlight) {
+      sectionClasses.push('highlight')
+    }
+    if (kind === 'clustered' && 'accepted' in expression && !expression.accepted) {
+      sectionClasses.push('inactive')
+    }
+    const agentNames = getAgentNames(expression.id, expression.ark)
+    const meta =
+      kind === 'anchor'
+        ? t('entity.anchorExpression')
+        : kind === 'clustered'
+          ? t('entity.clusteredExpression')
+          : t('entity.independentExpression')
+
+    return (
+      <div
+        key={`${anchorExpressionId ?? 'independent'}:${expression.id}`}
+        className={sectionClasses.join(' ')}
+        data-expression-id={expression.id}
+        data-expression-ark={expression.ark}
+      >
+        <div className="manifestation-section__header">
+          <ExpressionGroupLabel
+            expression={expression}
+            isAnchor={kind === 'anchor'}
+            manifestationCount={expression.manifestations.length}
+            agentNames={agentNames}
+          />
+          <span className="manifestation-section__meta">{meta}</span>
+        </div>
+        {renderManifestationList(expression, anchorExpressionId)}
+      </div>
+    )
   }
 
   return (
     <div className="manifestation-panel">
       {cluster.expressionGroups.map(group => (
         <section key={group.anchor.id} className="manifestation-group">
-          <header className="manifestation-group__header">⚓︎ {group.anchor.title || group.anchor.id}</header>
-          {renderManifestationList(group.anchor.manifestations)}
-          {group.clustered.map(expr => (
-            <div key={expr.id} className="manifestation-subgroup">
-              <header>{expr.title || expr.id}</header>
-              {renderManifestationList(expr.manifestations)}
-            </div>
-          ))}
+          {renderExpressionSection(group.anchor, 'anchor', group.anchor.id)}
+          {group.clustered.map(expr => renderExpressionSection(expr, 'clustered', group.anchor.id))}
         </section>
       ))}
       {cluster.independentExpressions.length > 0 && (
         <section className="manifestation-group manifestation-group--independent">
-          <header>{t('labels.independentExpressions')}</header>
-          {cluster.independentExpressions.map(expr => (
-            <div key={expr.id} className="manifestation-subgroup">
-              <header>{expr.title || expr.id}</header>
-              {renderManifestationList(expr.manifestations)}
-            </div>
-          ))}
+          <header className="manifestation-group__header">{t('labels.independentExpressions')}</header>
+          {cluster.independentExpressions.map(expr =>
+            renderExpressionSection(expr, 'independent', null),
+          )}
         </section>
       )}
     </div>

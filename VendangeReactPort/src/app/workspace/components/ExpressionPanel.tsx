@@ -34,7 +34,7 @@ type ExpressionGroupLabelProps = {
   agentNames: string[]
 }
 
-function ExpressionGroupLabel({ expression, isAnchor, manifestationCount, agentNames }: ExpressionGroupLabelProps) {
+export function ExpressionGroupLabel({ expression, isAnchor, manifestationCount, agentNames }: ExpressionGroupLabelProps) {
   const label = expression.title || expression.id
   const tooltip = label?.trim()
   return (

@@ -102,6 +102,7 @@
     "viewExpressions": "View expressions",
     "modifyRecord": "Modify record",
     "save": "Save",
+    "reset": "Reset",
     "closeEditor": "Close editor"
   },
   "labels": {

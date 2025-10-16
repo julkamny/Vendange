@@ -68,11 +68,15 @@ function getFirstSubZoneValue(im: Intermarc, zoneCode: string, subCode: string):
 
 function buildLabelFromIntermarc(im: Intermarc, type: string): string | undefined {
   const normalizedType = normalizeTypeName(type)
+  console.log(normalizedType)
   switch (normalizedType) {
-    case 'œuvre':
-      const parts = [getFirstSubZoneValue(im, '001', '001$a'),
-        getFirstSubZoneValue(im, '150', '150$a')]
-      return parts.join(' → ')
+    case 'œuvre': {
+      const parts = [
+        getFirstSubZoneValue(im, '001', '001$a'),
+        getFirstSubZoneValue(im, '150', '150$a'),
+      ].filter((part): part is string => !!part)
+      return parts.length ? parts.join(' → ') : undefined
+    }
     case 'identite publique de personne': {
       const parts = [
         getFirstSubZoneValue(im, '100', '100$a'),
@@ -84,8 +88,18 @@ function buildLabelFromIntermarc(im: Intermarc, type: string): string | undefine
       return getFirstSubZoneValue(im, '110', '110$a')
     case 'manifestation':
       return getFirstSubZoneValue(im, '245', '245$a')
+    case 'expression':
+      return getFirstSubZoneValue(im, '150', '150$a') ?? getFirstSubZoneValue(im, '245', '245$a')
     case 'valeur controlee':
       return getFirstSubZoneValue(im, '169', '169$a')
+    case 'marque':
+      return getFirstSubZoneValue(im, '163', '163$a')
+    case 'concept dewey': {
+      const main = getFirstSubZoneValue(im, '186', '186$i')
+      const subtitle = getFirstSubZoneValue(im, '186', '186$a')
+      if (main && subtitle) return `${main} — ${subtitle}`
+      return main ?? subtitle
+    }
     default:
       return undefined
   }
@@ -172,7 +186,13 @@ export async function resolveArkLabel(ark: string): Promise<string | undefined> 
 
 type DisplayValueResult = { text: string; ark?: string }
 
-async function displayValue(zoneCode: string, _subCode: string, valeur: string): Promise<DisplayValueResult> {
+async function displayValue(
+  zoneCode: string,
+  _subCode: string,
+  valeur: string,
+  resolveLabels: boolean,
+): Promise<DisplayValueResult> {
+  if (!resolveLabels) return { text: valeur }
   if (!looksLikeArk(valeur)) return { text: valeur }
   try {
     const resolved = await resolveArkLabel(valeur)
@@ -213,7 +233,15 @@ export function parseIntermarc(s: string): Intermarc {
   }
 }
 
-export async function prettyPrintIntermarc(im: Intermarc): Promise<PrettyIntermarcResult> {
+type PrettyPrintOptions = {
+  resolveLabels?: boolean
+}
+
+export async function prettyPrintIntermarc(
+  im: Intermarc,
+  options: PrettyPrintOptions = {},
+): Promise<PrettyIntermarcResult> {
+  const resolveLabels = options.resolveLabels ?? true
   const lines: string[] = []
   const tokens: PrettyIntermarcToken[] = []
 
@@ -226,7 +254,7 @@ export async function prettyPrintIntermarc(im: Intermarc): Promise<PrettyInterma
   for (const z of im.zones) {
     const subs = await Promise.all(
       z.sousZones.map(async sz => {
-        const { text: shown, ark } = await displayValue(z.code, sz.code, sz.valeur)
+        const { text: shown, ark } = await displayValue(z.code, sz.code, sz.valeur, resolveLabels)
         const label = formatSubLabel(z.code, sz.code)
         const displayCode = label.startsWith('$') ? label : `$${label}`
         const prefix = `${displayCode}`
@@ -239,6 +267,41 @@ export async function prettyPrintIntermarc(im: Intermarc): Promise<PrettyInterma
     lines.push(`${z.code}${suffix}`)
   }
   return { text: lines.join('\n'), tokens }
+}
+
+export function parsePrettyPrintedIntermarc(text: string): Intermarc {
+  const zones: Zone[] = []
+  const lines = text.split(/\r?\n/)
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim()
+    if (!trimmed) continue
+    const match = trimmed.match(/^(\S+)(?:\s+(.*))?$/)
+    if (!match) {
+      throw new Error(`Invalid line "${rawLine}"`)
+    }
+    const zoneCode = match[1]
+    const remainder = match[2]?.trim() ?? ''
+    const sousZones: SousZone[] = []
+    if (remainder) {
+      const segments = remainder.split(' $')
+      segments.forEach((segment, index) => {
+        const cleaned = (index === 0 ? segment : `$${segment}`).trim()
+        if (!cleaned) return
+        const spaceIndex = cleaned.indexOf(' ')
+        const codeSegment = (spaceIndex >= 0 ? cleaned.slice(0, spaceIndex) : cleaned).trim()
+        const valueSegment = spaceIndex >= 0 ? cleaned.slice(spaceIndex + 1).trim() : ''
+        if (!codeSegment) return
+        const normalizedCode = codeSegment.startsWith('$')
+          ? `${zoneCode}${codeSegment}`
+          : codeSegment.includes('$')
+            ? codeSegment
+            : `${zoneCode}$${codeSegment}`
+        sousZones.push({ code: normalizedCode, valeur: valueSegment })
+      })
+    }
+    zones.push({ code: zoneCode, sousZones })
+  }
+  return { zones }
 }
 
 export function findZones(im: Intermarc, code: string): Zone[] {

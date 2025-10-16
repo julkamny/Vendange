@@ -7,8 +7,8 @@ import { useWorkspaceData } from '../workspace/useWorkspaceData'
 import { WorkListPanel } from '../workspace/components/WorkListPanel'
 import { ExpressionPanel } from '../workspace/components/ExpressionPanel'
 import { ManifestationPanel } from '../workspace/components/ManifestationPanel'
-import { RecordEditor } from './RecordEditor'
 import { IntermarcView } from './IntermarcView'
+import { IntermarcEditor } from './IntermarcEditor'
 import { isWorkClustered, isExpressionClustered, isManifestationClustered } from '../core/clusterCoverage'
 
 type WorkspaceViewProps = {
@@ -207,21 +207,11 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
                 <span>{record.type}</span>
               </header>
               {editingRecord && canEditRecord ? (
-                <>
-                  <RecordEditor
-                    record={record}
-                    readOnly={false}
-                    onSave={next => {
-                      updateRecordIntermarc(record.id, next)
-                      setEditingRecord(false)
-                    }}
-                  />
-                  <div className="editor-actions">
-                    <button type="button" onClick={() => setEditingRecord(false)}>
-                      {t('buttons.closeEditor')}
-                    </button>
-                  </div>
-                </>
+                <IntermarcEditor
+                  record={record}
+                  onSave={next => updateRecordIntermarc(record.id, next)}
+                  onCancel={() => setEditingRecord(false)}
+                />
               ) : (
                 <>
                   <IntermarcView record={record} />

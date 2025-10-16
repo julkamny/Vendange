@@ -23,3 +23,4 @@
 - React port scaffolding lives in `VendangeReactPort/src/app`; `AppDataContext` hosts shared state (original/curated CSVs, clusters, indexes) and exposes mutation helpers like `setWorkAccepted`, `setExpressionAccepted`, and `moveManifestation`, which keep intermarc JSON synced with UI edits.
 - `WorkspaceTabs` owns per-tab UI state; each tab renders `WorkspaceView`, which delegates to list/detail panels. Works, expressions, and manifestations are split into components under `workspace/components`.
 - `IntermarcView` renders pretty-printed records by decoding token markers from `prettyPrintIntermarc`; tokens are turned into spans with `data-ark` attributes for hover labels.
+- `workspace/components/WorkListPanel` now merges clustered and unclustered works into a single list sorted with `Intl.Collator`, and uses `titleOf` so orphan works display the same titles as clustered anchors.

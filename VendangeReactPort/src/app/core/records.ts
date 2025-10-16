@@ -1,5 +1,6 @@
 import { parseIntermarc, findZones } from '../lib/intermarc'
 import { parseCsv } from '../lib/csv'
+import { buildHeaderLookup, normalizeHeaderName } from '../lib/csvHeaders'
 import type { CsvTable, RecordRow } from '../types'
 
 export function normalizeType(value: string): string {
@@ -18,10 +19,14 @@ export function parseCsvText(text: string): CsvTable {
 
 export function indexRecords(table: CsvTable): RecordRow[] {
   const headers = table.headers
-  const idIdx = headers.findIndex(h => stripQuotes(h) === 'id_entitelrm')
-  const typeIdx = headers.findIndex(h => stripQuotes(h) === 'type_entite')
-  const intIdx = headers.findIndex(h => stripQuotes(h) === 'intermarc')
-  if (idIdx < 0 || typeIdx < 0 || intIdx < 0) throw new Error('Missing expected headers')
+  const headerLookup = buildHeaderLookup(headers)
+  const idIdx = headerLookup.get('id_entitelrm') ?? -1
+  const typeIdx = headerLookup.get('type_entite') ?? -1
+  const intIdx = headerLookup.get('intermarc') ?? -1
+  if (idIdx < 0 || typeIdx < 0 || intIdx < 0) {
+    const available = headers.map(normalizeHeaderName).filter(Boolean).join(', ') || 'none'
+    throw new Error(`Missing expected headers (available: ${available})`)
+  }
   const records: RecordRow[] = table.rows.slice(1).map((row, idx) => {
     const intermarcStr = row[intIdx]
     const intermarc = parseIntermarc(intermarcStr)
@@ -42,9 +47,6 @@ export function indexRecords(table: CsvTable): RecordRow[] {
 }
 
 export function findIntermarcColumnIndex(table: CsvTable): number {
-  return table.headers.findIndex(h => stripQuotes(h) === 'intermarc')
-}
-
-function stripQuotes(value: string): string {
-  return value.replace(/\"/g, '').replace(/"/g, '').trim()
+  const headerLookup = buildHeaderLookup(table.headers)
+  return headerLookup.get('intermarc') ?? -1
 }

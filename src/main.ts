@@ -15,15 +15,6 @@ import { EditorState } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { defaultKeymap } from '@codemirror/commands'
 import { json } from '@codemirror/lang-json'
-import {
-  type VirtualizerOptions,
-  type VirtualItem,
-  Virtualizer,
-  elementScroll,
-  measureElement,
-  observeElementOffset,
-  observeElementRect,
-} from '@tanstack/virtual-core'
 import i18n, { initI18n, t, changeLanguage, supportedLanguages, getCurrentLanguage } from './i18n'
 
 await initI18n()
@@ -1262,11 +1253,9 @@ const originalManifestationsByExpressionArk = new Map<string, RecordRow[]>()
 
 let listScope: InventoryScope = 'clusters'
 let inventoryRows: InventoryRow[] = []
-const inventoryIndexById = new Map<string, number>()
 const inventoryExpressionIndexById = new Map<string, number>()
 const inventoryManifestationIndexById = new Map<string, Map<string, number>>()
 let inventoryExpressionFilterArk: string | null = null
-let inventoryVirtualList: VirtualList<InventoryRow> | null = null
 let inventoryFocusWork: RecordRow | null = null
 let inventoryFocusExpression: RecordRow | null = null
 
@@ -1552,11 +1541,9 @@ function buildInventoryRowForControlled(rec: RecordRow): InventoryRow {
 
 function rebuildInventoryRows() {
   const rows: InventoryRow[] = []
-  inventoryIndexById.clear()
   const collator = new Intl.Collator(getCurrentLanguage(), { sensitivity: 'accent' })
 
   const pushRow = (row: InventoryRow) => {
-    if (row.kind === 'entity') inventoryIndexById.set(row.record.id, rows.length)
     rows.push(row)
   }
 
@@ -1602,9 +1589,6 @@ function rebuildInventoryRows() {
   addSection('inventory.sections.controlled', controlled, buildInventoryRowForControlled)
 
   inventoryRows = rows
-  if (listScope === 'inventory' && viewMode === 'works' && inventoryVirtualList) {
-    inventoryVirtualList.setItems(inventoryRows)
-  }
 }
 
 function renderCurrentView() {
@@ -2112,13 +2096,6 @@ function renderInventoryView() {
   }
 }
 
-function destroyInventoryVirtualList() {
-  if (inventoryVirtualList) {
-    inventoryVirtualList.destroy()
-    inventoryVirtualList = null
-  }
-}
-
 function createInventoryRowElement(
   row: InventoryRow,
   handlers: { onSingle?: () => void; onDouble?: () => void } = {},
@@ -2165,12 +2142,6 @@ function createInventoryRowElement(
     () => onSingle(),
     () => onDouble(),
   )
-  return element
-}
-
-function renderInventoryListRow(row: InventoryRow, index: number): HTMLElement {
-  const element = createInventoryRowElement(row)
-  element.dataset.index = String(index)
   return element
 }
 
@@ -2226,7 +2197,6 @@ function selectInventoryRecord(row: InventoryRow) {
 }
 
 function renderInventoryWorkList() {
-  destroyInventoryVirtualList()
   inventoryExpressionIndexById.clear()
   inventoryManifestationIndexById.clear()
   inventoryExpressionFilterArk = null
@@ -2240,17 +2210,12 @@ function renderInventoryWorkList() {
   const container = document.createElement('div')
   container.className = 'inventory-list'
   clustersEl.appendChild(container)
-  const host = document.createElement('div')
-  host.className = 'inventory-virtual-host'
-  container.appendChild(host)
-  inventoryVirtualList = new VirtualList<InventoryRow>({
-    scrollContainer: clustersEl,
-    host,
-    estimateHeight: 72,
-    overscan: 6,
-    items: inventoryRows,
-    renderItem: renderInventoryListRow,
+  const fragment = document.createDocumentFragment()
+  inventoryRows.forEach(row => {
+    const element = createInventoryRowElement(row)
+    fragment.appendChild(element)
   })
+  container.appendChild(fragment)
 }
 
 function buildInventoryBreadcrumb(items: Array<{ label: string; action?: () => void }>): HTMLDivElement {
@@ -2288,7 +2253,6 @@ function createInventoryEmptyState(messageKey: string): HTMLElement {
 }
 
 function renderInventoryExpressionList(work: RecordRow) {
-  destroyInventoryVirtualList()
   inventoryExpressionIndexById.clear()
   inventoryManifestationIndexById.clear()
   inventoryExpressionFilterArk = null
@@ -2443,7 +2407,6 @@ function handleInventoryExpressionDoubleClick(expression: RecordRow) {
 }
 
 function renderInventoryManifestationList(expression: RecordRow) {
-  destroyInventoryVirtualList()
   inventoryManifestationIndexById.clear()
   const container = document.createElement('div')
   container.className = 'inventory-detail'
@@ -2940,9 +2903,12 @@ function handleWorkSelectionChange(cluster: Cluster, value: string) {
 function scrollEntityIntoView(entity: SelectedEntity) {
   if (listScope === 'inventory') {
     if (viewMode === 'works') {
-      const index = inventoryIndexById.get(entity.id)
-      if (index !== undefined && inventoryVirtualList) {
-        inventoryVirtualList.scrollToIndex(index)
+      if (entity.id) {
+        const rows = Array.from(
+          clustersEl.querySelectorAll<HTMLElement>('.inventory-list .inventory-row[data-inventory-id]'),
+        )
+        const target = rows.find(row => row.dataset.inventoryId === entity.id)
+        target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
       return
     }
@@ -3681,13 +3647,16 @@ function navigateInventoryList(direction: 'up' | 'down') {
 }
 
 function navigateInventoryWorkList(direction: 'up' | 'down') {
-  if (!inventoryRows.length) return
-  const entries = inventoryRows
-    .map((row, index) => ({ row, index }))
-    .filter((entry): entry is { row: InventoryEntityRow; index: number } => entry.row.kind === 'entity')
+  const rows = Array.from(
+    clustersEl.querySelectorAll<HTMLElement>('.inventory-list .inventory-row[data-inventory-id]'),
+  )
+  if (!rows.length) return
+  const entries = rows
+    .map(row => ({ row, id: row.dataset.inventoryId }))
+    .filter((entry): entry is { row: HTMLElement; id: string } => !!entry.id)
   if (!entries.length) return
   const currentId = selectedEntity?.id || null
-  let currentIndex = currentId ? entries.findIndex(entry => entry.row.record.id === currentId) : -1
+  let currentIndex = currentId ? entries.findIndex(entry => entry.id === currentId) : -1
   if (currentIndex === -1) currentIndex = direction === 'down' ? -1 : entries.length
   const delta = direction === 'down' ? 1 : -1
   let nextIndex = currentIndex + delta
@@ -3695,10 +3664,12 @@ function navigateInventoryWorkList(direction: 'up' | 'down') {
   if (nextIndex >= entries.length) nextIndex = entries.length - 1
   if (nextIndex === currentIndex) return
   const target = entries[nextIndex]
-  if (inventoryVirtualList) {
-    inventoryVirtualList.scrollToIndex(target.index)
-  }
-  selectInventoryRecord(target.row)
+  const rowData = inventoryRows.find(
+    (row): row is InventoryEntityRow => row.kind === 'entity' && row.record.id === target.id,
+  )
+  if (!rowData) return
+  target.row.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  selectInventoryRecord(rowData)
 }
 
 function navigateInventoryExpressionList(direction: 'up' | 'down') {
@@ -4136,105 +4107,6 @@ function createManifestationRow(
     row.classList.add('filter-match')
   }
   return row
-}
-
-type VirtualListOptions<T> = {
-  scrollContainer: HTMLElement
-  host: HTMLElement
-  items: T[]
-  renderItem: (item: T, index: number) => HTMLElement
-  estimateHeight?: number
-  overscan?: number
-}
-
-class VirtualList<T> {
-  private scrollContainer: HTMLElement
-  private host: HTMLElement
-  private content: HTMLElement
-  private items: T[]
-  private renderItem: (item: T, index: number) => HTMLElement
-  private estimateHeight: number
-  private overscan: number
-  private virtualizer: Virtualizer<HTMLElement, HTMLElement>
-  private virtualizerCleanup: (() => void) | null = null
-
-  constructor(options: VirtualListOptions<T>) {
-    this.scrollContainer = options.scrollContainer
-    this.host = options.host
-    this.items = options.items
-    this.renderItem = options.renderItem
-    this.estimateHeight = options.estimateHeight ?? 64
-    this.overscan = options.overscan ?? 4
-    this.content = document.createElement('div')
-    this.content.className = 'virtual-list-content'
-    this.host.style.position = 'relative'
-    this.host.appendChild(this.content)
-
-    this.virtualizer = new Virtualizer<HTMLElement, HTMLElement>(this.createVirtualizerOptions())
-    this.virtualizerCleanup = this.virtualizer._didMount()
-    this.renderVisible()
-  }
-
-  setItems(items: T[]) {
-    this.items = items
-    this.virtualizer.setOptions(this.createVirtualizerOptions())
-    this.renderVisible()
-  }
-
-  scrollToIndex(index: number) {
-    if (index < 0 || index >= this.items.length) return
-    this.virtualizer.scrollToIndex(index, { align: 'start' })
-  }
-
-  destroy() {
-    this.virtualizerCleanup?.()
-    this.virtualizerCleanup = null
-    this.host.innerHTML = ''
-  }
-
-  private createVirtualizerOptions(): VirtualizerOptions<HTMLElement, HTMLElement> {
-    return {
-      count: this.items.length,
-      estimateSize: () => this.estimateHeight,
-      getScrollElement: () => this.scrollContainer,
-      measureElement,
-      observeElementOffset,
-      observeElementRect,
-      onChange: this.handleVirtualizerChange,
-      overscan: this.overscan,
-      scrollToFn: elementScroll,
-    }
-  }
-
-  private handleVirtualizerChange = () => {
-    this.renderVisible()
-  }
-
-  private renderVisible() {
-    this.virtualizer._willUpdate()
-    const virtualItems = this.virtualizer.getVirtualItems()
-    const totalSize = this.virtualizer.getTotalSize()
-    this.host.style.height = `${totalSize}px`
-
-    const fragment = document.createDocumentFragment()
-    const elements: HTMLElement[] = []
-    const paddingStart = virtualItems.length ? virtualItems[0].start : 0
-    const paddingEnd = virtualItems.length
-      ? totalSize - (virtualItems[virtualItems.length - 1].start + virtualItems[virtualItems.length - 1].size)
-      : 0
-    this.content.style.paddingTop = `${paddingStart}px`
-    this.content.style.paddingBottom = `${Math.max(0, paddingEnd)}px`
-
-    virtualItems.forEach((virtualItem: VirtualItem) => {
-      const element = this.renderItem(this.items[virtualItem.index], virtualItem.index)
-      element.dataset.index = String(virtualItem.index)
-      fragment.appendChild(element)
-      elements.push(element)
-    })
-
-    this.content.replaceChildren(fragment)
-    elements.forEach(element => this.virtualizer.measureElement(element))
-  }
 }
 
 function setupManifestationDrop(

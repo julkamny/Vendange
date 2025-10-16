@@ -652,17 +652,6 @@ button:focus-visible {
   position: relative;
 }
 
-.inventory-virtual-host {
-  position: relative;
-  min-height: 100%;
-}
-
-.virtual-list-content {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
-
 .inventory-section-header {
   font-size: 0.75rem;
   font-weight: 700;

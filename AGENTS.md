@@ -22,3 +22,4 @@
 - Unclustered work navigation: `openUnclusteredWorkExpressions` sets `listScope` to `inventory` and `viewMode` to `expressions`; going back to works must switch `listScope` to `clusters`, `viewMode` to `works`, and update `highlightedWorkArk` so the unified work list reopens with the originating work highlighted.
 - Keyboard “go to parent” uses `focusInventoryTreeUp`; ensure the expression branch mirrors the breadcrumb behavior by calling `showRecordDetails` for the parent work after flipping back to the cluster scope.
 - Intermarc rendering now exposes resolved ARK labels via `prettyPrintIntermarc`, which returns `{ text, tokens }` with token markers (`ARK_TOKEN_START/END`); UI code must decode these markers into tooltip spans instead of treating the text as plain strings.
+- Inventory lists render all rows directly; the old `VirtualList`/TanStack virtualizer scaffolding has been removed so scrolling uses native `scrollIntoView` on `.inventory-list` rows.

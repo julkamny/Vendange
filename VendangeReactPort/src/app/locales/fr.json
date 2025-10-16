@@ -1,0 +1,200 @@
+{
+  "app": {
+    "title": "Vendange"
+  },
+  "workspace": {
+    "tabDefault": "Espace de travail",
+    "addTab": "Ajouter un onglet",
+    "closeTab": "Fermer l'onglet",
+    "summary": "{{clusters}} grappes · {{original}} notices originales · {{curated}} notices curées",
+    "clustersHeading": "Grappes",
+    "clusterCount": "{{count}} grappes",
+    "noClusters": "Aucune grappe chargée pour le moment.",
+    "unclusteredHeading": "Œuvres non regroupées",
+    "unclusteredCount": "{{count}} œuvres restent à regrouper",
+    "noUnclustered": "Toutes les œuvres sont regroupées.",
+    "todo": "Portage en cours…"
+  },
+  "toolbar": {
+    "loadCsv": "Charger des CSV",
+    "darkMode": "Mode sombre",
+    "shortcuts": "Raccourcis",
+    "export": "Exporter le CSV curé"
+  },
+  "language": {
+    "ariaLabel": "Langue de l'interface",
+    "options": {
+      "en": "Anglais",
+      "fr": "Français"
+    }
+  },
+  "aria": {
+    "openWork": "Ouvrir l'œuvre {{id}}"
+  },
+  "theme": {
+    "switchToLight": "Passer en mode clair",
+    "switchToDark": "Passer en mode sombre",
+    "activateLight": "Activer le mode clair",
+    "activateDark": "Activer le mode sombre"
+  },
+  "toolbarToggle": {
+    "show": "Afficher les outils",
+    "hide": "Masquer les outils"
+  },
+  "layout": {
+    "loadPrompt": "Chargez des fichiers pour commencer.",
+    "selectPrompt": "Sélectionnez une notice dans le panneau de gauche.",
+    "dropHint": "Déposez des fichiers ici (curated.csv et/ou original)",
+    "defaultDataLoaded": "Données par défaut chargées depuis /data. Déposez des fichiers pour les remplacer.",
+    "provideFiles": "Fournissez curated.csv et original/current_export.csv pour commencer."
+  },
+  "listScope": {
+    "clusters": "Clusters",
+    "inventory": "Toutes les entités"
+  },
+  "uploadModal": {
+    "title": "Charger des fichiers CSV",
+    "instructions": "Déposez ici les CSV curé et original ou sélectionnez-les manuellement.",
+    "drop": "Déposer des fichiers",
+    "expected": "Attendu : curated.csv et original/current_export.csv",
+    "original": "CSV original",
+    "curated": "CSV curé",
+    "loadDefaults": "Charger les données par défaut",
+    "clear": "Effacer",
+    "close": "Fermer"
+  },
+  "shortcutsModal": {
+    "title": "Raccourcis clavier",
+    "instructions": "Sélectionnez un raccourci puis appuyez sur une nouvelle combinaison pour le modifier.",
+    "reset": "Réinitialiser",
+    "done": "Terminé",
+    "recordPrompt": "Appuyez sur des touches…"
+  },
+  "shortcuts": {
+    "focusUp": {
+      "label": "Monter d'un niveau",
+      "description": "Depuis une manifestation, aller vers son expression ; depuis une expression, aller vers son œuvre."
+    },
+    "focusDown": {
+      "label": "Descendre d'un niveau",
+      "description": "Depuis une œuvre, accéder à ses expressions ; depuis une expression, accéder à ses manifestations."
+    },
+    "listUp": {
+      "label": "Sélection précédente",
+      "description": "Aller à l'élément précédent dans la liste active."
+    },
+    "listDown": {
+      "label": "Sélection suivante",
+      "description": "Aller à l'élément suivant dans la liste active."
+    },
+    "openExpressionFilter": {
+      "label": "Ouvrir le filtre d'expressions",
+      "description": "Donner le focus à la liste déroulante de filtrage des expressions."
+    },
+    "openWorkFilter": {
+      "label": "Ouvrir le filtre d'œuvres",
+      "description": "Donner le focus à la liste déroulante de filtrage des œuvres."
+    }
+  },
+  "buttons": {
+    "add": "Ajouter",
+    "viewWorks": "Voir les œuvres",
+    "viewExpressions": "Voir les expressions",
+    "modifyRecord": "Modifier la notice",
+    "save": "Enregistrer"
+  },
+  "labels": {
+    "curated": "Curé",
+    "original": "Original",
+    "independentExpressions": "Expressions indépendantes",
+    "noClusteredExpressions": "Aucune expression groupée.",
+    "noManifestations": "Aucune manifestation.",
+    "noExpressionsForWork": "Aucune expression trouvée pour cette œuvre.",
+    "uncheckedWork": "Œuvre non validée",
+    "unclusteredWork": "Œuvre non clusterisée",
+    "independentExpressionManifestation": "Manifestation d'une expression indépendante",
+    "uncheckedTag": "non validée",
+    "workFallback": "Œuvre",
+    "detachedExpression": "Expression détachée",
+    "uncheckedLabel": "Non validée",
+    "checkedLabel": "Conservée",
+    "expressionUnchecked": "Expression non validée",
+    "workUnchecked": "Œuvre non validée"
+  },
+  "notifications": {
+    "expressionMoved": "Expression déplacée vers un nouvel ancrage",
+    "workAdded": "Œuvre ajoutée au cluster",
+    "noExpressions": "Aucune expression liée à cette œuvre",
+    "noManifestations": "Aucune manifestation disponible pour cette expression",
+    "manifestationMoved": "Manifestation déplacée vers une nouvelle expression",
+    "csvLoaded": "Fichiers CSV chargés",
+    "needCuratedAndOriginal": "Fournissez les fichiers curated.csv et original",
+    "workKept": "Œuvre conservée dans le cluster",
+    "workUnchecked": "Œuvre non validée ; expressions liées désactivées",
+    "expressionKept": "Expression conservée dans le cluster",
+    "expressionUnchecked": "Expression retirée du cluster",
+    "invalidClusterWork": "Impossible d'ajouter cet ARK : l'entité n'est pas une œuvre"
+  },
+  "messages": {
+    "noClusters": "Aucun cluster détecté. Chargez un CSV curé produit par le script.",
+    "filesLoadedFromDrop": "Fichiers chargés depuis le dépôt.",
+    "loadingIntermarc": "Chargement…",
+    "failedIntermarc": "Échec du rendu Intermarc",
+    "noAgents": "Aucun agent lié",
+    "recordNotFound": "Notice introuvable.",
+    "saveFailed": "Échec de l'enregistrement : {{error}}"
+  },
+  "banners": {
+    "pickWork": "Choisir une œuvre",
+    "allWorks": "Toutes les œuvres",
+    "anchorGroup": "Ancre",
+    "clusteredGroup": "Groupées",
+    "anchorSubtitle": "Ancre du cluster",
+    "showManifestations": "Afficher les manifestations de",
+    "allExpressions": "Toutes les expressions"
+  },
+  "manifestationFilter": {
+    "titleDefault": "Expressions",
+    "subtitleDefault": "Filtrer les manifestations par expression",
+    "subtitleActive": "Manifestations filtrées"
+  },
+  "cluster": {
+    "addPlaceholder": "Ajouter un ARK à fusionner (ark:/...)"
+  },
+  "entity": {
+    "work": "Œuvre {{id}}",
+    "expression": "Expression {{id}}",
+    "manifestation": "Manifestation {{id}}",
+    "clusteredExpression": "Expression groupée",
+    "anchorExpression": "Expression ancre",
+    "independentExpression": "Expression indépendante"
+  },
+  "inventory": {
+    "empty": "Aucune entité disponible.",
+    "emptyExpressions": "Aucune expression liée à cette œuvre.",
+    "emptyManifestations": "Aucune manifestation liée à cette expression.",
+    "sections": {
+      "works": "Œuvres non clusterisées ({{count}})",
+      "expressions": "Expressions non clusterisées ({{count}})",
+      "manifestations": "Manifestations non clusterisées ({{count}})",
+      "persons": "Identités publiques ({{count}})",
+      "collectives": "Collectivités ({{count}})",
+      "brands": "Marques ({{count}})",
+      "concepts": "Concepts Dewey ({{count}})",
+      "controlled": "Valeurs contrôlées ({{count}})"
+    },
+    "headers": {
+      "expressions": "Expressions ({{count}})",
+      "manifestations": "Manifestations ({{count}})"
+    },
+    "breadcrumb": {
+      "works": "Œuvres"
+    }
+  },
+  "badges": {
+    "expressions_one": "{{count}} expression",
+    "expressions_other": "{{count}} expressions",
+    "manifestations_one": "{{count}} manifestation",
+    "manifestations_other": "{{count}} manifestations"
+  }
+}

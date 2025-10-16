@@ -1,4 +1,5 @@
 import { findZones } from '../lib/intermarc'
+import { CLUSTER_NOTE } from './constants'
 import type { Cluster, ExpressionItem, ExpressionClusterItem, ManifestationItem, RecordRow } from '../types'
 
 export function zoneText(zone: { sousZones: Array<{ valeur?: unknown }> }): string {
@@ -15,6 +16,12 @@ export function titleOf(rec: RecordRow): string | undefined {
 }
 
 export function expressionWorkArks(rec: RecordRow): string[] {
+  const from140 = findZones(rec.intermarc, '140')
+    .flatMap(z => z.sousZones)
+    .filter(sz => sz.code === '140$3')
+    .map(sz => sz.valeur)
+    .filter((v): v is string => !!v)
+  if (from140.length) return from140
   return findZones(rec.intermarc, '750')
     .flatMap(z => z.sousZones)
     .filter(sz => sz.code === '750$3')
@@ -23,11 +30,12 @@ export function expressionWorkArks(rec: RecordRow): string[] {
 }
 
 export function expressionClusterTargets(rec: RecordRow): { ark: string; date: string | undefined }[] {
-  return findZones(rec.intermarc, '750')
+  return findZones(rec.intermarc, '90F')
+    .filter(z => z.sousZones.some(sz => sz.code === '90F$q' && sz.valeur === CLUSTER_NOTE))
     .map(z => {
-      const ark = z.sousZones.find(sz => sz.code === '750$3')?.valeur
+      const ark = z.sousZones.find(sz => sz.code === '90F$a')?.valeur
       if (!ark) return null
-      const date = z.sousZones.find(sz => sz.code === '750$d')?.valeur
+      const date = z.sousZones.find(sz => sz.code === '90F$d')?.valeur
       return { ark, date }
     })
     .filter((v): v is { ark: string; date: string | undefined } => !!v)

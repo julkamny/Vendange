@@ -44,11 +44,14 @@ export function useRecordLookup(): RecordLookup {
 
   const getAgentNames = useCallback(
     (id?: string | null, ark?: string | null) => {
-      const record = (id && index.byId.get(id)) || (ark ? index.byArk.get(ark.toLowerCase()) : undefined)
+      const record =
+        (id && index.byId.get(id)) ||
+        (typeof ark === 'string' ? index.byArk.get(ark.toLowerCase()) : undefined)
       if (!record) return []
       if (agentCache.has(record.id)) return agentCache.get(record.id)!
       const names = extractAgentNames(record, {
-        lookupRecordByArk: value => index.byArk.get(value.toLowerCase()),
+        lookupRecordByArk: value =>
+          typeof value === 'string' ? index.byArk.get(value.toLowerCase()) : undefined,
       })
       agentCache.set(record.id, names)
       return names

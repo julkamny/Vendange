@@ -1,4 +1,5 @@
 import { parseCsv } from './csv'
+import { buildHeaderLookup, normalizeHeaderName } from './csvHeaders'
 
 export type SousZone = { code: string; valeur: string }
 export type Zone = { code: string; sousZones: SousZone[] }
@@ -41,12 +42,6 @@ function arkToId(ark: string): string | null {
 
 function stripBom(value: string): string {
   return value.replace(/^\uFEFF/, '')
-}
-
-function stripQuotes(value: string): string {
-  if (!value) return ''
-  const noBom = stripBom(value)
-  return noBom.replace(/\"/g, '').replace(/"/g, '').trim()
 }
 
 function normalizeTypeName(type: string): string {
@@ -115,11 +110,13 @@ async function loadArkLabels(): Promise<ArkLabelMap> {
       const delimiter = guessDelimiter(text)
       const parsed = parseCsv(text, delimiter)
       const headers = parsed.headers
-      const idIdx = headers.findIndex(h => stripQuotes(h) === 'id_entitelrm')
-      const typeIdx = headers.findIndex(h => stripQuotes(h) === 'type_entite')
-      const interIdx = headers.findIndex(h => stripQuotes(h) === 'intermarc')
+      const headerLookup = buildHeaderLookup(headers)
+      const idIdx = headerLookup.get('id_entitelrm') ?? -1
+      const typeIdx = headerLookup.get('type_entite') ?? -1
+      const interIdx = headerLookup.get('intermarc') ?? -1
       if (idIdx === -1 || typeIdx === -1 || interIdx === -1) {
-        console.error('current_export.csv is missing expected headers')
+        const available = headers.map(normalizeHeaderName).filter(Boolean).join(', ') || 'none'
+        console.error(`current_export.csv is missing expected headers (available: ${available})`)
         return new Map<string, string>()
       }
       const result = new Map<string, string>()

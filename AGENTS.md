@@ -19,3 +19,5 @@
 	- `$3` subfield in fields 700, 701, 702, as well as 710, 711, 712.
 
 ## Incremental agent knowledge
+- Unclustered work navigation: `openUnclusteredWorkExpressions` sets `listScope` to `inventory` and `viewMode` to `expressions`; going back to works must switch `listScope` to `clusters`, `viewMode` to `works`, and update `highlightedWorkArk` so the unified work list reopens with the originating work highlighted.
+- Keyboard “go to parent” uses `focusInventoryTreeUp`; ensure the expression branch mirrors the breadcrumb behavior by calling `showRecordDetails` for the parent work after flipping back to the cluster scope.

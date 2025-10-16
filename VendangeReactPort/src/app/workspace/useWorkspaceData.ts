@@ -7,6 +7,16 @@ import { titleOf, expressionWorkArks, manifestationsForExpression, manifestation
 import type { Cluster, RecordRow } from '../types'
 import type { WorkspaceTabState } from './types'
 
+export type WorkspaceDataIndexes = {
+  worksById: Map<string, RecordRow>
+  worksByArk: Map<string, RecordRow>
+  expressionsById: Map<string, RecordRow>
+  expressionsByArk: Map<string, RecordRow>
+  expressionsByWorkArk: Map<string, RecordRow[]>
+  manifestationsById: Map<string, RecordRow>
+  manifestationsByExpressionArk: Map<string, RecordRow[]>
+}
+
 export function useWorkspaceData(state: WorkspaceTabState) {
   const { clusters, original, curated } = useAppData()
   const { language } = useTranslation()
@@ -17,11 +27,13 @@ export function useWorkspaceData(state: WorkspaceTabState) {
     return getUnclusteredWorks(original.records, coverage, language)
   }, [original, coverage, language])
 
-  const dataIndexes = useMemo(() => {
+  const dataIndexes = useMemo<WorkspaceDataIndexes>(() => {
     const worksById = new Map<string, RecordRow>()
     const worksByArk = new Map<string, RecordRow>()
+    const expressionsById = new Map<string, RecordRow>()
     const expressionsByArk = new Map<string, RecordRow>()
     const expressionsByWorkArk = new Map<string, RecordRow[]>()
+    const manifestationsById = new Map<string, RecordRow>()
     const manifestationsByExpressionArk = new Map<string, RecordRow[]>()
 
     const addRecords = (records: RecordRow[] | undefined | null) => {
@@ -33,6 +45,7 @@ export function useWorkspaceData(state: WorkspaceTabState) {
           continue
         }
         if (rec.typeNorm === 'expression') {
+          expressionsById.set(rec.id, rec)
           if (rec.ark) expressionsByArk.set(rec.ark, rec)
           const workArks = expressionWorkArks(rec)
           for (const workArk of workArks) {
@@ -45,6 +58,7 @@ export function useWorkspaceData(state: WorkspaceTabState) {
           continue
         }
         if (rec.typeNorm === 'manifestation') {
+          manifestationsById.set(rec.id, rec)
           for (const exprArk of manifestationExpressionArks(rec)) {
             if (!manifestationsByExpressionArk.has(exprArk)) manifestationsByExpressionArk.set(exprArk, [])
             const list = manifestationsByExpressionArk.get(exprArk)!
@@ -62,8 +76,10 @@ export function useWorkspaceData(state: WorkspaceTabState) {
     return {
       worksById,
       worksByArk,
+      expressionsById,
       expressionsByArk,
       expressionsByWorkArk,
+      manifestationsById,
       manifestationsByExpressionArk,
     }
   }, [original?.records, curated?.records])
@@ -141,5 +157,6 @@ export function useWorkspaceData(state: WorkspaceTabState) {
     activeCluster: activeContext.cluster,
     activeClusterSource: activeContext.source,
     inventoryWork: activeContext.inventoryWork,
+    indexes: dataIndexes,
   }
 }

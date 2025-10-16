@@ -69,6 +69,9 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
           focusTreeUp(prev, {
             clusters,
             activeCluster: workspace.activeCluster,
+            activeClusterSource: workspace.activeClusterSource,
+            inventoryWork: workspace.inventoryWork,
+            indexes: workspace.indexes,
             curatedRecords,
             originalRecords,
           }),
@@ -80,6 +83,9 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
           focusTreeDown(prev, {
             clusters,
             activeCluster: workspace.activeCluster,
+            activeClusterSource: workspace.activeClusterSource,
+            inventoryWork: workspace.inventoryWork,
+            indexes: workspace.indexes,
             curatedRecords,
             originalRecords,
           }),
@@ -90,15 +96,18 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         navigateList(action === 'listUp' ? 'up' : 'down', activeTab)
         return
       }
-      if (action === 'openExpressionFilter') {
-        openExpressionFilterSelect()
-        return
-      }
-      if (action === 'openWorkFilter') {
-        openWorkFilterSelect()
-      }
     },
-    [activeTab, updateTabState, clusters, workspace.activeCluster, curatedRecords, originalRecords],
+    [
+      activeTab,
+      updateTabState,
+      clusters,
+      workspace.activeCluster,
+      workspace.activeClusterSource,
+      workspace.inventoryWork,
+      workspace.indexes,
+      curatedRecords,
+      originalRecords,
+    ],
   )
 
   useEffect(() => {
@@ -190,7 +199,6 @@ type ManifestationListEntry = {
 }
 
 function navigateList(direction: NavigationDirection, state: WorkspaceTabState) {
-  if (state.listScope === 'inventory') return
   if (state.viewMode === 'works') {
     navigateWorkList(direction, state)
   } else if (state.viewMode === 'expressions') {
@@ -326,25 +334,5 @@ function activateEntry(entry: { row: HTMLElement; trigger: HTMLElement }) {
   entry.trigger.click()
   if (entry.row.scrollIntoView) {
     entry.row.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  }
-}
-
-function openExpressionFilterSelect() {
-  focusSelectElement(document.querySelector<HTMLSelectElement>('.expression-filter-select'))
-}
-
-function openWorkFilterSelect() {
-  focusSelectElement(document.querySelector<HTMLSelectElement>('.cluster-banner.work-banner select.work-selector'))
-}
-
-function focusSelectElement(select: HTMLSelectElement | null) {
-  if (!select) return
-  select.focus()
-  try {
-    if (typeof (select as any).showPicker === 'function') {
-      ;(select as any).showPicker()
-    }
-  } catch {
-    // no-op
   }
 }

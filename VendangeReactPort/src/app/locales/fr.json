@@ -86,14 +86,6 @@
     "listDown": {
       "label": "Sélection suivante",
       "description": "Aller à l'élément suivant dans la liste active."
-    },
-    "openExpressionFilter": {
-      "label": "Ouvrir le filtre d'expressions",
-      "description": "Donner le focus à la liste déroulante de filtrage des expressions."
-    },
-    "openWorkFilter": {
-      "label": "Ouvrir le filtre d'œuvres",
-      "description": "Donner le focus à la liste déroulante de filtrage des œuvres."
     }
   },
   "buttons": {

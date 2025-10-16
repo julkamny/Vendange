@@ -1,0 +1,147 @@
+import { useEffect, useMemo, useState, type MouseEventHandler } from 'react'
+import { resolveArkLabel } from '../lib/intermarc'
+import type { EntityBadgeSpec } from '../types'
+import { useTranslation } from '../hooks/useTranslation'
+
+const ARK_REGEX = /ark:\/\S+/g
+
+function useArkDecoratedText(text: string): string {
+  const [display, setDisplay] = useState(text)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!text || !text.includes('ark:/')) {
+      setDisplay(text)
+      return
+    }
+    const matches = Array.from(new Set(text.match(ARK_REGEX) ?? []))
+    if (!matches.length) {
+      setDisplay(text)
+      return
+    }
+    ;(async () => {
+      const replacements = await Promise.all(
+        matches.map(async ark => ({
+          ark,
+          label: await resolveArkLabel(ark),
+        })),
+      )
+      if (cancelled) return
+      let updated = text
+      let changed = false
+      for (const { ark, label } of replacements) {
+        if (!label || label === ark) continue
+        if (!updated.includes(ark)) continue
+        updated = updated.replace(new RegExp(escapeRegExp(ark), 'g'), label)
+        changed = true
+      }
+      setDisplay(changed ? updated : text)
+    })().catch(() => {
+      if (!cancelled) setDisplay(text)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [text])
+
+  return display
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+type EntityPillProps = EntityBadgeSpec
+
+function EntityPill({ type, text, tooltip }: EntityPillProps) {
+  const tooltipText = tooltip?.trim()
+  const className = `entity-pill entity-pill-${type}${tooltipText ? ' has-tooltip' : ''}`
+  const commonProps = tooltipText
+    ? { 'data-tooltip': tooltipText, 'aria-label': tooltipText }
+    : undefined
+  return (
+    <span className={className} {...commonProps}>
+      {text}
+    </span>
+  )
+}
+
+type CountBadgeKind = 'expressions' | 'manifestations'
+
+function CountBadge({ kind, count }: { kind: CountBadgeKind; count: number }) {
+  const { t } = useTranslation()
+  const tooltip = t(kind === 'expressions' ? 'badges.expressions' : 'badges.manifestations', { count })
+  return (
+    <span
+      className={`entity-count-badge entity-count-badge--${kind} has-tooltip`}
+      data-tooltip={tooltip}
+      aria-label={tooltip}
+    >
+      {count}
+    </span>
+  )
+}
+
+function AgentBadge({ names }: { names: string[] }) {
+  const { t } = useTranslation()
+  const tooltip = names.length ? names.join('\n') : t('messages.noAgents')
+  return (
+    <span className="entity-pill entity-pill-agent agent-badge has-tooltip" data-tooltip={tooltip} aria-label={tooltip}>
+      {names.length}
+    </span>
+  )
+}
+
+export type EntityLabelProps = {
+  title: string
+  subtitle?: string
+  badges?: EntityBadgeSpec[]
+  counts?: Partial<Record<CountBadgeKind, number>>
+  agentNames?: string[]
+  className?: string
+  onClick?: MouseEventHandler<HTMLSpanElement>
+}
+
+export function EntityLabel({
+  title,
+  subtitle,
+  badges,
+  counts,
+  agentNames,
+  className,
+  onClick,
+}: EntityLabelProps) {
+  const decoratedTitle = useArkDecoratedText(title)
+  const hasBadges = useMemo(() => {
+    if (badges && badges.length) return true
+    if (counts && (typeof counts.expressions === 'number' || typeof counts.manifestations === 'number')) return true
+    if (agentNames) return true
+    return false
+  }, [badges, counts, agentNames])
+
+  const classes = useMemo(() => {
+    const values = ['entity-label']
+    if (className) values.push(className)
+    if (onClick) values.push('entity-label--clickable')
+    return values.join(' ')
+  }, [className, onClick])
+
+  return (
+    <span className={classes} onClick={onClick}>
+      <span className="entity-title">{decoratedTitle}</span>
+      {subtitle ? <span className="entity-subtitle">{subtitle}</span> : null}
+      {hasBadges ? (
+        <span className="entity-badges">
+          {badges?.map((badge, index) => (
+            <EntityPill key={`${badge.type}-${badge.text}-${index}`} {...badge} />
+          ))}
+          {typeof counts?.expressions === 'number' ? <CountBadge kind="expressions" count={counts.expressions} /> : null}
+          {typeof counts?.manifestations === 'number' ? (
+            <CountBadge kind="manifestations" count={counts.manifestations} />
+          ) : null}
+          {agentNames ? <AgentBadge names={agentNames} /> : null}
+        </span>
+      ) : null}
+    </span>
+  )
+}

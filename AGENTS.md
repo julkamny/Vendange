@@ -1,7 +1,6 @@
 ## Tips & instructions
 
 - When deriving the internal identifier from an ark, we need to remove the prefix up to `cb` and drop the final control character, e.g. `ark:/12148/cb359748158 -> 35974815`.
-- Do `. .venv/bin/activate && python` to run the Python interpreter.
 - Note down (Agents.md, ## Incremental agent knowledge) the useful information you've retrieved along the way during your work, to help future agents get down to work more quickly and reach a correct, accurate grasp of the data structure, the project's implicit architecture, etc. In brief, write down what you wish you had known when you started working on this mission.
 
 ## Linked entity ontology
@@ -20,6 +19,3 @@
 	- `$3` subfield in fields 700, 701, 702, as well as 710, 711, 712.
 
 ## Incremental agent knowledge
-- Graph visualisation features (forest/cluster graphs) were removed; there is no `ForceGraph` UI anymore and related translations/classes should stay absent.
-- `section#clusters` now renders both clusters and unclustered works in one alphabetically sorted list; inventory toggles/virtual list UI are gone.
-- `section#details` now renders only the intermarc/pre content plus editor controls for anchor works; the old detail banners/selectors were removed.

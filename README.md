@@ -8,7 +8,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 
 ### Overview
 - Python CLI to run modular data-curation operations on Intermarc CSV for IFLA-LRM entities.
-- Web UI (Vite + TypeScript) to review, approve/reject/alter merges and export a curated dataset.
+- Web UI to review, approve/reject/alter merges and export a curated dataset.
 
 ### Getting Started
 1) Data sources
@@ -107,4 +107,4 @@ python3.11 -m spacy download fr_dep_news_trf
 
 #### Technical aspects
 
-- Remove force-directed graphs: visualization in multiple dimensions of graph data requires a different project.
+- [x] Remove force-directed graphs: visualization in multiple dimensions of graph data requires a different project.

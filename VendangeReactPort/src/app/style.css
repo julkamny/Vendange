@@ -459,6 +459,14 @@ button:focus-visible {
 .record-details .intermarc-view .cm-content {
   padding: 0;
 }
+.record-details .intermarc-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.record-details .intermarc-editor .cm-editor {
+  min-height: 320px;
+}
 .record-details .intermarc-view .ark-link {
   color: var(--color-link);
   text-decoration: underline;

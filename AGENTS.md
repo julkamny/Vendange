@@ -1,7 +1,6 @@
 ## Tips & instructions
 
 - When deriving the internal identifier from an ark, we need to remove the prefix up to `cb` and drop the final control character, e.g. `ark:/12148/cb359748158 -> 35974815`.
-- Note down (Agents.md, ## Incremental agent knowledge) the useful information you've retrieved along the way during your work, to help future agents get down to work more quickly and reach a correct, accurate grasp of the data structure, the project's implicit architecture, etc. In brief, write down what you wish you had known when you started working on this mission.
 
 ## Linked entity ontology
 
@@ -17,13 +16,3 @@
 		- Fields 501, 506, 509, 50N, 530, 531, 532, 533, 534, 535, 536, 537, 538, 53M in a manistation entity, pointing in subfield `$3` to the ark of another entity (any of work, expression, manifestation).
 - Agent to WEM :
 	- `$3` subfield in fields 700, 701, 702, as well as 710, 711, 712.
-
-## Incremental agent knowledge
-
-- React port scaffolding lives in `VendangeReactPort/src/app`; `AppDataContext` hosts shared state (original/curated CSVs, clusters, indexes) and exposes mutation helpers like `setWorkAccepted`, `setExpressionAccepted`, and `moveManifestation`, which keep intermarc JSON synced with UI edits.
-- `WorkspaceTabs` owns per-tab UI state; each tab renders `WorkspaceView`, which delegates to list/detail panels. Works, expressions, and manifestations are split into components under `workspace/components`.
-- `IntermarcView` renders pretty-printed records by decoding token markers from `prettyPrintIntermarc`; tokens are turned into spans with `data-ark` attributes for hover labels.
-- `workspace/components/WorkListPanel` now merges clustered and unclustered works into a single list sorted with `Intl.Collator`, and uses `titleOf` so orphan works display the same titles as clustered anchors.
-- `WorkspaceView` pipes selected records through `RecordEditor`, a CodeMirror JSON editor that locks clustered entities via coverage from `useWorkspaceData`; saving uses `AppDataContext.updateRecordIntermarc` to rewrite curated rows and recompute clusters so exports stay in sync.
-- The Intermarc detail panel in the React port now wraps `prettyPrintIntermarc` output in `@uiw/react-codemirror`; `buildIntermarcRender` converts zone/subfield strings into `Decoration` ranges (`intermarc-line`, `intermarc-subfield`, `intermarc-subfield-code`) and replaces ARK tokens with labelled spans enriched with `data-ark` and tooltip attributes for hover cues.
-- `WorkspaceView` shows the read-only Intermarc CodeMirror by default and surfaces a "Modify record" button only when `canEditRecord`; clicking it swaps in `RecordEditor` and reveals a "Close editor" control that resets back to the pretty-printed view after saving or cancelling.

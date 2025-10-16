@@ -12,6 +12,19 @@ const arkLabelByIdCache = new Map<string, string>()
 const arkLabelByArkCache = new Map<string, string | null>()
 let arkLabelLoadPromise: Promise<ArkLabelMap> | null = null
 
+export const ARK_TOKEN_START = '\uE000'
+export const ARK_TOKEN_END = '\uE001'
+
+export type PrettyIntermarcToken = {
+  index: number
+  ark: string
+}
+
+export type PrettyIntermarcResult = {
+  text: string
+  tokens: PrettyIntermarcToken[]
+}
+
 function looksLikeArk(value: string): boolean {
   return typeof value === 'string' && value.startsWith(ARK_PREFIX)
 }
@@ -132,7 +145,7 @@ function guessDelimiter(text: string): string {
   return semi >= comma ? ';' : ','
 }
 
-async function resolveArkLabel(ark: string): Promise<string | undefined> {
+export async function resolveArkLabel(ark: string): Promise<string | undefined> {
   if (arkLabelByArkCache.has(ark)) {
     const cached = arkLabelByArkCache.get(ark)
     return cached === null ? undefined : cached
@@ -157,14 +170,19 @@ async function resolveArkLabel(ark: string): Promise<string | undefined> {
   return label
 }
 
-async function displayValue(zoneCode: string, _subCode: string, valeur: string): Promise<string> {
-  if (!looksLikeArk(valeur)) return valeur
+type DisplayValueResult = { text: string; ark?: string }
+
+async function displayValue(zoneCode: string, _subCode: string, valeur: string): Promise<DisplayValueResult> {
+  if (!looksLikeArk(valeur)) return { text: valeur }
   try {
     const resolved = await resolveArkLabel(valeur)
-    return resolved ?? valeur
+    if (resolved && resolved !== valeur) {
+      return { text: resolved, ark: valeur }
+    }
+    return { text: valeur }
   } catch (err) {
     console.error('Failed to resolve ARK label', { zoneCode, valeur, err })
-    return valeur
+    return { text: valeur }
   }
 }
 
@@ -195,22 +213,32 @@ export function parseIntermarc(s: string): Intermarc {
   }
 }
 
-export async function prettyPrintIntermarc(im: Intermarc): Promise<string> {
+export async function prettyPrintIntermarc(im: Intermarc): Promise<PrettyIntermarcResult> {
   const lines: string[] = []
+  const tokens: PrettyIntermarcToken[] = []
+
+  const wrapArkLabel = (label: string, ark: string): string => {
+    const index = tokens.length
+    tokens.push({ index, ark })
+    return `${ARK_TOKEN_START}${index}|${label}${ARK_TOKEN_END}`
+  }
+
   for (const z of im.zones) {
     const subs = await Promise.all(
       z.sousZones.map(async sz => {
-        const shown = await displayValue(z.code, sz.code, sz.valeur)
+        const { text: shown, ark } = await displayValue(z.code, sz.code, sz.valeur)
         const label = formatSubLabel(z.code, sz.code)
         const displayCode = label.startsWith('$') ? label : `$${label}`
         const prefix = `${displayCode}`
-        return shown ? `${prefix} ${shown}` : prefix
+        if (!shown) return prefix
+        const rendered = ark ? wrapArkLabel(shown, sz.valeur) : shown
+        return `${prefix} ${rendered}`
       }),
     )
     const suffix = subs.length ? ' ' + subs.join(' ') : ''
     lines.push(`${z.code}${suffix}`)
   }
-  return lines.join('\n')
+  return { text: lines.join('\n'), tokens }
 }
 
 export function findZones(im: Intermarc, code: string): Zone[] {

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { RecordRow } from '../types'
 import type { WorkspaceTabState } from '../workspace/types'
 import { useAppData } from '../providers/AppDataContext'
@@ -8,6 +8,7 @@ import { WorkListPanel } from '../workspace/components/WorkListPanel'
 import { ExpressionPanel } from '../workspace/components/ExpressionPanel'
 import { ManifestationPanel } from '../workspace/components/ManifestationPanel'
 import { RecordEditor } from './RecordEditor'
+import { IntermarcView } from './IntermarcView'
 import { isWorkClustered, isExpressionClustered, isManifestationClustered } from '../core/clusterCoverage'
 
 type WorkspaceViewProps = {
@@ -58,6 +59,11 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
     if (isRecordClustered) return t('messages.clusteredRecordReadOnly')
     return null
   }, [record, recordInCurated, isRecordClustered, t])
+  const [editingRecord, setEditingRecord] = useState(false)
+
+  useEffect(() => {
+    setEditingRecord(false)
+  }, [record?.id])
   const handleSelectWork = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
     const hasCuratedRecord = !!findRecord(workId, curated?.records ?? [], [])
     onStateChange(prev => ({
@@ -200,12 +206,35 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
                 <h3>{record.id}</h3>
                 <span>{record.type}</span>
               </header>
-              <RecordEditor
-                record={record}
-                readOnly={!canEditRecord}
-                readOnlyReason={!canEditRecord ? readOnlyReason : null}
-                onSave={next => updateRecordIntermarc(record.id, next)}
-              />
+              {editingRecord && canEditRecord ? (
+                <>
+                  <RecordEditor
+                    record={record}
+                    readOnly={false}
+                    onSave={next => {
+                      updateRecordIntermarc(record.id, next)
+                      setEditingRecord(false)
+                    }}
+                  />
+                  <div className="editor-actions">
+                    <button type="button" onClick={() => setEditingRecord(false)}>
+                      {t('buttons.closeEditor')}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <IntermarcView record={record} />
+                  {readOnlyReason ? <p className="record-editor__note">{readOnlyReason}</p> : null}
+                  {canEditRecord ? (
+                    <div className="editor-actions">
+                      <button type="button" onClick={() => setEditingRecord(true)}>
+                        {t('buttons.modifyRecord')}
+                      </button>
+                    </div>
+                  ) : null}
+                </>
+              )}
             </div>
           ) : (
             <p>{t('layout.selectPrompt')}</p>

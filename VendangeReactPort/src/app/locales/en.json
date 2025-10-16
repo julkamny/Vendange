@@ -101,7 +101,8 @@
     "viewWorks": "View works",
     "viewExpressions": "View expressions",
     "modifyRecord": "Modify record",
-    "save": "Save"
+    "save": "Save",
+    "closeEditor": "Close editor"
   },
   "labels": {
     "curated": "Curated",

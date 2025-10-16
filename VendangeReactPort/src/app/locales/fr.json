@@ -101,7 +101,8 @@
     "viewWorks": "Voir les œuvres",
     "viewExpressions": "Voir les expressions",
     "modifyRecord": "Modifier la notice",
-    "save": "Enregistrer"
+    "save": "Enregistrer",
+    "closeEditor": "Fermer l'éditeur"
   },
   "labels": {
     "curated": "Curé",

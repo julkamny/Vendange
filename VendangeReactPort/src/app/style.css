@@ -439,8 +439,7 @@ button:focus-visible {
   border-radius: 8px;
 }
 
-.details pre.intermarc-view {
-  white-space: pre-wrap;
+.record-details .intermarc-view {
   background: color-mix(in srgb, var(--color-surface-alt) 90%, var(--color-bg));
   padding: 1rem;
   border-radius: 10px;
@@ -449,7 +448,18 @@ button:focus-visible {
   font-size: 0.88rem;
   color: var(--color-text);
 }
-.details pre.intermarc-view .ark-link {
+.record-details .intermarc-view .cm-editor {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.record-details .intermarc-view .cm-scroller {
+  font-family: Menlo, Consolas, 'Roboto Mono', 'SFMono-Regular', monospace;
+}
+.record-details .intermarc-view .cm-content {
+  padding: 0;
+}
+.record-details .intermarc-view .ark-link {
   color: var(--color-link);
   text-decoration: underline;
   text-decoration-thickness: 1px;
@@ -457,23 +467,12 @@ button:focus-visible {
   cursor: help;
   font-weight: 600;
 }
-.details pre.intermarc-view .ark-link:focus-visible {
+.record-details .intermarc-view .ark-link:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--color-link) 60%, transparent);
   outline-offset: 2px;
   border-radius: 4px;
 }
-.details .editor {
-  background: color-mix(in srgb, var(--color-surface-alt) 85%, transparent);
-  padding: 0.5rem;
-  border-radius: 10px;
-  border: 1px solid var(--color-border);
-}
-.details .editor .cm-editor {
-  height: 320px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 8px;
-}
-.details .editor-actions {
+.record-details .editor-actions {
   display: flex;
   gap: 0.5rem;
   margin-top: 0.5rem;

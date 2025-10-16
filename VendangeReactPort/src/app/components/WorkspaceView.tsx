@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import type { RecordRow } from '../types'
 import type { WorkspaceTabState } from '../workspace/types'
 import { useAppData } from '../providers/AppDataContext'
@@ -6,7 +7,8 @@ import { useWorkspaceData } from '../workspace/useWorkspaceData'
 import { WorkListPanel } from '../workspace/components/WorkListPanel'
 import { ExpressionPanel } from '../workspace/components/ExpressionPanel'
 import { ManifestationPanel } from '../workspace/components/ManifestationPanel'
-import { IntermarcView } from './IntermarcView'
+import { RecordEditor } from './RecordEditor'
+import { isWorkClustered, isExpressionClustered, isManifestationClustered } from '../core/clusterCoverage'
 
 type WorkspaceViewProps = {
   state: WorkspaceTabState
@@ -18,12 +20,44 @@ function findRecord(id: string, curated: RecordRow[], original: RecordRow[]): Re
 }
 
 export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
-  const { clusters, original, curated, setWorkAccepted, setExpressionAccepted, moveManifestation } = useAppData()
+  const {
+    clusters,
+    original,
+    curated,
+    setWorkAccepted,
+    setExpressionAccepted,
+    moveManifestation,
+    updateRecordIntermarc,
+  } = useAppData()
   const workspace = useWorkspaceData(state)
   const { t } = useTranslation()
   const record = state.selectedEntity
     ? findRecord(state.selectedEntity.id, curated?.records ?? [], original?.records ?? [])
     : null
+  const recordInCurated = useMemo(() => {
+    if (!record || !curated) return false
+    return curated.records.some(r => r.id === record.id)
+  }, [record, curated])
+  const isRecordClustered = useMemo(() => {
+    if (!record) return false
+    switch (record.typeNorm) {
+      case 'oeuvre':
+        return isWorkClustered(record, workspace.coverage)
+      case 'expression':
+        return isExpressionClustered(record, workspace.coverage)
+      case 'manifestation':
+        return isManifestationClustered(record, workspace.coverage)
+      default:
+        return false
+    }
+  }, [record, workspace.coverage])
+  const canEditRecord = !!record && recordInCurated && !isRecordClustered
+  const readOnlyReason = useMemo(() => {
+    if (!record) return null
+    if (!recordInCurated) return t('messages.recordNotInCurated')
+    if (isRecordClustered) return t('messages.clusteredRecordReadOnly')
+    return null
+  }, [record, recordInCurated, isRecordClustered, t])
   const handleSelectWork = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
     const hasCuratedRecord = !!findRecord(workId, curated?.records ?? [], [])
     onStateChange(prev => ({
@@ -166,7 +200,12 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
                 <h3>{record.id}</h3>
                 <span>{record.type}</span>
               </header>
-              <IntermarcView record={record} />
+              <RecordEditor
+                record={record}
+                readOnly={!canEditRecord}
+                readOnlyReason={!canEditRecord ? readOnlyReason : null}
+                onSave={next => updateRecordIntermarc(record.id, next)}
+              />
             </div>
           ) : (
             <p>{t('layout.selectPrompt')}</p>

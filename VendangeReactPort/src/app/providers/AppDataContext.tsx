@@ -34,6 +34,7 @@ type AppDataContextValue = AppDataState & {
   loadOriginal: (file: File) => Promise<void>
   loadCurated: (file: File) => Promise<void>
   loadDefaults: () => Promise<void>
+  updateRecordIntermarc: (recordId: string, intermarc: Intermarc) => void
   setWorkAccepted: (clusterId: string, workArk: string, accepted: boolean) => void
   setExpressionAccepted: (
     clusterId: string,
@@ -151,6 +152,19 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const updateRecordIntermarc = useCallback((recordId: string, intermarc: Intermarc) => {
+    setState(prev => {
+      if (!prev.curated) return prev
+      const nextCurated = updateRecordIntermarcInDataset(prev.curated, recordId, intermarc)
+      if (nextCurated === prev.curated) return prev
+      const nextClusters =
+        prev.original && prev.original.records.length > 0
+          ? detectClusters(nextCurated.records, buildArkIndex(prev.original.records))
+          : prev.clusters
+      return { ...prev, curated: nextCurated, clusters: nextClusters }
+    })
+  }, [])
+
   const exportCurated = useCallback(async () => {
     console.warn('exportCurated not yet implemented')
   }, [])
@@ -258,6 +272,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       loadOriginal,
       loadCurated,
       loadDefaults,
+      updateRecordIntermarc,
       setWorkAccepted,
       setExpressionAccepted,
       moveManifestation,
@@ -269,6 +284,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       loadOriginal,
       loadCurated,
       loadDefaults,
+      updateRecordIntermarc,
       setWorkAccepted,
       setExpressionAccepted,
       moveManifestation,

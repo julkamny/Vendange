@@ -142,7 +142,9 @@
     "failedIntermarc": "Échec du rendu Intermarc",
     "noAgents": "Aucun agent lié",
     "recordNotFound": "Notice introuvable.",
-    "saveFailed": "Échec de l'enregistrement : {{error}}"
+    "saveFailed": "Échec de l'enregistrement : {{error}}",
+    "clusteredRecordReadOnly": "La modification est désactivée pour les entités déjà clusterisées.",
+    "recordNotInCurated": "La modification n'est disponible que pour les notices présentes dans le CSV curé."
   },
   "banners": {
     "pickWork": "Choisir une œuvre",

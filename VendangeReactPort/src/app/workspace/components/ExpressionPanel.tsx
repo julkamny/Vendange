@@ -115,6 +115,9 @@ export function ExpressionPanel({
           <div key={group.anchor.id} className={groupClasses.join(' ')} data-anchor-expression-id={group.anchor.id}>
             <div
               className={anchorClasses.join(' ')}
+              data-expression-id={group.anchor.id}
+              data-expression-ark={group.anchor.ark ?? undefined}
+              data-anchor-expression-id={group.anchor.id}
               onClick={() =>
                 onSelectExpression({
                   expressionId: group.anchor.id,
@@ -165,6 +168,9 @@ export function ExpressionPanel({
                     <div
                       key={expr.id}
                       className={rowClasses.join(' ')}
+                      data-expression-id={expr.id}
+                      data-expression-ark={expr.ark ?? undefined}
+                      data-anchor-expression-id={group.anchor.id}
                       onClick={() =>
                         onSelectExpression({
                           expressionId: expr.id,
@@ -235,6 +241,8 @@ export function ExpressionPanel({
               <div
                 key={expr.id}
                 className={rowClasses.join(' ')}
+                data-expression-id={expr.id}
+                data-expression-ark={expr.ark ?? undefined}
                 onClick={() =>
                   onSelectExpression({
                     expressionId: expr.id,

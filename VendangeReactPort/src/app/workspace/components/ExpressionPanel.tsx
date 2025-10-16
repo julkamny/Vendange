@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { Cluster, ExpressionClusterItem, ExpressionItem } from '../../types'
+import type { Cluster, ExpressionClusterItem, ExpressionItem, EntityBadgeSpec } from '../../types'
 import type { WorkspaceTabState } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
 import { EntityLabel, EntityPill, CountBadge, AgentBadge } from '../../components/EntityLabel'
@@ -193,6 +193,9 @@ export function ExpressionPanel({ cluster, state, onSelectExpression, onToggleEx
             else if (workFilterArk && matchesWork) rowClasses.push('filter-match')
             if (highlightedExpressionArk && highlightedExpressionArk === expr.ark) rowClasses.push('highlight')
 
+            const badges: EntityBadgeSpec[] = [{ type: 'expression', text: expr.id, tooltip: expr.ark }]
+            if (expr.workId) badges.push({ type: 'work', text: expr.workId, tooltip: expr.workArk })
+
             return (
               <div
                 key={expr.id}
@@ -208,10 +211,7 @@ export function ExpressionPanel({ cluster, state, onSelectExpression, onToggleEx
                 <EntityLabel
                   title={expr.title || expr.id}
                   subtitle={t('entity.independentExpression')}
-                  badges={[
-                    { type: 'expression', text: expr.id, tooltip: expr.ark },
-                    ...(expr.workId ? [{ type: 'work', text: expr.workId, tooltip: expr.workArk }] : []),
-                  ]}
+                  badges={badges}
                   counts={{ manifestations: expr.manifestations.length }}
                   agentNames={agentNames}
                 />

@@ -196,6 +196,10 @@ export function WorkListPanel({
                 if (shouldIgnoreAgentBadge(event)) return
                 onSelectWork({ workId: work.id, workArk: work.ark })
               }}
+              onDoubleClick={event => {
+                if (shouldIgnoreAgentBadge(event)) return
+                onOpenExpressions({ workId: work.id, workArk: work.ark })
+              }}
             >
               <div className="cluster-header">
                 <EntityLabel

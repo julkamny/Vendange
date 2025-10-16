@@ -72,6 +72,50 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
       highlightedWorkArk: workArk ?? null,
       viewMode: 'works',
       listScope: 'clusters',
+      inventoryFocusWorkId: null,
+      inventoryFocusExpressionId: null,
+      selectedEntity: {
+        id: workId,
+        source: hasCuratedRecord ? 'curated' : 'original',
+        entityType: 'work',
+        workArk: workArk ?? undefined,
+      },
+    }))
+  }
+
+  const handleOpenExpressions = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
+    const cluster = workspace.clusters.find(entry => entry.anchorId === workId) ?? null
+    if (cluster) {
+      const hasCuratedRecord = !!findRecord(workId, curated?.records ?? [], [])
+      onStateChange(prev => ({
+        ...prev,
+        activeWorkAnchorId: cluster.anchorId,
+        highlightedWorkArk: workArk ?? null,
+        viewMode: 'expressions',
+        listScope: 'clusters',
+        inventoryFocusWorkId: null,
+        inventoryFocusExpressionId: null,
+        selectedEntity: {
+          id: workId,
+          source: hasCuratedRecord ? 'curated' : 'original',
+          entityType: 'work',
+          workArk: workArk ?? undefined,
+        },
+      }))
+      return
+    }
+
+    const hasCuratedRecord = !!findRecord(workId, curated?.records ?? [], [])
+    onStateChange(prev => ({
+      ...prev,
+      viewMode: 'expressions',
+      listScope: 'inventory',
+      activeWorkAnchorId: null,
+      activeExpressionAnchorId: null,
+      highlightedWorkArk: workArk ?? null,
+      highlightedExpressionArk: null,
+      inventoryFocusWorkId: workId,
+      inventoryFocusExpressionId: null,
       selectedEntity: {
         id: workId,
         source: hasCuratedRecord ? 'curated' : 'original',
@@ -89,20 +133,7 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
           unclusteredWorks={workspace.unclusteredWorks}
           state={state}
           onSelectWork={handleSelectWork}
-          onOpenExpressions={({ workId, workArk }) =>
-            onStateChange(prev => ({
-              ...prev,
-              activeWorkAnchorId: workId,
-              highlightedWorkArk: workArk ?? null,
-              viewMode: 'expressions',
-              selectedEntity: {
-                id: workId,
-                source: findRecord(workId, curated?.records ?? [], []) ? 'curated' : 'original',
-                entityType: 'work',
-                workArk: workArk ?? undefined,
-              },
-            }))
-          }
+          onOpenExpressions={handleOpenExpressions}
           onToggleWork={({ clusterId, workArk, accepted }) => setWorkAccepted(clusterId, workArk, accepted)}
         />
       )
@@ -123,24 +154,50 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
             workArk?: string
             anchorId?: string
           }) =>
-            onStateChange(prev => ({
-              ...prev,
-              viewMode: 'expressions',
-              activeExpressionAnchorId: anchorId ?? expressionId,
-              highlightedExpressionArk: expressionArk ?? null,
-              selectedEntity: {
-                id: expressionId,
-                source: 'curated',
-                entityType: 'expression',
-                workArk: workArk ?? undefined,
-                expressionId,
-                expressionArk,
-              },
-            }))
+            onStateChange(prev => {
+              const isClusterContext = workspace.activeClusterSource === 'cluster'
+              return {
+                ...prev,
+                viewMode: 'expressions',
+                listScope: isClusterContext ? prev.listScope : 'inventory',
+                activeExpressionAnchorId: isClusterContext ? anchorId ?? expressionId : null,
+                highlightedExpressionArk: expressionArk ?? null,
+                inventoryFocusExpressionId: isClusterContext ? null : expressionId,
+                selectedEntity: {
+                  id: expressionId,
+                  source: isClusterContext ? 'curated' : 'original',
+                  entityType: 'expression',
+                  workArk: workArk ?? undefined,
+                  expressionId,
+                  expressionArk,
+                },
+              }
+            })
           }
           onToggleExpression={({ anchorExpressionId, expressionArk, accepted }) => {
-            if (!workspace.activeCluster) return
+            if (!workspace.activeCluster || workspace.activeClusterSource !== 'cluster') return
             setExpressionAccepted(workspace.activeCluster.anchorId, anchorExpressionId, expressionArk, accepted)
+          }}
+          onOpenManifestations={({ expressionId, expressionArk, workArk, anchorId }) => {
+            onStateChange(prev => {
+              const isClusterContext = workspace.activeClusterSource === 'cluster'
+              return {
+                ...prev,
+                viewMode: 'manifestations',
+                listScope: isClusterContext ? 'clusters' : 'inventory',
+                activeExpressionAnchorId: isClusterContext ? anchorId ?? expressionId : null,
+                highlightedExpressionArk: expressionArk ?? null,
+                inventoryFocusExpressionId: isClusterContext ? null : expressionId,
+                selectedEntity: {
+                  id: expressionId,
+                  source: isClusterContext ? 'curated' : 'original',
+                  entityType: 'expression',
+                  workArk: workArk ?? undefined,
+                  expressionId,
+                  expressionArk,
+                },
+              }
+            })
           }}
         />
       )
@@ -163,7 +220,7 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
             viewMode: 'manifestations',
             selectedEntity: {
               id: manifestationId,
-              source: 'curated',
+              source: workspace.activeClusterSource === 'cluster' ? 'curated' : 'original',
               entityType: 'manifestation',
               expressionId,
               expressionArk,
@@ -171,7 +228,7 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
           }))
         }
         onAssignManifestation={({ manifestationId, anchorExpressionId, expressionArk, expressionId }) => {
-          if (!workspace.activeCluster || !expressionArk) return
+          if (!workspace.activeCluster || !expressionArk || workspace.activeClusterSource !== 'cluster') return
           moveManifestation(workspace.activeCluster.anchorId, manifestationId, {
             anchorExpressionId,
             expressionArk,

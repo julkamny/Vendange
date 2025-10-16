@@ -1,6 +1,15 @@
 import './style.css'
 import { parseCsv, stringifyCsv } from './lib/csv'
-import { parseIntermarc, prettyPrintIntermarc, add90FEntries, findZones } from './lib/intermarc'
+import {
+  parseIntermarc,
+  prettyPrintIntermarc,
+  add90FEntries,
+  findZones,
+  resolveArkLabel,
+  ARK_TOKEN_START,
+  ARK_TOKEN_END,
+} from './lib/intermarc'
+import type { PrettyIntermarcResult } from './lib/intermarc'
 import type { Intermarc } from './lib/intermarc'
 import { EditorState } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
@@ -881,6 +890,45 @@ function setTooltip(target: HTMLElement, text?: string | null) {
   }
 }
 
+const ARK_REGEX = /ark:\/\S+/g
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function decorateEntityTitleWithArkLabels(titleSpan: HTMLElement) {
+  const text = titleSpan.textContent || ''
+  if (!text.includes('ark:/')) return
+  const matches = Array.from(new Set(text.match(ARK_REGEX) ?? []))
+  if (!matches.length) return
+  Promise.all(
+    matches.map(async ark => ({
+      ark,
+      label: await resolveArkLabel(ark),
+    })),
+  )
+    .then(results => {
+      const replacements = results.filter(
+        (entry): entry is { ark: string; label: string } => !!entry.label && entry.label !== entry.ark,
+      )
+      if (!replacements.length) return
+      const current = titleSpan.textContent || ''
+      let updated = current
+      let changed = false
+      for (const { ark, label } of replacements) {
+        if (!updated.includes(ark)) continue
+        updated = updated.replace(new RegExp(escapeRegExp(ark), 'g'), label)
+        changed = true
+      }
+      if (changed) {
+        titleSpan.textContent = updated
+      }
+    })
+    .catch(err => {
+      console.error('Failed to decorate entity title with ARK labels', err)
+    })
+}
+
 function createEntityPill(type: EntityPillKind, text: string, tooltip?: string): HTMLSpanElement {
   const pill = document.createElement('span')
   pill.className = `entity-pill entity-pill-${type}`
@@ -934,6 +982,7 @@ function populateEntityLabel(
   const titleSpan = document.createElement('span')
   titleSpan.className = 'entity-title'
   titleSpan.textContent = config.title
+  decorateEntityTitleWithArkLabels(titleSpan)
   target.appendChild(titleSpan)
   if (config.subtitle) {
     const subtitle = document.createElement('span')
@@ -4497,9 +4546,9 @@ function renderDetailsPanel() {
     context.source === 'curated' ? computeDiffKeys(rec.intermarc, baselineIntermarc.get(rec.id)) : new Set<DiffKey>()
 
   prettyPrintIntermarc(rec.intermarc)
-    .then(text => {
+    .then(result => {
       if (pre.dataset.recordId === rec.id) {
-        renderIntermarcWithDiff(pre, text, originalDiffKeys, sessionDiffKeys)
+        renderIntermarcWithDiff(pre, result, originalDiffKeys, sessionDiffKeys)
       }
     })
     .catch(err => {
@@ -5048,17 +5097,63 @@ function computeDiffKeys(current: Intermarc, reference: Intermarc | undefined): 
   return changed
 }
 
+function appendIntermarcValue(target: HTMLElement, value: string, tokenMap: Map<number, string>) {
+  if (!value) return
+  let cursor = 0
+  while (cursor < value.length) {
+    const start = value.indexOf(ARK_TOKEN_START, cursor)
+    if (start === -1) {
+      target.appendChild(document.createTextNode(value.slice(cursor)))
+      break
+    }
+    if (start > cursor) {
+      target.appendChild(document.createTextNode(value.slice(cursor, start)))
+    }
+    const end = value.indexOf(ARK_TOKEN_END, start + ARK_TOKEN_START.length)
+    if (end === -1) {
+      target.appendChild(document.createTextNode(value.slice(start)))
+      break
+    }
+    const tokenContent = value.slice(start + ARK_TOKEN_START.length, end)
+    const separatorIdx = tokenContent.indexOf('|')
+    if (separatorIdx === -1) {
+      target.appendChild(document.createTextNode(tokenContent))
+    } else {
+      const indexStr = tokenContent.slice(0, separatorIdx)
+      const label = tokenContent.slice(separatorIdx + 1)
+      const index = Number.parseInt(indexStr, 10)
+      const ark = tokenMap.get(index)
+      if (ark && label) {
+        const link = document.createElement('span')
+        link.className = 'ark-link'
+        link.textContent = label
+        link.dataset.ark = ark
+        link.tabIndex = 0
+        setTooltip(link, ark)
+        target.appendChild(link)
+      } else {
+        target.appendChild(document.createTextNode(label))
+      }
+    }
+    cursor = end + ARK_TOKEN_END.length
+  }
+}
+
 function renderIntermarcWithDiff(
   pre: HTMLElement,
-  text: string,
+  result: PrettyIntermarcResult,
   originalDiffKeys: Set<DiffKey>,
   sessionDiffKeys: Set<DiffKey>,
 ) {
   pre.innerHTML = ''
+  const tokenMap = new Map<number, string>()
+  for (const token of result.tokens) {
+    tokenMap.set(token.index, token.ark)
+  }
   const originalZoneKeys = new Set([...originalDiffKeys].map(parseZoneKey))
   const sessionZoneKeys = new Set([...sessionDiffKeys].map(parseZoneKey))
   const zoneCounters = new Map<string, number>()
-  const lines = text.split('\n')
+  const lines = result.text.split('\n')
   lines.forEach((line, idx) => {
     const lineSpan = document.createElement('span')
     lineSpan.className = 'intermarc-line'
@@ -5071,7 +5166,7 @@ function renderIntermarcWithDiff(
 
     const match = trimmed.match(/^(\S+)(.*)$/)
     if (!match) {
-      lineSpan.textContent = trimmed
+      appendIntermarcValue(lineSpan, trimmed, tokenMap)
       pre.appendChild(lineSpan)
       if (idx < lines.length - 1) pre.appendChild(document.createTextNode('\n'))
       return
@@ -5114,7 +5209,7 @@ function renderIntermarcWithDiff(
         if (eqIndex >= 0) {
           const valueText = part.slice(eqIndex + 1).trim()
           const suffix = valueText ? ` ${valueText}` : ' '
-          subSpan.appendChild(document.createTextNode(suffix))
+          appendIntermarcValue(subSpan, suffix, tokenMap)
         }
         lineSpan.appendChild(subSpan)
       })

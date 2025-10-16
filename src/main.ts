@@ -2246,13 +2246,18 @@ function renderInventoryExpressionList(work: RecordRow) {
   const container = document.createElement('div')
   container.className = 'inventory-detail'
   const breadcrumb = buildInventoryBreadcrumb([
-    { label: t('inventory.breadcrumb.works'), action: () => {
-      listScope = 'inventory'
-      viewMode = 'works'
-      inventoryFocusWork = null
-      inventoryFocusExpression = null
-      renderCurrentView()
-    } },
+    {
+      label: t('inventory.breadcrumb.works'),
+      action: () => {
+        listScope = 'clusters'
+        viewMode = 'works'
+        highlightedWorkArk = work.ark || null
+        inventoryFocusWork = null
+        inventoryFocusExpression = null
+        inventoryExpressionFilterArk = null
+        renderCurrentView()
+      },
+    },
     { label: inventoryWorkTitle(work) },
   ])
   container.appendChild(breadcrumb)
@@ -2399,8 +2404,10 @@ function renderInventoryManifestationList(expression: RecordRow) {
     {
       label: t('inventory.breadcrumb.works'),
       action: () => {
-        listScope = 'inventory'
+        listScope = 'clusters'
         viewMode = 'works'
+        const targetWorkArk = workRecord?.ark ?? workArks[0] ?? null
+        highlightedWorkArk = targetWorkArk
         inventoryFocusWork = null
         inventoryFocusExpression = null
         inventoryExpressionFilterArk = null
@@ -3379,12 +3386,17 @@ function focusInventoryTreeUp() {
     const workArk = entity.workArk || (expressionRecord ? expressionWorkArks(expressionRecord)[0] : undefined)
     const workRecord = lookupWorkRecordByArk(workArk)
     if (!workRecord) return
+    listScope = 'clusters'
     viewMode = 'works'
-    inventoryFocusWork = workRecord
+    highlightedWorkArk = workRecord.ark || null
+    inventoryFocusWork = null
     inventoryFocusExpression = null
     inventoryExpressionFilterArk = null
-    const row = buildInventoryRowForWork(workRecord)
-    selectInventoryRecord(row)
+    const isCurated = curatedRecords.some(r => r.id === workRecord.id)
+    showRecordDetails(workRecord.id, isCurated, {
+      entityType: 'work',
+      workArk: workRecord.ark,
+    })
     return
   }
   if (entity.entityType === 'work') {

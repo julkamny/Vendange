@@ -63,7 +63,6 @@ function getFirstSubZoneValue(im: Intermarc, zoneCode: string, subCode: string):
 
 function buildLabelFromIntermarc(im: Intermarc, type: string): string | undefined {
   const normalizedType = normalizeTypeName(type)
-  console.log(normalizedType)
   switch (normalizedType) {
     case 'œuvre': {
       const parts = [

@@ -202,7 +202,9 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
     if (!contextMenu) return undefined
     const handleClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null
-      if (target?.closest('.workspace-context-menu')) return
+      if (!target) return
+      if (target.closest('.workspace-context-menu')) return
+      if (target.closest('.ark-link')) return
       handleCloseContextMenu()
     }
     const handleKeydown = (event: KeyboardEvent) => {

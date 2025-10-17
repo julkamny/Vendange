@@ -535,6 +535,36 @@ button:focus-visible {
   margin-top: 0.5rem;
 }
 
+.workspace-context-menu {
+  position: fixed;
+  z-index: 600;
+  min-width: 220px;
+  padding: 0.35rem;
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-surface-alt));
+  border: 1px solid color-mix(in srgb, var(--color-border) 65%, transparent);
+  border-radius: 10px;
+  box-shadow: 0 18px 42px color-mix(in srgb, var(--color-shadow) 85%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.workspace-context-menu button {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  padding: 0.55rem 0.75rem;
+  border-radius: 6px;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.workspace-context-menu button:hover,
+.workspace-context-menu button:focus-visible {
+  background: color-mix(in srgb, var(--color-highlight) 70%, transparent);
+  outline: none;
+}
+
 .cluster {
   border: 1px solid color-mix(in srgb, var(--entity-work) 32%, var(--color-border));
   border-radius: 12px;

@@ -54,6 +54,16 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     setActiveId(newTab.id)
   }, [t])
 
+  const openTabWithState = useCallback(
+    (initializer: (base: WorkspaceTabState) => WorkspaceTabState) => {
+      const base = createTab(t('workspace.tabDefault', { defaultValue: 'Workspace' }))
+      const configured = initializer ? initializer(base) : base
+      setTabs(prev => [...prev, configured])
+      setActiveId(configured.id)
+    },
+    [t],
+  )
+
   const closeTab = useCallback(
     (id: string) => {
       setTabs(prev => {
@@ -242,6 +252,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
           <WorkspaceView
             state={activeTab}
             onStateChange={updater => updateTabState(activeTab.id, updater)}
+            onOpenTab={openTabWithState}
           />
         ) : null}
       </div>

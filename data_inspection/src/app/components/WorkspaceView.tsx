@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import type { RecordRow } from '../types'
 import type { WorkspaceTabState } from '../workspace/types'
 import { useAppData } from '../providers/AppDataContext'
@@ -13,14 +13,41 @@ import { isWorkClustered, isExpressionClustered, isManifestationClustered } from
 import { useArkDecoratedText } from '../hooks/useArkDecoratedText'
 import { useRecordLookup } from '../hooks/useRecordLookup'
 import { expressionWorkArks, manifestationTitle, titleOf } from '../core/entities'
+import { configureTabStateForRecord } from '../workspace/tabState'
 
 type WorkspaceViewProps = {
   state: WorkspaceTabState
   onStateChange: (updater: (prev: WorkspaceTabState) => WorkspaceTabState) => void
+  onOpenTab: (initializer: (base: WorkspaceTabState) => WorkspaceTabState) => void
 }
 
 function findRecord(id: string, curated: RecordRow[], original: RecordRow[]): RecordRow | null {
   return curated.find(rec => rec.id === id) || original.find(rec => rec.id === id) || null
+}
+
+function deriveInternalIdFromArk(rawArk: string | null | undefined): string | null {
+  if (!rawArk) return null
+  const normalized = rawArk.trim()
+  if (!normalized) return null
+  const lower = normalized.toLowerCase()
+  const cbIndex = lower.indexOf('cb')
+  if (cbIndex === -1 || cbIndex + 2 >= normalized.length) return null
+  const withoutPrefix = normalized
+    .slice(cbIndex + 2)
+    .replace(/[^0-9a-z]+/gi, '')
+  if (withoutPrefix.length <= 1) return null
+  return withoutPrefix.slice(0, withoutPrefix.length - 1)
+}
+
+function isWorkspaceEntityRecord(record: RecordRow | undefined): record is RecordRow {
+  if (!record) return false
+  return record.typeNorm === 'oeuvre' || record.typeNorm === 'expression' || record.typeNorm === 'manifestation'
+}
+
+type ArkContextMenuState = {
+  position: { x: number; y: number }
+  record: RecordRow
+  ark: string
 }
 
 function BreadcrumbItem({ value, isLast }: { value: string; isLast: boolean }) {
@@ -46,7 +73,7 @@ function WorkspaceBreadcrumbs({ items, ariaLabel }: { items: string[]; ariaLabel
   )
 }
 
-export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
+export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceViewProps) {
   const {
     clusters,
     original,
@@ -58,7 +85,6 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
   const workspace = useWorkspaceData(state)
   const { t } = useTranslation()
   const { getById, getByArk } = useRecordLookup()
-  const decoratedTitle = useArkDecoratedText(state.title)
   const record = state.selectedEntity
     ? findRecord(state.selectedEntity.id, curated?.records ?? [], original?.records ?? [])
     : null
@@ -92,12 +118,20 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
     setEditingRecord(false)
   }, [record?.id])
 
+  const [contextMenu, setContextMenu] = useState<ArkContextMenuState | null>(null)
+
+  const tabContext = useMemo(
+    () => ({
+      clusters,
+      indexes: workspace.indexes,
+      curatedRecords: curated?.records ?? [],
+      originalRecords: original?.records ?? [],
+    }),
+    [clusters, workspace.indexes, curated?.records, original?.records],
+  )
+
   const breadcrumbs = useMemo(() => {
     const items: string[] = []
-    const scopeLabel = t(`breadcrumbs.scope.${state.listScope}`)
-    const viewLabel = t(`breadcrumbs.view.${state.viewMode}`)
-    if (scopeLabel) items.push(scopeLabel)
-    if (viewLabel && viewLabel !== scopeLabel) items.push(viewLabel)
 
     const addLabel = (value?: string | null) => {
       if (!value) return
@@ -159,11 +193,64 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
     getByArk,
     getById,
     record,
-    state.listScope,
     state.selectedEntity,
-    state.viewMode,
-    t,
   ])
+
+  const handleCloseContextMenu = useCallback(() => setContextMenu(null), [])
+
+  useEffect(() => {
+    if (!contextMenu) return undefined
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null
+      if (target?.closest('.workspace-context-menu')) return
+      handleCloseContextMenu()
+    }
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        handleCloseContextMenu()
+      }
+    }
+    window.addEventListener('click', handleClick)
+    window.addEventListener('contextmenu', handleClick)
+    window.addEventListener('keydown', handleKeydown)
+    return () => {
+      window.removeEventListener('click', handleClick)
+      window.removeEventListener('contextmenu', handleClick)
+      window.removeEventListener('keydown', handleKeydown)
+    }
+  }, [contextMenu, handleCloseContextMenu])
+
+  const handleRecordContextMenu = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement | null
+      const arkLink = target?.closest<HTMLElement>('.ark-link')
+      if (!arkLink) return
+      const rawArk = arkLink.getAttribute('data-ark')
+      if (!rawArk) return
+      const trimmedArk = rawArk.trim()
+      if (!trimmedArk) return
+      let targetRecord = getByArk(trimmedArk)
+      if (!targetRecord) {
+        const fallbackId = deriveInternalIdFromArk(trimmedArk)
+        if (fallbackId) targetRecord = getById(fallbackId)
+      }
+      if (!isWorkspaceEntityRecord(targetRecord)) return
+      event.preventDefault()
+      setContextMenu({
+        position: { x: event.clientX, y: event.clientY },
+        record: targetRecord,
+        ark: trimmedArk,
+      })
+    },
+    [getByArk, getById],
+  )
+
+  const handleOpenArkInNewTab = useCallback(() => {
+    if (!contextMenu) return
+    const targetRecord = contextMenu.record
+    setContextMenu(null)
+    onOpenTab(base => configureTabStateForRecord(base, targetRecord, tabContext))
+  }, [contextMenu, onOpenTab, tabContext])
 
   const handleSelectWork = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
     const hasCuratedRecord = !!findRecord(workId, curated?.records ?? [], [])
@@ -343,7 +430,7 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
         </aside>
         <section className="workspace-panel workspace-panel--details">
           {record ? (
-            <div className="record-details">
+            <div className="record-details" onContextMenu={handleRecordContextMenu}>
               <header className="record-details__header">
                 <h3>{record.id}</h3>
                 <span>{record.type}</span>
@@ -367,6 +454,17 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
                   ) : null}
                 </>
               )}
+              {contextMenu ? (
+                <div
+                  className="workspace-context-menu"
+                  style={{ top: `${contextMenu.position.y}px`, left: `${contextMenu.position.x}px` }}
+                  role="menu"
+                >
+                  <button type="button" role="menuitem" onClick={handleOpenArkInNewTab}>
+                    {t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })}
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : (
             <p>{t('layout.selectPrompt')}</p>

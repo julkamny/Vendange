@@ -41,6 +41,18 @@
     "show": "Show tools",
     "hide": "Hide tools"
   },
+  "breadcrumbs": {
+    "ariaLabel": "Workspace navigation",
+    "scope": {
+      "clusters": "Clusters",
+      "inventory": "Inventory"
+    },
+    "view": {
+      "works": "Works",
+      "expressions": "Expressions",
+      "manifestations": "Manifestations"
+    }
+  },
   "layout": {
     "loadPrompt": "Load files to begin.",
     "selectPrompt": "Select a record from the left panel.",
@@ -195,6 +207,8 @@
     "expressions_one": "{{count}} expression",
     "expressions_other": "{{count}} expressions",
     "manifestations_one": "{{count}} manifestation",
-    "manifestations_other": "{{count}} manifestations"
+    "manifestations_other": "{{count}} manifestations",
+    "relationships_one": "{{count}} general relationship",
+    "relationships_other": "{{count}} general relationships"
   }
 }

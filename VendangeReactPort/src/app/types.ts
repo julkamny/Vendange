@@ -129,6 +129,7 @@ export type ShortcutAction =
   | 'focusDown'
   | 'listUp'
   | 'listDown'
+  | 'nextWorkspace'
 
 export type ShortcutConfig = {
   action: ShortcutAction

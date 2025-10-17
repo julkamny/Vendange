@@ -26,6 +26,12 @@ export const SHORTCUTS: ShortcutConfig[] = [
     descriptionKey: 'shortcuts.listDown.description',
     defaultBinding: 'ArrowDown',
   },
+  {
+    action: 'nextWorkspace',
+    labelKey: 'shortcuts.nextWorkspace.label',
+    descriptionKey: 'shortcuts.nextWorkspace.description',
+    defaultBinding: 'Ctrl+Alt+ArrowRight',
+  },
 ]
 
 export type ShortcutBindings = Record<ShortcutAction, string>

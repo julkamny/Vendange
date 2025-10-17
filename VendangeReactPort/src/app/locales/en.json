@@ -86,6 +86,10 @@
     "listDown": {
       "label": "Move selection down",
       "description": "Move to the next item in the active list."
+    },
+    "nextWorkspace": {
+      "label": "Switch workspace",
+      "description": "Activate the next workspace tab."
     }
   },
   "buttons": {

@@ -81,6 +81,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
     setWorkAccepted,
     setExpressionAccepted,
     updateRecordIntermarc,
+    getCuratedBaselineRecord,
   } = useAppData()
   const workspace = useWorkspaceData(state)
   const { t } = useTranslation()
@@ -92,6 +93,43 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
     if (!record || !curated) return false
     return curated.records.some(r => r.id === record.id)
   }, [record, curated])
+  const isAnchorSelection = useMemo(() => {
+    const selected = state.selectedEntity
+    if (!selected) return false
+
+    if (selected.entityType === 'work') {
+      const targetArk = selected.workArk ?? record?.ark ?? null
+      return workspace.clusters.some(cluster => {
+        if (cluster.anchorId === selected.id) return true
+        if (targetArk && cluster.anchorArk === targetArk) return true
+        return false
+      })
+    }
+
+    if (selected.entityType === 'expression') {
+      const targetId = selected.expressionId ?? selected.id
+      const targetArk = selected.expressionArk ?? record?.ark ?? null
+      return workspace.clusters.some(cluster =>
+        cluster.expressionGroups.some(group => {
+          if (group.anchor.id === targetId) return true
+          if (targetArk && group.anchor.ark === targetArk) return true
+          return false
+        }),
+      )
+    }
+
+    if (selected.entityType === 'manifestation') {
+      const targetId = selected.id
+      const targetArk = record?.ark ?? null
+      return workspace.clusters.some(cluster =>
+        cluster.expressionGroups.some(group =>
+          group.anchor.manifestations.some(item => item.id === targetId || (targetArk && item.ark === targetArk)),
+        ),
+      )
+    }
+
+    return false
+  }, [record, state.selectedEntity, workspace.clusters])
   const isRecordClustered = useMemo(() => {
     if (!record) return false
     switch (record.typeNorm) {
@@ -105,13 +143,19 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
         return false
     }
   }, [record, workspace.coverage])
-  const canEditRecord = !!record && recordInCurated && !isRecordClustered
+  const canEditRecord = useMemo(() => {
+    if (!record || !recordInCurated) return false
+    if (record.typeNorm === 'manifestation') return true
+    if (!isRecordClustered) return true
+    return isAnchorSelection
+  }, [isAnchorSelection, isRecordClustered, record, recordInCurated])
   const readOnlyReason = useMemo(() => {
     if (!record) return null
     if (!recordInCurated) return t('messages.recordNotInCurated')
-    if (isRecordClustered) return t('messages.clusteredRecordReadOnly')
+    if (record.typeNorm !== 'manifestation' && isRecordClustered && !isAnchorSelection)
+      return t('messages.clusteredRecordReadOnly')
     return null
-  }, [record, recordInCurated, isRecordClustered, t])
+  }, [isAnchorSelection, isRecordClustered, record, recordInCurated, t])
   const [editingRecord, setEditingRecord] = useState(false)
 
   useEffect(() => {
@@ -440,6 +484,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
               {editingRecord && canEditRecord ? (
                 <IntermarcEditor
                   record={record}
+                  baselineRecord={getCuratedBaselineRecord(record.id) ?? undefined}
                   onSave={next => updateRecordIntermarc(record.id, next)}
                   onCancel={() => setEditingRecord(false)}
                 />

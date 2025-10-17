@@ -143,7 +143,10 @@
     "workUnchecked": "Œuvre non validée ; expressions liées désactivées",
     "expressionKept": "Expression conservée dans le cluster",
     "expressionUnchecked": "Expression retirée du cluster",
-    "invalidClusterWork": "Impossible d'ajouter cet ARK : l'entité n'est pas une œuvre"
+    "invalidClusterWork": "Impossible d'ajouter cet ARK : l'entité n'est pas une œuvre",
+    "recordSaved": "Notice enregistrée",
+    "recordSaveFailed": "Impossible d'enregistrer la notice",
+    "recordReset": "Notice restaurée depuis le CSV curé"
   },
   "messages": {
     "noClusters": "Aucun cluster détecté. Chargez un CSV curé produit par le script.",

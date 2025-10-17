@@ -14,11 +14,16 @@ html {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  padding: calc(var(--app-sticky-offset) + 1.5rem) 1.75rem 1.75rem;
+  padding: 0 1.75rem 1.75rem;
   max-width: 1400px;
   margin: 0 auto;
   color: var(--color-text);
   background: var(--color-bg);
+  --app-sticky-offset: var(--app-sticky-offset-collapsed);
+}
+
+.app-shell.toolbar-open {
+  --app-sticky-offset: var(--app-sticky-offset-expanded);
 }
 
 .app-main {
@@ -95,6 +100,10 @@ html {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.workspace-tab-content {
+  padding-top: 0.25rem;
 }
 
 .workspace-tab-bar {

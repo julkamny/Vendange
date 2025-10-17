@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, type MouseEvent } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { WorkspaceView } from './WorkspaceView'
 import type { WorkspaceTabState } from '../workspace/types'
 import type { RecordRow } from '../types'
@@ -10,6 +10,7 @@ import { useWorkspaceData } from '../workspace/useWorkspaceData'
 import { useAppData } from '../providers/AppDataContext'
 import { focusTreeUp, focusTreeDown } from '../workspace/shortcutActions'
 import { manifestationTitle, titleOf, expressionWorkArks } from '../core/entities'
+import { useArkDecoratedText } from '../hooks/useArkDecoratedText'
 
 let tabSequence = 0
 
@@ -216,36 +217,17 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   return (
     <div className="workspace-tabs">
       <div className="workspace-tab-bar" role="tablist">
-        {tabs.map(tab => {
-          const label = getWorkspaceLabel(tab)
-          const isActive = tab.id === activeTab?.id
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              className={`workspace-tab${isActive ? ' is-active' : ''}`}
-              role="tab"
-              aria-selected={isActive}
-              title={label}
-              onClick={() => activate(tab.id)}
-            >
-              <span className="workspace-tab__label">{label}</span>
-              {tabs.length > 1 && (
-                <span
-                  className="close"
-                  role="button"
-                  aria-label={t('workspace.closeTab', { defaultValue: 'Close tab' })}
-                  onClick={(event: MouseEvent<HTMLSpanElement>) => {
-                    event.stopPropagation()
-                    closeTab(tab.id)
-                  }}
-                >
-                  ×
-                </span>
-              )}
-            </button>
-          )
-        })}
+        {tabs.map(tab => (
+          <WorkspaceTabButton
+            key={tab.id}
+            label={getWorkspaceLabel(tab)}
+            isActive={tab.id === activeTab?.id}
+            onActivate={() => activate(tab.id)}
+            onClose={() => closeTab(tab.id)}
+            closable={tabs.length > 1}
+            closeLabel={t('workspace.closeTab', { defaultValue: 'Close tab' })}
+          />
+        ))}
         <button
           type="button"
           className="workspace-tab add"
@@ -264,6 +246,45 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         ) : null}
       </div>
     </div>
+  )
+}
+
+type WorkspaceTabButtonProps = {
+  label: string
+  isActive: boolean
+  onActivate: () => void
+  onClose: () => void
+  closable: boolean
+  closeLabel: string
+}
+
+function WorkspaceTabButton({ label, isActive, onActivate, onClose, closable, closeLabel }: WorkspaceTabButtonProps) {
+  const decoratedLabel = useArkDecoratedText(label)
+
+  return (
+    <button
+      type="button"
+      className={`workspace-tab${isActive ? ' is-active' : ''}`}
+      role="tab"
+      aria-selected={isActive}
+      title={decoratedLabel}
+      onClick={onActivate}
+    >
+      <span className="workspace-tab__label">{decoratedLabel}</span>
+      {closable ? (
+        <span
+          className="close"
+          role="button"
+          aria-label={closeLabel}
+          onClick={event => {
+            event.stopPropagation()
+            onClose()
+          }}
+        >
+          ×
+        </span>
+      ) : null}
+    </button>
   )
 }
 

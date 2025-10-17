@@ -58,7 +58,8 @@
   --pill-agent-bg: linear-gradient(135deg, rgba(58, 104, 214, 0.33), rgba(102, 149, 255, 0.33));
   --pill-agent-fg: #f1f5ff;
   --pill-border-alpha: 0.55;
-  --app-sticky-offset: clamp(4.75rem, 7vw, 6.5rem);
+  --app-sticky-offset-collapsed: 0px;
+  --app-sticky-offset-expanded: clamp(4.75rem, 7vw, 6.5rem);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -322,23 +323,17 @@ button:focus-visible {
 .workspace-view__header {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  padding-bottom: 0.35rem;
-}
-.workspace-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.75rem;
+  gap: 0.35rem;
+  padding-bottom: 0.25rem;
 }
 .workspace-title {
-  font-size: 1.18rem;
+  font-size: 1.05rem;
   font-weight: 600;
   color: var(--color-text);
 }
 .workspace-summary {
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
 }
 .workspace-breadcrumbs {
   display: inline-flex;

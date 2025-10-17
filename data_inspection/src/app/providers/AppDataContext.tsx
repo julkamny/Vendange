@@ -9,6 +9,7 @@ import type {
 } from '../types'
 import type { Intermarc } from '../lib/intermarc'
 import { parseCsvText, indexRecords, findIntermarcColumnIndex } from '../core/records'
+import { stringifyCsv } from '../lib/csv'
 import { detectClusters, buildArkIndex } from '../core/clusters'
 import { buildOriginalIndexes, type OriginalIndexes } from '../core/originalIndexes'
 import { getCurrentLanguage } from '../i18n'
@@ -166,8 +167,31 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const exportCurated = useCallback(async () => {
-    console.warn('exportCurated not yet implemented')
-  }, [])
+    if (!state.curated) {
+      console.warn('No curated dataset available for export')
+      return
+    }
+
+    try {
+      const csvText = stringifyCsv({
+        headers: state.curated.csv.headers,
+        rows: state.curated.csv.rows.slice(1),
+      })
+      const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8' })
+      const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').split('.')[0]
+      const fileName = `curated_${timestamp}.csv`
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to export curated CSV', error)
+    }
+  }, [state.curated])
 
   const setWorkAccepted = useCallback((clusterId: string, workArk: string, accepted: boolean) => {
     setState(prev => {

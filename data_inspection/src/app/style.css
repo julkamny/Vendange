@@ -534,6 +534,28 @@ button:focus-visible {
   gap: 0.5rem;
   margin-top: 0.5rem;
 }
+.record-details .editor-actions .save-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+}
+.record-details .editor-actions .save-button .button-status {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.record-details .editor-actions .save-button.is-success {
+  background: color-mix(in srgb, var(--entity-work) 22%, var(--color-highlight) 78%);
+  border-color: color-mix(in srgb, var(--entity-work) 60%, transparent);
+  color: var(--color-text);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--entity-work) 25%, transparent);
+}
+.record-details .editor-actions .save-button.is-error {
+  background: color-mix(in srgb, #ff6b8a 25%, var(--color-highlight) 75%);
+  border-color: color-mix(in srgb, #ff6b8a 65%, transparent);
+  color: var(--color-text);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #ff6b8a 35%, transparent);
+}
 
 .workspace-context-menu {
   position: fixed;
@@ -1230,6 +1252,18 @@ button:focus-visible {
 .toast-message.visible {
   opacity: 1;
   transform: translateY(0);
+}
+.toast-message.toast-success {
+  border-color: color-mix(in srgb, var(--entity-work) 55%, transparent);
+  background: color-mix(in srgb, var(--entity-work) 18%, var(--color-surface-alt) 90%);
+}
+.toast-message.toast-error {
+  border-color: color-mix(in srgb, #ff6b8a 70%, transparent);
+  background: color-mix(in srgb, #ff6b8a 20%, var(--color-surface-alt) 90%);
+}
+.toast-message.toast-info {
+  border-color: color-mix(in srgb, var(--color-link) 55%, transparent);
+  background: color-mix(in srgb, var(--color-link) 14%, var(--color-surface-alt) 92%);
 }
 
 .drop-hint {

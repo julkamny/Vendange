@@ -81,6 +81,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
     setWorkAccepted,
     setExpressionAccepted,
     updateRecordIntermarc,
+    getCuratedBaselineRecord,
   } = useAppData()
   const workspace = useWorkspaceData(state)
   const { t } = useTranslation()
@@ -142,13 +143,19 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
         return false
     }
   }, [record, workspace.coverage])
-  const canEditRecord = !!record && recordInCurated && (!isRecordClustered || isAnchorSelection)
+  const canEditRecord = useMemo(() => {
+    if (!record || !recordInCurated) return false
+    if (record.typeNorm === 'manifestation') return true
+    if (!isRecordClustered) return true
+    return isAnchorSelection
+  }, [isAnchorSelection, isRecordClustered, record, recordInCurated])
   const readOnlyReason = useMemo(() => {
     if (!record) return null
     if (!recordInCurated) return t('messages.recordNotInCurated')
-    if (isRecordClustered && !isAnchorSelection) return t('messages.clusteredRecordReadOnly')
+    if (record.typeNorm !== 'manifestation' && isRecordClustered && !isAnchorSelection)
+      return t('messages.clusteredRecordReadOnly')
     return null
-  }, [isAnchorSelection, record, recordInCurated, isRecordClustered, t])
+  }, [isAnchorSelection, isRecordClustered, record, recordInCurated, t])
   const [editingRecord, setEditingRecord] = useState(false)
 
   useEffect(() => {
@@ -477,6 +484,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
               {editingRecord && canEditRecord ? (
                 <IntermarcEditor
                   record={record}
+                  baselineRecord={getCuratedBaselineRecord(record.id) ?? undefined}
                   onSave={next => updateRecordIntermarc(record.id, next)}
                   onCancel={() => setEditingRecord(false)}
                 />

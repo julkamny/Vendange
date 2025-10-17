@@ -143,7 +143,10 @@
     "workUnchecked": "Work unchecked; linked expressions disabled",
     "expressionKept": "Expression kept in cluster",
     "expressionUnchecked": "Expression unchecked from cluster",
-    "invalidClusterWork": "Unable to add this ARK: it does not reference an œuvre"
+    "invalidClusterWork": "Unable to add this ARK: it does not reference an œuvre",
+    "recordSaved": "Record saved",
+    "recordSaveFailed": "Failed to save record",
+    "recordReset": "Record restored from curated CSV"
   },
   "messages": {
     "noClusters": "No clusters detected. Load curated CSV produced by the script.",

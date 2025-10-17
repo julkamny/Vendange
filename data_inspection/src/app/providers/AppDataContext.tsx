@@ -26,6 +26,7 @@ type DataSet = {
 export type AppDataState = {
   original: DataSet | null
   curated: DataSet | null
+  curatedBaseline: DataSet | null
   clusters: Cluster[]
   loadingDefaults: boolean
   originalIndexes: OriginalIndexes | null
@@ -36,6 +37,7 @@ type AppDataContextValue = AppDataState & {
   loadCurated: (file: File) => Promise<void>
   loadDefaults: () => Promise<void>
   updateRecordIntermarc: (recordId: string, intermarc: Intermarc) => void
+  getCuratedBaselineRecord: (recordId: string) => RecordRow | null
   setWorkAccepted: (clusterId: string, workArk: string, accepted: boolean) => void
   setExpressionAccepted: (
     clusterId: string,
@@ -64,6 +66,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppDataState>({
     original: null,
     curated: null,
+    curatedBaseline: null,
     clusters: [],
     loadingDefaults: false,
     originalIndexes: null,
@@ -92,7 +95,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setState(prev => {
         const curated = { csv, records, intermarcIndex: findIntermarcColumnIndex(csv) }
         const clusters = prev.original ? detectClusters(records, buildArkIndex(prev.original.records)) : []
-        return { ...prev, curated, clusters }
+        return { ...prev, curated, curatedBaseline: cloneDataSet(curated), clusters }
       })
     },
     [],
@@ -132,6 +135,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setState(prev => {
         const nextOriginal = original ?? prev.original
         const nextCurated = curated ?? prev.curated
+        const nextBaseline = curated
+          ? cloneDataSet(curated)
+          : curated === null && !prev.curated
+            ? null
+            : prev.curatedBaseline
         const originalIndexes = nextOriginal
           ? buildOriginalIndexes(nextOriginal.records, getCurrentLanguage())
           : prev.originalIndexes
@@ -142,6 +150,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           ...prev,
           original: nextOriginal,
           curated: nextCurated,
+          curatedBaseline: nextBaseline,
           clusters,
           originalIndexes,
           loadingDefaults: false,
@@ -165,6 +174,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       return { ...prev, curated: nextCurated, clusters: nextClusters }
     })
   }, [])
+
+  const getCuratedBaselineRecord = useCallback(
+    (recordId: string) => {
+      if (!state.curatedBaseline) return null
+      return state.curatedBaseline.records.find(r => r.id === recordId) ?? null
+    },
+    [state.curatedBaseline],
+  )
 
   const exportCurated = useCallback(async () => {
     if (!state.curated) {
@@ -287,7 +304,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   )
 
   const clearData = useCallback(() => {
-    setState(prev => ({ ...prev, original: null, curated: null, clusters: [], originalIndexes: null }))
+    setState(prev => ({
+      ...prev,
+      original: null,
+      curated: null,
+      curatedBaseline: null,
+      clusters: [],
+      originalIndexes: null,
+    }))
   }, [])
 
   const value = useMemo(
@@ -297,6 +321,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       loadCurated,
       loadDefaults,
       updateRecordIntermarc,
+      getCuratedBaselineRecord,
       setWorkAccepted,
       setExpressionAccepted,
       moveManifestation,
@@ -309,6 +334,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       loadCurated,
       loadDefaults,
       updateRecordIntermarc,
+      getCuratedBaselineRecord,
       setWorkAccepted,
       setExpressionAccepted,
       moveManifestation,
@@ -364,6 +390,22 @@ function updateRecordIntermarcInDataset(dataset: DataSet, recordId: string, inte
     ...dataset,
     csv: { headers: dataset.csv.headers.slice(), rows: updatedRows },
     records: updatedRecords,
+  }
+}
+
+function cloneDataSet(dataset: DataSet): DataSet {
+  return {
+    csv: {
+      headers: dataset.csv.headers.slice(),
+      rows: dataset.csv.rows.map(row => row.slice()),
+    },
+    records: dataset.records.map(record => ({
+      ...record,
+      raw: record.raw.slice(),
+      intermarc: cloneIntermarc(record.intermarc),
+      intermarcStr: record.intermarcStr,
+    })),
+    intermarcIndex: dataset.intermarcIndex,
   }
 }
 

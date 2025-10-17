@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import type {
   Cluster,
   ManifestationItem,
@@ -20,19 +19,6 @@ type ManifestationPanelProps = {
     expressionId?: string
     expressionArk?: string
   }) => void
-  onAssignManifestation: (payload: {
-    manifestationId: string
-    anchorExpressionId: string | null
-    expressionId?: string
-    expressionArk: string
-  }) => void
-}
-
-type ExpressionOption = {
-  label: string
-  expressionId?: string
-  expressionArk: string
-  anchorExpressionId: string | null
 }
 
 type ExpressionSectionKind = 'anchor' | 'clustered' | 'independent'
@@ -42,52 +28,10 @@ export function ManifestationPanel({
   cluster,
   state,
   onSelectManifestation,
-  onAssignManifestation,
 }: ManifestationPanelProps) {
   const { t } = useTranslation()
-  const { getAgentNames } = useRecordLookup()
+  const { getAgentNames, getGeneralRelationshipCount } = useRecordLookup()
   if (!cluster) return <em>{t('messages.noClusters')}</em>
-  const expressionOptions = useMemo<ExpressionOption[]>(() => {
-    if (!cluster) return []
-    const options: ExpressionOption[] = []
-    for (const group of cluster.expressionGroups) {
-      if (group.anchor.ark) {
-        options.push({
-          label: `⚓︎ ${group.anchor.title || group.anchor.id}`,
-          expressionId: group.anchor.id,
-          expressionArk: group.anchor.ark,
-          anchorExpressionId: group.anchor.id,
-        })
-      }
-      for (const expr of group.clustered) {
-        if (!expr.ark) continue
-        options.push({
-          label: expr.title || expr.id,
-          expressionId: expr.id,
-          expressionArk: expr.ark,
-          anchorExpressionId: group.anchor.id,
-        })
-      }
-    }
-    for (const expr of cluster.independentExpressions) {
-      if (!expr.ark) continue
-      options.push({
-        label: expr.title || expr.id,
-        expressionId: expr.id,
-        expressionArk: expr.ark,
-        anchorExpressionId: null,
-      })
-    }
-    return options
-  }, [cluster])
-  const optionByArk = useMemo(() => {
-    const map = new Map<string, ExpressionOption>()
-    for (const option of expressionOptions) {
-      map.set(option.expressionArk, option)
-    }
-    return map
-  }, [expressionOptions])
-  const defaultOptionArk = expressionOptions[0]?.expressionArk ?? ''
   const highlightedExpressionArk = state.highlightedExpressionArk ?? null
   const selectedEntity = state.selectedEntity
 
@@ -119,9 +63,7 @@ export function ManifestationPanel({
       badges.push({ type: 'expression', text: expression.id, tooltip: expression.ark })
     }
     const agentNames = getAgentNames(manifestation.id, manifestation.ark)
-    const selectValue = optionByArk.has(manifestation.expressionArk ?? '')
-      ? manifestation.expressionArk ?? ''
-      : defaultOptionArk
+    const relationships = getGeneralRelationshipCount(manifestation.id, manifestation.ark)
 
     return (
       <div
@@ -147,35 +89,9 @@ export function ManifestationPanel({
             title={manifestation.title || manifestation.id}
             badges={badges}
             agentNames={agentNames}
+            relationshipsCount={relationships}
           />
         </button>
-        {expressionOptions.length ? (
-          <select
-            className="manifestation-expression-select"
-            value={selectValue}
-            onChange={event => {
-              const nextArk = event.target.value
-              if (!nextArk || nextArk === manifestation.expressionArk) return
-              const next = optionByArk.get(nextArk)
-              if (!next) return
-              onAssignManifestation({
-                manifestationId: manifestation.id,
-                anchorExpressionId: next.anchorExpressionId,
-                expressionId: next.expressionId,
-                expressionArk: next.expressionArk,
-              })
-            }}
-          >
-            {expressionOptions.map(option => (
-              <option
-                key={`${option.anchorExpressionId ?? 'independent'}:${option.expressionArk}`}
-                value={option.expressionArk}
-              >
-                {option.label}
-              </option>
-            ))}
-          </select>
-        ) : null}
       </div>
     )
   }
@@ -235,6 +151,7 @@ export function ManifestationPanel({
             isAnchor={kind === 'anchor'}
             manifestationCount={expression.manifestations.length}
             agentNames={agentNames}
+            relationshipCount={getGeneralRelationshipCount(expression.id, expression.ark)}
           />
           <span className="manifestation-section__meta">{meta}</span>
         </div>

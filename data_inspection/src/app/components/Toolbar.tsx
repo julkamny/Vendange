@@ -29,7 +29,7 @@ export function Toolbar({ visible, onToggleVisible, onOpenUpload, onOpenShortcut
   return (
     <div className={`app-toolbar${visible ? ' is-visible' : ' is-collapsed'}`}>
       <button
-        className="toolbar-toggle"
+        className={`toolbar-toggle${visible ? ' is-active' : ''}`}
         type="button"
         onClick={onToggleVisible}
         aria-expanded={visible}
@@ -37,7 +37,7 @@ export function Toolbar({ visible, onToggleVisible, onOpenUpload, onOpenShortcut
       >
         🛠️
       </button>
-      <header className="toolbar" data-collapsed={!visible}>
+      <header className={`toolbar${visible ? ' toolbar--visible' : ' toolbar--collapsed'}`}>
         <div className="toolbar-left">
           <button type="button" onClick={onOpenUpload}>
             {t('toolbar.loadCsv')}

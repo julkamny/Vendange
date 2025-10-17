@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { RecordRow } from '../types'
 import type { WorkspaceTabState } from '../workspace/types'
 import { useAppData } from '../providers/AppDataContext'
@@ -10,6 +10,9 @@ import { ManifestationPanel } from '../workspace/components/ManifestationPanel'
 import { IntermarcView } from './IntermarcView'
 import { IntermarcEditor } from './IntermarcEditor'
 import { isWorkClustered, isExpressionClustered, isManifestationClustered } from '../core/clusterCoverage'
+import { useArkDecoratedText } from '../hooks/useArkDecoratedText'
+import { useRecordLookup } from '../hooks/useRecordLookup'
+import { expressionWorkArks, manifestationTitle, titleOf } from '../core/entities'
 
 type WorkspaceViewProps = {
   state: WorkspaceTabState
@@ -20,6 +23,29 @@ function findRecord(id: string, curated: RecordRow[], original: RecordRow[]): Re
   return curated.find(rec => rec.id === id) || original.find(rec => rec.id === id) || null
 }
 
+function BreadcrumbItem({ value, isLast }: { value: string; isLast: boolean }) {
+  const label = useArkDecoratedText(value)
+  return (
+    <span className={`workspace-breadcrumb${isLast ? ' is-current' : ''}`} aria-current={isLast ? 'page' : undefined}>
+      {label}
+    </span>
+  )
+}
+
+function WorkspaceBreadcrumbs({ items, ariaLabel }: { items: string[]; ariaLabel: string }) {
+  if (!items.length) return null
+  return (
+    <nav className="workspace-breadcrumbs" aria-label={ariaLabel}>
+      {items.map((item, index) => (
+        <Fragment key={`${item}-${index}`}>
+          <BreadcrumbItem value={item} isLast={index === items.length - 1} />
+          {index < items.length - 1 ? <span className="workspace-breadcrumb-separator" aria-hidden="true">›</span> : null}
+        </Fragment>
+      ))}
+    </nav>
+  )
+}
+
 export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
   const {
     clusters,
@@ -27,11 +53,12 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
     curated,
     setWorkAccepted,
     setExpressionAccepted,
-    moveManifestation,
     updateRecordIntermarc,
   } = useAppData()
   const workspace = useWorkspaceData(state)
   const { t } = useTranslation()
+  const { getById, getByArk } = useRecordLookup()
+  const decoratedTitle = useArkDecoratedText(state.title)
   const record = state.selectedEntity
     ? findRecord(state.selectedEntity.id, curated?.records ?? [], original?.records ?? [])
     : null
@@ -64,6 +91,80 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
   useEffect(() => {
     setEditingRecord(false)
   }, [record?.id])
+
+  const breadcrumbs = useMemo(() => {
+    const items: string[] = []
+    const scopeLabel = t(`breadcrumbs.scope.${state.listScope}`)
+    const viewLabel = t(`breadcrumbs.view.${state.viewMode}`)
+    if (scopeLabel) items.push(scopeLabel)
+    if (viewLabel && viewLabel !== scopeLabel) items.push(viewLabel)
+
+    const addLabel = (value?: string | null) => {
+      if (!value) return
+      const trimmed = value.trim()
+      if (!trimmed) return
+      if (items[items.length - 1] === trimmed) return
+      items.push(trimmed)
+    }
+
+    const labelFromRecord = (rec?: RecordRow | null, fallback?: string) => {
+      if (!rec) return fallback
+      if (rec.typeNorm === 'manifestation') {
+        return manifestationTitle(rec) || rec.id
+      }
+      return titleOf(rec) || rec.id
+    }
+
+    const selected = state.selectedEntity
+    if (!selected) return items
+
+    if (selected.entityType === 'work') {
+      const workRecord = getById(selected.id) || getByArk(selected.workArk)
+      addLabel(labelFromRecord(workRecord, selected.id))
+      return items
+    }
+
+    if (selected.entityType === 'expression') {
+      const workRecord = selected.workArk ? getByArk(selected.workArk) : undefined
+      if (workRecord) addLabel(labelFromRecord(workRecord, workRecord.id))
+      else if (selected.workArk) addLabel(selected.workArk)
+      const expressionRecord =
+        (selected.expressionId && getById(selected.expressionId)) ||
+        getById(selected.id) ||
+        getByArk(selected.expressionArk)
+      addLabel(labelFromRecord(expressionRecord, selected.expressionId || selected.id))
+      return items
+    }
+
+    if (selected.entityType === 'manifestation') {
+      const expressionRecord =
+        (selected.expressionId && getById(selected.expressionId)) ||
+        getByArk(selected.expressionArk)
+      if (expressionRecord) {
+        const relatedWorkArk = selected.workArk || expressionWorkArks(expressionRecord)[0]
+        if (relatedWorkArk) {
+          const workRecord = getByArk(relatedWorkArk)
+          addLabel(labelFromRecord(workRecord, relatedWorkArk))
+        }
+        addLabel(labelFromRecord(expressionRecord, expressionRecord.id))
+      }
+      const manifestationRecord = record || getById(selected.id) || getByArk(selected.id)
+      addLabel(labelFromRecord(manifestationRecord, selected.id))
+      return items
+    }
+
+    addLabel(selected.id)
+    return items
+  }, [
+    getByArk,
+    getById,
+    record,
+    state.listScope,
+    state.selectedEntity,
+    state.viewMode,
+    t,
+  ])
+
   const handleSelectWork = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
     const hasCuratedRecord = !!findRecord(workId, curated?.records ?? [], [])
     onStateChange(prev => ({
@@ -227,14 +328,6 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
             },
           }))
         }
-        onAssignManifestation={({ manifestationId, anchorExpressionId, expressionArk, expressionId }) => {
-          if (!workspace.activeCluster || !expressionArk || workspace.activeClusterSource !== 'cluster') return
-          moveManifestation(workspace.activeCluster.anchorId, manifestationId, {
-            anchorExpressionId,
-            expressionArk,
-            expressionId,
-          })
-        }}
       />
     )
   }
@@ -242,15 +335,20 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
   return (
     <div className="workspace-view">
       <header className="workspace-view__header">
-        <h2>{state.title}</h2>
-        <span>
-          {t('workspace.summary', {
-            defaultValue: '{{clusters}} clusters · {{original}} original records · {{curated}} curated records',
-            clusters: clusters.length,
-            original: original?.records.length ?? 0,
-            curated: curated?.records.length ?? 0,
-          })}
-        </span>
+        <div className="workspace-heading">
+          <span className="workspace-title" role="heading" aria-level={2}>
+            {decoratedTitle}
+          </span>
+          <span className="workspace-summary">
+            {t('workspace.summary', {
+              defaultValue: '{{clusters}} clusters · {{original}} original records · {{curated}} curated records',
+              clusters: clusters.length,
+              original: original?.records.length ?? 0,
+              curated: curated?.records.length ?? 0,
+            })}
+          </span>
+        </div>
+        <WorkspaceBreadcrumbs items={breadcrumbs} ariaLabel={t('breadcrumbs.ariaLabel')} />
       </header>
       <div className="workspace-view__body">
         <aside className="workspace-panel workspace-panel--list">

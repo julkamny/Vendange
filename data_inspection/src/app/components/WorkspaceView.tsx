@@ -335,19 +335,6 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
   return (
     <div className="workspace-view">
       <header className="workspace-view__header">
-        <div className="workspace-heading">
-          <span className="workspace-title" role="heading" aria-level={2}>
-            {decoratedTitle}
-          </span>
-          <span className="workspace-summary">
-            {t('workspace.summary', {
-              defaultValue: '{{clusters}} clusters · {{original}} original records · {{curated}} curated records',
-              clusters: clusters.length,
-              original: original?.records.length ?? 0,
-              curated: curated?.records.length ?? 0,
-            })}
-          </span>
-        </div>
         <WorkspaceBreadcrumbs items={breadcrumbs} ariaLabel={t('breadcrumbs.ariaLabel')} />
       </header>
       <div className="workspace-view__body">

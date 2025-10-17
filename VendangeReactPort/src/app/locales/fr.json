@@ -86,6 +86,10 @@
     "listDown": {
       "label": "Sélection suivante",
       "description": "Aller à l'élément suivant dans la liste active."
+    },
+    "nextWorkspace": {
+      "label": "Changer d'espace de travail",
+      "description": "Activer l'onglet d'espace de travail suivant."
     }
   },
   "buttons": {

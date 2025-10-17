@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, type MouseEvent } from 'react'
 import { WorkspaceView } from './WorkspaceView'
 import type { WorkspaceTabState } from '../workspace/types'
+import type { RecordRow } from '../types'
 import { DEFAULT_WORKSPACE_STATE } from '../workspace/types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useShortcuts } from '../providers/ShortcutContext'
@@ -8,6 +9,7 @@ import { shortcutMatchesEvent, type ShortcutAction } from '../core/shortcuts'
 import { useWorkspaceData } from '../workspace/useWorkspaceData'
 import { useAppData } from '../providers/AppDataContext'
 import { focusTreeUp, focusTreeDown } from '../workspace/shortcutActions'
+import { manifestationTitle, titleOf, expressionWorkArks } from '../core/entities'
 
 let tabSequence = 0
 
@@ -29,6 +31,19 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   const { clusters, original, curated } = useAppData()
   const originalRecords = original?.records ?? []
   const curatedRecords = curated?.records ?? []
+  const recordIndexes = useMemo(() => {
+    const byId = new Map<string, RecordRow>()
+    const byArk = new Map<string, RecordRow>()
+    const addRecords = (records: RecordRow[]) => {
+      for (const rec of records) {
+        byId.set(rec.id, rec)
+        if (rec.ark) byArk.set(rec.ark, rec)
+      }
+    }
+    addRecords(originalRecords)
+    addRecords(curatedRecords)
+    return { byId, byArk }
+  }, [originalRecords, curatedRecords])
   const [tabs, setTabs] = useState<WorkspaceTabState[]>(() => [createTab(t('workspace.tabDefault', { defaultValue: 'Workspace' }))])
   const [activeId, setActiveId] = useState(() => tabs[0]?.id ?? '')
 
@@ -61,6 +76,61 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
 
   const activeTab = useMemo(() => tabs.find(tab => tab.id === activeId) ?? tabs[0], [tabs, activeId])!
   const workspace = useWorkspaceData(activeTab)
+  const getWorkspaceLabel = useCallback(
+    (tab: WorkspaceTabState) => {
+      const fallbackLabel = tab.title || t('workspace.tabDefault', { defaultValue: 'Workspace' })
+      const entity = tab.selectedEntity
+      if (!entity) return fallbackLabel
+
+      const findById = (id?: string | null) => (id ? recordIndexes.byId.get(id) ?? null : null)
+      const findByArk = (ark?: string | null) => (ark ? recordIndexes.byArk.get(ark) ?? null : null)
+
+      if (entity.entityType === 'manifestation') {
+        const record = findById(entity.id)
+        if (record) {
+          const label = manifestationTitle(record) || titleOf(record)
+          return label || record.id
+        }
+        return entity.id
+      }
+
+      if (entity.entityType === 'work') {
+        const record = findById(entity.id)
+        if (record) {
+          const label = titleOf(record)
+          return label || record.id
+        }
+        return entity.id
+      }
+
+      if (entity.entityType === 'expression') {
+        const expressionRecord = findById(entity.expressionId ?? entity.id)
+        let workArk = entity.workArk ?? null
+        if (!workArk && expressionRecord) {
+          const candidates = expressionWorkArks(expressionRecord)
+          if (candidates.length) workArk = candidates[0]
+        }
+        const workRecord = findByArk(workArk)
+        if (workRecord) {
+          const label = titleOf(workRecord)
+          return label || workRecord.id
+        }
+        if (expressionRecord) {
+          const label = titleOf(expressionRecord)
+          return label || expressionRecord.id
+        }
+        return entity.expressionId ?? entity.id
+      }
+
+      const record = findById(entity.id)
+      if (record) {
+        const label = titleOf(record) || manifestationTitle(record)
+        return label || record.id
+      }
+      return fallbackLabel
+    },
+    [recordIndexes, t],
+  )
 
   const handleShortcutAction = useCallback(
     (action: ShortcutAction) => {
@@ -92,6 +162,14 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         )
         return
       }
+      if (action === 'nextWorkspace') {
+        if (tabs.length <= 1) return
+        const currentIndex = tabs.findIndex(tab => tab.id === activeTab.id)
+        const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % tabs.length
+        const nextTab = tabs[nextIndex]
+        if (nextTab) setActiveId(nextTab.id)
+        return
+      }
       if (action === 'listUp' || action === 'listDown') {
         navigateList(action === 'listUp' ? 'up' : 'down', activeTab)
         return
@@ -107,6 +185,8 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       workspace.indexes,
       curatedRecords,
       originalRecords,
+      tabs,
+      setActiveId,
     ],
   )
 
@@ -136,31 +216,42 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   return (
     <div className="workspace-tabs">
       <div className="workspace-tab-bar" role="tablist">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            className={`workspace-tab${tab.id === activeTab?.id ? ' is-active' : ''}`}
-            role="tab"
-            aria-selected={tab.id === activeTab?.id}
-            onClick={() => activate(tab.id)}
-          >
-            <span>{tab.title}</span>
-            {tabs.length > 1 && (
-              <span
-                className="close"
-                role="button"
-                aria-label={t('workspace.closeTab', { defaultValue: 'Close tab' })}
-                onClick={(event: MouseEvent<HTMLSpanElement>) => {
-                  event.stopPropagation()
-                  closeTab(tab.id)
-                }}
-              >
-                ×
-              </span>
-            )}
-          </button>
-        ))}
-        <button className="workspace-tab add" onClick={addTab} aria-label={t('workspace.addTab', { defaultValue: 'Add tab' })}>
+        {tabs.map(tab => {
+          const label = getWorkspaceLabel(tab)
+          const isActive = tab.id === activeTab?.id
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              className={`workspace-tab${isActive ? ' is-active' : ''}`}
+              role="tab"
+              aria-selected={isActive}
+              title={label}
+              onClick={() => activate(tab.id)}
+            >
+              <span className="workspace-tab__label">{label}</span>
+              {tabs.length > 1 && (
+                <span
+                  className="close"
+                  role="button"
+                  aria-label={t('workspace.closeTab', { defaultValue: 'Close tab' })}
+                  onClick={(event: MouseEvent<HTMLSpanElement>) => {
+                    event.stopPropagation()
+                    closeTab(tab.id)
+                  }}
+                >
+                  ×
+                </span>
+              )}
+            </button>
+          )
+        })}
+        <button
+          type="button"
+          className="workspace-tab add"
+          onClick={addTab}
+          aria-label={t('workspace.addTab', { defaultValue: 'Add tab' })}
+        >
           +
         </button>
       </div>

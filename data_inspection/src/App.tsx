@@ -2,6 +2,7 @@ import { useState } from 'react'
 import './App.css'
 import './app/style.css'
 import { AppDataProvider, useAppData } from './app/providers/AppDataContext'
+import { ToastProvider } from './app/providers/ToastContext'
 import { WorkspaceTabs } from './app/components/WorkspaceTabs'
 import { useTranslation } from './app/hooks/useTranslation'
 import { ThemeProvider } from './app/providers/ThemeContext'
@@ -14,9 +15,11 @@ function App() {
   return (
     <ThemeProvider>
       <ShortcutProvider>
-        <AppDataProvider>
-          <AppShell />
-        </AppDataProvider>
+        <ToastProvider>
+          <AppDataProvider>
+            <AppShell />
+          </AppDataProvider>
+        </ToastProvider>
       </ShortcutProvider>
     </ThemeProvider>
   )

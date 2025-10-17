@@ -106,6 +106,7 @@
   },
   "buttons": {
     "add": "Add",
+    "cancel": "Cancel",
     "viewWorks": "View works",
     "viewExpressions": "View expressions",
     "modifyRecord": "Modify record",
@@ -129,7 +130,13 @@
     "uncheckedLabel": "Unchecked",
     "checkedLabel": "Kept",
     "expressionUnchecked": "Expression unchecked",
-    "workUnchecked": "Work unchecked"
+    "workUnchecked": "Work unchecked",
+    "addWorkToCluster": "Add work to cluster",
+    "workArkPlaceholder": "ark:/...",
+    "addExpressionToGroup": "Add expression",
+    "expressionArkPlaceholder": "ark:/...",
+    "addExpressionFromManifestation": "Link expression",
+    "keepExistingLink": "Keep current parent link"
   },
   "notifications": {
     "expressionMoved": "Expression moved to new anchor",
@@ -154,7 +161,15 @@
     "recordNotFound": "Record not found.",
     "saveFailed": "Failed to save: {{error}}",
     "clusteredRecordReadOnly": "Editing disabled for clustered entities.",
-    "recordNotInCurated": "Editing is only available for records present in the curated CSV."
+    "recordNotInCurated": "Editing is only available for records present in the curated CSV.",
+    "workArkRequired": "Enter a work ARK.",
+    "workAlreadyInCluster": "This work is already in the cluster.",
+    "workArkNotFound": "No work was found for this ARK.",
+    "expressionArkRequired": "Enter an expression ARK.",
+    "expressionAlreadyInGroup": "This expression already belongs to the group.",
+    "expressionArkNotFound": "No expression was found for this ARK.",
+    "expressionOutsideCluster": "The expression does not belong to the cluster works.",
+    "openEntityInNewTab": "Open this entity in a new workspace tab?"
   },
   "banners": {
     "pickWork": "Pick work",

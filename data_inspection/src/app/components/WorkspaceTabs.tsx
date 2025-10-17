@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { WorkspaceView } from './WorkspaceView'
 import type { WorkspaceTabState } from '../workspace/types'
-import type { RecordRow } from '../types'
+import type { RecordRow, SelectedEntity, Cluster } from '../types'
 import { DEFAULT_WORKSPACE_STATE } from '../workspace/types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useShortcuts } from '../providers/ShortcutContext'
@@ -9,7 +9,7 @@ import { shortcutMatchesEvent, type ShortcutAction } from '../core/shortcuts'
 import { useWorkspaceData } from '../workspace/useWorkspaceData'
 import { useAppData } from '../providers/AppDataContext'
 import { focusTreeUp, focusTreeDown } from '../workspace/shortcutActions'
-import { manifestationTitle, titleOf, expressionWorkArks } from '../core/entities'
+import { manifestationTitle, titleOf, expressionWorkArks, manifestationExpressionArks } from '../core/entities'
 import { useArkDecoratedText } from '../hooks/useArkDecoratedText'
 
 let tabSequence = 0
@@ -20,6 +20,204 @@ function createTab(title: string): WorkspaceTabState {
     title,
     ...DEFAULT_WORKSPACE_STATE,
   }
+}
+
+type TabContext = {
+  clusters: Cluster[]
+  recordIndexes: { byId: Map<string, RecordRow>; byArk: Map<string, RecordRow> }
+  curatedRecords: RecordRow[]
+}
+
+function configureTabForEntity(
+  tab: WorkspaceTabState,
+  entity: SelectedEntity,
+  context: TabContext,
+): WorkspaceTabState {
+  const next: WorkspaceTabState = {
+    ...tab,
+    ...DEFAULT_WORKSPACE_STATE,
+    id: tab.id,
+    title: tab.title,
+  }
+  const curatedIds = new Set(context.curatedRecords.map(record => record.id))
+  const recordById = context.recordIndexes.byId
+  const recordByArk = context.recordIndexes.byArk
+  const source: 'curated' | 'original' =
+    entity.source ?? (curatedIds.has(entity.id) ? 'curated' : 'original')
+
+  if (entity.entityType === 'work') {
+    const record = recordById.get(entity.id) || (entity.workArk ? recordByArk.get(entity.workArk) : undefined)
+    const workArk = entity.workArk ?? record?.ark ?? undefined
+    const clusterMatch = context.clusters.find(cluster => {
+      if (cluster.anchorId === entity.id) return true
+      if (workArk && cluster.anchorArk === workArk) return true
+      return cluster.items.some(item => {
+        if (item.id && item.id === entity.id) return true
+        if (workArk && item.ark === workArk) return true
+        return false
+      })
+    })
+    next.selectedEntity = {
+      id: entity.id,
+      source,
+      entityType: 'work',
+      workArk,
+    }
+    if (clusterMatch) {
+      next.viewMode = 'works'
+      next.listScope = 'clusters'
+      next.activeWorkAnchorId = clusterMatch.anchorId
+      next.highlightedWorkArk = workArk ?? null
+    } else {
+      next.viewMode = 'works'
+      next.listScope = 'inventory'
+      next.inventoryFocusWorkId = entity.id
+      next.highlightedWorkArk = workArk ?? null
+    }
+    return next
+  }
+
+  if (entity.entityType === 'expression') {
+    const expressionId = entity.expressionId ?? entity.id
+    const expressionRecord =
+      recordById.get(expressionId) || (entity.expressionArk ? recordByArk.get(entity.expressionArk) : undefined)
+    const expressionArk = entity.expressionArk ?? expressionRecord?.ark ?? undefined
+    const workArk = entity.workArk ?? (expressionRecord ? expressionWorkArks(expressionRecord)[0] : undefined)
+
+    let matchedCluster: Cluster | null = null
+    let anchorExpressionId: string | null = null
+    let isIndependent = false
+
+    for (const cluster of context.clusters) {
+      let found = false
+      for (const group of cluster.expressionGroups) {
+        if (group.anchor.id === expressionId || (expressionArk && group.anchor.ark === expressionArk)) {
+          matchedCluster = cluster
+          anchorExpressionId = group.anchor.id
+          found = true
+          break
+        }
+        if (
+          group.clustered.some(
+            expr => expr.id === expressionId || (expressionArk && expr.ark === expressionArk),
+          )
+        ) {
+          matchedCluster = cluster
+          anchorExpressionId = group.anchor.id
+          found = true
+          break
+        }
+      }
+      if (found) break
+      const independentMatch = cluster.independentExpressions.find(
+        expr => expr.id === expressionId || (expressionArk && expr.ark === expressionArk),
+      )
+      if (independentMatch) {
+        matchedCluster = cluster
+        anchorExpressionId = independentMatch.id
+        isIndependent = true
+        break
+      }
+    }
+
+    next.selectedEntity = {
+      id: expressionId,
+      source,
+      entityType: 'expression',
+      workArk,
+      expressionId,
+      expressionArk,
+    }
+
+    next.highlightedWorkArk = workArk ?? null
+    next.highlightedExpressionArk = expressionArk ?? null
+
+    if (matchedCluster) {
+      next.viewMode = 'expressions'
+      next.listScope = 'clusters'
+      next.activeWorkAnchorId = matchedCluster.anchorId
+      next.activeExpressionAnchorId = isIndependent ? null : anchorExpressionId
+    } else {
+      next.viewMode = 'expressions'
+      next.listScope = 'inventory'
+      next.inventoryFocusExpressionId = expressionId
+      next.inventoryExpressionFilterArk = expressionArk ?? null
+    }
+    return next
+  }
+
+  if (entity.entityType === 'manifestation') {
+    const manifestationRecord = recordById.get(entity.id)
+    const expressionArk =
+      entity.expressionArk ?? (manifestationRecord ? manifestationExpressionArks(manifestationRecord)[0] : undefined)
+    const expressionRecord = expressionArk ? recordByArk.get(expressionArk) : undefined
+    const expressionId = entity.expressionId ?? expressionRecord?.id
+    const workArk = entity.workArk ?? (expressionRecord ? expressionWorkArks(expressionRecord)[0] : undefined)
+
+    let matchedCluster: Cluster | null = null
+    let anchorExpressionId: string | null = null
+    let manifestationExpressionId = expressionId ?? null
+    let fromIndependent = false
+
+    for (const cluster of context.clusters) {
+      let found = false
+      for (const group of cluster.expressionGroups) {
+        if (group.anchor.manifestations.some(item => item.id === entity.id)) {
+          matchedCluster = cluster
+          anchorExpressionId = group.anchor.id
+          manifestationExpressionId = group.anchor.id
+          found = true
+          break
+        }
+        const clusteredMatch = group.clustered.find(expr => expr.manifestations.some(item => item.id === entity.id))
+        if (clusteredMatch) {
+          matchedCluster = cluster
+          anchorExpressionId = group.anchor.id
+          manifestationExpressionId = clusteredMatch.id
+          found = true
+          break
+        }
+      }
+      if (found) break
+      const independentMatch = cluster.independentExpressions.find(expr =>
+        expr.manifestations.some(item => item.id === entity.id),
+      )
+      if (independentMatch) {
+        matchedCluster = cluster
+        anchorExpressionId = independentMatch.id
+        manifestationExpressionId = independentMatch.id
+        fromIndependent = true
+        break
+      }
+    }
+
+    next.selectedEntity = {
+      id: entity.id,
+      source,
+      entityType: 'manifestation',
+      expressionId: manifestationExpressionId ?? undefined,
+      expressionArk,
+      workArk,
+    }
+
+    next.highlightedExpressionArk = expressionArk ?? null
+
+    if (matchedCluster) {
+      next.viewMode = 'manifestations'
+      next.listScope = 'clusters'
+      next.activeWorkAnchorId = matchedCluster.anchorId
+      next.activeExpressionAnchorId = fromIndependent ? null : anchorExpressionId
+    } else {
+      next.viewMode = 'manifestations'
+      next.listScope = 'inventory'
+      if (expressionId) next.inventoryFocusExpressionId = expressionId
+      next.inventoryExpressionFilterArk = expressionArk ?? null
+    }
+    return next
+  }
+
+  next.selectedEntity = { ...entity, source }
+  return next
 }
 
 type WorkspaceTabsProps = {
@@ -191,6 +389,20 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     ],
   )
 
+  const openEntityInNewTab = useCallback(
+    (entity: SelectedEntity) => {
+      const newTab = createTab(t('workspace.tabDefault', { defaultValue: 'Workspace' }))
+      const configured = configureTabForEntity(newTab, entity, {
+        clusters,
+        recordIndexes,
+        curatedRecords,
+      })
+      setTabs(prev => [...prev, configured])
+      setActiveId(configured.id)
+    },
+    [clusters, recordIndexes, curatedRecords, t, setTabs, setActiveId],
+  )
+
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
       if (shortcutModalOpen) return
@@ -242,6 +454,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
           <WorkspaceView
             state={activeTab}
             onStateChange={updater => updateTabState(activeTab.id, updater)}
+            onOpenWorkspaceTab={openEntityInNewTab}
           />
         ) : null}
       </div>

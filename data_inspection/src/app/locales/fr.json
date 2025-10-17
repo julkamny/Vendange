@@ -106,6 +106,7 @@
   },
   "buttons": {
     "add": "Ajouter",
+    "cancel": "Annuler",
     "viewWorks": "Voir les œuvres",
     "viewExpressions": "Voir les expressions",
     "modifyRecord": "Modifier la notice",
@@ -129,7 +130,13 @@
     "uncheckedLabel": "Non validée",
     "checkedLabel": "Conservée",
     "expressionUnchecked": "Expression non validée",
-    "workUnchecked": "Œuvre non validée"
+    "workUnchecked": "Œuvre non validée",
+    "addWorkToCluster": "Ajouter une œuvre à la grappe",
+    "workArkPlaceholder": "ark:/...",
+    "addExpressionToGroup": "Ajouter une expression",
+    "expressionArkPlaceholder": "ark:/...",
+    "addExpressionFromManifestation": "Lier une expression",
+    "keepExistingLink": "Conserver le lien actuel"
   },
   "notifications": {
     "expressionMoved": "Expression déplacée vers un nouvel ancrage",
@@ -154,7 +161,15 @@
     "recordNotFound": "Notice introuvable.",
     "saveFailed": "Échec de l'enregistrement : {{error}}",
     "clusteredRecordReadOnly": "La modification est désactivée pour les entités déjà clusterisées.",
-    "recordNotInCurated": "La modification n'est disponible que pour les notices présentes dans le CSV curé."
+    "recordNotInCurated": "La modification n'est disponible que pour les notices présentes dans le CSV curé.",
+    "workArkRequired": "Saisissez l'ARK d'une œuvre.",
+    "workAlreadyInCluster": "Cette œuvre est déjà présente dans la grappe.",
+    "workArkNotFound": "Aucune œuvre trouvée pour cet ARK.",
+    "expressionArkRequired": "Saisissez l'ARK d'une expression.",
+    "expressionAlreadyInGroup": "Cette expression est déjà présente dans le groupe.",
+    "expressionArkNotFound": "Aucune expression trouvée pour cet ARK.",
+    "expressionOutsideCluster": "L'expression ne dépend pas des œuvres de cette grappe.",
+    "openEntityInNewTab": "Ouvrir cette entité dans un nouvel onglet ?"
   },
   "banners": {
     "pickWork": "Choisir une œuvre",

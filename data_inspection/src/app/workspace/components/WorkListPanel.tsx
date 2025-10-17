@@ -1,4 +1,4 @@
-import { useMemo, type MouseEvent } from 'react'
+import { useMemo, useState, type MouseEvent, type FormEvent } from 'react'
 import type { Cluster, RecordRow } from '../../types'
 import type { WorkspaceTabState } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
@@ -26,8 +26,12 @@ export function WorkListPanel({
   onToggleWork,
 }: WorkListPanelProps) {
   const { t, language } = useTranslation()
-  const { originalIndexes } = useAppData()
-  const { getAgentNames, getGeneralRelationshipCount } = useRecordLookup()
+  const { originalIndexes, addWorkToCluster } = useAppData()
+  const { getAgentNames, getGeneralRelationshipCount, getByArk } = useRecordLookup()
+
+  const [activeClusterAdd, setActiveClusterAdd] = useState<string | null>(null)
+  const [clusterArkInput, setClusterArkInput] = useState('')
+  const [clusterAddError, setClusterAddError] = useState<string | null>(null)
 
   const collator = useMemo(() => new Intl.Collator(language, { sensitivity: 'accent' }), [language])
   const sortedEntries = useMemo(() => {
@@ -78,6 +82,42 @@ export function WorkListPanel({
     return !!target?.closest('input, button, .agent-badge')
   }
 
+  const handleSubmitClusterAdd = (event: FormEvent<HTMLFormElement>, cluster: Cluster) => {
+    event.preventDefault()
+    const ark = clusterArkInput.trim()
+    if (!ark) {
+      setClusterAddError(t('messages.workArkRequired', { defaultValue: 'Enter a work ARK.' }))
+      return
+    }
+    if (cluster.anchorArk === ark || cluster.items.some(item => item.ark === ark)) {
+      setClusterAddError(t('messages.workAlreadyInCluster', { defaultValue: 'This work is already in the cluster.' }))
+      return
+    }
+    const record = getByArk(ark)
+    if (!record || record.typeNorm !== 'oeuvre') {
+      setClusterAddError(
+        t('messages.workArkNotFound', { defaultValue: 'No work was found for this ARK.' }),
+      )
+      return
+    }
+    const workArks = new Set<string>()
+    if (cluster.anchorArk) workArks.add(cluster.anchorArk)
+    cluster.items.forEach(item => {
+      if (item.ark) workArks.add(item.ark)
+    })
+    const recordArk = record.ark || record.id
+    if (workArks.has(recordArk)) {
+      setClusterAddError(
+        t('messages.workAlreadyInCluster', { defaultValue: 'This work is already in the cluster.' }),
+      )
+      return
+    }
+    addWorkToCluster(cluster.anchorId, ark)
+    setActiveClusterAdd(null)
+    setClusterArkInput('')
+    setClusterAddError(null)
+  }
+
   return (
     <div className="work-list-panel">
       {sortedEntries.map(entry => {
@@ -93,6 +133,54 @@ export function WorkListPanel({
           const anchorAgentNames = getAgentNames(cluster.anchorId, cluster.anchorArk)
           return (
             <div key={cluster.anchorId} className={clusterClasses.join(' ')} data-cluster-anchor-id={cluster.anchorId}>
+              <div className="cluster-tools">
+                <button
+                  type="button"
+                  className="cluster-add-button"
+                  onClick={() => {
+                    if (activeClusterAdd === cluster.anchorId) {
+                      setActiveClusterAdd(null)
+                      setClusterArkInput('')
+                      setClusterAddError(null)
+                    } else {
+                      setActiveClusterAdd(cluster.anchorId)
+                      setClusterArkInput('')
+                      setClusterAddError(null)
+                    }
+                  }}
+                  aria-expanded={activeClusterAdd === cluster.anchorId}
+                  aria-label={t('labels.addWorkToCluster', { defaultValue: 'Add work to cluster' })}
+                >
+                  +
+                </button>
+                {activeClusterAdd === cluster.anchorId ? (
+                  <form
+                    className="cluster-add-form"
+                    onSubmit={event => handleSubmitClusterAdd(event, cluster)}
+                  >
+                    <input
+                      type="text"
+                      value={clusterArkInput}
+                      onChange={event => setClusterArkInput(event.target.value)}
+                      placeholder={t('labels.workArkPlaceholder', { defaultValue: 'ark:/...' })}
+                    />
+                    <button type="submit">{t('buttons.add', { defaultValue: 'Add' })}</button>
+                    <button
+                      type="button"
+                      className="cluster-add-cancel"
+                      onClick={() => {
+                        setActiveClusterAdd(null)
+                        setClusterArkInput('')
+                        setClusterAddError(null)
+                      }}
+                      aria-label={t('buttons.cancel', { defaultValue: 'Cancel' })}
+                    >
+                      ×
+                    </button>
+                    {clusterAddError ? <div className="form-error">{clusterAddError}</div> : null}
+                  </form>
+                ) : null}
+              </div>
               <div
                 className={anchorRowClasses.join(' ')}
                 data-work-id={cluster.anchorId}

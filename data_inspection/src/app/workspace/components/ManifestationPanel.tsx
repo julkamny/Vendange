@@ -1,3 +1,4 @@
+import { useState, type FormEvent } from 'react'
 import type {
   Cluster,
   ManifestationItem,
@@ -10,6 +11,7 @@ import { useTranslation } from '../../hooks/useTranslation'
 import { useRecordLookup } from '../../hooks/useRecordLookup'
 import { EntityLabel } from '../../components/EntityLabel'
 import { ExpressionGroupLabel } from './ExpressionPanel'
+import { useAppData } from '../../providers/AppDataContext'
 
 type ManifestationPanelProps = {
   cluster: Cluster | null
@@ -30,7 +32,15 @@ export function ManifestationPanel({
   onSelectManifestation,
 }: ManifestationPanelProps) {
   const { t } = useTranslation()
-  const { getAgentNames, getGeneralRelationshipCount } = useRecordLookup()
+  const { getAgentNames, getGeneralRelationshipCount, getByArk } = useRecordLookup()
+  const { addExpressionToCluster } = useAppData()
+  const [activeManifestAdd, setActiveManifestAdd] = useState<{
+    anchorExpressionId: string
+    manifestationId: string
+  } | null>(null)
+  const [manifestArkInput, setManifestArkInput] = useState('')
+  const [manifestKeepLink, setManifestKeepLink] = useState(false)
+  const [manifestError, setManifestError] = useState<string | null>(null)
   if (!cluster) return <em>{t('messages.noClusters')}</em>
   const highlightedExpressionArk = state.highlightedExpressionArk ?? null
   const selectedEntity = state.selectedEntity
@@ -39,6 +49,7 @@ export function ManifestationPanel({
     expression: ExpressionWithMeta,
     anchorExpressionId: string | null,
     manifestation: ManifestationItem,
+    sectionKind: ExpressionSectionKind,
   ) => {
     const rowClasses = ['manifestation-item', 'entity-row', 'entity-row--manifestation']
     const isSelectedManifestation =
@@ -74,6 +85,115 @@ export function ManifestationPanel({
         data-expression-id={expression.id}
         data-anchor-expression-id={anchorExpressionId ?? undefined}
       >
+        {(sectionKind === 'anchor' || sectionKind === 'independent') && anchorExpressionId ? (
+          <div className="manifestation-tools">
+            <button
+              type="button"
+              className="manifestation-add-button"
+              onClick={() => {
+                if (
+                  activeManifestAdd &&
+                  activeManifestAdd.anchorExpressionId === anchorExpressionId &&
+                  activeManifestAdd.manifestationId === manifestation.id
+                ) {
+                  setActiveManifestAdd(null)
+                  setManifestArkInput('')
+                  setManifestKeepLink(false)
+                  setManifestError(null)
+                } else {
+                  setActiveManifestAdd({
+                    anchorExpressionId,
+                    manifestationId: manifestation.id,
+                  })
+                  setManifestArkInput('')
+                  setManifestKeepLink(false)
+                  setManifestError(null)
+                }
+              }}
+              aria-expanded={
+                !!(
+                  activeManifestAdd &&
+                  activeManifestAdd.anchorExpressionId === anchorExpressionId &&
+                  activeManifestAdd.manifestationId === manifestation.id
+                )
+              }
+              aria-label={t('labels.addExpressionFromManifestation', {
+                defaultValue: 'Link an expression using this manifestation',
+              })}
+            >
+              +
+            </button>
+            {activeManifestAdd &&
+            activeManifestAdd.anchorExpressionId === anchorExpressionId &&
+            activeManifestAdd.manifestationId === manifestation.id ? (
+              <form
+                className="manifestation-add-form"
+                onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                  event.preventDefault()
+                  const ark = manifestArkInput.trim()
+                  if (!ark) {
+                    setManifestError(
+                      t('messages.expressionArkRequired', {
+                        defaultValue: 'Enter an expression ARK.',
+                      }),
+                    )
+                    return
+                  }
+                  const record = getByArk(ark)
+                  if (!record || record.typeNorm !== 'expression') {
+                    setManifestError(
+                      t('messages.expressionArkNotFound', {
+                        defaultValue: 'No expression was found for this ARK.',
+                      }),
+                    )
+                    return
+                  }
+                  addExpressionToCluster({
+                    clusterId: cluster.anchorId,
+                    anchorExpressionId,
+                    expressionArk: ark,
+                    allowExternal: true,
+                    manifestation: { id: manifestation.id, keepOriginalLink: manifestKeepLink },
+                  })
+                  setActiveManifestAdd(null)
+                  setManifestArkInput('')
+                  setManifestKeepLink(false)
+                  setManifestError(null)
+                }}
+              >
+                <input
+                  type="text"
+                  value={manifestArkInput}
+                  onChange={event => setManifestArkInput(event.target.value)}
+                  placeholder={t('labels.expressionArkPlaceholder', { defaultValue: 'ark:/...' })}
+                />
+                <label className="manifestation-keep-link">
+                  <input
+                    type="checkbox"
+                    checked={manifestKeepLink}
+                    onChange={event => setManifestKeepLink(event.target.checked)}
+                  />
+                  <span>{t('labels.keepExistingLink', { defaultValue: 'Keep current parent link' })}</span>
+                </label>
+                <button type="submit">{t('buttons.add', { defaultValue: 'Add' })}</button>
+                <button
+                  type="button"
+                  className="manifestation-add-cancel"
+                  onClick={() => {
+                    setActiveManifestAdd(null)
+                    setManifestArkInput('')
+                    setManifestKeepLink(false)
+                    setManifestError(null)
+                  }}
+                  aria-label={t('buttons.cancel', { defaultValue: 'Cancel' })}
+                >
+                  ×
+                </button>
+                {manifestError ? <div className="form-error">{manifestError}</div> : null}
+              </form>
+            ) : null}
+          </div>
+        ) : null}
         <button
           type="button"
           className="manifestation-item__main"
@@ -99,6 +219,7 @@ export function ManifestationPanel({
   const renderManifestationList = (
     expression: ExpressionWithMeta,
     anchorExpressionId: string | null,
+    sectionKind: ExpressionSectionKind,
   ) => {
     if (!expression.manifestations.length) {
       return <div className="manifestation-empty">{t('labels.noManifestations')}</div>
@@ -106,7 +227,7 @@ export function ManifestationPanel({
     return (
       <div className="manifestation-list">
         {expression.manifestations.map(manifestation =>
-          renderManifestationRow(expression, anchorExpressionId, manifestation),
+          renderManifestationRow(expression, anchorExpressionId, manifestation, sectionKind),
         )}
       </div>
     )
@@ -155,7 +276,7 @@ export function ManifestationPanel({
           />
           <span className="manifestation-section__meta">{meta}</span>
         </div>
-        {renderManifestationList(expression, anchorExpressionId)}
+        {renderManifestationList(expression, anchorExpressionId, kind)}
       </div>
     )
   }
@@ -172,7 +293,7 @@ export function ManifestationPanel({
         <section className="manifestation-group manifestation-group--independent">
           <header className="manifestation-group__header">{t('labels.independentExpressions')}</header>
           {cluster.independentExpressions.map(expr =>
-            renderExpressionSection(expr, 'independent', null),
+            renderExpressionSection(expr, 'independent', expr.id),
           )}
         </section>
       )}

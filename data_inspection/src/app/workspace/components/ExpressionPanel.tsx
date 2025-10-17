@@ -1,9 +1,11 @@
-import { useMemo, type MouseEvent } from 'react'
+import { useMemo, useState, type MouseEvent, type FormEvent } from 'react'
 import type { Cluster, ExpressionClusterItem, ExpressionItem, EntityBadgeSpec } from '../../types'
 import type { WorkspaceTabState } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
 import { EntityLabel, EntityPill, CountBadge, AgentBadge, RelationshipBadge } from '../../components/EntityLabel'
 import { useRecordLookup } from '../../hooks/useRecordLookup'
+import { useAppData } from '../../providers/AppDataContext'
+import { expressionWorkArks } from '../../core/entities'
 
 type ExpressionPanelProps = {
   cluster: Cluster | null
@@ -84,7 +86,11 @@ export function ExpressionPanel({
   onOpenManifestations,
 }: ExpressionPanelProps) {
   const { t } = useTranslation()
-  const { getAgentNames, getGeneralRelationshipCount } = useRecordLookup()
+  const { getAgentNames, getGeneralRelationshipCount, getByArk } = useRecordLookup()
+  const { addExpressionToCluster } = useAppData()
+  const [activeGroupAdd, setActiveGroupAdd] = useState<string | null>(null)
+  const [groupArkInput, setGroupArkInput] = useState('')
+  const [groupError, setGroupError] = useState<string | null>(null)
   if (!cluster) return <em>{t('messages.noClusters')}</em>
 
   const highlightedWorkArk = state.highlightedWorkArk ?? null
@@ -122,6 +128,105 @@ export function ExpressionPanel({
 
         return (
           <div key={group.anchor.id} className={groupClasses.join(' ')} data-anchor-expression-id={group.anchor.id}>
+            <div className="expression-tools">
+              <button
+                type="button"
+                className="expression-add-button"
+                onClick={() => {
+                  if (activeGroupAdd === group.anchor.id) {
+                    setActiveGroupAdd(null)
+                    setGroupArkInput('')
+                    setGroupError(null)
+                  } else {
+                    setActiveGroupAdd(group.anchor.id)
+                    setGroupArkInput('')
+                    setGroupError(null)
+                  }
+                }}
+                aria-expanded={activeGroupAdd === group.anchor.id}
+                aria-label={t('labels.addExpressionToGroup', { defaultValue: 'Add expression to group' })}
+              >
+                +
+              </button>
+              {activeGroupAdd === group.anchor.id ? (
+                <form
+                  className="expression-add-form"
+                  onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                    event.preventDefault()
+                    const ark = groupArkInput.trim()
+                    if (!ark) {
+                      setGroupError(
+                        t('messages.expressionArkRequired', { defaultValue: 'Enter an expression ARK.' }),
+                      )
+                      return
+                    }
+                    if (group.clustered.some(expr => expr.ark === ark) || group.anchor.ark === ark) {
+                      setGroupError(
+                        t('messages.expressionAlreadyInGroup', {
+                          defaultValue: 'This expression already belongs to the group.',
+                        }),
+                      )
+                      return
+                    }
+                    const record = getByArk(ark)
+                    if (!record || record.typeNorm !== 'expression') {
+                      setGroupError(
+                        t('messages.expressionArkNotFound', {
+                          defaultValue: 'No expression was found for this ARK.',
+                        }),
+                      )
+                      return
+                    }
+                    const clusterWorkArks = new Set<string>()
+                    if (cluster.anchorArk) clusterWorkArks.add(cluster.anchorArk)
+                    cluster.items.forEach(item => {
+                      if (item.ark) clusterWorkArks.add(item.ark)
+                    })
+                    const expressionArks = expressionWorkArks(record)
+                    if (
+                      expressionArks.length > 0 &&
+                      !expressionArks.some(arkCandidate => clusterWorkArks.has(arkCandidate))
+                    ) {
+                      setGroupError(
+                        t('messages.expressionOutsideCluster', {
+                          defaultValue: 'The expression does not belong to the cluster works.',
+                        }),
+                      )
+                      return
+                    }
+                    addExpressionToCluster({
+                      clusterId: cluster.anchorId,
+                      anchorExpressionId: group.anchor.id,
+                      expressionArk: ark,
+                    })
+                    setActiveGroupAdd(null)
+                    setGroupArkInput('')
+                    setGroupError(null)
+                  }}
+                >
+                  <input
+                    type="text"
+                    value={groupArkInput}
+                    onChange={event => setGroupArkInput(event.target.value)}
+                    placeholder={t('labels.expressionArkPlaceholder', { defaultValue: 'ark:/...' })}
+                  />
+                  <button type="submit">{t('buttons.add', { defaultValue: 'Add' })}</button>
+                  <button
+                    type="button"
+                    className="expression-add-cancel"
+                    onClick={() => {
+                      setActiveGroupAdd(null)
+                      setGroupArkInput('')
+                      setGroupError(null)
+                    }}
+                    aria-label={t('buttons.cancel', { defaultValue: 'Cancel' })}
+                  >
+                    ×
+                  </button>
+                  {groupError ? <div className="form-error">{groupError}</div> : null}
+                </form>
+              ) : null}
+            </div>
             <div
               className={anchorClasses.join(' ')}
               data-expression-id={group.anchor.id}

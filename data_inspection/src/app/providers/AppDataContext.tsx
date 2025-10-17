@@ -6,6 +6,8 @@ import type {
   ExpressionClusterItem,
   ExpressionItem,
   ManifestationItem,
+  ClusterItem,
+  ExpressionAnchorGroup,
 } from '../types'
 import type { Intermarc } from '../lib/intermarc'
 import { parseCsvText, indexRecords, findIntermarcColumnIndex } from '../core/records'
@@ -15,6 +17,14 @@ import { getCurrentLanguage } from '../i18n'
 import { DEFAULT_CURATED_NAME, DEFAULT_ORIGINAL_CANDIDATES, CLUSTER_NOTE } from '../core/constants'
 import { add90FEntries } from '../lib/intermarc'
 import { cloneIntermarc } from '../core/intermarc-utils'
+import {
+  titleOf,
+  expressionWorkArks,
+  manifestationsForExpression,
+  manifestationExpressionArks,
+  findExpressionInCluster,
+  manifestationTitle,
+} from '../core/entities'
 
 type DataSet = {
   csv: CsvTable
@@ -47,8 +57,18 @@ type AppDataContextValue = AppDataState & {
     manifestationId: string,
     target: { anchorExpressionId: string | null; expressionId?: string; expressionArk: string },
   ) => void
+  addWorkToCluster: (clusterId: string, workArk: string) => void
+  addExpressionToCluster: (payload: AddExpressionPayload) => void
   exportCurated: () => Promise<void>
   clearData: () => void
+}
+
+type AddExpressionPayload = {
+  clusterId: string
+  anchorExpressionId: string
+  expressionArk: string
+  allowExternal?: boolean
+  manifestation?: { id: string; keepOriginalLink: boolean }
 }
 
 const AppDataContext = createContext<AppDataContextValue | null>(null)
@@ -262,6 +282,181 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  const addWorkToCluster = useCallback(
+    (clusterId: string, workArk: string) => {
+      setState(prev => {
+        if (!prev.curated) return prev
+        const normalizedArk = workArk.trim()
+        if (!normalizedArk) return prev
+        const clusterIndex = prev.clusters.findIndex(c => c.anchorId === clusterId)
+        if (clusterIndex === -1) return prev
+        const targetCluster = cloneCluster(prev.clusters[clusterIndex])
+        if (targetCluster.anchorArk === normalizedArk) return prev
+        if (targetCluster.items.some(item => item.ark === normalizedArk)) return prev
+
+        const indexes = buildDatasetIndexes(prev.curated.records, prev.original?.records ?? null)
+        const workRecord = indexes.worksByArk.get(normalizedArk)
+        if (!workRecord) return prev
+
+        const today = new Date().toISOString().slice(0, 10)
+        targetCluster.items.push(createClusterItemFromRecord(workRecord, today))
+
+        let nextCurated = prev.curated
+        const updatedClusters = prev.clusters.slice()
+        const removedExpressionAnchors = new Set<string>()
+
+        const sourceIndex = prev.clusters.findIndex(
+          (cluster, index) => index !== clusterIndex && cluster.items.some(item => item.ark === normalizedArk),
+        )
+        if (sourceIndex !== -1) {
+          const sourceCluster = cloneCluster(prev.clusters[sourceIndex])
+          sourceCluster.items = sourceCluster.items.filter(item => item.ark !== normalizedArk)
+          sourceCluster.independentExpressions = sourceCluster.independentExpressions.filter(
+            expr => expr.workArk !== normalizedArk,
+          )
+          for (const group of sourceCluster.expressionGroups) {
+            const before = group.clustered.length
+            group.clustered = group.clustered.filter(expr => expr.workArk !== normalizedArk)
+            if (group.clustered.length !== before) removedExpressionAnchors.add(group.anchor.id)
+          }
+          nextCurated = updateWorkClusterIntermarc(sourceCluster, nextCurated)
+          removedExpressionAnchors.forEach(anchorId => {
+            nextCurated = updateExpressionClusterIntermarc(sourceCluster, anchorId, nextCurated)
+          })
+          updatedClusters[sourceIndex] = sourceCluster
+        }
+
+        const expressionRecords = indexes.expressionsByWorkArk.get(normalizedArk) ?? []
+        for (const exprRecord of expressionRecords) {
+          const expressionArk = exprRecord.ark || exprRecord.id
+          if (findExpressionInCluster(targetCluster, exprRecord.id, expressionArk)) continue
+          targetCluster.independentExpressions.push(
+            createExpressionItemFromRecord(exprRecord, normalizedArk, indexes),
+          )
+        }
+
+        nextCurated = updateWorkClusterIntermarc(targetCluster, nextCurated)
+        updatedClusters[clusterIndex] = targetCluster
+        return { ...prev, curated: nextCurated, clusters: updatedClusters }
+      })
+    },
+    [],
+  )
+
+  const addExpressionToCluster = useCallback(
+    ({ clusterId, anchorExpressionId, expressionArk, allowExternal, manifestation }: AddExpressionPayload) => {
+      setState(prev => {
+        if (!prev.curated) return prev
+        const targetArk = expressionArk.trim()
+        if (!targetArk) return prev
+        const clusterIndex = prev.clusters.findIndex(c => c.anchorId === clusterId)
+        if (clusterIndex === -1) return prev
+        const targetCluster = cloneCluster(prev.clusters[clusterIndex])
+        const indexes = buildDatasetIndexes(prev.curated.records, prev.original?.records ?? null)
+        const expressionRecord =
+          indexes.expressionsByArk.get(targetArk) || indexes.expressionsById.get(targetArk)
+        if (!expressionRecord) return prev
+
+        if (findExpressionInCluster(targetCluster, expressionRecord.id, expressionRecord.ark)) return prev
+
+        const workCandidates = expressionWorkArks(expressionRecord)
+        const clusterWorkArks = collectClusterWorkArks(targetCluster)
+        if (!allowExternal && workCandidates.length && !workCandidates.some(ark => clusterWorkArks.has(ark))) {
+          return prev
+        }
+
+        const today = new Date().toISOString().slice(0, 10)
+        const expressionItem = createExpressionClusterItem(expressionRecord, anchorExpressionId, indexes, today)
+
+        const updatedClusters = prev.clusters.slice()
+        let nextCurated = prev.curated
+
+        if (allowExternal) {
+          prev.clusters.forEach((clusterEntry, clusterIdx) => {
+            if (clusterIdx === clusterIndex) return
+            const clone = cloneCluster(clusterEntry)
+            const removal = removeExpressionFromCluster(clone, expressionRecord.id, expressionRecord.ark)
+            if (removal.removed) {
+              updatedClusters[clusterIdx] = clone
+              removal.anchorIds.forEach(anchorId => {
+                nextCurated = updateExpressionClusterIntermarc(clone, anchorId, nextCurated)
+              })
+            }
+          })
+        }
+
+        const removalResult = removeExpressionFromCluster(targetCluster, expressionRecord.id, expressionRecord.ark)
+
+        let group = targetCluster.expressionGroups.find(g => g.anchor.id === anchorExpressionId) || null
+        if (!group) {
+          group = ensureGroupForAnchor(targetCluster, anchorExpressionId)
+        }
+        if (!group) return prev
+
+        const anchorExpression = group.anchor
+        const anchorExpressionArk = anchorExpression.ark
+
+        removalResult.anchorIds.forEach(anchorId => {
+          nextCurated = updateExpressionClusterIntermarc(targetCluster, anchorId, nextCurated)
+        })
+
+        group.clustered = group.clustered.filter(expr => expr.ark !== expressionItem.ark)
+        group.clustered.push(expressionItem)
+        nextCurated = updateExpressionClusterIntermarc(targetCluster, anchorExpressionId, nextCurated)
+
+        if (manifestation && anchorExpressionArk) {
+          const manifestationId = manifestation.id
+          const anchorManifestations = group.anchor.manifestations
+          const manifestationEntry = anchorManifestations.find(item => item.id === manifestationId)
+          if (manifestationEntry) {
+            nextCurated = updateManifestationParentInDataset(
+              nextCurated,
+              manifestationId,
+              anchorExpressionArk,
+              expressionItem.ark,
+              expressionItem.id,
+              manifestation.keepOriginalLink,
+            )
+            if (!manifestation.keepOriginalLink) {
+              group.anchor.manifestations = anchorManifestations.filter(item => item.id !== manifestationId)
+            }
+            const targetExpression = findExpressionInCluster(
+              targetCluster,
+              expressionRecord.id,
+              expressionItem.ark,
+            )
+            if (targetExpression) {
+              const alreadyLinked = targetExpression.manifestations.some(item => item.id === manifestationId)
+              if (!alreadyLinked) {
+                const manifestationRecord = indexes.manifestationsById.get(manifestationId)
+                if (manifestationRecord) {
+                  targetExpression.manifestations.push({
+                    id: manifestationRecord.id,
+                    ark: manifestationRecord.ark || manifestationRecord.id,
+                    title: manifestationTitle(manifestationRecord) || manifestationRecord.id,
+                    expressionArk: expressionItem.ark,
+                    expressionId: expressionItem.id,
+                    originalExpressionArk: manifestationEntry.originalExpressionArk,
+                  })
+                } else {
+                  targetExpression.manifestations.push({
+                    ...manifestationEntry,
+                    expressionArk: expressionItem.ark,
+                    expressionId: expressionItem.id,
+                  })
+                }
+              }
+            }
+          }
+        }
+
+        updatedClusters[clusterIndex] = targetCluster
+        return { ...prev, curated: nextCurated, clusters: updatedClusters }
+      })
+    },
+    [],
+  )
+
   const clearData = useCallback(() => {
     setState(prev => ({ ...prev, original: null, curated: null, clusters: [], originalIndexes: null }))
   }, [])
@@ -276,6 +471,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setWorkAccepted,
       setExpressionAccepted,
       moveManifestation,
+      addWorkToCluster,
+      addExpressionToCluster,
       exportCurated,
       clearData,
     }),
@@ -288,6 +485,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setWorkAccepted,
       setExpressionAccepted,
       moveManifestation,
+      addWorkToCluster,
+      addExpressionToCluster,
       exportCurated,
       clearData,
     ],
@@ -423,6 +622,7 @@ function updateManifestationParentInDataset(
   previousExpressionArk: string,
   newExpressionArk: string,
   newExpressionId?: string,
+  keepOriginalLink = false,
 ): DataSet {
   if (!newExpressionArk || previousExpressionArk === newExpressionArk) return dataset
   const record = dataset.records.find(r => r.id === manifestationId)
@@ -431,6 +631,14 @@ function updateManifestationParentInDataset(
   let updated = false
   for (const zone of cloned.zones) {
     if (zone.code !== '740') continue
+    if (keepOriginalLink) {
+      const exists = zone.sousZones.some(sz => sz.code === '740$3' && sz.valeur === newExpressionArk)
+      if (!exists) {
+        zone.sousZones.push({ code: '740$3', valeur: newExpressionArk })
+        updated = true
+      }
+      continue
+    }
     for (const sub of zone.sousZones) {
       if (sub.code === '740$3' && sub.valeur === previousExpressionArk) {
         sub.valeur = newExpressionArk
@@ -439,11 +647,31 @@ function updateManifestationParentInDataset(
     }
   }
   if (!updated) {
-    const zone = cloned.zones.find(z => z.code === '740')
-    const target = zone?.sousZones.find(sz => sz.code === '740$3')
-    if (target) {
-      target.valeur = newExpressionArk
+    if (keepOriginalLink) {
+      cloned.zones.push({ code: '740', sousZones: [{ code: '740$3', valeur: newExpressionArk }] })
       updated = true
+    } else {
+      const zone = cloned.zones.find(z => z.code === '740')
+      const target = zone?.sousZones.find(sz => sz.code === '740$3')
+      if (target) {
+        target.valeur = newExpressionArk
+        updated = true
+      } else {
+        cloned.zones.push({ code: '740', sousZones: [{ code: '740$3', valeur: newExpressionArk }] })
+        updated = true
+      }
+    }
+  }
+  if (!keepOriginalLink) {
+    for (const zone of cloned.zones) {
+      if (zone.code !== '740') continue
+      zone.sousZones = zone.sousZones.filter(
+        sub => !(sub.code === '740$3' && sub.valeur === previousExpressionArk && sub.valeur !== newExpressionArk),
+      )
+    }
+    for (let i = cloned.zones.length - 1; i >= 0; i -= 1) {
+      const zone = cloned.zones[i]
+      if (zone.code === '740' && zone.sousZones.length === 0) cloned.zones.splice(i, 1)
     }
   }
   if (!updated) return dataset
@@ -455,6 +683,174 @@ function updateManifestationParentInDataset(
     }
   }
   return next
+}
+
+type DatasetIndexes = {
+  worksByArk: Map<string, RecordRow>
+  worksById: Map<string, RecordRow>
+  expressionsByArk: Map<string, RecordRow>
+  expressionsById: Map<string, RecordRow>
+  expressionsByWorkArk: Map<string, RecordRow[]>
+  manifestationsByExpressionArk: Map<string, RecordRow[]>
+  manifestationsById: Map<string, RecordRow>
+}
+
+function buildDatasetIndexes(curated: RecordRow[] | null, original: RecordRow[] | null): DatasetIndexes {
+  const worksByArk = new Map<string, RecordRow>()
+  const worksById = new Map<string, RecordRow>()
+  const expressionsByArk = new Map<string, RecordRow>()
+  const expressionsById = new Map<string, RecordRow>()
+  const expressionsByWorkArk = new Map<string, RecordRow[]>()
+  const manifestationsByExpressionArk = new Map<string, RecordRow[]>()
+  const manifestationsById = new Map<string, RecordRow>()
+
+  const addRecords = (records: RecordRow[] | null | undefined, preferExisting = true) => {
+    if (!records) return
+    for (const rec of records) {
+      if (rec.typeNorm === 'oeuvre') {
+        if (!worksById.has(rec.id) || !preferExisting) worksById.set(rec.id, rec)
+        if (rec.ark && (!worksByArk.has(rec.ark) || !preferExisting)) worksByArk.set(rec.ark, rec)
+        continue
+      }
+      if (rec.typeNorm === 'expression') {
+        if (!expressionsById.has(rec.id) || !preferExisting) expressionsById.set(rec.id, rec)
+        if (rec.ark && (!expressionsByArk.has(rec.ark) || !preferExisting)) expressionsByArk.set(rec.ark, rec)
+        const workArks = expressionWorkArks(rec)
+        for (const workArk of workArks) {
+          if (!expressionsByWorkArk.has(workArk)) expressionsByWorkArk.set(workArk, [])
+          const list = expressionsByWorkArk.get(workArk)!
+          if (!list.some(existing => existing.id === rec.id)) list.push(rec)
+        }
+        continue
+      }
+      if (rec.typeNorm === 'manifestation') {
+        manifestationsById.set(rec.id, rec)
+        const exprArks = manifestationExpressionArks(rec)
+        for (const exprArk of exprArks) {
+          if (!manifestationsByExpressionArk.has(exprArk)) manifestationsByExpressionArk.set(exprArk, [])
+          const list = manifestationsByExpressionArk.get(exprArk)!
+          if (!list.some(existing => existing.id === rec.id)) list.push(rec)
+        }
+      }
+    }
+  }
+
+  addRecords(original ?? null, false)
+  addRecords(curated ?? null, true)
+
+  return {
+    worksByArk,
+    worksById,
+    expressionsByArk,
+    expressionsById,
+    expressionsByWorkArk,
+    manifestationsByExpressionArk,
+    manifestationsById,
+  }
+}
+
+function createClusterItemFromRecord(record: RecordRow, date?: string): ClusterItem {
+  return {
+    ark: record.ark || record.id,
+    id: record.id,
+    title: titleOf(record) || record.id,
+    accepted: true,
+    date,
+  }
+}
+
+function createExpressionItemFromRecord(
+  record: RecordRow,
+  workArk: string,
+  indexes: DatasetIndexes,
+): ExpressionItem {
+  const expressionArk = record.ark || record.id
+  const manifestations = expressionArk
+    ? manifestationsForExpression(expressionArk, indexes.manifestationsByExpressionArk, indexes.expressionsByArk)
+    : []
+  const workRecord = indexes.worksByArk.get(workArk)
+  return {
+    id: record.id,
+    ark: expressionArk,
+    title: titleOf(record) || record.id,
+    workArk,
+    workId: workRecord?.id,
+    manifestations,
+  }
+}
+
+function createExpressionClusterItem(
+  record: RecordRow,
+  anchorExpressionId: string,
+  indexes: DatasetIndexes,
+  date?: string,
+): ExpressionClusterItem {
+  const workArks = expressionWorkArks(record)
+  const workArk = workArks[0] || ''
+  const expressionArk = record.ark || record.id
+  const manifestations = expressionArk
+    ? manifestationsForExpression(expressionArk, indexes.manifestationsByExpressionArk, indexes.expressionsByArk)
+    : []
+  const workRecord = workArk ? indexes.worksByArk.get(workArk) : undefined
+  return {
+    id: record.id,
+    ark: expressionArk,
+    title: titleOf(record) || record.id,
+    workArk,
+    workId: workRecord?.id,
+    anchorExpressionId,
+    accepted: true,
+    date,
+    manifestations,
+  }
+}
+
+function collectClusterWorkArks(cluster: Cluster): Set<string> {
+  const set = new Set<string>()
+  if (cluster.anchorArk) set.add(cluster.anchorArk)
+  cluster.items.forEach(item => {
+    if (item.ark) set.add(item.ark)
+  })
+  return set
+}
+
+function removeExpressionFromCluster(
+  cluster: Cluster,
+  expressionId?: string | null,
+  expressionArk?: string | null,
+): { removed: boolean; anchorIds: Set<string> } {
+  const affected = new Set<string>()
+  let removed = false
+  for (const group of cluster.expressionGroups) {
+    const before = group.clustered.length
+    group.clustered = group.clustered.filter(expr => {
+      const match = (expressionId && expr.id === expressionId) || (expressionArk && expr.ark === expressionArk)
+      if (match) affected.add(group.anchor.id)
+      return !match
+    })
+    if (group.clustered.length !== before) removed = true
+  }
+  const independentBefore = cluster.independentExpressions.length
+  cluster.independentExpressions = cluster.independentExpressions.filter(expr => {
+    const match = (expressionId && expr.id === expressionId) || (expressionArk && expr.ark === expressionArk)
+    return !match
+  })
+  if (cluster.independentExpressions.length !== independentBefore) removed = true
+  return { removed, anchorIds: affected }
+}
+
+function ensureGroupForAnchor(cluster: Cluster, anchorExpressionId: string): ExpressionAnchorGroup | null {
+  const existing = cluster.expressionGroups.find(group => group.anchor.id === anchorExpressionId)
+  if (existing) return existing
+  const independent = cluster.independentExpressions.find(expr => expr.id === anchorExpressionId)
+  if (!independent) return null
+  cluster.independentExpressions = cluster.independentExpressions.filter(expr => expr.id !== anchorExpressionId)
+  const group: ExpressionAnchorGroup = {
+    anchor: independent,
+    clustered: [],
+  }
+  cluster.expressionGroups.push(group)
+  return group
 }
 
 function updateWorkClusterIntermarc(cluster: Cluster, dataset: DataSet): DataSet {

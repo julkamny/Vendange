@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
-import type { RecordRow } from '../types'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import type { RecordRow, SelectedEntity } from '../types'
 import type { WorkspaceTabState } from '../workspace/types'
 import { useAppData } from '../providers/AppDataContext'
 import { useTranslation } from '../hooks/useTranslation'
@@ -12,11 +12,12 @@ import { IntermarcEditor } from './IntermarcEditor'
 import { isWorkClustered, isExpressionClustered, isManifestationClustered } from '../core/clusterCoverage'
 import { useArkDecoratedText } from '../hooks/useArkDecoratedText'
 import { useRecordLookup } from '../hooks/useRecordLookup'
-import { expressionWorkArks, manifestationTitle, titleOf } from '../core/entities'
+import { expressionWorkArks, manifestationExpressionArks, manifestationTitle, titleOf } from '../core/entities'
 
 type WorkspaceViewProps = {
   state: WorkspaceTabState
   onStateChange: (updater: (prev: WorkspaceTabState) => WorkspaceTabState) => void
+  onOpenWorkspaceTab: (entity: SelectedEntity) => void
 }
 
 function findRecord(id: string, curated: RecordRow[], original: RecordRow[]): RecordRow | null {
@@ -46,7 +47,7 @@ function WorkspaceBreadcrumbs({ items, ariaLabel }: { items: string[]; ariaLabel
   )
 }
 
-export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
+export function WorkspaceView({ state, onStateChange, onOpenWorkspaceTab }: WorkspaceViewProps) {
   const {
     clusters,
     original,
@@ -62,6 +63,7 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
   const record = state.selectedEntity
     ? findRecord(state.selectedEntity.id, curated?.records ?? [], original?.records ?? [])
     : null
+  const curatedIds = useMemo(() => new Set((curated?.records ?? []).map(r => r.id)), [curated])
   const recordInCurated = useMemo(() => {
     if (!record || !curated) return false
     return curated.records.some(r => r.id === record.id)
@@ -94,11 +96,6 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
 
   const breadcrumbs = useMemo(() => {
     const items: string[] = []
-    const scopeLabel = t(`breadcrumbs.scope.${state.listScope}`)
-    const viewLabel = t(`breadcrumbs.view.${state.viewMode}`)
-    if (scopeLabel) items.push(scopeLabel)
-    if (viewLabel && viewLabel !== scopeLabel) items.push(viewLabel)
-
     const addLabel = (value?: string | null) => {
       if (!value) return
       const trimmed = value.trim()
@@ -164,6 +161,70 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
     state.viewMode,
     t,
   ])
+
+  const handleRecordContextMenu = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement | null
+      const arkElement = target?.closest('.ark-link') as HTMLElement | null
+      if (!arkElement) return
+      const ark = arkElement.dataset.ark
+      if (!ark) return
+      const targetRecord = getByArk(ark)
+      if (!targetRecord) return
+      if (
+        targetRecord.typeNorm !== 'oeuvre' &&
+        targetRecord.typeNorm !== 'expression' &&
+        targetRecord.typeNorm !== 'manifestation'
+      ) {
+        return
+      }
+      event.preventDefault()
+      const source: 'curated' | 'original' = curatedIds.has(targetRecord.id) ? 'curated' : 'original'
+      let entity: SelectedEntity | null = null
+      if (targetRecord.typeNorm === 'oeuvre') {
+        entity = {
+          id: targetRecord.id,
+          source,
+          entityType: 'work',
+          workArk: targetRecord.ark ?? ark,
+        }
+      } else if (targetRecord.typeNorm === 'expression') {
+        const workCandidates = expressionWorkArks(targetRecord)
+        entity = {
+          id: targetRecord.id,
+          source,
+          entityType: 'expression',
+          workArk: workCandidates[0],
+          expressionId: targetRecord.id,
+          expressionArk: targetRecord.ark ?? ark,
+        }
+      } else if (targetRecord.typeNorm === 'manifestation') {
+        const expressionArks = manifestationExpressionArks(targetRecord)
+        const expressionArk = expressionArks[0]
+        const expressionRecord = expressionArk ? getByArk(expressionArk) : null
+        const workCandidates = expressionRecord ? expressionWorkArks(expressionRecord) : []
+        entity = {
+          id: targetRecord.id,
+          source,
+          entityType: 'manifestation',
+          expressionId: expressionRecord?.id,
+          expressionArk,
+          workArk: workCandidates[0],
+        }
+      }
+      if (!entity) return
+      const confirmed =
+        typeof window === 'undefined'
+          ? true
+          : window.confirm(
+              t('messages.openEntityInNewTab', {
+                defaultValue: 'Open this entity in a new workspace tab?',
+              }),
+            )
+      if (confirmed) onOpenWorkspaceTab(entity)
+    },
+    [curatedIds, getByArk, onOpenWorkspaceTab, t],
+  )
 
   const handleSelectWork = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
     const hasCuratedRecord = !!findRecord(workId, curated?.records ?? [], [])
@@ -335,19 +396,17 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
   return (
     <div className="workspace-view">
       <header className="workspace-view__header">
-        <div className="workspace-heading">
-          <span className="workspace-title" role="heading" aria-level={2}>
-            {decoratedTitle}
-          </span>
-          <span className="workspace-summary">
-            {t('workspace.summary', {
-              defaultValue: '{{clusters}} clusters · {{original}} original records · {{curated}} curated records',
-              clusters: clusters.length,
-              original: original?.records.length ?? 0,
-              curated: curated?.records.length ?? 0,
-            })}
-          </span>
-        </div>
+        <span className="workspace-title" role="heading" aria-level={2}>
+          {decoratedTitle}
+        </span>
+        <span className="workspace-summary">
+          {t('workspace.summary', {
+            defaultValue: '{{clusters}} clusters · {{original}} original records · {{curated}} curated records',
+            clusters: clusters.length,
+            original: original?.records.length ?? 0,
+            curated: curated?.records.length ?? 0,
+          })}
+        </span>
         <WorkspaceBreadcrumbs items={breadcrumbs} ariaLabel={t('breadcrumbs.ariaLabel')} />
       </header>
       <div className="workspace-view__body">
@@ -356,7 +415,7 @@ export function WorkspaceView({ state, onStateChange }: WorkspaceViewProps) {
         </aside>
         <section className="workspace-panel workspace-panel--details">
           {record ? (
-            <div className="record-details">
+            <div className="record-details" onContextMenu={handleRecordContextMenu}>
               <header className="record-details__header">
                 <h3>{record.id}</h3>
                 <span>{record.type}</span>

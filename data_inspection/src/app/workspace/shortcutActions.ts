@@ -459,7 +459,7 @@ function containsExpression(cluster: Cluster, expressionId: string | null, expre
   return !!findExpressionInCluster(cluster, expressionId ?? undefined, expressionArk ?? undefined)
 }
 
-function resolveAnchorExpressionId(cluster: Cluster, expression: ReturnType<typeof findExpressionInCluster>) {
+export function resolveAnchorExpressionId(cluster: Cluster, expression: ReturnType<typeof findExpressionInCluster>) {
   if (!expression) return null
   if ('anchorExpressionId' in expression && expression.anchorExpressionId) {
     return expression.anchorExpressionId
@@ -470,7 +470,7 @@ function resolveAnchorExpressionId(cluster: Cluster, expression: ReturnType<type
   return null
 }
 
-function inferRecordSource(id: string | undefined, curated: RecordRow[], original: RecordRow[]): 'curated' | 'original' {
+export function inferRecordSource(id: string | undefined, curated: RecordRow[], original: RecordRow[]): 'curated' | 'original' {
   if (id && curated.some(record => record.id === id)) return 'curated'
   if (id && original.some(record => record.id === id)) return 'original'
   return 'curated'

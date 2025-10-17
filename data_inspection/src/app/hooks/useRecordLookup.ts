@@ -2,11 +2,13 @@ import { useCallback, useMemo } from 'react'
 import { useAppData } from '../providers/AppDataContext'
 import type { RecordRow } from '../types'
 import { extractAgentNames } from '../core/agents'
+import { countGeneralRelationships } from '../core/generalRelationships'
 
 type RecordLookup = {
   getById: (id?: string | null) => RecordRow | undefined
   getByArk: (ark?: string | null) => RecordRow | undefined
   getAgentNames: (id?: string | null, ark?: string | null) => string[]
+  getGeneralRelationshipCount: (id?: string | null, ark?: string | null) => number
 }
 
 export function useRecordLookup(): RecordLookup {
@@ -25,6 +27,7 @@ export function useRecordLookup(): RecordLookup {
   }, [original?.records, curated?.records])
 
   const agentCache = useMemo(() => new Map<string, string[]>(), [index])
+  const relationshipCache = useMemo(() => new Map<string, number>(), [index])
 
   const getById = useCallback(
     (id?: string | null) => {
@@ -59,5 +62,19 @@ export function useRecordLookup(): RecordLookup {
     [agentCache, index],
   )
 
-  return { getById, getByArk, getAgentNames }
+  const getGeneralRelationshipCount = useCallback(
+    (id?: string | null, ark?: string | null) => {
+      const record =
+        (id && index.byId.get(id)) ||
+        (typeof ark === 'string' ? index.byArk.get(ark.toLowerCase()) : undefined)
+      if (!record) return 0
+      if (relationshipCache.has(record.id)) return relationshipCache.get(record.id)!
+      const count = countGeneralRelationships(record)
+      relationshipCache.set(record.id, count)
+      return count
+    },
+    [index, relationshipCache],
+  )
+
+  return { getById, getByArk, getAgentNames, getGeneralRelationshipCount }
 }

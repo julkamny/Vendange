@@ -41,6 +41,18 @@
     "show": "Afficher les outils",
     "hide": "Masquer les outils"
   },
+  "breadcrumbs": {
+    "ariaLabel": "Navigation de l'espace de travail",
+    "scope": {
+      "clusters": "Grappes",
+      "inventory": "Inventaire"
+    },
+    "view": {
+      "works": "Œuvres",
+      "expressions": "Expressions",
+      "manifestations": "Manifestations"
+    }
+  },
   "layout": {
     "loadPrompt": "Chargez des fichiers pour commencer.",
     "selectPrompt": "Sélectionnez une notice dans le panneau de gauche.",
@@ -195,6 +207,8 @@
     "expressions_one": "{{count}} expression",
     "expressions_other": "{{count}} expressions",
     "manifestations_one": "{{count}} manifestation",
-    "manifestations_other": "{{count}} manifestations"
+    "manifestations_other": "{{count}} manifestations",
+    "relationships_one": "{{count}} relation générale",
+    "relationships_other": "{{count}} relations générales"
   }
 }

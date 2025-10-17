@@ -27,7 +27,7 @@ export function WorkListPanel({
 }: WorkListPanelProps) {
   const { t, language } = useTranslation()
   const { originalIndexes } = useAppData()
-  const { getAgentNames } = useRecordLookup()
+  const { getAgentNames, getGeneralRelationshipCount } = useRecordLookup()
 
   const collator = useMemo(() => new Intl.Collator(language, { sensitivity: 'accent' }), [language])
   const sortedEntries = useMemo(() => {
@@ -116,6 +116,7 @@ export function WorkListPanel({
                     badges={[{ type: 'work', text: cluster.anchorId, tooltip: cluster.anchorArk }]}
                     counts={anchorCounts}
                     agentNames={anchorAgentNames}
+                    relationshipsCount={getGeneralRelationshipCount(cluster.anchorId, cluster.anchorArk)}
                   />
                 </div>
                 <button
@@ -170,6 +171,7 @@ export function WorkListPanel({
                         badges={item.id ? [{ type: 'work', text: item.id, tooltip: item.ark }] : undefined}
                         counts={itemCounts}
                         agentNames={agentNames}
+                        relationshipsCount={getGeneralRelationshipCount(item.id, item.ark)}
                       />
                     </div>
                   )
@@ -188,6 +190,7 @@ export function WorkListPanel({
         if (highlight) headerClasses.push('highlight')
         const counts = computeUnclusteredWorkCounts(work, originalIndexes ?? null)
         const agentNames = getAgentNames(work.id, work.ark)
+        const relationships = getGeneralRelationshipCount(work.id, work.ark)
         return (
           <div key={`unclustered-${work.id}`} className={containerClasses.join(' ')} data-work-id={work.id} data-work-ark={work.ark}>
             <div
@@ -210,6 +213,7 @@ export function WorkListPanel({
                   badges={[{ type: 'work', text: work.id, tooltip: work.ark }]}
                   counts={counts}
                   agentNames={agentNames}
+                  relationshipsCount={relationships}
                 />
               </div>
             </div>

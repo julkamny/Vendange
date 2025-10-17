@@ -42,12 +42,27 @@ export function AgentBadge({ names }: { names: string[] }) {
   )
 }
 
+export function RelationshipBadge({ count }: { count: number }) {
+  const { t } = useTranslation()
+  const tooltip = t('badges.relationships', { count })
+  return (
+    <span
+      className="entity-count-badge entity-count-badge--relationships has-tooltip"
+      data-tooltip={tooltip}
+      aria-label={tooltip}
+    >
+      {count}
+    </span>
+  )
+}
+
 export type EntityLabelProps = {
   title: string
   subtitle?: string
   badges?: EntityBadgeSpec[]
   counts?: Partial<Record<CountBadgeKind, number>>
   agentNames?: string[]
+  relationshipsCount?: number
   className?: string
   onClick?: MouseEventHandler<HTMLSpanElement>
 }
@@ -58,6 +73,7 @@ export function EntityLabel({
   badges,
   counts,
   agentNames,
+  relationshipsCount,
   className,
   onClick,
 }: EntityLabelProps) {
@@ -66,8 +82,9 @@ export function EntityLabel({
     if (badges && badges.length) return true
     if (counts && (typeof counts.expressions === 'number' || typeof counts.manifestations === 'number')) return true
     if (agentNames) return true
+    if (typeof relationshipsCount === 'number' && relationshipsCount > 0) return true
     return false
-  }, [badges, counts, agentNames])
+  }, [badges, counts, agentNames, relationshipsCount])
 
   const classes = useMemo(() => {
     const values = ['entity-label']
@@ -88,6 +105,9 @@ export function EntityLabel({
           {typeof counts?.expressions === 'number' ? <CountBadge kind="expressions" count={counts.expressions} /> : null}
           {typeof counts?.manifestations === 'number' ? (
             <CountBadge kind="manifestations" count={counts.manifestations} />
+          ) : null}
+          {typeof relationshipsCount === 'number' && relationshipsCount > 0 ? (
+            <RelationshipBadge count={relationshipsCount} />
           ) : null}
           {agentNames ? <AgentBadge names={agentNames} /> : null}
         </span>

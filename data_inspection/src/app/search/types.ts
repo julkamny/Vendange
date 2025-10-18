@@ -1,5 +1,3 @@
-import type { Term } from 'oxigraph'
-
 export type QueryTerm = {
   termType: string
   value: string
@@ -29,19 +27,30 @@ export type EmptyResult = { kind: 'empty' }
 
 export type QueryExecutionResult = SelectResult | BooleanResult | ConstructResult | EmptyResult
 
-export function serializeTerm(term: Term): QueryTerm {
-  switch (term.termType) {
-    case 'NamedNode':
-    case 'BlankNode':
-      return { termType: term.termType, value: term.value }
-    case 'Literal':
-      return {
-        termType: term.termType,
-        value: term.value,
-        language: term.language || undefined,
-        datatype: term.datatype?.value,
-      }
-    default:
-      return { termType: term.termType, value: term.value }
-  }
+export type SearchGraphMetadata = {
+  recordNodeById: Record<string, string>
+  recordNodeByArk: Record<string, string>
+}
+
+export type BuildProgressPhase = 'indexing' | 'building'
+
+export type BuildProgressUpdate = {
+  phase: BuildProgressPhase
+  current: number
+  total: number
+}
+
+export type BuildResponse = {
+  jobId: string
+}
+
+export type JobStatusResponse = {
+  status: 'building' | 'ready' | 'error'
+  progress?: BuildProgressUpdate | null
+  metadata?: SearchGraphMetadata | null
+  error?: string | null
+}
+
+export type QueryRequestPayload = {
+  query: string
 }

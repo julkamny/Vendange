@@ -9,6 +9,10 @@ import type { QueryExecutionResult } from './types'
 import { sparnaturalConfigTtl } from './config'
 import { useTranslation } from '../hooks/useTranslation'
 
+const SEARCH_API_BASE = (
+  (import.meta.env.VITE_SEARCH_API_BASE_URL as string | undefined)?.replace(/\/+$/, '') ?? 'http://localhost:8000'
+)
+
 export function SearchPanel() {
   const { t, language } = useTranslation()
   const { status, runQuery, prefixes, lastError, progress } = useSearchContext()
@@ -113,7 +117,7 @@ export function SearchPanel() {
             src={sparnaturalConfigTtl}
             lang={language}
             defaultLang={language}
-            endpoint="http://localhost/oxigraph"
+            endpoint={`${SEARCH_API_BASE}/search/query`}
             distinct="true"
             limit="200"
             debug="false"

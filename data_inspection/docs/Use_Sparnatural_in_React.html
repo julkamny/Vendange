@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+
+    
+    <meta charset="UTF-8">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Sparnatural | Sparnatural : visual knowledge graph explorer with SPARQL, in the browser, configurable with SHACL</title>
+<meta name="generator" content="Jekyll v3.10.0" />
+<meta property="og:title" content="Sparnatural" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Sparnatural : visual knowledge graph explorer with SPARQL, in the browser, configurable with SHACL" />
+<meta property="og:description" content="Sparnatural : visual knowledge graph explorer with SPARQL, in the browser, configurable with SHACL" />
+<link rel="canonical" href="http://docs.sparnatural.eu/react-integration.html" />
+<meta property="og:url" content="http://docs.sparnatural.eu/react-integration.html" />
+<meta property="og:site_name" content="Sparnatural" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Sparnatural" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","description":"Sparnatural : visual knowledge graph explorer with SPARQL, in the browser, configurable with SHACL","headline":"Sparnatural","url":"http://docs.sparnatural.eu/react-integration.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link rel="preload" href="https://fonts.googleapis.com/css?family=Open+Sans:400,700&display=swap" as="style" type="text/css" crossorigin>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#157878">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,500,700|Open+Sans:300,300i,400,400i,700,700i" rel="stylesheet">
+
+    <!-- Vendor CSS Files -->
+    <link href="/assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- Font Awesome -->    
+    <link rel="stylesheet" href="/assets/fa/css/all.min.css" />
+
+    <link rel="stylesheet" href="/assets/css/style.css?v=09dbd2be6ce3340b38d394235c7f5cb0301ac36a">
+
+    <style>
+
+      #documentation-section {
+        padding-top: 115px;
+        height: auto;
+        overflow: visible;
+      }
+
+      .anchorjs-link {
+        transition: all .25s linear;
+      }
+      *:hover > .anchorjs-link {
+        margin-left: -1.125em !important;
+      }
+
+    </style>
+
+
+  </head>
+  <body>
+    <!-- <a id="skip-to-content" href="#content">Skip to the content.</a> -->
+
+  <!-- ======= Header ======= -->
+  <header id="header" class="fixed-top d-flex align-items-center">
+    <div class="container d-flex justify-content-between align-items-center">
+
+      <div id="logo">
+        <h1><a href="#">Sparnatural documentation</a></h1>
+      </div>
+
+      <nav id="navbar" class="navbar">
+        <ul>
+          <li class="dropdown"><a href="#"><i style="font-size:25px;" class="fad fa-globe-africa"></i>&nbsp;<span>Lang.</span> <i class="bi bi-chevron-down"></i></a>
+            <ul style="width:80%;">
+              <li><a href="/fr">fr</a></li>
+              <li><a href="/">en</a></li>
+            </ul>
+          </li>
+          <li><a class="nav-link" href="https://github.com/sparna-git/Sparnatural"><i style="font-size:25px;" class="fab fa-github"></i>&nbsp; Github</a></li>
+        </ul>
+        <i class="bi bi-list mobile-nav-toggle"></i>
+      </nav><!-- .navbar -->
+    </div>
+  </header><!-- End Header -->
+
+
+    <main id="content" class="main-content" role="main">
+      
+      <!-- ======= Documentation Section ======= -->
+      <section id="documentation-section">
+        <div class="container">
+
+        <p><em><a href="index.html">Home</a> &gt; Use Sparnatural in React</em></p>
+
+<h1 id="use-sparnatural-in-react">Use Sparnatural in React</h1>
+<p>Sparnatural is not published as a seperated React component but it is still possible to use it. However, there are some important need to be considered:</p>
+<ul>
+  <li>Sparnatural still uses a bit of JQuery current testing hasn’t shown any problems but be aware.</li>
+  <li>Sparnatural might get some CSS problems when resizing. Best is to keep it in a fixed window size</li>
+</ul>
+
+<p>If you discover any issues let us know!</p>
+
+<h2 id="requirements">Requirements</h2>
+<ul>
+  <li>download the latest Sparnatural version with <code class="language-plaintext highlighter-rouge">npm install sparnatural</code></li>
+</ul>
+
+<h2 id="usage">Usage</h2>
+
+<h3 id="jsx-integration-without-yasgui">JSX integration (without YASGUI)</h3>
+
+<div class="language-typescript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="dl">'</span><span class="s1">./App.css</span><span class="dl">'</span><span class="p">;</span>
+<span class="k">import</span> <span class="p">{</span> <span class="nx">useEffect</span><span class="p">,</span> <span class="nx">useRef</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">react</span><span class="dl">'</span><span class="p">;</span>
+<span class="k">import</span> <span class="dl">"</span><span class="s2">sparnatural</span><span class="dl">"</span>
+<span class="k">import</span> <span class="dl">"</span><span class="s2">sparnatural/dist/sparnatural.css</span><span class="dl">"</span>
+
+<span class="c1">// import the JSON-LD config file</span>
+<span class="k">import</span> <span class="nx">config</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">./config.json</span><span class="dl">"</span>
+
+<span class="kr">interface</span>  <span class="nx">SparnaturalEvent</span> <span class="kd">extends</span> <span class="nx">Event</span> <span class="p">{</span>
+  <span class="nl">detail</span><span class="p">?:{</span>
+    <span class="na">queryString</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+    <span class="na">queryJson</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+    <span class="na">querySparqlJs</span><span class="p">:</span><span class="kr">string</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kd">function</span> <span class="nx">App</span><span class="p">()</span> <span class="p">{</span>  
+   <span class="kd">const</span> <span class="nx">sparnaturalRef</span> <span class="o">=</span> <span class="nx">useRef</span><span class="o">&lt;</span><span class="nx">HTMLElement</span><span class="o">&gt;</span><span class="p">(</span><span class="kc">null</span><span class="p">);</span>
+   <span class="nx">useEffect</span><span class="p">(</span>
+    <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="nx">sparnaturalRef</span><span class="p">?.</span><span class="nx">current</span><span class="p">?.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">queryUpdated</span><span class="dl">"</span><span class="p">,</span> <span class="p">(</span><span class="na">event</span><span class="p">:</span><span class="nx">SparnaturalEvent</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+        <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">event</span><span class="p">?.</span><span class="nx">detail</span><span class="p">?.</span><span class="nx">queryString</span><span class="p">);</span>
+        <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">event</span><span class="p">?.</span><span class="nx">detail</span><span class="p">?.</span><span class="nx">queryJson</span><span class="p">);</span>
+        <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">event</span><span class="p">?.</span><span class="nx">detail</span><span class="p">?.</span><span class="nx">querySparqlJs</span><span class="p">);</span>
+        <span class="c1">// here : don't forget to call expandSparql so that core:sparqlString annotation is taken into account</span>
+     <span class="p">});</span>
+    <span class="p">},</span>
+    <span class="p">[],</span>
+  <span class="p">);</span>
+
+  <span class="k">return</span> <span class="p">(</span>
+    <span class="o">&lt;</span><span class="nx">div</span> <span class="nx">className</span><span class="o">=</span><span class="dl">"</span><span class="s2">App</span><span class="dl">"</span><span class="o">&gt;</span>
+      <span class="p">{</span><span class="cm">/*FontAwesome is only needed when the fontawesome features is used to display icons*/</span><span class="p">}</span>
+      <span class="o">&lt;</span><span class="nx">link</span> <span class="nx">rel</span><span class="o">=</span><span class="dl">"</span><span class="s2">stylesheet</span><span class="dl">"</span> <span class="nx">href</span><span class="o">=</span><span class="dl">"</span><span class="s2">https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css</span><span class="dl">"</span>  <span class="o">/&gt;</span>
+      <span class="o">&lt;</span><span class="nx">div</span> <span class="nx">id</span><span class="o">=</span><span class="dl">"</span><span class="s2">ui-search</span><span class="dl">"</span> <span class="nx">style</span><span class="o">=&gt;</span>
+        <span class="o">&lt;</span><span class="nx">spar</span><span class="o">-</span><span class="nx">natural</span> 
+          <span class="nx">ref</span><span class="o">=</span><span class="p">{</span><span class="nx">sparnaturalRef</span><span class="p">}</span>
+          <span class="nx">src</span><span class="o">=</span><span class="p">{</span><span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">config</span><span class="p">)}</span> 
+          <span class="nx">lang</span><span class="o">=</span><span class="p">{</span><span class="dl">'</span><span class="s1">en</span><span class="dl">'</span><span class="p">}</span>
+          <span class="nx">defaultLang</span><span class="o">=</span><span class="p">{</span><span class="dl">'</span><span class="s1">en</span><span class="dl">'</span><span class="p">}</span>
+          <span class="nx">endpoint</span><span class="o">=</span><span class="p">{</span><span class="dl">'</span><span class="s1">https://fr.dbpedia.org/sparql</span><span class="dl">'</span><span class="p">}</span> 
+          <span class="nx">distinct</span><span class="o">=</span><span class="p">{</span><span class="dl">'</span><span class="s1">true</span><span class="dl">'</span><span class="p">}</span> 
+          <span class="nx">limit</span><span class="o">=</span><span class="p">{</span><span class="dl">'</span><span class="s1">100</span><span class="dl">'</span><span class="p">}</span>
+          <span class="nx">prefix</span><span class="o">=</span><span class="p">{</span><span class="dl">"</span><span class="s2">skos:http://www.w3.org/2004/02/skos/core# rico:https://www.ica.org/standards/RiC/ontology#</span><span class="dl">"</span><span class="p">}</span> 
+          <span class="nx">debug</span><span class="o">=</span><span class="p">{</span><span class="dl">"</span><span class="s2">true</span><span class="dl">"</span><span class="p">}</span>
+        <span class="sr">/</span><span class="err">&gt;
+</span>      <span class="o">&lt;</span><span class="sr">/div</span><span class="err">&gt;
+</span>    <span class="o">&lt;</span><span class="sr">/div</span><span class="err">&gt;
+</span>  <span class="p">);</span>
+<span class="p">}</span>
+
+<span class="k">export</span> <span class="k">default</span> <span class="nx">App</span><span class="p">;</span>
+
+</code></pre></div></div>
+<h3 id="add-declaration-file-for-jsx-typescript-only">Add Declaration file for JSX (Typescript only)</h3>
+
+<p>This is only necesarry when you are using React together with typescript. <br />
+The declaration file must be call <code class="language-plaintext highlighter-rouge">declaration.d.ts</code> and be located on the root level of the src/ folder.</p>
+
+<div class="language-typescript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">namespace</span> <span class="nx">JSX</span> <span class="p">{</span>
+    <span class="kr">interface</span> <span class="nx">IntrinsicElements</span> <span class="p">{</span>
+        <span class="dl">"</span><span class="s2">spar-natural</span><span class="dl">"</span><span class="p">:</span> <span class="nx">SparnaturalAttributes</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="kr">interface</span> <span class="nx">SparnaturalAttributes</span> <span class="p">{</span>
+        <span class="nl">ref</span><span class="p">:</span><span class="nx">React</span><span class="p">.</span><span class="nx">RefObject</span><span class="o">&lt;</span><span class="nx">HTMLElement</span><span class="o">&gt;</span>
+        <span class="nx">src</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+        <span class="nl">lang</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+        <span class="nl">endpoint</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+        <span class="nl">distinct</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+        <span class="nl">limit</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+        <span class="nl">prefix</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+        <span class="nl">debug</span><span class="p">:</span><span class="kr">string</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>This shows examplary how to integrate sparnatural inside a React component. For more information on the configuration refer to <a href="Javascript-integration">Javascript integration v8</a></p>
+
+
+        </div>
+      </section><!-- End Documentation Section -->
+
+
+    </main>
+
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js" crossorigin="anonymous"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/anchor-js/anchor.min.js"></script>
+    <script>
+      anchors.options.placement = 'left';
+      anchors.add();
+    </script>
+
+    <script>
+      $( document ).ready(function($) {          
+        // add bootstrap table class on all tables
+        $('table').addClass("table");
+      }) ;
+    </script>
+
+
+  </body>
+</html>

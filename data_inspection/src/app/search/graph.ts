@@ -7,6 +7,7 @@ import initOxigraph, {
   type NamedNode,
   type BlankNode,
 } from 'oxigraph/web.js'
+import oxigraphWasmUrl from 'oxigraph/web_bg.wasm?url'
 import { manifestationExpressionArks, expressionWorkArks, manifestationTitle, titleOf } from '../core/entities'
 import type { RecordRow } from '../types'
 import { CLASSES, ENTITY_NS, PREDICATES } from './constants'
@@ -19,7 +20,7 @@ let oxigraphInitPromise: Promise<void> | null = null
 
 async function ensureOxigraphInitialized(): Promise<void> {
   if (!oxigraphInitPromise) {
-    oxigraphInitPromise = initOxigraph()
+    oxigraphInitPromise = initOxigraph(oxigraphWasmUrl)
       .then(() => {})
       .catch((err: unknown) => {
         oxigraphInitPromise = null

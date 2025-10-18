@@ -3,6 +3,11 @@ import type { SparnaturalElement } from 'sparnatural'
 
 declare module 'sparnatural/dist/browser'
 
+declare module '*.wasm?url' {
+  const url: string
+  export default url
+}
+
 declare namespace React {
   namespace JSX {
     interface IntrinsicElements {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import './sparnaturalGlobals'
 import type { SparnaturalElement } from 'sparnatural'
 import { SparnaturalElement as SparnaturalElementClass } from 'sparnatural'
 import '../../../node_modules/sparnatural/dist/browser/sparnatural.css'

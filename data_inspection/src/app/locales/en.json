@@ -17,6 +17,7 @@
   },
   "toolbar": {
     "loadCsv": "Load CSVs",
+    "search": "Search",
     "darkMode": "Dark mode",
     "shortcuts": "Shortcuts",
     "export": "Export curated CSV"
@@ -213,5 +214,35 @@
     "manifestations_other": "{{count}} manifestations",
     "relationships_one": "{{count}} general relationship",
     "relationships_other": "{{count}} general relationships"
+  },
+  "search": {
+    "title": "Search the graph",
+    "close": "Close search",
+    "builderTitle": "Visual query builder",
+    "queryTitle": "SPARQL query",
+    "run": "Run",
+    "running": "Running…",
+    "reset": "Reset to builder",
+    "copyPrefixes": "Copy prefixes",
+    "queryPlaceholder": "Adjust or extend the generated SPARQL here…",
+    "resultsTitle": "Results",
+    "lastQueryPrefix": "Last executed query:",
+    "results": {
+      "empty": "No results.",
+      "booleanTrue": "Query is TRUE.",
+      "booleanFalse": "Query is FALSE."
+    },
+    "help": {
+      "title": "Tips",
+      "normalized": "Use the normalized value criterion on subfields for diacritics-insensitive matching (supports contains, prefix, exact, regex).",
+      "quantifiers": "Negate a subfield branch to express \"none\"; add multiple constraints for \"any\" or \"all\" conditions.",
+      "relationships": "Traverse between works, expressions, manifestations, agents, and general relationships using the dedicated paths.",
+      "editing": "You can edit the SPARQL text directly for advanced filters and compositions."
+    },
+    "status": {
+      "building": "Preparing search index…",
+      "empty": "Load curated/original CSVs to enable search.",
+      "error": "Search index failed"
+    }
   }
 }

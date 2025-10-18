@@ -6,6 +6,8 @@ const AGENT_ZONE_CODES = new Set(['700', '701', '702', '710', '711', '712'])
 const AGENT_NAME_SUBCODES = new Set(['a', 'b', 'c', 'd', 'f', 'g', 'h', 'm', 'n', 'p', 'q'])
 const AGENT_REFERENCE_SUBCODES = new Set(['0', '3'])
 
+export type AgentRelation = { ark: string; zone: string; subfield: string }
+
 function subCodeOf(raw: string): string | undefined {
   const dollarIdx = raw.indexOf('$')
   if (dollarIdx === -1 || dollarIdx + 1 >= raw.length) return undefined
@@ -80,4 +82,20 @@ export function extractAgentNames(
     if (label) names.add(label)
   }
   return [...names]
+}
+
+export function extractAgentRelations(record: RecordRow): AgentRelation[] {
+  if (!record) return []
+  const relations: AgentRelation[] = []
+  for (const zone of record.intermarc.zones) {
+    if (!AGENT_ZONE_CODES.has(zone.code)) continue
+    for (const sub of zone.sousZones) {
+      const subCode = subCodeOf(sub.code)
+      if (!subCode || !AGENT_REFERENCE_SUBCODES.has(subCode)) continue
+      const value = typeof sub.valeur === 'string' ? sub.valeur.trim() : ''
+      if (!value) continue
+      relations.push({ ark: value, zone: zone.code, subfield: subCode })
+    }
+  }
+  return relations
 }

@@ -10,6 +10,8 @@ import { Toolbar } from './app/components/Toolbar'
 import { UploadModal } from './app/components/UploadModal'
 import { ShortcutModal } from './app/components/ShortcutModal'
 import { ShortcutProvider } from './app/providers/ShortcutContext'
+import { SearchProvider } from './app/search/context'
+import { SearchModal } from './app/components/SearchModal'
 
 function App() {
   return (
@@ -17,7 +19,9 @@ function App() {
       <ShortcutProvider>
         <ToastProvider>
           <AppDataProvider>
-            <AppShell />
+            <SearchProvider>
+              <AppShell />
+            </SearchProvider>
           </AppDataProvider>
         </ToastProvider>
       </ShortcutProvider>
@@ -31,6 +35,7 @@ function AppShell() {
   const [toolbarVisible, setToolbarVisible] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [shortcutOpen, setShortcutOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
 
   return (
     <div className={`app-shell${toolbarVisible ? ' toolbar-open' : ''}`}>
@@ -38,6 +43,7 @@ function AppShell() {
         visible={toolbarVisible}
         onToggleVisible={() => setToolbarVisible(prev => !prev)}
         onOpenUpload={() => setUploadOpen(true)}
+        onOpenSearch={() => setSearchOpen(true)}
         onOpenShortcuts={() => setShortcutOpen(true)}
         onExport={exportCurated}
         exportDisabled={!clusters.length}
@@ -47,6 +53,7 @@ function AppShell() {
       </main>
       <UploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
       <ShortcutModal open={shortcutOpen} onClose={() => setShortcutOpen(false)} />
+      <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
       <footer className="app-footer">
         <span>{t('app.title')}</span>
       </footer>

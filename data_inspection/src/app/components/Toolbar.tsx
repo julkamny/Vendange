@@ -7,12 +7,21 @@ type ToolbarProps = {
   visible: boolean
   onToggleVisible: () => void
   onOpenUpload: () => void
+  onOpenSearch: () => void
   onOpenShortcuts: () => void
   onExport: () => void
   exportDisabled: boolean
 }
 
-export function Toolbar({ visible, onToggleVisible, onOpenUpload, onOpenShortcuts, onExport, exportDisabled }: ToolbarProps) {
+export function Toolbar({
+  visible,
+  onToggleVisible,
+  onOpenUpload,
+  onOpenSearch,
+  onOpenShortcuts,
+  onExport,
+  exportDisabled,
+}: ToolbarProps) {
   const { t } = useTranslation()
   const { mode, toggle } = useTheme()
 
@@ -41,6 +50,9 @@ export function Toolbar({ visible, onToggleVisible, onOpenUpload, onOpenShortcut
         <div className="toolbar-left">
           <button type="button" onClick={onOpenUpload}>
             {t('toolbar.loadCsv')}
+          </button>
+          <button type="button" onClick={onOpenSearch}>
+            {t('toolbar.search')}
           </button>
           <button type="button" onClick={toggle} aria-pressed={mode === 'light'}>
             {themeLabel}

@@ -17,6 +17,7 @@
   },
   "toolbar": {
     "loadCsv": "Charger des CSV",
+    "search": "Recherche",
     "darkMode": "Mode sombre",
     "shortcuts": "Raccourcis",
     "export": "Exporter le CSV curé"
@@ -213,5 +214,35 @@
     "manifestations_other": "{{count}} manifestations",
     "relationships_one": "{{count}} relation générale",
     "relationships_other": "{{count}} relations générales"
+  },
+  "search": {
+    "title": "Rechercher dans le graphe",
+    "close": "Fermer la recherche",
+    "builderTitle": "Constructeur visuel de requêtes",
+    "queryTitle": "Requête SPARQL",
+    "run": "Exécuter",
+    "running": "Exécution…",
+    "reset": "Revenir au constructeur",
+    "copyPrefixes": "Copier les préfixes",
+    "queryPlaceholder": "Ajustez ou complétez ici la requête SPARQL générée…",
+    "resultsTitle": "Résultats",
+    "lastQueryPrefix": "Dernière requête exécutée :",
+    "results": {
+      "empty": "Aucun résultat.",
+      "booleanTrue": "La requête est VRAIE.",
+      "booleanFalse": "La requête est FAUSSE."
+    },
+    "help": {
+      "title": "Astuces",
+      "normalized": "Utilisez la valeur normalisée des sous-zones pour des recherches insensibles aux diacritiques (contient, préfixe, exact, regex).",
+      "quantifiers": "Négativez une branche de sous-zone pour exprimer \"aucun\" ; ajoutez plusieurs contraintes pour \"au moins un\" ou \"tous\".",
+      "relationships": "Naviguez entre œuvres, expressions, manifestations, agents et relations générales via les parcours dédiés.",
+      "editing": "Vous pouvez modifier directement le SPARQL pour créer des filtres et compositions avancés."
+    },
+    "status": {
+      "building": "Préparation de l'index de recherche…",
+      "empty": "Chargez les CSV curé/original pour activer la recherche.",
+      "error": "Échec de la préparation de l'index de recherche"
+    }
   }
 }

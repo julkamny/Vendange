@@ -57,6 +57,18 @@ export type SearchGraphBuildResult = {
   metadata: SearchGraphMetadata
 }
 
+export type BuildProgressPhase = 'indexing' | 'building'
+
+export type BuildProgressUpdate = {
+  phase: BuildProgressPhase
+  current: number
+  total: number
+}
+
+type BuildGraphOptions = {
+  onProgress?: (update: BuildProgressUpdate) => void
+}
+
 type PredicateCacheEntry = {
   value: NamedNode
   normalized: NamedNode
@@ -145,7 +157,10 @@ function addStringLiteral(subject: SubjectNode, predicate: string, value: string
   store.add(quad(subject, namedNode(predicate), literal(value)))
 }
 
-export async function buildSearchGraph(records: RecordRow[]): Promise<SearchGraphBuildResult> {
+export async function buildSearchGraph(
+  records: RecordRow[],
+  options: BuildGraphOptions = {},
+): Promise<SearchGraphBuildResult> {
   await ensureOxigraphInitialized()
   const RDF_TYPE = getRdfTypeNode()
   const XSD_INTEGER = getXsdIntegerNode()
@@ -156,11 +171,15 @@ export async function buildSearchGraph(records: RecordRow[]): Promise<SearchGrap
   const byArk = new Map<string, RecordRow>()
   const processed = new Set<string>()
 
-  for (const record of records) {
+  const totalRecords = records.length
+  options.onProgress?.({ phase: 'indexing', current: 0, total: totalRecords })
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index]
     const ark = record.ark?.trim()
     if (ark) {
       byArk.set(ark.toLowerCase(), record)
     }
+    options.onProgress?.({ phase: 'indexing', current: index + 1, total: totalRecords })
   }
 
   const nodeForRecord = (rec: RecordRow): NamedNode => {
@@ -227,7 +246,8 @@ export async function buildSearchGraph(records: RecordRow[]): Promise<SearchGrap
     })
   }
 
-  for (const record of records) {
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index]
     if (processed.has(record.id)) continue
     processed.add(record.id)
 
@@ -285,6 +305,7 @@ export async function buildSearchGraph(records: RecordRow[]): Promise<SearchGrap
         store.add(quad(node, namedNode(PREDICATES.hasAgent), target))
       }
     })
+    options.onProgress?.({ phase: 'building', current: index + 1, total: totalRecords })
   }
 
   const metadata: SearchGraphMetadata = {

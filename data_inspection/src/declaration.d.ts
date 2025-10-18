@@ -8,6 +8,18 @@ declare module '*.wasm?url' {
   export default url
 }
 
+declare module 'jquery' {
+  const jquery: any
+  export default jquery
+  export = jquery
+}
+
+declare module 'jquery/dist/jquery' {
+  const jquery: any
+  export default jquery
+  export = jquery
+}
+
 declare namespace React {
   namespace JSX {
     interface IntrinsicElements {

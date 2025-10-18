@@ -1,68 +1,32 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { useAppData } from '../providers/AppDataContext'
 import type { RecordRow } from '../types'
 import { DEFAULT_PREFIXES } from './constants'
-import { buildSearchGraph, type SearchGraphBuildResult, type SearchGraphMetadata } from './graph'
-import type { Term } from 'oxigraph'
+import type { SearchGraphMetadata, BuildProgressUpdate } from './graph'
+import type { QueryExecutionResult } from './types'
+import type { WorkerRequest, WorkerResponse } from './workerTypes'
 
 export type SearchStatus = 'idle' | 'building' | 'ready' | 'empty' | 'error'
-
-type QueryTerm = {
-  termType: string
-  value: string
-  language?: string
-  datatype?: string
-}
-
-type QueryBindingRow = Record<string, QueryTerm>
-
-type SelectResult = {
-  kind: 'select'
-  variables: string[]
-  rows: QueryBindingRow[]
-}
-
-type BooleanResult = {
-  kind: 'boolean'
-  value: boolean
-}
-
-type ConstructResult = {
-  kind: 'construct'
-  quads: string[]
-}
-
-type EmptyResult = { kind: 'empty' }
-
-export type QueryExecutionResult = SelectResult | BooleanResult | ConstructResult | EmptyResult
 
 type SearchContextValue = {
   status: SearchStatus
   metadata: SearchGraphMetadata | null
   prefixes: string
   lastError: string | null
+  progress: BuildProgressUpdate | null
   runQuery: (query: string) => Promise<QueryExecutionResult>
 }
 
 const SearchContext = createContext<SearchContextValue | null>(null)
-
-function serializeTerm(term: Term): QueryTerm {
-  switch (term.termType) {
-    case 'NamedNode':
-      return { termType: term.termType, value: term.value }
-    case 'BlankNode':
-      return { termType: term.termType, value: term.value }
-    case 'Literal':
-      return {
-        termType: term.termType,
-        value: term.value,
-        language: term.language || undefined,
-        datatype: term.datatype?.value,
-      }
-    default:
-      return { termType: term.termType, value: term.value }
-  }
-}
 
 function combineRecords(primary: RecordRow[] = [], secondary: RecordRow[] = []): RecordRow[] {
   const map = new Map<string, RecordRow>()
@@ -85,72 +49,143 @@ export function SearchProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<{
     status: SearchStatus
     metadata: SearchGraphMetadata | null
-    store: SearchGraphBuildResult['store'] | null
     error: string | null
-  }>({ status: 'idle', metadata: null, store: null, error: null })
+    progress: BuildProgressUpdate | null
+  }>({ status: 'idle', metadata: null, error: null, progress: null })
+
+  const workerRef = useRef<Worker | null>(null)
+  const requestCounterRef = useRef(0)
+  const currentBuildIdRef = useRef<number | null>(null)
+  const pendingQueriesRef = useRef(
+    new Map<
+      number,
+      {
+        resolve: (value: QueryExecutionResult) => void
+        reject: (reason?: unknown) => void
+      }
+    >(),
+  )
+  const lastLoggedPercentRef = useRef<number | null>(null)
+
+  const ensureWorker = useCallback(() => {
+    if (!workerRef.current) {
+      workerRef.current = new Worker(new URL('./searchWorker.ts', import.meta.url), { type: 'module' })
+    }
+    return workerRef.current
+  }, [])
 
   useEffect(() => {
-    let cancelled = false
+    const worker = ensureWorker()
+    const handleMessage = (event: MessageEvent<WorkerResponse>) => {
+      const message = event.data
+      switch (message.type) {
+        case 'progress': {
+          if (message.requestId !== currentBuildIdRef.current) break
+          const percent = message.progress.total
+            ? Math.round((message.progress.current / message.progress.total) * 100)
+            : 0
+          if (lastLoggedPercentRef.current !== percent) {
+            lastLoggedPercentRef.current = percent
+            console.info('Search index build progress', {
+              phase: message.progress.phase,
+              percent,
+              current: message.progress.current,
+              total: message.progress.total,
+            })
+          }
+          setState(prev => ({ ...prev, progress: message.progress }))
+          break
+        }
+        case 'built': {
+          if (message.requestId !== currentBuildIdRef.current) break
+          lastLoggedPercentRef.current = null
+          setState({ status: 'ready', metadata: message.metadata, error: null, progress: null })
+          console.info('Search index build completed', {
+            records: combinedRecords.length,
+          })
+          break
+        }
+        case 'build-error': {
+          if (message.requestId !== currentBuildIdRef.current) break
+          lastLoggedPercentRef.current = null
+          setState({ status: 'error', metadata: null, error: message.error, progress: null })
+          console.error('Search index build failed', message.error)
+          break
+        }
+        case 'query-result': {
+          const pending = pendingQueriesRef.current.get(message.requestId)
+          if (pending) {
+            pending.resolve(message.result)
+            pendingQueriesRef.current.delete(message.requestId)
+          }
+          break
+        }
+        case 'query-error': {
+          const pending = pendingQueriesRef.current.get(message.requestId)
+          if (pending) {
+            pending.reject(new Error(message.error))
+            pendingQueriesRef.current.delete(message.requestId)
+          }
+          break
+        }
+        default:
+          break
+      }
+    }
+    worker.addEventListener('message', handleMessage)
+    return () => {
+      worker.removeEventListener('message', handleMessage)
+    }
+  }, [combinedRecords.length, ensureWorker])
+
+  useEffect(() => {
+    return () => {
+      workerRef.current?.terminate()
+      workerRef.current = null
+      pendingQueriesRef.current.clear()
+    }
+  }, [])
+
+  useEffect(() => {
     if (!combinedRecords.length) {
-      setState({ status: 'empty', metadata: null, store: null, error: null })
+      currentBuildIdRef.current = null
+      lastLoggedPercentRef.current = null
+      if (workerRef.current) {
+        workerRef.current.postMessage({ type: 'reset' } as WorkerRequest)
+      }
+      setState({ status: 'empty', metadata: null, error: null, progress: null })
       return
     }
-    setState({ status: 'building', metadata: null, store: null, error: null })
-    buildSearchGraph(combinedRecords)
-      .then(result => {
-        if (cancelled) return
-        setState({ status: 'ready', metadata: result.metadata, store: result.store, error: null })
-      })
-      .catch(err => {
-        if (cancelled) return
-        const message = err instanceof Error ? err.message : String(err)
-        setState({ status: 'error', metadata: null, store: null, error: message })
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [combinedRecords])
+    const worker = ensureWorker()
+    const requestId = ++requestCounterRef.current
+    currentBuildIdRef.current = requestId
+    lastLoggedPercentRef.current = null
+    setState({
+      status: 'building',
+      metadata: null,
+      error: null,
+      progress: { phase: 'indexing', current: 0, total: combinedRecords.length },
+    })
+    worker.postMessage({ type: 'build', requestId, records: combinedRecords } as WorkerRequest)
+    console.info('Search index build started', { total: combinedRecords.length })
+  }, [combinedRecords, ensureWorker])
 
   const runQuery = useCallback(
     async (query: string): Promise<QueryExecutionResult> => {
-      if (!state.store) {
+      if (state.status !== 'ready') {
         throw new Error('Search graph is not ready yet')
       }
       const trimmed = query.trim()
       if (!trimmed) return { kind: 'empty' }
       const finalQuery = `${DEFAULT_PREFIXES}\n${trimmed}`
-      const result = state.store.query(finalQuery)
-      if (typeof result === 'boolean') {
-        return { kind: 'boolean', value: result }
-      }
-      if (Array.isArray(result)) {
-        if (result.length === 0) {
-          return { kind: 'select', variables: [], rows: [] }
-        }
-        const sample = result[0]
-        if (sample instanceof Map) {
-          const variables = Array.from(sample.keys())
-          const rows = result.map(rowMap => {
-            const row = rowMap as Map<string, Term>
-            const converted: QueryBindingRow = {}
-            for (const variable of variables) {
-              const term = row.get(variable)
-              if (term) {
-                converted[variable] = serializeTerm(term)
-              }
-            }
-            return converted
-          })
-          return { kind: 'select', variables, rows }
-        }
-        return { kind: 'construct', quads: (result as Array<{ toString(): string }>).map(q => q.toString()) }
-      }
-      if (typeof result === 'string') {
-        return { kind: 'construct', quads: [result] }
-      }
-      return { kind: 'empty' }
+      const worker = ensureWorker()
+      const requestId = ++requestCounterRef.current
+      return new Promise<QueryExecutionResult>((resolve, reject) => {
+        pendingQueriesRef.current.set(requestId, { resolve, reject })
+        worker.postMessage({ type: 'query', requestId, query: finalQuery } as WorkerRequest)
+      })
     },
-    [state.store],
+    [ensureWorker, state.status],
   )
 
   const value = useMemo<SearchContextValue>(
@@ -159,9 +194,10 @@ export function SearchProvider({ children }: { children: ReactNode }) {
       metadata: state.metadata,
       prefixes: DEFAULT_PREFIXES,
       lastError: state.error,
+      progress: state.progress,
       runQuery,
     }),
-    [state.status, state.metadata, state.error, runQuery],
+    [state.status, state.metadata, state.error, state.progress, runQuery],
   )
 
   return <SearchContext.Provider value={value}>{children}</SearchContext.Provider>

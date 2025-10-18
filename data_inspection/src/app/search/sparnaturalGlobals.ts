@@ -1,4 +1,5 @@
-import jquery from 'jquery'
+// @ts-expect-error - jQuery ships CommonJS typings that bundler resolution cannot locate
+import jquery from 'jquery/dist/jquery'
 
 type JQueryModule = typeof jquery
 

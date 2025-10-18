@@ -241,6 +241,7 @@
     },
     "status": {
       "building": "Préparation de l'index de recherche…",
+      "buildingProgress": "Préparation de l'index de recherche… {{percent}}%",
       "empty": "Chargez les CSV curé/original pour activer la recherche.",
       "error": "Échec de la préparation de l'index de recherche"
     }

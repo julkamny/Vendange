@@ -241,6 +241,7 @@
     },
     "status": {
       "building": "Preparing search index…",
+      "buildingProgress": "Preparing search index… {{percent}}%",
       "empty": "Load curated/original CSVs to enable search.",
       "error": "Search index failed"
     }

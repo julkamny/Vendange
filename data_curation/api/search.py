@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Literal, Optional
 from urllib.parse import quote
 
+import os
+
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -239,11 +241,28 @@ jobs_lock = threading.Lock()
 latest_ready_job_id: Optional[str] = None
 
 
+DEFAULT_ALLOWED_ORIGINS = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+)
+
+
+def _allowed_origins() -> list[str]:
+    configured = os.getenv("SEARCH_API_ALLOW_ORIGINS")
+    if configured:
+        parsed = [origin.strip() for origin in configured.split(",") if origin.strip()]
+        if parsed:
+            return parsed
+    return list(DEFAULT_ALLOWED_ORIGINS)
+
+
 app = FastAPI(title="Vendange Search API")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_allowed_origins(),
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

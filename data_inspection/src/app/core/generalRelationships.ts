@@ -33,6 +33,8 @@ const GENERAL_RELATIONSHIP_CODES: Record<string, readonly string[]> = {
   manifestation: ['501', '506', '509', '50N', '530', '531', '532', '533', '534', '535', '536', '537', '538', '53M'],
 }
 
+export type GeneralRelationshipTarget = { ark: string; zone: string }
+
 export function countGeneralRelationships(record: RecordRow): number {
   if (!record?.intermarc || !record.typeNorm) return 0
   const normalized = record.typeNorm.toLowerCase()
@@ -56,4 +58,32 @@ export function countGeneralRelationships(record: RecordRow): number {
   }
 
   return related.size
+}
+
+export function extractGeneralRelationshipTargets(record: RecordRow): GeneralRelationshipTarget[] {
+  if (!record?.intermarc || !record.typeNorm) return []
+  const normalized = record.typeNorm.toLowerCase()
+  const zoneCodes = GENERAL_RELATIONSHIP_CODES[normalized]
+  if (!zoneCodes || !zoneCodes.length) return []
+
+  const targets = new Map<string, GeneralRelationshipTarget>()
+
+  for (const code of zoneCodes) {
+    const zones = findZones(record.intermarc, code)
+    if (!zones.length) continue
+    const targetCode = `${code}$3`
+    for (const zone of zones) {
+      for (const sub of zone.sousZones) {
+        if (sub.code !== targetCode) continue
+        const value = typeof sub.valeur === 'string' ? sub.valeur.trim() : ''
+        if (!value) continue
+        const key = `${code}|${value}`
+        if (!targets.has(key)) {
+          targets.set(key, { ark: value, zone: code })
+        }
+      }
+    }
+  }
+
+  return Array.from(targets.values())
 }

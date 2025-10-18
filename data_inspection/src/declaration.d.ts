@@ -3,6 +3,23 @@ import type { SparnaturalElement } from 'sparnatural'
 
 declare module 'sparnatural/dist/browser'
 
+declare module '*.wasm?url' {
+  const url: string
+  export default url
+}
+
+declare module 'jquery' {
+  const jquery: any
+  export default jquery
+  export = jquery
+}
+
+declare module 'jquery/dist/jquery' {
+  const jquery: any
+  export default jquery
+  export = jquery
+}
+
 declare namespace React {
   namespace JSX {
     interface IntrinsicElements {

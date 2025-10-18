@@ -1,15 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import './sparnaturalGlobals'
 import type { SparnaturalElement } from 'sparnatural'
 import { SparnaturalElement as SparnaturalElementClass } from 'sparnatural'
 import '../../../node_modules/sparnatural/dist/browser/sparnatural.css'
 import 'sparnatural/dist/browser'
-import { useSearchContext, type QueryExecutionResult } from './context'
+import { useSearchContext } from './context'
+import type { QueryExecutionResult } from './types'
 import { sparnaturalConfigTtl } from './config'
 import { useTranslation } from '../hooks/useTranslation'
 
+const SEARCH_API_BASE = (
+  (import.meta.env.VITE_SEARCH_API_BASE_URL as string | undefined)?.replace(/\/+$/, '') ?? 'http://localhost:8000'
+)
+
 export function SearchPanel() {
   const { t, language } = useTranslation()
-  const { status, runQuery, prefixes, lastError } = useSearchContext()
+  const { status, runQuery, prefixes, lastError, progress } = useSearchContext()
   const sparnaturalRef = useRef<SparnaturalElement | null>(null)
   const [builderQuery, setBuilderQuery] = useState('')
   const [expandedQuery, setExpandedQuery] = useState('')
@@ -86,11 +92,17 @@ export function SearchPanel() {
   }
 
   const statusMessage = useMemo(() => {
-    if (status === 'building') return t('search.status.building')
+    if (status === 'building') {
+      if (progress && progress.total > 0) {
+        const percent = Math.round((progress.current / progress.total) * 100)
+        return t('search.status.buildingProgress', { percent })
+      }
+      return t('search.status.building')
+    }
     if (status === 'empty') return t('search.status.empty')
     if (status === 'error') return lastError ? `${t('search.status.error')}: ${lastError}` : t('search.status.error')
     return null
-  }, [status, lastError, t])
+  }, [status, progress, lastError, t])
 
   return (
     <div className="search-panel">
@@ -105,7 +117,7 @@ export function SearchPanel() {
             src={sparnaturalConfigTtl}
             lang={language}
             defaultLang={language}
-            endpoint="http://localhost/oxigraph"
+            endpoint={`${SEARCH_API_BASE}/search/query`}
             distinct="true"
             limit="200"
             debug="false"

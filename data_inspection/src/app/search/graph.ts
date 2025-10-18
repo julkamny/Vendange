@@ -1,16 +1,50 @@
-import * as oxigraph from 'oxigraph'
+import initOxigraph, {
+  Store,
+  namedNode,
+  literal,
+  quad,
+  blankNode,
+  type NamedNode,
+  type BlankNode,
+} from 'oxigraph/web.js'
 import { manifestationExpressionArks, expressionWorkArks, manifestationTitle, titleOf } from '../core/entities'
 import type { RecordRow } from '../types'
 import { CLASSES, ENTITY_NS, PREDICATES } from './constants'
 import { extractAgentRelations } from '../core/agents'
 import { extractGeneralRelationshipTargets } from '../core/generalRelationships'
 
-type NamedNode = oxigraph.NamedNode
-type SubjectNode = oxigraph.NamedNode | oxigraph.BlankNode
+type SubjectNode = NamedNode | BlankNode
 
-const { Store, namedNode, literal, quad, blankNode } = oxigraph
-const RDF_TYPE = namedNode(PREDICATES.type)
-const XSD_INTEGER = namedNode('http://www.w3.org/2001/XMLSchema#integer')
+let oxigraphInitPromise: Promise<void> | null = null
+
+async function ensureOxigraphInitialized(): Promise<void> {
+  if (!oxigraphInitPromise) {
+    oxigraphInitPromise = initOxigraph()
+      .then(() => {})
+      .catch((err: unknown) => {
+        oxigraphInitPromise = null
+        throw err
+      })
+  }
+  await oxigraphInitPromise
+}
+
+let rdfTypeNode: NamedNode | null = null
+let xsdIntegerNode: NamedNode | null = null
+
+function getRdfTypeNode(): NamedNode {
+  if (!rdfTypeNode) {
+    rdfTypeNode = namedNode(PREDICATES.type)
+  }
+  return rdfTypeNode
+}
+
+function getXsdIntegerNode(): NamedNode {
+  if (!xsdIntegerNode) {
+    xsdIntegerNode = namedNode('http://www.w3.org/2001/XMLSchema#integer')
+  }
+  return xsdIntegerNode
+}
 
 export type SearchGraphMetadata = {
   recordNodeById: Map<string, string>
@@ -18,7 +52,7 @@ export type SearchGraphMetadata = {
 }
 
 export type SearchGraphBuildResult = {
-  store: oxigraph.Store
+  store: Store
   metadata: SearchGraphMetadata
 }
 
@@ -105,12 +139,15 @@ function labelForRecord(record: RecordRow): string {
   return manifestationTitle(record) || record.id
 }
 
-function addStringLiteral(subject: SubjectNode, predicate: string, value: string, store: oxigraph.Store) {
+function addStringLiteral(subject: SubjectNode, predicate: string, value: string, store: Store) {
   if (!value) return
   store.add(quad(subject, namedNode(predicate), literal(value)))
 }
 
-export function buildSearchGraph(records: RecordRow[]): SearchGraphBuildResult {
+export async function buildSearchGraph(records: RecordRow[]): Promise<SearchGraphBuildResult> {
+  await ensureOxigraphInitialized()
+  const RDF_TYPE = getRdfTypeNode()
+  const XSD_INTEGER = getXsdIntegerNode()
   const store = new Store()
   const nodeById = new Map<string, NamedNode>()
   const nodeByArk = new Map<string, NamedNode>()

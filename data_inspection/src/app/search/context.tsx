@@ -96,8 +96,7 @@ export function SearchProvider({ children }: { children: ReactNode }) {
       return
     }
     setState({ status: 'building', metadata: null, store: null, error: null })
-    Promise.resolve()
-      .then(() => buildSearchGraph(combinedRecords))
+    buildSearchGraph(combinedRecords)
       .then(result => {
         if (cancelled) return
         setState({ status: 'ready', metadata: result.metadata, store: result.store, error: null })

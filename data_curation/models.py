@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 import json
 
-from scripts.utils.title_cleaner import normalize_title_for_clustering
+from data_curation.utils.title_cleaner import normalize_title_for_clustering
 
 
 @dataclass

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Iterable, Optional
-from scripts.utils.text_norm import normalize_for_match, build_folded_with_map
+from data_curation.utils.text_norm import normalize_for_match, build_folded_with_map
 from .triggers import RESP_TERMS, SEPARATORS
 
 LOGGER = logging.getLogger(__name__)

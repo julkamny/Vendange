@@ -5,11 +5,11 @@ from dataclasses import dataclass, asdict
 from typing import Dict, List
 import json
 
-from scripts.models import Entity  # réutilise vos classes
-from scripts.curation.pipeline import read_csv_entities  # I/O CSV existant
-from scripts.authority.nes_service import NameExpansionService
-from scripts.matching.detector import detect_in_title, Hit
-from scripts.utils.title_cleaner import (
+from data_curation.models import Entity  # réutilise vos classes
+from data_curation.curation.pipeline import read_csv_entities  # I/O CSV existant
+from data_curation.authority.nes_service import NameExpansionService
+from data_curation.matching.detector import detect_in_title, Hit
+from data_curation.utils.title_cleaner import (
     clean_title_text,
     contains_illustration_trigger,
     debug_match_targets,

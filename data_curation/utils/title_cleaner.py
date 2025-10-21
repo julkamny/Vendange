@@ -24,11 +24,11 @@ from rich.pretty import Pretty
 from rich.syntax import Syntax
 from rich.table import Table
 
-from scripts.matching.triggers import RESP_TERMS_ILL
-from scripts.utils.text_norm import build_folded_with_map, normalize_for_match
+from data_curation.matching.triggers import RESP_TERMS_ILL
+from data_curation.utils.text_norm import build_folded_with_map, normalize_for_match
 
 if TYPE_CHECKING:  # pragma: no cover - import only for static type checking
-    from scripts.models import Entity
+    from data_curation.models import Entity
 
 
 LOGGER = logging.getLogger(__name__)

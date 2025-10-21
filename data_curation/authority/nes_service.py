@@ -4,7 +4,7 @@ from typing import Dict, List
 
 import re
 
-from scripts.models import Entity
+from data_curation.models import Entity
 from .sru_client import get_person_variants
 from .nes_store import NESStore
 

@@ -5,9 +5,9 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Set
 from datetime import date
 
-from scripts.authority.nes_service import NameExpansionService
-from scripts.models import Entity, Intermarc, Zone, SousZone
-from scripts.utils.title_cleaner import (
+from data_curation.authority.nes_service import NameExpansionService
+from data_curation.models import Entity, Intermarc, Zone, SousZone
+from data_curation.utils.title_cleaner import (
     clean_title_text,
     contains_illustration_trigger,
     debug_match_targets,

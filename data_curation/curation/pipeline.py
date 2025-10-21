@@ -8,7 +8,7 @@ import sys
 csv.field_size_limit(sys.maxsize) # Huge fields in csv caused error ```_csv.Error: field larger than field limit (131072)```
 
 from ..models import Entity
-from scripts.curation.operations import (
+from data_curation.curation.operations import (
     cluster_works_by_title_responsibilities,
     cluster_expressions_by_051_and_041,
     ClusterResult,

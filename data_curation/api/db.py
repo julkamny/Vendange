@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import sqlite3
+import sys
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +15,7 @@ from typing import List, Optional, Sequence
 from ..models import Intermarc
 from ..utils.text_norm import fold_diacritics, normalize_for_match
 
+csv.field_size_limit(sys.maxsize)
 DB_PATH = Path(__file__).resolve().parent / "vendange.sqlite"
 
 _CONNECTION_LOCK = threading.Lock()

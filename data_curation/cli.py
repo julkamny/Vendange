@@ -12,8 +12,8 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.theme import Theme
 
-from scripts.curation.pipeline import run_cluster_operation, run_cluster_with_expression_operation
-from scripts.pipeline_title_contamination import run_title_contamination_detection
+from data_curation.curation.pipeline import run_cluster_operation, run_cluster_with_expression_operation
+from data_curation.pipeline_title_contamination import run_title_contamination_detection
 
 
 LOGGER = logging.getLogger("scripts.cli")

@@ -234,6 +234,7 @@ dependencies = [
     { name = "fastapi", extra = ["standard"] },
     { name = "pydantic" },
     { name = "python-multipart" },
+    { name = "rich" },
     { name = "spacy" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -243,6 +244,7 @@ requires-dist = [
     { name = "fastapi", extras = ["standard"] },
     { name = "pydantic" },
     { name = "python-multipart" },
+    { name = "rich", specifier = ">=14.2.0" },
     { name = "spacy", specifier = ">=3.8.7" },
     { name = "uvicorn", extras = ["standard"] },
 ]

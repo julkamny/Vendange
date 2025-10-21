@@ -30,7 +30,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
   - `90F$a` = ARK of the clustered work (from `001$a`)
   - `90F$q` = `Clusterisation script`
   - `90F$d` = today (YYYY-MM-DD)
-- To build the clusters : ```python -m scripts.cli cluster --input data/current_export.csv --output data/curated.csv --clusters-json data/curated.json```
+- To build the clusters : ```python -m data_curation.cli cluster --input data/current_export.csv --output data/curated.csv --clusters-json data/curated.json```
 
 ---
 
@@ -41,7 +41,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 
 ### Debug & Fixtures
 
-- **Interactive variant debugging** — set `TITLE_MATCH_DEBUGGER=1` when running the CLI (typically with `-vv`) to drop into `pdb` right before NLP cleaning. Example: ```TITLE_MATCH_DEBUGGER=1 python3 -m scripts.cli -vv detect-contamination --input data/in.csv --out-json data/out.json``` lets you inspect the exact strings matched against the title before spaCy processes them.
+- **Interactive variant debugging** — set `TITLE_MATCH_DEBUGGER=1` when running the CLI (typically with `-vv`) to drop into `pdb` right before NLP cleaning. Example: ```TITLE_MATCH_DEBUGGER=1 python3 -m data_curation.cli -vv detect-contamination --input data/in.csv --out-json data/out.json``` lets you inspect the exact strings matched against the title before spaCy processes them.
 - **Styled debug logs** — use `-vv` to unlock Rich-powered logs: the CLI renders colourful panels, syntax-highlighted titles, and tables for matched variants and removed segments.
 - **Test fixtures** — every CLI subcommand accepts `--mock NAME` (alias `--test NAME`). When provided, the file `data/test_NAME.csv` is copied over the `--input` path before the operation starts, making it easy to replay curated scenarios.
 

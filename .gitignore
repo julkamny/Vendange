@@ -33,3 +33,4 @@ Vendange_codebase.md
 
 # Output of data-curation ops
 data/out.csv
+**/*.sqlite

@@ -1,8 +1,14 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { WorkspaceView } from './WorkspaceView'
-import type { WorkspaceTabState } from '../workspace/types'
+import { SqlWorkspaceView } from './SqlWorkspaceView'
+import type { WorkspaceTabState, WorkspaceTabStateWorkspace } from '../workspace/types'
 import type { RecordRow } from '../types'
-import { DEFAULT_WORKSPACE_STATE } from '../workspace/types'
+import {
+  DEFAULT_WORKSPACE_STATE,
+  createDefaultSqlState,
+  isSqlTab,
+  isWorkspaceTab,
+} from '../workspace/types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useShortcuts } from '../providers/ShortcutContext'
 import { shortcutMatchesEvent, type ShortcutAction } from '../core/shortcuts'
@@ -14,11 +20,12 @@ import { useArkDecoratedText } from '../hooks/useArkDecoratedText'
 
 let tabSequence = 0
 
-function createTab(title: string): WorkspaceTabState {
+function createWorkspaceTab(title: string, explicitId?: string): WorkspaceTabStateWorkspace {
+  const id = explicitId ?? `tab-${++tabSequence}`
   return {
-    id: `tab-${++tabSequence}`,
-    title,
     ...DEFAULT_WORKSPACE_STATE,
+    id,
+    title,
   }
 }
 
@@ -32,6 +39,11 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   const { clusters, original, curated } = useAppData()
   const originalRecords = original?.records ?? []
   const curatedRecords = curated?.records ?? []
+  const defaultWorkspaceTitle = useMemo(
+    () => t('workspace.tabDefault', { defaultValue: 'Workspace' }),
+    [t],
+  )
+  const defaultSqlTitle = useMemo(() => t('workspace.sqlTabDefault', { defaultValue: 'SQL' }), [t])
   const recordIndexes = useMemo(() => {
     const byId = new Map<string, RecordRow>()
     const byArk = new Map<string, RecordRow>()
@@ -45,23 +57,29 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     addRecords(curatedRecords)
     return { byId, byArk }
   }, [originalRecords, curatedRecords])
-  const [tabs, setTabs] = useState<WorkspaceTabState[]>(() => [createTab(t('workspace.tabDefault', { defaultValue: 'Workspace' }))])
+  const [tabs, setTabs] = useState<WorkspaceTabState[]>(() => [createWorkspaceTab(defaultWorkspaceTitle)])
   const [activeId, setActiveId] = useState(() => tabs[0]?.id ?? '')
 
   const addTab = useCallback(() => {
-    const newTab = createTab(t('workspace.tabDefault', { defaultValue: 'Workspace' }))
+    const newTab = createWorkspaceTab(defaultWorkspaceTitle)
     setTabs(prev => [...prev, newTab])
     setActiveId(newTab.id)
-  }, [t])
+  }, [defaultWorkspaceTitle])
+
+  const addSqlTab = useCallback(() => {
+    const newTab = createDefaultSqlState(`tab-${++tabSequence}`, defaultSqlTitle)
+    setTabs(prev => [...prev, newTab])
+    setActiveId(newTab.id)
+  }, [defaultSqlTitle])
 
   const openTabWithState = useCallback(
-    (initializer: (base: WorkspaceTabState) => WorkspaceTabState) => {
-      const base = createTab(t('workspace.tabDefault', { defaultValue: 'Workspace' }))
+    (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => {
+      const base = createWorkspaceTab(defaultWorkspaceTitle)
       const configured = initializer ? initializer(base) : base
       setTabs(prev => [...prev, configured])
       setActiveId(configured.id)
     },
-    [t],
+    [defaultWorkspaceTitle],
   )
 
   const closeTab = useCallback(
@@ -69,6 +87,14 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       setTabs(prev => {
         if (prev.length <= 1) return prev
         const next = prev.filter(tab => tab.id !== id)
+        if (!next.some(isWorkspaceTab)) {
+          const replacement = createWorkspaceTab(defaultWorkspaceTitle)
+          next.push(replacement)
+          if (!next.some(tab => tab.id === activeId)) {
+            setActiveId(replacement.id)
+          }
+          return next
+        }
         if (!next.some(tab => tab.id === activeId)) {
           const fallback = next[next.length - 1]
           setActiveId(fallback.id)
@@ -76,7 +102,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         return next
       })
     },
-    [activeId],
+    [activeId, defaultWorkspaceTitle],
   )
 
   const activate = useCallback((id: string) => setActiveId(id), [])
@@ -86,10 +112,28 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   }, [])
 
   const activeTab = useMemo(() => tabs.find(tab => tab.id === activeId) ?? tabs[0], [tabs, activeId])!
-  const workspace = useWorkspaceData(activeTab)
+  const fallbackWorkspace = useMemo(
+    () => createWorkspaceTab(defaultWorkspaceTitle, '__fallback-workspace__'),
+    [defaultWorkspaceTitle],
+  )
+  const firstWorkspaceTab = useMemo(
+    () => tabs.find(isWorkspaceTab) ?? fallbackWorkspace,
+    [tabs, fallbackWorkspace],
+  )
+  const workspaceSource = isWorkspaceTab(activeTab) ? activeTab : firstWorkspaceTab
+  const workspace = useWorkspaceData(workspaceSource)
   const getWorkspaceLabel = useCallback(
     (tab: WorkspaceTabState) => {
-      const fallbackLabel = tab.title || t('workspace.tabDefault', { defaultValue: 'Workspace' })
+      if (isSqlTab(tab)) {
+        const trimmed = tab.query.trim()
+        if (trimmed.length) {
+          const firstLine = trimmed.split(/\r?\n/, 1)[0]
+          return firstLine.length > 80 ? `${firstLine.slice(0, 77)}…` : firstLine
+        }
+        return tab.title || defaultSqlTitle
+      }
+
+      const fallbackLabel = tab.title || defaultWorkspaceTitle
       const entity = tab.selectedEntity
       if (!entity) return fallbackLabel
 
@@ -140,36 +184,50 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       }
       return fallbackLabel
     },
-    [recordIndexes, t],
+    [recordIndexes, defaultWorkspaceTitle, defaultSqlTitle],
   )
 
   const handleShortcutAction = useCallback(
     (action: ShortcutAction) => {
+      if (!isWorkspaceTab(activeTab)) {
+        if (action === 'nextWorkspace') {
+          if (tabs.length <= 1) return
+          const currentIndex = tabs.findIndex(tab => tab.id === activeTab.id)
+          const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % tabs.length
+          const nextTab = tabs[nextIndex]
+          if (nextTab) setActiveId(nextTab.id)
+        }
+        return
+      }
       if (action === 'focusUp') {
         updateTabState(activeTab.id, prev =>
-          focusTreeUp(prev, {
-            clusters,
-            activeCluster: workspace.activeCluster,
-            activeClusterSource: workspace.activeClusterSource,
-            inventoryWork: workspace.inventoryWork,
-            indexes: workspace.indexes,
-            curatedRecords,
-            originalRecords,
-          }),
+          isWorkspaceTab(prev)
+            ? focusTreeUp(prev, {
+                clusters,
+                activeCluster: workspace.activeCluster,
+                activeClusterSource: workspace.activeClusterSource,
+                inventoryWork: workspace.inventoryWork,
+                indexes: workspace.indexes,
+                curatedRecords,
+                originalRecords,
+              })
+            : prev,
         )
         return
       }
       if (action === 'focusDown') {
         updateTabState(activeTab.id, prev =>
-          focusTreeDown(prev, {
-            clusters,
-            activeCluster: workspace.activeCluster,
-            activeClusterSource: workspace.activeClusterSource,
-            inventoryWork: workspace.inventoryWork,
-            indexes: workspace.indexes,
-            curatedRecords,
-            originalRecords,
-          }),
+          isWorkspaceTab(prev)
+            ? focusTreeDown(prev, {
+                clusters,
+                activeCluster: workspace.activeCluster,
+                activeClusterSource: workspace.activeClusterSource,
+                inventoryWork: workspace.inventoryWork,
+                indexes: workspace.indexes,
+                curatedRecords,
+                originalRecords,
+              })
+            : prev,
         )
         return
       }
@@ -240,6 +298,14 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         ))}
         <button
           type="button"
+          className="workspace-tab add sql"
+          onClick={addSqlTab}
+          aria-label={t('workspace.addSqlTab', { defaultValue: 'Add SQL tab' })}
+        >
+          SQL
+        </button>
+        <button
+          type="button"
           className="workspace-tab add"
           onClick={addTab}
           aria-label={t('workspace.addTab', { defaultValue: 'Add tab' })}
@@ -249,11 +315,27 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       </div>
       <div className="workspace-tab-content" role="tabpanel">
         {activeTab ? (
-          <WorkspaceView
-            state={activeTab}
-            onStateChange={updater => updateTabState(activeTab.id, updater)}
-            onOpenTab={openTabWithState}
-          />
+          isWorkspaceTab(activeTab) ? (
+            <WorkspaceView
+              state={activeTab}
+              onStateChange={updater =>
+                updateTabState(activeTab.id, prev =>
+                  isWorkspaceTab(prev) ? updater(prev) : prev,
+                )
+              }
+              onOpenTab={openTabWithState}
+            />
+          ) : isSqlTab(activeTab) ? (
+            <SqlWorkspaceView
+              state={activeTab}
+              onStateChange={updater =>
+                updateTabState(activeTab.id, prev =>
+                  isSqlTab(prev) ? updater(prev) : prev,
+                )
+              }
+              onOpenWorkspaceTab={openTabWithState}
+            />
+          ) : null
         ) : null}
       </div>
     </div>
@@ -321,7 +403,7 @@ type ManifestationListEntry = {
   manifestationId: string
 }
 
-function navigateList(direction: NavigationDirection, state: WorkspaceTabState) {
+function navigateList(direction: NavigationDirection, state: WorkspaceTabStateWorkspace) {
   if (state.viewMode === 'works') {
     navigateWorkList(direction, state)
   } else if (state.viewMode === 'expressions') {
@@ -331,7 +413,7 @@ function navigateList(direction: NavigationDirection, state: WorkspaceTabState) 
   }
 }
 
-function navigateWorkList(direction: NavigationDirection, state: WorkspaceTabState) {
+function navigateWorkList(direction: NavigationDirection, state: WorkspaceTabStateWorkspace) {
   if (typeof document === 'undefined') return
   const panel = document.querySelector('.work-list-panel')
   if (!panel) return
@@ -371,7 +453,7 @@ function navigateWorkList(direction: NavigationDirection, state: WorkspaceTabSta
   activateEntry(entries[nextIndex])
 }
 
-function navigateExpressionList(direction: NavigationDirection, state: WorkspaceTabState) {
+function navigateExpressionList(direction: NavigationDirection, state: WorkspaceTabStateWorkspace) {
   if (typeof document === 'undefined') return
   const panel = document.querySelector('.expression-groups')
   if (!panel) return
@@ -413,7 +495,7 @@ function navigateExpressionList(direction: NavigationDirection, state: Workspace
   activateEntry(entries[nextIndex])
 }
 
-function navigateManifestationList(direction: NavigationDirection, state: WorkspaceTabState) {
+function navigateManifestationList(direction: NavigationDirection, state: WorkspaceTabStateWorkspace) {
   if (typeof document === 'undefined') return
   const panel = document.querySelector('.manifestation-panel')
   if (!panel) return

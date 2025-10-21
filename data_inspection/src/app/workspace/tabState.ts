@@ -1,5 +1,5 @@
 import type { RecordRow, Cluster } from '../types'
-import type { WorkspaceTabState } from './types'
+import type { WorkspaceTabStateWorkspace } from './types'
 import type { WorkspaceDataIndexes } from './useWorkspaceData'
 import {
   expressionWorkArks,
@@ -18,10 +18,10 @@ type WorkspaceTabBuildContext = {
 }
 
 export function configureTabStateForRecord(
-  base: WorkspaceTabState,
+  base: WorkspaceTabStateWorkspace,
   record: RecordRow,
   ctx: WorkspaceTabBuildContext,
-): WorkspaceTabState {
+): WorkspaceTabStateWorkspace {
   if (record.typeNorm === 'oeuvre') {
     return configureForWork(base, record, ctx)
   }
@@ -35,10 +35,10 @@ export function configureTabStateForRecord(
 }
 
 function configureForWork(
-  base: WorkspaceTabState,
+  base: WorkspaceTabStateWorkspace,
   record: RecordRow,
   ctx: WorkspaceTabBuildContext,
-): WorkspaceTabState {
+): WorkspaceTabStateWorkspace {
   const workArk = record.ark ?? null
   const cluster = findClusterForWork(ctx.clusters, record.id, workArk)
   const source = inferRecordSource(record.id, ctx.curatedRecords, ctx.originalRecords)
@@ -89,10 +89,10 @@ function configureForWork(
 }
 
 function configureForExpression(
-  base: WorkspaceTabState,
+  base: WorkspaceTabStateWorkspace,
   record: RecordRow,
   ctx: WorkspaceTabBuildContext,
-): WorkspaceTabState {
+): WorkspaceTabStateWorkspace {
   const expressionArk = record.ark ?? null
   const workArk = expressionWorkArks(record)[0] ?? null
   const workRecord = workArk ? ctx.indexes.worksByArk.get(workArk) ?? null : null
@@ -147,10 +147,10 @@ function configureForExpression(
 }
 
 function configureForManifestation(
-  base: WorkspaceTabState,
+  base: WorkspaceTabStateWorkspace,
   record: RecordRow,
   ctx: WorkspaceTabBuildContext,
-): WorkspaceTabState {
+): WorkspaceTabStateWorkspace {
   const expressionArk = manifestationExpressionArks(record)[0] ?? null
   const expressionRecord = expressionArk ? ctx.indexes.expressionsByArk.get(expressionArk) ?? null : null
   const expressionId = expressionRecord?.id ?? null

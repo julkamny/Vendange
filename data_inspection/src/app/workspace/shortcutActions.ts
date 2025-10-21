@@ -1,7 +1,7 @@
 import { findExpressionInCluster, findPrimaryExpressionForWork, titleOf, expressionWorkArks } from '../core/entities'
 import { getCurrentLanguage } from '../i18n'
 import type { Cluster, RecordRow } from '../types'
-import type { WorkspaceTabState } from './types'
+import type { WorkspaceTabStateWorkspace } from './types'
 import type { WorkspaceDataIndexes } from './useWorkspaceData'
 
 type ShortcutContext = {
@@ -14,7 +14,7 @@ type ShortcutContext = {
   originalRecords: RecordRow[]
 }
 
-export function focusTreeUp(state: WorkspaceTabState, ctx: ShortcutContext): WorkspaceTabState {
+export function focusTreeUp(state: WorkspaceTabStateWorkspace, ctx: ShortcutContext): WorkspaceTabStateWorkspace {
   const selected = state.selectedEntity
   if (!selected) return state
 
@@ -30,7 +30,7 @@ export function focusTreeUp(state: WorkspaceTabState, ctx: ShortcutContext): Wor
   return inventoryFallback ?? state
 }
 
-export function focusTreeDown(state: WorkspaceTabState, ctx: ShortcutContext): WorkspaceTabState {
+export function focusTreeDown(state: WorkspaceTabStateWorkspace, ctx: ShortcutContext): WorkspaceTabStateWorkspace {
   const selected = state.selectedEntity
   if (!selected) return state
 
@@ -47,10 +47,10 @@ export function focusTreeDown(state: WorkspaceTabState, ctx: ShortcutContext): W
 }
 
 function focusClusterTreeUp(
-  state: WorkspaceTabState,
-  entity: NonNullable<WorkspaceTabState['selectedEntity']>,
+  state: WorkspaceTabStateWorkspace,
+  entity: NonNullable<WorkspaceTabStateWorkspace['selectedEntity']>,
   ctx: ShortcutContext,
-): WorkspaceTabState | null {
+): WorkspaceTabStateWorkspace | null {
   if (entity.entityType === 'manifestation') {
     const cluster = resolveClusterForExpression(state, ctx, entity.expressionId ?? null, entity.expressionArk ?? null)
     if (!cluster) return null
@@ -119,10 +119,10 @@ function focusClusterTreeUp(
 }
 
 function focusClusterTreeDown(
-  state: WorkspaceTabState,
-  entity: NonNullable<WorkspaceTabState['selectedEntity']>,
+  state: WorkspaceTabStateWorkspace,
+  entity: NonNullable<WorkspaceTabStateWorkspace['selectedEntity']>,
   ctx: ShortcutContext,
-): WorkspaceTabState | null {
+): WorkspaceTabStateWorkspace | null {
   if (entity.entityType === 'work') {
     const workArk = entity.workArk ?? state.highlightedWorkArk ?? null
     const cluster = resolveClusterForWork(state, ctx, workArk, entity.id)
@@ -130,7 +130,7 @@ function focusClusterTreeDown(
     const targetWorkArk = workArk ?? cluster.anchorArk
     const expression = findPrimaryExpressionForWork(cluster, targetWorkArk)
 
-    const baseState: WorkspaceTabState = {
+    const baseState: WorkspaceTabStateWorkspace = {
       ...state,
       viewMode: 'expressions',
       listScope: 'clusters',
@@ -176,7 +176,7 @@ function focusClusterTreeDown(
     const expressionArk = expression.ark ?? entity.expressionArk ?? null
     const nextManifest = expression.manifestations[0]
 
-    const baseState: WorkspaceTabState = {
+    const baseState: WorkspaceTabStateWorkspace = {
       ...state,
       viewMode: 'manifestations',
       listScope: 'clusters',
@@ -211,10 +211,10 @@ function focusClusterTreeDown(
 }
 
 function focusInventoryTreeUp(
-  state: WorkspaceTabState,
-  entity: NonNullable<WorkspaceTabState['selectedEntity']>,
+  state: WorkspaceTabStateWorkspace,
+  entity: NonNullable<WorkspaceTabStateWorkspace['selectedEntity']>,
   ctx: ShortcutContext,
-): WorkspaceTabState | null {
+): WorkspaceTabStateWorkspace | null {
   if (entity.entityType === 'manifestation') {
     const expressionRecord = findExpressionRecord(entity.expressionId, entity.expressionArk, ctx)
     if (!expressionRecord) return null
@@ -299,10 +299,10 @@ function focusInventoryTreeUp(
 }
 
 function focusInventoryTreeDown(
-  state: WorkspaceTabState,
-  entity: NonNullable<WorkspaceTabState['selectedEntity']>,
+  state: WorkspaceTabStateWorkspace,
+  entity: NonNullable<WorkspaceTabStateWorkspace['selectedEntity']>,
   ctx: ShortcutContext,
-): WorkspaceTabState | null {
+): WorkspaceTabStateWorkspace | null {
   if (entity.entityType === 'work') {
     const workRecord = findWorkRecord(entity.id, entity.workArk ?? null, ctx)
     const workArk = workRecord?.ark ?? entity.workArk ?? null
@@ -409,7 +409,7 @@ function focusInventoryTreeDown(
 }
 
 function resolveClusterForWork(
-  state: WorkspaceTabState,
+  state: WorkspaceTabStateWorkspace,
   ctx: ShortcutContext,
   workArk: string | null,
   workId: string | null,
@@ -435,7 +435,7 @@ function resolveClusterForWork(
 }
 
 function resolveClusterForExpression(
-  state: WorkspaceTabState,
+  state: WorkspaceTabStateWorkspace,
   ctx: ShortcutContext,
   expressionId: string | null,
   expressionArk: string | null,

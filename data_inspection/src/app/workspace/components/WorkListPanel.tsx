@@ -1,6 +1,6 @@
 import { useMemo, type MouseEvent } from 'react'
 import type { Cluster, RecordRow } from '../../types'
-import type { WorkspaceTabState } from '../types'
+import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
 import { computeWorkCounts, computeUnclusteredWorkCounts } from '../../core/workCounts'
 import { titleOf } from '../../core/entities'
@@ -11,7 +11,7 @@ import { useRecordLookup } from '../../hooks/useRecordLookup'
 type WorkListPanelProps = {
   clusters: Cluster[]
   unclusteredWorks: RecordRow[]
-  state: WorkspaceTabState
+  state: WorkspaceTabStateWorkspace
   onSelectWork: (payload: { workId: string; workArk?: string | null }) => void
   onOpenExpressions: (payload: { workId: string; workArk?: string | null }) => void
   onToggleWork: (payload: { clusterId: string; workArk: string; accepted: boolean }) => void

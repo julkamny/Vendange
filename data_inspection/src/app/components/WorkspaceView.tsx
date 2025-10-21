@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import type { RecordRow } from '../types'
-import type { WorkspaceTabState } from '../workspace/types'
+import type { WorkspaceTabStateWorkspace } from '../workspace/types'
 import { useAppData } from '../providers/AppDataContext'
 import { useTranslation } from '../hooks/useTranslation'
 import { useWorkspaceData } from '../workspace/useWorkspaceData'
@@ -14,29 +14,16 @@ import { useArkDecoratedText } from '../hooks/useArkDecoratedText'
 import { useRecordLookup } from '../hooks/useRecordLookup'
 import { expressionWorkArks, manifestationTitle, titleOf } from '../core/entities'
 import { configureTabStateForRecord } from '../workspace/tabState'
+import { deriveInternalIdFromArk } from '../lib/ark'
 
 type WorkspaceViewProps = {
-  state: WorkspaceTabState
-  onStateChange: (updater: (prev: WorkspaceTabState) => WorkspaceTabState) => void
-  onOpenTab: (initializer: (base: WorkspaceTabState) => WorkspaceTabState) => void
+  state: WorkspaceTabStateWorkspace
+  onStateChange: (updater: (prev: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
+  onOpenTab: (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
 }
 
 function findRecord(id: string, curated: RecordRow[], original: RecordRow[]): RecordRow | null {
   return curated.find(rec => rec.id === id) || original.find(rec => rec.id === id) || null
-}
-
-function deriveInternalIdFromArk(rawArk: string | null | undefined): string | null {
-  if (!rawArk) return null
-  const normalized = rawArk.trim()
-  if (!normalized) return null
-  const lower = normalized.toLowerCase()
-  const cbIndex = lower.indexOf('cb')
-  if (cbIndex === -1 || cbIndex + 2 >= normalized.length) return null
-  const withoutPrefix = normalized
-    .slice(cbIndex + 2)
-    .replace(/[^0-9a-z]+/gi, '')
-  if (withoutPrefix.length <= 1) return null
-  return withoutPrefix.slice(0, withoutPrefix.length - 1)
 }
 
 function isWorkspaceEntityRecord(record: RecordRow | undefined): record is RecordRow {
@@ -359,7 +346,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
     }))
   }
 
-  const renderListPanel = (viewMode: WorkspaceTabState['viewMode']) => {
+  const renderListPanel = (viewMode: WorkspaceTabStateWorkspace['viewMode']) => {
     if (viewMode === 'works') {
       return (
         <WorkListPanel

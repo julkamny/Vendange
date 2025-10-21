@@ -5,7 +5,7 @@ import type {
   ExpressionClusterItem,
   EntityBadgeSpec,
 } from '../../types'
-import type { WorkspaceTabState } from '../types'
+import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
 import { useRecordLookup } from '../../hooks/useRecordLookup'
 import { EntityLabel } from '../../components/EntityLabel'
@@ -13,7 +13,7 @@ import { ExpressionGroupLabel } from './ExpressionPanel'
 
 type ManifestationPanelProps = {
   cluster: Cluster | null
-  state: WorkspaceTabState
+  state: WorkspaceTabStateWorkspace
   onSelectManifestation: (payload: {
     manifestationId: string
     expressionId?: string

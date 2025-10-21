@@ -1,13 +1,13 @@
 import { useMemo, type MouseEvent } from 'react'
 import type { Cluster, ExpressionClusterItem, ExpressionItem, EntityBadgeSpec } from '../../types'
-import type { WorkspaceTabState } from '../types'
+import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
 import { EntityLabel, EntityPill, CountBadge, AgentBadge, RelationshipBadge } from '../../components/EntityLabel'
 import { useRecordLookup } from '../../hooks/useRecordLookup'
 
 type ExpressionPanelProps = {
   cluster: Cluster | null
-  state: WorkspaceTabState
+  state: WorkspaceTabStateWorkspace
   onSelectExpression: (payload: {
     expressionId: string
     expressionArk?: string

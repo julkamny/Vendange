@@ -1,0 +1,378 @@
+import CodeMirror from '@uiw/react-codemirror'
+import { sql } from '@codemirror/lang-sql'
+import { useCallback, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { executeSqlQuery, getApiBaseUrl } from '../lib/api'
+import type { WorkspaceTabStateSql, WorkspaceTabStateWorkspace } from '../workspace/types'
+import { DEFAULT_WORKSPACE_STATE } from '../workspace/types'
+import { useTranslation } from '../hooks/useTranslation'
+import { useToast } from '../providers/ToastContext'
+import { useAppData } from '../providers/AppDataContext'
+import { useRecordLookup } from '../hooks/useRecordLookup'
+import { useWorkspaceData } from '../workspace/useWorkspaceData'
+import { configureTabStateForRecord } from '../workspace/tabState'
+import { deriveInternalIdFromArk } from '../lib/ark'
+
+const ARK_REGEX = /ark:\/\S+/g
+
+type SqlWorkspaceViewProps = {
+  state: WorkspaceTabStateSql
+  onStateChange: (updater: (prev: WorkspaceTabStateSql) => WorkspaceTabStateSql) => void
+  onOpenWorkspaceTab: (
+    initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace,
+  ) => void
+}
+
+type ArkContextMenuState = {
+  position: { x: number; y: number }
+  ark: string
+}
+
+function normalizeArk(value: string): string {
+  return value.trim()
+}
+
+export function SqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }: SqlWorkspaceViewProps) {
+  const { t, language } = useTranslation()
+  const { showToast } = useToast()
+  const { clusters, curated, original } = useAppData()
+  const { getByArk, getById } = useRecordLookup()
+  const stubWorkspaceState = useMemo<WorkspaceTabStateWorkspace>(
+    () => ({ ...DEFAULT_WORKSPACE_STATE, id: '__sql__', title: 'SQL' }),
+    [],
+  )
+  const workspaceData = useWorkspaceData(stubWorkspaceState)
+  const tabContext = useMemo(
+    () => ({
+      clusters,
+      indexes: workspaceData.indexes,
+      curatedRecords: curated?.records ?? [],
+      originalRecords: original?.records ?? [],
+    }),
+    [clusters, workspaceData.indexes, curated?.records, original?.records],
+  )
+  const collator = useMemo(() => new Intl.Collator(language, { sensitivity: 'accent' }), [language])
+  const [contextMenu, setContextMenu] = useState<ArkContextMenuState | null>(null)
+
+  useEffect(() => {
+    if (!contextMenu) return undefined
+    const handleClose = () => setContextMenu(null)
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setContextMenu(null)
+    }
+    window.addEventListener('click', handleClose)
+    window.addEventListener('contextmenu', handleClose)
+    window.addEventListener('keydown', handleKeydown)
+    return () => {
+      window.removeEventListener('click', handleClose)
+      window.removeEventListener('contextmenu', handleClose)
+      window.removeEventListener('keydown', handleKeydown)
+    }
+  }, [contextMenu])
+
+  const extensions = useMemo(() => [sql()], [])
+
+  const visibleColumns = useMemo(() => {
+    if (!state.result) return []
+    return state.result.columns.filter(column => !state.hiddenColumns.has(column))
+  }, [state.result, state.hiddenColumns])
+
+  const sortedRows = useMemo(() => {
+    if (!state.result) return []
+    const rows = state.result.rows.slice()
+    if (!state.sort) return rows
+    const { column, direction } = state.sort
+    const multiplier = direction === 'asc' ? 1 : -1
+    return rows.sort((a, b) => {
+      const aVal = a[column]
+      const bVal = b[column]
+      if (aVal == null && bVal == null) return 0
+      if (aVal == null) return -1 * multiplier
+      if (bVal == null) return 1 * multiplier
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return aVal === bVal ? 0 : aVal < bVal ? -1 * multiplier : 1 * multiplier
+      }
+      const aStr = String(aVal)
+      const bStr = String(bVal)
+      const comparison = collator.compare(aStr, bStr)
+      return comparison * multiplier
+    })
+  }, [state.result, state.sort, collator])
+
+  const apiBaseUrl = getApiBaseUrl()
+
+  const handleQueryChange = useCallback(
+    (value: string) => {
+      onStateChange(prev => ({ ...prev, query: value }))
+    },
+    [onStateChange],
+  )
+
+  const handleRunQuery = useCallback(async () => {
+    const trimmed = state.query.trim()
+    if (!trimmed) {
+      onStateChange(prev => ({ ...prev, lastRunError: t('workspace.sqlEmptyQuery', { defaultValue: 'Enter a SQL query first.' }) }))
+      showToast(t('workspace.sqlEmptyQuery', { defaultValue: 'Enter a SQL query first.' }), { tone: 'error' })
+      return
+    }
+    onStateChange(prev => ({ ...prev, isExecuting: true, lastRunError: null }))
+    try {
+      const result = await executeSqlQuery(state.query)
+      onStateChange(prev => {
+        const preservedHidden = new Set([...prev.hiddenColumns].filter(column => result.columns.includes(column)))
+        const nextSort = prev.sort && result.columns.includes(prev.sort.column) ? prev.sort : null
+        return {
+          ...prev,
+          isExecuting: false,
+          lastRunSql: state.query,
+          lastRunError: null,
+          result,
+          hiddenColumns: preservedHidden,
+          sort: nextSort,
+        }
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      onStateChange(prev => ({ ...prev, isExecuting: false, lastRunError: message }))
+      showToast(message, { tone: 'error' })
+    }
+  }, [state.query, onStateChange, showToast, t])
+
+  const handleClearResults = useCallback(() => {
+    onStateChange(prev => ({ ...prev, result: null, lastRunSql: null, sort: null }))
+  }, [onStateChange])
+
+  const toggleColumn = useCallback(
+    (column: string) => {
+      onStateChange(prev => {
+        const next = new Set(prev.hiddenColumns)
+        if (next.has(column)) {
+          next.delete(column)
+        } else {
+          next.add(column)
+        }
+        return { ...prev, hiddenColumns: next }
+      })
+    },
+    [onStateChange],
+  )
+
+  const toggleSort = useCallback(
+    (column: string) => {
+      onStateChange(prev => {
+        if (prev.sort && prev.sort.column === column) {
+          if (prev.sort.direction === 'asc') {
+            return { ...prev, sort: { column, direction: 'desc' } }
+          }
+          return { ...prev, sort: null }
+        }
+        return { ...prev, sort: { column, direction: 'asc' } }
+      })
+    },
+    [onStateChange],
+  )
+
+  const openRecordForArk = useCallback(
+    (ark: string) => {
+      const trimmed = normalizeArk(ark)
+      if (!trimmed) return
+      let record = getByArk(trimmed)
+      if (!record) {
+        const fallbackId = deriveInternalIdFromArk(trimmed)
+        if (fallbackId) record = getById(fallbackId)
+      }
+      if (!record) {
+        showToast(t('workspace.sqlNoRecordForArk', { defaultValue: 'No record found for this ARK.' }), { tone: 'error' })
+        return
+      }
+      setContextMenu(null)
+      onOpenWorkspaceTab(base => configureTabStateForRecord(base, record, tabContext))
+    },
+    [getByArk, getById, onOpenWorkspaceTab, tabContext, showToast, t],
+  )
+
+  const handleContextMenu = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement | null
+      const arkLink = target?.closest<HTMLElement>('.ark-link')
+      if (!arkLink) return
+      const rawArk = arkLink.getAttribute('data-ark')
+      if (!rawArk) return
+      event.preventDefault()
+      setContextMenu({ position: { x: event.clientX, y: event.clientY }, ark: rawArk })
+    },
+    [],
+  )
+
+  const renderArkFragments = useCallback(
+    (value: string) => {
+      const matches = Array.from(value.matchAll(ARK_REGEX))
+      if (!matches.length) return value
+      const pieces: Array<string | { ark: string }> = []
+      let lastIndex = 0
+      for (const match of matches) {
+        const start = match.index ?? 0
+        if (start > lastIndex) {
+          pieces.push(value.slice(lastIndex, start))
+        }
+        const ark = match[0]
+        pieces.push({ ark })
+        lastIndex = start + ark.length
+      }
+      if (lastIndex < value.length) {
+        pieces.push(value.slice(lastIndex))
+      }
+      return pieces.map((piece, index) => {
+        if (typeof piece === 'string') {
+          return <span key={`text-${index}`}>{piece}</span>
+        }
+        const arkValue = piece.ark
+        return (
+          <button
+            key={`ark-${index}`}
+            type="button"
+            className="ark-link"
+            data-ark={arkValue}
+            onClick={() => openRecordForArk(arkValue)}
+          >
+            {arkValue}
+          </button>
+        )
+      })
+    },
+    [openRecordForArk],
+  )
+
+  const renderCell = useCallback(
+    (value: unknown) => {
+      if (value === null || value === undefined) {
+        return <span className="sql-null">NULL</span>
+      }
+      if (typeof value === 'number' || typeof value === 'bigint') {
+        return value.toString()
+      }
+      if (typeof value === 'string') {
+        const trimmed = value.trim()
+        if (trimmed.length === 0) return ''
+        if (trimmed.match(ARK_REGEX)?.length === 1 && trimmed === trimmed.match(ARK_REGEX)?.[0]) {
+          return (
+            <button
+              type="button"
+              className="ark-link"
+              data-ark={trimmed}
+              onClick={() => openRecordForArk(trimmed)}
+            >
+              {trimmed}
+            </button>
+          )
+        }
+        return renderArkFragments(value)
+      }
+      if (typeof value === 'boolean') {
+        return value ? 'TRUE' : 'FALSE'
+      }
+      return JSON.stringify(value)
+    },
+    [openRecordForArk, renderArkFragments],
+  )
+
+  return (
+    <div className="sql-workspace" onContextMenu={handleContextMenu}>
+      <section className="sql-editor">
+        <header className="sql-editor__header">
+          <div>
+            <strong>{t('workspace.sqlEditorTitle', { defaultValue: 'SQL query' })}</strong>
+            <span className="sql-editor__base-url">{apiBaseUrl}</span>
+          </div>
+          <div className="sql-editor__actions">
+            <button type="button" onClick={handleRunQuery} disabled={state.isExecuting}>
+              {state.isExecuting
+                ? t('workspace.sqlRunning', { defaultValue: 'Running…' })
+                : t('workspace.sqlRunQuery', { defaultValue: 'Run query' })}
+            </button>
+            <button type="button" onClick={handleClearResults} disabled={!state.result}>
+              {t('workspace.sqlClearResults', { defaultValue: 'Clear results' })}
+            </button>
+          </div>
+        </header>
+        <CodeMirror
+          value={state.query}
+          onChange={handleQueryChange}
+          height="200px"
+          extensions={extensions}
+        />
+        {state.lastRunError ? <p className="sql-error">{state.lastRunError}</p> : null}
+      </section>
+      <section className="sql-results">
+        {state.result ? (
+          <>
+            <header className="sql-results__toolbar">
+              <span>
+                {t('workspace.sqlRowCount', {
+                  defaultValue: '{{count}} rows',
+                  count: state.result.rows.length,
+                })}
+              </span>
+              <div className="sql-columns">
+                <strong>{t('workspace.sqlColumns', { defaultValue: 'Columns' })}</strong>
+                <div className="sql-columns__list">
+                  {state.result.columns.map(column => (
+                    <label key={column}>
+                      <input
+                        type="checkbox"
+                        checked={!state.hiddenColumns.has(column)}
+                        onChange={() => toggleColumn(column)}
+                      />
+                      <span>{column}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </header>
+            <div className="sql-results__table" role="region" aria-live="polite">
+              <table>
+                <thead>
+                  <tr>
+                    {visibleColumns.map(column => {
+                      const isActiveSort = state.sort?.column === column
+                      const indicator = isActiveSort ? (state.sort?.direction === 'asc' ? '▲' : '▼') : ''
+                      return (
+                        <th key={column}>
+                          <button type="button" onClick={() => toggleSort(column)}>
+                            {column}
+                            <span className="sql-sort-indicator">{indicator}</span>
+                          </button>
+                        </th>
+                      )
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedRows.map((row, rowIndex) => (
+                    <tr key={`row-${rowIndex}`}>
+                      {visibleColumns.map(column => (
+                        <td key={`${rowIndex}-${column}`}>{renderCell(row[column])}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <p className="sql-placeholder">{t('workspace.sqlNoResults', { defaultValue: 'Run a query to see results.' })}</p>
+        )}
+      </section>
+      {contextMenu ? (
+        <div
+          className="workspace-context-menu"
+          style={{ top: `${contextMenu.position.y}px`, left: `${contextMenu.position.x}px` }}
+          role="menu"
+        >
+          <button type="button" role="menuitem" onClick={() => openRecordForArk(contextMenu.ark)}>
+            {t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+}

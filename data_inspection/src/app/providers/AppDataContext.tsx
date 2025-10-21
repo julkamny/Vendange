@@ -13,9 +13,12 @@ import { stringifyCsv } from '../lib/csv'
 import { detectClusters, buildArkIndex } from '../core/clusters'
 import { buildOriginalIndexes, type OriginalIndexes } from '../core/originalIndexes'
 import { getCurrentLanguage } from '../i18n'
+import { useTranslation } from '../hooks/useTranslation'
 import { DEFAULT_CURATED_NAME, DEFAULT_ORIGINAL_CANDIDATES, CLUSTER_NOTE } from '../core/constants'
 import { add90FEntries } from '../lib/intermarc'
 import { cloneIntermarc } from '../core/intermarc-utils'
+import { uploadDataset, syncRecordUpdate } from '../lib/api'
+import { useToast } from './ToastContext'
 
 type DataSet = {
   csv: CsvTable
@@ -36,7 +39,7 @@ type AppDataContextValue = AppDataState & {
   loadOriginal: (file: File) => Promise<void>
   loadCurated: (file: File) => Promise<void>
   loadDefaults: () => Promise<void>
-  updateRecordIntermarc: (recordId: string, intermarc: Intermarc) => void
+  updateRecordIntermarc: (recordId: string, intermarc: Intermarc) => Promise<void>
   getCuratedBaselineRecord: (recordId: string) => RecordRow | null
   setWorkAccepted: (clusterId: string, workArk: string, accepted: boolean) => void
   setExpressionAccepted: (
@@ -63,6 +66,8 @@ export function useAppData() {
 }
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
+  const { showToast } = useToast()
+  const { t } = useTranslation()
   const [state, setState] = useState<AppDataState>({
     original: null,
     curated: null,
@@ -83,8 +88,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         const clusters = prev.curated ? detectClusters(prev.curated.records, buildArkIndex(records)) : []
         return { ...prev, original, clusters, originalIndexes }
       })
+      try {
+        await uploadDataset('original', file)
+      } catch (error) {
+        console.error('Failed to upload original dataset to search backend', error)
+        showToast(t('workspace.sqlUploadOriginalError', { defaultValue: 'Failed to prepare original dataset for search.' }), {
+          tone: 'error',
+        })
+      }
     },
-    [],
+    [showToast, t],
   )
 
   const loadCurated = useCallback(
@@ -97,27 +110,38 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         const clusters = prev.original ? detectClusters(records, buildArkIndex(prev.original.records)) : []
         return { ...prev, curated, curatedBaseline: cloneDataSet(curated), clusters }
       })
+      try {
+        await uploadDataset('curated', file)
+      } catch (error) {
+        console.error('Failed to upload curated dataset to search backend', error)
+        showToast(t('workspace.sqlUploadCuratedError', { defaultValue: 'Failed to prepare curated dataset for search.' }), {
+          tone: 'error',
+        })
+      }
     },
-    [],
+    [showToast, t],
   )
 
   const loadDefaults = useCallback(async () => {
     setState(prev => ({ ...prev, loadingDefaults: true }))
     try {
       let curated: DataSet | null = null
+      let curatedFile: File | null = null
       try {
         const resp = await fetch(`/data/${DEFAULT_CURATED_NAME}`)
-          if (resp.ok) {
-            const text = await resp.text()
-            const csv = parseCsvText(text)
-            const records = indexRecords(csv)
-            curated = { csv, records, intermarcIndex: findIntermarcColumnIndex(csv) }
-          }
+        if (resp.ok) {
+          const text = await resp.text()
+          const csv = parseCsvText(text)
+          const records = indexRecords(csv)
+          curated = { csv, records, intermarcIndex: findIntermarcColumnIndex(csv) }
+          curatedFile = new File([text], DEFAULT_CURATED_NAME, { type: 'text/csv' })
+        }
       } catch (error) {
         console.error('Failed to load curated defaults', error)
       }
 
       let original: DataSet | null = null
+      let originalFile: File | null = null
       for (const candidate of DEFAULT_ORIGINAL_CANDIDATES) {
         try {
           const resp = await fetch(`/data/${candidate}`)
@@ -126,6 +150,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           const csv = parseCsvText(text)
           const records = indexRecords(csv)
           original = { csv, records, intermarcIndex: findIntermarcColumnIndex(csv) }
+          originalFile = new File([text], candidate, { type: 'text/csv' })
           break
         } catch (error) {
           console.error(`Failed to load original defaults (${candidate})`, error)
@@ -156,24 +181,67 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           loadingDefaults: false,
         }
       })
+
+      if (originalFile) {
+        try {
+          await uploadDataset('original', originalFile)
+        } catch (error) {
+          console.error('Failed to upload default original dataset to search backend', error)
+          showToast(
+            t('workspace.sqlUploadOriginalError', { defaultValue: 'Failed to prepare original dataset for search.' }),
+            { tone: 'error' },
+          )
+        }
+      }
+      if (curatedFile) {
+        try {
+          await uploadDataset('curated', curatedFile)
+        } catch (error) {
+          console.error('Failed to upload default curated dataset to search backend', error)
+          showToast(
+            t('workspace.sqlUploadCuratedError', { defaultValue: 'Failed to prepare curated dataset for search.' }),
+            { tone: 'error' },
+          )
+        }
+      }
     } catch (error) {
       console.error('Failed to load default data', error)
       setState(prev => ({ ...prev, loadingDefaults: false }))
     }
-  }, [])
+  }, [showToast, t])
 
-  const updateRecordIntermarc = useCallback((recordId: string, intermarc: Intermarc) => {
-    setState(prev => {
-      if (!prev.curated) return prev
-      const nextCurated = updateRecordIntermarcInDataset(prev.curated, recordId, intermarc)
-      if (nextCurated === prev.curated) return prev
-      const nextClusters =
-        prev.original && prev.original.records.length > 0
-          ? detectClusters(nextCurated.records, buildArkIndex(prev.original.records))
-          : prev.clusters
-      return { ...prev, curated: nextCurated, clusters: nextClusters }
-    })
-  }, [])
+  const updateRecordIntermarc = useCallback(
+    async (recordId: string, intermarc: Intermarc) => {
+      let updatedRecord: RecordRow | undefined
+      setState(prev => {
+        if (!prev.curated) return prev
+        const nextCurated = updateRecordIntermarcInDataset(prev.curated, recordId, intermarc)
+        if (nextCurated === prev.curated) return prev
+        updatedRecord = nextCurated.records.find(record => record.id === recordId) ?? undefined
+        const nextClusters =
+          prev.original && prev.original.records.length > 0
+            ? detectClusters(nextCurated.records, buildArkIndex(prev.original.records))
+            : prev.clusters
+        return { ...prev, curated: nextCurated, clusters: nextClusters }
+      })
+      if (updatedRecord) {
+        try {
+          await syncRecordUpdate({
+            id: updatedRecord.id,
+            type: updatedRecord.type,
+            intermarc: updatedRecord.intermarcStr,
+          })
+        } catch (error) {
+          console.error('Failed to synchronise record with search backend', error)
+          showToast(
+            t('workspace.sqlSyncError', { defaultValue: 'Failed to update search index for the record.' }),
+            { tone: 'error' },
+          )
+        }
+      }
+    },
+    [showToast, t],
+  )
 
   const getCuratedBaselineRecord = useCallback(
     (recordId: string) => {

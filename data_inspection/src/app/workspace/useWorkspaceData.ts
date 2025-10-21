@@ -5,7 +5,7 @@ import { getUnclusteredWorks } from '../core/unclustered'
 import { useTranslation } from '../hooks/useTranslation'
 import { titleOf, expressionWorkArks, manifestationsForExpression, manifestationExpressionArks } from '../core/entities'
 import type { Cluster, RecordRow } from '../types'
-import type { WorkspaceTabState } from './types'
+import type { WorkspaceTabStateWorkspace } from './types'
 
 export type WorkspaceDataIndexes = {
   worksById: Map<string, RecordRow>
@@ -17,7 +17,7 @@ export type WorkspaceDataIndexes = {
   manifestationsByExpressionArk: Map<string, RecordRow[]>
 }
 
-export function useWorkspaceData(state: WorkspaceTabState) {
+export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
   const { clusters, original, curated } = useAppData()
   const { language } = useTranslation()
 

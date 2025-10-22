@@ -11,6 +11,7 @@ from data_curation.authority.nes_service import NameExpansionService
 from data_curation.matching.detector import detect_in_title, Hit
 from data_curation.utils.title_cleaner import (
     clean_title_text,
+    contains_adaptation_trigger,
     contains_illustration_trigger,
     debug_match_targets,
     extract_responsible_person_arks,
@@ -66,10 +67,12 @@ def run_title_contamination_detection(input_csv: str, out_json: str, tau_hi: flo
         variant_strings = [v for variants in ark2variants.values() for v in variants]
         person_spans = match_variants_in_title(title, variant_strings)
         remove_illustrations = contains_illustration_trigger(title)
+        remove_adaptations = contains_adaptation_trigger(title)
         cleaned_title = clean_title_text(
             title,
             person_spans=person_spans,
             remove_illustration_groups=remove_illustrations,
+            remove_adaptation_groups=remove_adaptations,
         )
 
         if cleaned_title != title:

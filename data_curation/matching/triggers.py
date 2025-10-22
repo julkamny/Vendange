@@ -8,9 +8,19 @@ RESP_TERMS_ILL = {
     "gravures", "dessins", "photographies", "lithographies", "lith.", "couverture", "couv."
 }
 
-RESP_TERMS_ADAPT = {
-    "d'après", "adapt.", "adaptation", "tiré"
+_TIRE_BASE = "tiré"
+_TIRE_SUFFIXES = ("", "e", "s", "es")
+
+_RESP_TERMS_ADAPT_AGENT_BASE = {"adapt.", "adaptation"}
+_RESP_TERMS_ADAPT_AGENT_TIRE = {f"{_TIRE_BASE}{suffix}" for suffix in _TIRE_SUFFIXES}
+
+RESP_TERMS_ADAPT_AGENT_SUBTREE = _RESP_TERMS_ADAPT_AGENT_BASE | _RESP_TERMS_ADAPT_AGENT_TIRE
+
+RESP_TERMS_ADAPT_HEAD_SUBTREE = {
+    "d'après",
 }
+
+RESP_TERMS_ADAPT = RESP_TERMS_ADAPT_AGENT_SUBTREE | RESP_TERMS_ADAPT_HEAD_SUBTREE
 
 RESP_TERMS_TRAD = {
     "traduit", "traduction",

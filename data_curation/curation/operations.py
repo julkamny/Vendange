@@ -3,13 +3,14 @@ from __future__ import annotations
 import logging
 from collections import Counter, defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 from datetime import date
 
 from data_curation.authority.nes_service import NameExpansionService
 from data_curation.models import AgentResponsibility, Entity, Intermarc, WorkGroupKey, Zone, SousZone
 from data_curation.utils.title_cleaner import (
     clean_title_text,
+    contains_adaptation_trigger,
     contains_illustration_trigger,
     debug_match_targets,
     extract_responsible_person_arks,
@@ -17,7 +18,12 @@ from data_curation.utils.title_cleaner import (
     match_variants_in_title,
     normalize_title_for_clustering,
 )
-from data_curation.matching.triggers import RESP_TERMS_ADAPT, RESP_TERMS_ILL
+from data_curation.matching.triggers import (
+    RESP_TERMS_ADAPT,
+    RESP_TERMS_ADAPT_AGENT_SUBTREE,
+    RESP_TERMS_ADAPT_HEAD_SUBTREE,
+    RESP_TERMS_ILL,
+)
 from data_curation.utils.text_norm import normalize_for_match
 
 
@@ -25,8 +31,11 @@ LOGGER = logging.getLogger(__name__)
 
 ILLUSTRATION_TRIGGER_VARIANTS = tuple(sorted(RESP_TERMS_ILL))
 ADAPTATION_TRIGGER_VARIANTS = tuple(sorted(RESP_TERMS_ADAPT))
-ADAPTATION_TRIGGER_NORMALIZED = {normalize_for_match(term) for term in RESP_TERMS_ADAPT}
+ADAPTATION_TRIGGER_AGENT_NORMALIZED = {normalize_for_match(term) for term in RESP_TERMS_ADAPT_AGENT_SUBTREE}
+ADAPTATION_TRIGGER_HEAD_NORMALIZED = {normalize_for_match(term) for term in RESP_TERMS_ADAPT_HEAD_SUBTREE}
 MAX_DEP_DISTANCE = 4
+ADAPTATION_CATEGORY_AGENT_SUBTREE = "agent_subtree"
+ADAPTATION_CATEGORY_HEAD_SUBTREE = "head_subtree"
 
 @dataclass
 class ClusterResult:
@@ -46,15 +55,20 @@ class ExpressionClusterResult:
     clustered_expression_arks: List[str] = field(default_factory=list)
 
 
-def contains_adaptation_trigger(text: str | None) -> bool:
-    """Return True if the provided text contains adaptation responsibility terms."""
+@dataclass(frozen=True)
+class AdaptationTriggerMatch:
+    span: Any
+    category: str
+    normalized: str
 
-    if not text:
-        return False
-    normalized = normalize_for_match(text)
-    if not normalized:
-        return False
-    return any(term in normalized for term in ADAPTATION_TRIGGER_NORMALIZED)
+
+@dataclass
+class ManifestationTitleContext:
+    title: str
+    doc: Any
+    illustration_spans: List[Any]
+    adaptation_triggers: List[AdaptationTriggerMatch]
+    agent_variants: List[str]
 
 
 def _clone_intermarc(intermarc: Intermarc) -> Intermarc:
@@ -154,6 +168,27 @@ def _build_trigger_spans(doc, title: str, triggers: Tuple[str, ...]) -> List:
     return spans
 
 
+def _build_adaptation_triggers(doc, title: str) -> List[AdaptationTriggerMatch]:
+    matches: List[AdaptationTriggerMatch] = []
+    for start, end in match_variants_in_title(title, ADAPTATION_TRIGGER_VARIANTS):
+        span = doc.char_span(start, end, alignment_mode="expand")
+        if span is None:
+            LOGGER.debug("Unable to align adaptation trigger in '%s' (%s:%s)", title, start, end)
+            continue
+        normalized = normalize_for_match(span.text)
+        if not normalized:
+            continue
+        if normalized in ADAPTATION_TRIGGER_AGENT_NORMALIZED:
+            category = ADAPTATION_CATEGORY_AGENT_SUBTREE
+        elif normalized in ADAPTATION_TRIGGER_HEAD_NORMALIZED:
+            category = ADAPTATION_CATEGORY_HEAD_SUBTREE
+        else:
+            LOGGER.debug("Skipping unmatched adaptation trigger '%s' (%s)", span.text, normalized)
+            continue
+        matches.append(AdaptationTriggerMatch(span=span, category=category, normalized=normalized))
+    return matches
+
+
 def _dependency_distance(token_a, token_b, max_distance: int = MAX_DEP_DISTANCE) -> int | None:
     if token_a == token_b:
         return 0
@@ -182,20 +217,88 @@ def _dependency_distance(token_a, token_b, max_distance: int = MAX_DEP_DISTANCE)
     return None
 
 
-def _agent_linked_to_trigger(title: str, doc, trigger_spans: List, agent_variants: List[str]) -> bool:
-    if not trigger_spans or not agent_variants:
-        return False
-
+def _build_agent_spans(title: str, doc, agent_variants: List[str]) -> List:
+    spans: List = []
     for start, end in match_variants_in_title(title, agent_variants):
         span = doc.char_span(start, end, alignment_mode="expand")
         if span is None:
+            LOGGER.debug(
+                "Failed to align agent variant in '%s' (%s:%s)",
+                title,
+                start,
+                end,
+            )
             continue
-        for trigger_span in trigger_spans:
-            if span.sent != trigger_span.sent:
+        spans.append(span)
+    return spans
+
+
+def _agent_linked_to_illustration(title: str, doc, trigger_spans: List, agent_variants: List[str]) -> bool:
+    if not trigger_spans or not agent_variants:
+        return False
+
+    agent_spans = _build_agent_spans(title, doc, agent_variants)
+    if not agent_spans:
+        return False
+
+    for trigger_span in trigger_spans:
+        for agent_span in agent_spans:
+            if agent_span.sent != trigger_span.sent:
                 continue
-            distance = _dependency_distance(span.root, trigger_span.root)
+            distance = _dependency_distance(agent_span.root, trigger_span.root)
             if distance is not None and distance <= MAX_DEP_DISTANCE:
+                LOGGER.debug(
+                    "Detected illustration link between '%s' and agent span '%s'",
+                    trigger_span.text,
+                    agent_span.text,
+                )
                 return True
+    return False
+
+
+def _agent_linked_to_adaptation(title: str, doc, triggers: List[AdaptationTriggerMatch], agent_variants: List[str]) -> bool:
+    if not triggers or not agent_variants:
+        return False
+
+    agent_spans = _build_agent_spans(title, doc, agent_variants)
+    if not agent_spans:
+        return False
+
+    for trigger in triggers:
+        trigger_span = trigger.span
+        trigger_sentence = trigger_span.sent
+        for agent_span in agent_spans:
+            if agent_span.sent != trigger_sentence:
+                continue
+            agent_token_ids = {token.i for token in agent_span}
+            if trigger.category == ADAPTATION_CATEGORY_AGENT_SUBTREE:
+                subtree_token_ids = {token.i for token in trigger_span.root.subtree}
+                if agent_token_ids & subtree_token_ids:
+                    LOGGER.debug(
+                        "Adaptation trigger '%s' linked to agent span '%s' via subtree",
+                        trigger_span.text,
+                        agent_span.text,
+                    )
+                    return True
+            elif trigger.category == ADAPTATION_CATEGORY_HEAD_SUBTREE:
+                head = trigger_span.root.head
+                if head is None:
+                    continue
+                if head.i in agent_token_ids:
+                    LOGGER.debug(
+                        "Adaptation trigger '%s' directly attached to agent head '%s'",
+                        trigger_span.text,
+                        head.text,
+                    )
+                    return True
+                head_subtree_ids = {token.i for token in head.subtree}
+                if agent_token_ids & head_subtree_ids:
+                    LOGGER.debug(
+                        "Adaptation trigger '%s' linked via head subtree '%s'",
+                        trigger_span.text,
+                        head.text,
+                    )
+                    return True
     return False
 
 
@@ -268,6 +371,7 @@ def _normalized_title_key(entity: Entity, nes: NameExpansionService) -> str:
         title,
         person_spans=person_spans,
         remove_illustration_groups=contains_illustration_trigger(title),
+        remove_adaptation_groups=contains_adaptation_trigger(title),
     )
     normalized = normalize_title_for_clustering(cleaned)
 
@@ -295,13 +399,24 @@ def cluster_works_by_title_responsibilities(
     """Cluster works that share the same authority identifier and compatible agents."""
 
     groups: Dict[str, List[Entity]] = {}
-    work_keys: Dict[str, WorkGroupKey] = {}
+    work_agents_map: Dict[str, Tuple[AgentResponsibility, ...]] = {}
+    works_by_normalized_title: Dict[str, List[Entity]] = defaultdict(list)
+    evaluated_pairs: Set[Tuple[str, str]] = set()
+    anchor_ids: Set[str] = set()
+    clustered_non_anchor_ids: Set[str] = set()
+
     for work in works:
+        agents = tuple(work.work_agents())
+        if agents:
+            work_agents_map[work.id_entitelrm] = agents
+        else:
+            LOGGER.debug("[%s] Skipping work without declared agents for clustering/adaptation", work.id_entitelrm)
+            work_agents_map[work.id_entitelrm] = tuple()
+
         key = work.work_group_key()
-        if not key:
-            continue
-        groups.setdefault(key.base_identifier, []).append(work)
-        work_keys[work.id_entitelrm] = key
+        base_identifier = key.base_identifier if key else None
+        if base_identifier:
+            groups.setdefault(base_identifier, []).append(work)
 
     today = date.today().isoformat()
     updated: Dict[str, Entity] = {w.id_entitelrm: w for w in works}
@@ -318,12 +433,15 @@ def cluster_works_by_title_responsibilities(
     normalized_cache: Dict[str, str] = {}
     adaptation_flag_cache: Dict[str, bool] = {}
     agent_counter_cache: Dict[str, Counter] = {}
-    manifest_titles_cache: Dict[str, List[str]] = {}
-    manifest_analysis_cache: Dict[str, Tuple] = {}
+    manifest_titles_cache: Dict[str, List[Tuple[str, Entity]]] = {}
+    manifest_analysis_cache: Dict[str, Tuple[Any, List[Any], List[AdaptationTriggerMatch]]] = {}
     agent_variants_cache: Dict[str, List[str]] = {}
 
     controlled_lookup = _build_controlled_value_lookup(all_entities)
     adaptation_role_ark = controlled_lookup.get("Responsable de l'adaptation")
+    source_creator_role_ark = controlled_lookup.get(
+        "Créateur de l'œuvre source (Auteur du texte) / Créatrice de l'œuvre source (Autrice du texte)"
+    )
     link_has_adaptation_ark = controlled_lookup.get("A pour adaptation")
     link_is_adaptation_of_ark = controlled_lookup.get("Est une adaptation de")
 
@@ -337,16 +455,25 @@ def cluster_works_by_title_responsibilities(
 
     def _is_adaptation(entity: Entity) -> bool:
         if entity.id_entitelrm not in adaptation_flag_cache:
-            adaptation_flag_cache[entity.id_entitelrm] = contains_adaptation_trigger(entity.title_main())
+            title_segments = entity.intermarc.get_subfield_values("150", "a") + entity.intermarc.get_subfield_values("150", "u")
+            raw_text = " ".join(segment for segment in title_segments if segment) or ""
+            adaptation_flag_cache[entity.id_entitelrm] = contains_adaptation_trigger(raw_text)
+            LOGGER.debug(
+                "[%s] Adaptation status cached: %s",
+                entity.id_entitelrm,
+                adaptation_flag_cache[entity.id_entitelrm],
+            )
         return adaptation_flag_cache[entity.id_entitelrm]
 
     def _agent_counter(entity: Entity) -> Counter:
         if entity.id_entitelrm not in agent_counter_cache:
-            key = work_keys.get(entity.id_entitelrm)
-            if not key:
-                agent_counter_cache[entity.id_entitelrm] = Counter()
-            else:
-                agent_counter_cache[entity.id_entitelrm] = Counter((a.ark, a.relator) for a in key.agents)
+            agents = work_agents_map.get(entity.id_entitelrm, tuple())
+            agent_counter_cache[entity.id_entitelrm] = Counter((a.ark, a.relator) for a in agents if a.ark)
+            LOGGER.debug(
+                "[%s] Computed agent counter with %s entries",
+                entity.id_entitelrm,
+                len(agent_counter_cache[entity.id_entitelrm]),
+            )
         return agent_counter_cache[entity.id_entitelrm]
 
     def _agent_variants(agent_ark: str) -> List[str]:
@@ -362,10 +489,21 @@ def cluster_works_by_title_responsibilities(
         agent_variants_cache[agent_ark] = variants
         return variants
 
-    def _manifestation_analyses(entity: Entity) -> List[Tuple[str, Tuple]]:
-        titles = manifest_titles_cache.get(entity.id_entitelrm)
-        if titles is None:
-            titles = []
+    def _get_or_create_title_analysis(title: str) -> Tuple[Any, List[Any], List[AdaptationTriggerMatch]]:
+        cached = manifest_analysis_cache.get(title)
+        if cached is None:
+            doc = get_nlp()(title)
+            ill_spans = _build_trigger_spans(doc, title, ILLUSTRATION_TRIGGER_VARIANTS)
+            adapt_triggers = _build_adaptation_triggers(doc, title)
+            cached = (doc, ill_spans, adapt_triggers)
+            manifest_analysis_cache[title] = cached
+            LOGGER.debug("Cached manifestation title analysis for '%s'", title)
+        return cached
+
+    def _manifestation_analyses(entity: Entity) -> List[ManifestationTitleContext]:
+        cached_entries = manifest_titles_cache.get(entity.id_entitelrm)
+        if cached_entries is None:
+            cached_entries = []
             work_ark = entity.ark()
             if work_ark:
                 for expression in expressions_by_work.get(work_ark, []):
@@ -373,22 +511,38 @@ def cluster_works_by_title_responsibilities(
                     if not expr_ark:
                         continue
                     for manifestation in manifestations_by_expression.get(expr_ark, []):
-                        titles.extend(_manifestation_titles(manifestation))
-            manifest_titles_cache[entity.id_entitelrm] = titles
+                        for title in _manifestation_titles(manifestation):
+                            if not title:
+                                continue
+                            cached_entries.append((title, manifestation))
+            manifest_titles_cache[entity.id_entitelrm] = cached_entries
+            LOGGER.debug(
+                "[%s] Indexed %s manifestation titles for adaptation checks",
+                entity.id_entitelrm,
+                len(cached_entries),
+            )
 
-        analyses: List[Tuple[str, Tuple]] = []
-        for title in titles:
-            if not title:
-                continue
-            cached = manifest_analysis_cache.get(title)
-            if cached is None:
-                doc = get_nlp()(title)
-                ill_spans = _build_trigger_spans(doc, title, ILLUSTRATION_TRIGGER_VARIANTS)
-                adapt_spans = _build_trigger_spans(doc, title, ADAPTATION_TRIGGER_VARIANTS)
-                cached = (doc, ill_spans, adapt_spans)
-                manifest_analysis_cache[title] = cached
-            analyses.append((title, cached))
+        analyses: List[ManifestationTitleContext] = []
+        for title, manifestation in cached_entries:
+            doc, ill_spans, adapt_triggers = _get_or_create_title_analysis(title)
+            manifest_variants: List[str] = []
+            for ark in extract_responsible_person_arks(manifestation):
+                manifest_variants.extend(_agent_variants(ark))
+            analyses.append(
+                ManifestationTitleContext(
+                    title=title,
+                    doc=doc,
+                    illustration_spans=ill_spans,
+                    adaptation_triggers=adapt_triggers,
+                    agent_variants=manifest_variants,
+                )
+            )
         return analyses
+
+    for work in works:
+        normalized_title = _normalized_title(work)
+        if normalized_title:
+            works_by_normalized_title.setdefault(normalized_title, []).append(work)
 
     def _evaluate_subset(
         smaller: Entity,
@@ -396,17 +550,41 @@ def cluster_works_by_title_responsibilities(
         smaller_counter: Counter,
         larger_counter: Counter,
     ) -> Tuple[str, Entity, Entity] | None:
-        key_large = work_keys.get(larger.id_entitelrm)
-        if not key_large:
+        larger_agents = work_agents_map.get(larger.id_entitelrm, tuple())
+        if not larger_agents:
+            LOGGER.debug("[%s] No agents to evaluate subset relationship", larger.id_entitelrm)
             return None
 
-        extras = _extra_agent_entries(key_large.agents, smaller_counter)
+        smaller_agents = work_agents_map.get(smaller.id_entitelrm, tuple())
+        smaller_agent_arks = {agent.ark for agent in smaller_agents if agent.ark}
+
+        if source_creator_role_ark:
+            for agent in larger_agents:
+                if agent.ark in smaller_agent_arks and agent.relator == source_creator_role_ark:
+                    LOGGER.debug(
+                        "[%s → %s] Adaptation inferred via source creator relator",
+                        smaller.id_entitelrm,
+                        larger.id_entitelrm,
+                    )
+                    return ("adaptation", smaller, larger)
+
+        extras = _extra_agent_entries(larger_agents, smaller_counter)
         if not extras:
+            LOGGER.debug(
+                "[%s → %s] No extra agents found during subset evaluation",
+                smaller.id_entitelrm,
+                larger.id_entitelrm,
+            )
             return None
 
         unresolved = False
         for agent in extras:
             if adaptation_role_ark and agent.relator == adaptation_role_ark:
+                LOGGER.debug(
+                    "[%s → %s] Adaptation inferred via dedicated adaptation relator",
+                    smaller.id_entitelrm,
+                    larger.id_entitelrm,
+                )
                 return ("adaptation", smaller, larger)
 
         analyses = _manifestation_analyses(larger)
@@ -416,15 +594,42 @@ def cluster_works_by_title_responsibilities(
             found_illustration = False
             found_adaptation = False
 
-            for title, (doc, ill_spans, adapt_spans) in analyses:
-                if not found_illustration and ill_spans and _agent_linked_to_trigger(title, doc, ill_spans, variants):
+            for analysis in analyses:
+                combined_variants = [v for v in variants + analysis.agent_variants if v]
+                if not combined_variants:
+                    continue
+                unique_variants = list(dict.fromkeys(combined_variants))
+                if (
+                    not found_illustration
+                    and analysis.illustration_spans
+                    and _agent_linked_to_illustration(
+                        analysis.title,
+                        analysis.doc,
+                        analysis.illustration_spans,
+                        unique_variants,
+                    )
+                ):
                     found_illustration = True
-                if not found_adaptation and adapt_spans and _agent_linked_to_trigger(title, doc, adapt_spans, variants):
+                if (
+                    not found_adaptation
+                    and analysis.adaptation_triggers
+                    and _agent_linked_to_adaptation(
+                        analysis.title,
+                        analysis.doc,
+                        analysis.adaptation_triggers,
+                        unique_variants,
+                    )
+                ):
                     found_adaptation = True
                 if found_illustration and found_adaptation:
                     break
 
             if found_adaptation:
+                LOGGER.debug(
+                    "[%s → %s] Adaptation confirmed via manifestation analysis",
+                    smaller.id_entitelrm,
+                    larger.id_entitelrm,
+                )
                 return ("adaptation", smaller, larger)
             if not found_illustration:
                 unresolved = True
@@ -432,6 +637,40 @@ def cluster_works_by_title_responsibilities(
         if not unresolved and _is_adaptation(smaller) == _is_adaptation(larger):
             return ("cluster", smaller, larger)
         return None
+
+    def _determine_relation(left: Entity, right: Entity) -> Tuple[str, Entity, Entity] | None:
+        left_counter = _agent_counter(left)
+        right_counter = _agent_counter(right)
+
+        if not left_counter or not right_counter:
+            LOGGER.debug(
+                "[%s ↔ %s] Skipping pair without sufficient agent data",
+                left.id_entitelrm,
+                right.id_entitelrm,
+            )
+            return None
+
+        if left_counter == right_counter:
+            if _is_adaptation(left) == _is_adaptation(right):
+                LOGGER.debug(
+                    "[%s ↔ %s] Identical agent counters, eligible for clustering",
+                    left.id_entitelrm,
+                    right.id_entitelrm,
+                )
+                return ("cluster", left, right)
+            LOGGER.debug(
+                "[%s ↔ %s] Identical agents but diverging adaptation status; skipping cluster",
+                left.id_entitelrm,
+                right.id_entitelrm,
+            )
+            return None
+
+        relation: Tuple[str, Entity, Entity] | None = None
+        if _is_subset_counter(left_counter, right_counter):
+            relation = _evaluate_subset(left, right, left_counter, right_counter)
+        if relation is None and _is_subset_counter(right_counter, left_counter):
+            relation = _evaluate_subset(right, left, right_counter, left_counter)
+        return relation
 
     def _add_cluster_edges(edges: Dict[str, Set[str]], a: Entity, b: Entity) -> None:
         edges.setdefault(a.id_entitelrm, set()).add(b.id_entitelrm)
@@ -463,23 +702,11 @@ def cluster_works_by_title_responsibilities(
 
             cluster_edges: Dict[str, Set[str]] = {}
             for idx, left in enumerate(same_title_members):
-                left_counter = _agent_counter(left)
                 for right in same_title_members[idx + 1 :]:
-                    right_counter = _agent_counter(right)
+                    pair_key = tuple(sorted((left.id_entitelrm, right.id_entitelrm)))
+                    evaluated_pairs.add(pair_key)
 
-                    if not left_counter or not right_counter:
-                        continue
-
-                    if left_counter == right_counter:
-                        if _is_adaptation(left) == _is_adaptation(right):
-                            _add_cluster_edges(cluster_edges, left, right)
-                        continue
-
-                    relation: Tuple[str, Entity, Entity] | None = None
-                    if _is_subset_counter(left_counter, right_counter):
-                        relation = _evaluate_subset(left, right, left_counter, right_counter)
-                    if relation is None and _is_subset_counter(right_counter, left_counter):
-                        relation = _evaluate_subset(right, left, right_counter, left_counter)
+                    relation = _determine_relation(left, right)
 
                     if relation is None:
                         continue
@@ -489,6 +716,11 @@ def cluster_works_by_title_responsibilities(
                         _add_cluster_edges(cluster_edges, origin, target)
                     elif relation[0] == "adaptation":
                         origin, adaptation = relation[1], relation[2]
+                        LOGGER.debug(
+                            "[%s → %s] Recorded adaptation pair during base identifier pass",
+                            origin.id_entitelrm,
+                            adaptation.id_entitelrm,
+                        )
                         adaptation_pairs.add((origin.id_entitelrm, adaptation.id_entitelrm))
 
             if not cluster_edges:
@@ -520,6 +752,9 @@ def cluster_works_by_title_responsibilities(
                 anchor = _choose_anchor(component_entities)
                 others = [ent for ent in component_entities if ent.id_entitelrm != anchor.id_entitelrm]
 
+                anchor_ids.add(anchor.id_entitelrm)
+                clustered_non_anchor_ids.update(ent.id_entitelrm for ent in others)
+
                 anchor_entity = updated[anchor.id_entitelrm]
                 existing_targets = _existing_cluster_targets(anchor_entity.intermarc)
                 new_inter = _clone_intermarc(anchor_entity.intermarc)
@@ -548,30 +783,79 @@ def cluster_works_by_title_responsibilities(
                 updated_anchor = anchor_entity.clone_with_new_intermarc(new_inter)
                 updated[anchor.id_entitelrm] = updated_anchor
 
-                cluster_summaries.append(
-                    ClusterResult(
-                        anchor_id=anchor.id_entitelrm,
-                        anchor_ark=updated_anchor.ark() or "",
-                        clustered_ids=[ent.id_entitelrm for ent in others],
-                        clustered_arks=[ent.ark() or "" for ent in others],
-                    )
+            cluster_summaries.append(
+                ClusterResult(
+                    anchor_id=anchor.id_entitelrm,
+                    anchor_ark=updated_anchor.ark() or "",
+                    clustered_ids=[ent.id_entitelrm for ent in others],
+                    clustered_arks=[ent.ark() or "" for ent in others],
                 )
+            )
+
+    for normalized_title, same_title_members in works_by_normalized_title.items():
+        if len(same_title_members) < 2:
+            continue
+        for idx, left in enumerate(same_title_members):
+            for right in same_title_members[idx + 1 :]:
+                pair_key = tuple(sorted((left.id_entitelrm, right.id_entitelrm)))
+                if pair_key in evaluated_pairs:
+                    continue
+                evaluated_pairs.add(pair_key)
+
+                relation = _determine_relation(left, right)
+                if relation is None or relation[0] != "adaptation":
+                    continue
+
+                origin, adaptation = relation[1], relation[2]
+                LOGGER.debug(
+                    "[%s → %s] Recorded adaptation pair during normalized-title pass",
+                    origin.id_entitelrm,
+                    adaptation.id_entitelrm,
+                )
+                adaptation_pairs.add((origin.id_entitelrm, adaptation.id_entitelrm))
 
     if link_has_adaptation_ark and link_is_adaptation_of_ark:
         for original_id, adaptation_id in adaptation_pairs:
+            if (original_id not in anchor_ids and original_id in clustered_non_anchor_ids) or (
+                adaptation_id not in anchor_ids and adaptation_id in clustered_non_anchor_ids
+            ):
+                LOGGER.debug(
+                    "[%s → %s] Skipping adaptation link: non-anchor member of a cluster",
+                    original_id,
+                    adaptation_id,
+                )
+                continue
+
             original = updated.get(original_id)
             adaptation = updated.get(adaptation_id)
             if not original or not adaptation:
+                LOGGER.debug(
+                    "[%s → %s] Skipping adaptation link: missing entity in updated map",
+                    original_id,
+                    adaptation_id,
+                )
                 continue
             original_ark = original.ark()
             adaptation_ark = adaptation.ark()
             if not original_ark or not adaptation_ark:
+                LOGGER.debug(
+                    "[%s → %s] Skipping adaptation link: missing ARK (%s, %s)",
+                    original_id,
+                    adaptation_id,
+                    original_ark,
+                    adaptation_ark,
+                )
                 continue
 
             updated_original = _ensure_relationship_zone(original, adaptation_ark, link_has_adaptation_ark)
             updated_adaptation = _ensure_relationship_zone(adaptation, original_ark, link_is_adaptation_of_ark)
             updated[original_id] = updated_original
             updated[adaptation_id] = updated_adaptation
+            LOGGER.debug(
+                "[%s ↔ %s] Applied reciprocal adaptation relationships",
+                original_id,
+                adaptation_id,
+            )
 
     return [updated[w.id_entitelrm] for w in works], cluster_summaries
 

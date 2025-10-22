@@ -24,7 +24,7 @@ from rich.pretty import Pretty
 from rich.syntax import Syntax
 from rich.table import Table
 
-from data_curation.matching.triggers import RESP_TERMS_ILL
+from data_curation.matching.triggers import RESP_TERMS_ADAPT, RESP_TERMS_ILL
 from data_curation.utils.text_norm import build_folded_with_map, normalize_for_match
 
 if TYPE_CHECKING:  # pragma: no cover - import only for static type checking
@@ -46,6 +46,11 @@ RESP_TERMS_ILL_NORM = {term.lower().strip(".") for term in RESP_TERMS_ILL}
 RESP_TERMS_ILL_FOLDED = {
     "".join(ch for ch in unicodedata.normalize("NFKD", term.lower()) if not unicodedata.combining(ch))
     for term in RESP_TERMS_ILL
+}
+RESP_TERMS_ADAPT_NORM = {term.lower().strip(".") for term in RESP_TERMS_ADAPT}
+RESP_TERMS_ADAPT_FOLDED = {
+    "".join(ch for ch in unicodedata.normalize("NFKD", term.lower()) if not unicodedata.combining(ch))
+    for term in RESP_TERMS_ADAPT
 }
 
 # Token categories we aggressively trim when expanding Gram groups.
@@ -251,23 +256,43 @@ def _collect_illustration_ranges(doc: Doc) -> List[Tuple[int, int]]:
     return ranges
 
 
+def _collect_adaptation_ranges(doc: Doc) -> List[Tuple[int, int]]:
+    ranges: List[Tuple[int, int]] = []
+    title = doc.text
+    for start, end in match_variants_in_title(title, RESP_TERMS_ADAPT):
+        span = doc.char_span(start, end, alignment_mode="expand")
+        if span is None:
+            LOGGER.debug("spaCy failed to align adaptation trigger in title '%s' (%s:%s)", title, start, end)
+            continue
+        expanded = _expand_hit_span(doc, span)
+        ranges.append(expanded)
+    return ranges
+
+
 def contains_illustration_trigger(title: str) -> bool:
     folded = unicodedata.normalize("NFKD", title.lower())
     folded = "".join(ch for ch in folded if not unicodedata.combining(ch))
     return any(term in folded for term in RESP_TERMS_ILL_FOLDED)
 
 
+def contains_adaptation_trigger(title: str) -> bool:
+    folded = unicodedata.normalize("NFKD", title.lower())
+    folded = "".join(ch for ch in folded if not unicodedata.combining(ch))
+    return any(term in folded for term in RESP_TERMS_ADAPT_FOLDED)
+
+
 def clean_title_text(
     title: str,
     person_spans: Sequence[Tuple[int, int]] | None = None,
     remove_illustration_groups: bool = True,
+    remove_adaptation_groups: bool = True,
 ) -> str:
     """Return a title stripped of responsibility phrases detected via spaCy."""
 
     if not title:
         return ""
 
-    should_process = bool(person_spans) or remove_illustration_groups
+    should_process = bool(person_spans) or remove_illustration_groups or remove_adaptation_groups
     if not should_process:
         return title
 
@@ -280,6 +305,8 @@ def clean_title_text(
         ranges.extend(_collect_person_ranges(doc, person_spans))
     if remove_illustration_groups:
         ranges.extend(_collect_illustration_ranges(doc))
+    if remove_adaptation_groups:
+        ranges.extend(_collect_adaptation_ranges(doc))
 
     merged = _merge_ranges(ranges)
 
@@ -346,9 +373,15 @@ def normalize_and_clean_title(
     title: str,
     person_spans: Sequence[Tuple[int, int]] | None = None,
     remove_illustration_groups: bool = True,
+    remove_adaptation_groups: bool = True,
 ) -> str:
     """Convenience helper: clean with spaCy, then apply cluster normalization."""
-    cleaned = clean_title_text(title, person_spans=person_spans, remove_illustration_groups=remove_illustration_groups)
+    cleaned = clean_title_text(
+        title,
+        person_spans=person_spans,
+        remove_illustration_groups=remove_illustration_groups,
+        remove_adaptation_groups=remove_adaptation_groups,
+    )
     return normalize_title_for_clustering(cleaned)
 
 
@@ -539,6 +572,7 @@ __all__ = [
     "normalize_and_clean_title",
     "normalize_title_for_clustering",
     "contains_illustration_trigger",
+    "contains_adaptation_trigger",
 ]
 
 

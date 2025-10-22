@@ -121,7 +121,6 @@ def main() -> None:
 
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    # EXISTANT
     p_cluster = sub.add_parser("cluster", help="Run clustering operation on works", parents=[fixture_parent])
     p_cluster.add_argument("--input", required=True, help="Path to input CSV")
     p_cluster.add_argument("--output", required=True, help="Path to output CSV (curated)")
@@ -145,7 +144,6 @@ def main() -> None:
         help="Optional path to write expressions clusters summary JSON",
     )
 
-    # NOUVEAU
     p_detect = sub.add_parser(
         "detect-contamination",
         help="Detect titles contaminated with author names",

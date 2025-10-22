@@ -1,6 +1,7 @@
 ## Tips & instructions
 
 - When deriving the internal identifier from an ark, we need to remove the prefix up to `cb` and drop the final control character, e.g. `ark:/12148/cb359748158 -> 35974815`.
+- Database derived from data_inspection/data/curated.csv lives in data_curation/api/vendange.sqlite and can be accessed to retrieve information about entities / records.
 
 ## Linked entity ontology
 

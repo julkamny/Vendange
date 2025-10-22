@@ -7,6 +7,26 @@ import json
 from data_curation.utils.title_cleaner import normalize_title_for_clustering
 
 
+RESPONSIBILITY_ZONE_CODES = ("700", "701", "702", "710", "711", "712")
+
+
+@dataclass(frozen=True)
+class AgentResponsibility:
+    """Representation of a responsibility agent attached to a work."""
+
+    zone_code: str
+    ark: str
+    relator: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class WorkGroupKey:
+    """Key grouping works by the shared authority (015$c) and their agents."""
+
+    base_identifier: str
+    agents: Tuple[AgentResponsibility, ...]
+
+
 @dataclass
 class SousZone:
     code: str
@@ -78,13 +98,27 @@ class Entity:
         vals = self.intermarc.get_subfield_values("001", "a")
         return vals[0] if vals else None
 
-    def work_group_key(self) -> Optional[Tuple[str, str]]:
-        """For works: (015$c, 700$3). Return None if either missing."""
+    def work_agents(self) -> List[AgentResponsibility]:
+        """Return all responsibility agents declared in 7XX fields."""
+
+        agents: List[AgentResponsibility] = []
+        for zone_code in RESPONSIBILITY_ZONE_CODES:
+            for zone in self.intermarc.get_zone(zone_code):
+                ark = next((sz.valeur for sz in zone.sousZones if sz.code == f"{zone_code}$3"), None)
+                if not ark:
+                    continue
+                relator = next((sz.valeur for sz in zone.sousZones if sz.code == f"{zone_code}$4"), None)
+                agents.append(AgentResponsibility(zone_code=zone_code, ark=ark, relator=relator or None))
+        return agents
+
+    def work_group_key(self) -> Optional[WorkGroupKey]:
+        """For works: provide 015$c alongside every declared agent."""
+
         c015 = self.intermarc.get_subfield_values("015", "c")
-        c700_3 = self.intermarc.get_subfield_values("700", "3")
-        if not c015 or not c700_3:
+        agents = self.work_agents()
+        if not c015 or not agents:
             return None
-        return (c015[0], c700_3[0])
+        return WorkGroupKey(base_identifier=c015[0], agents=tuple(agents))
 
     def title_main(self) -> Optional[str]:
         vals = self.intermarc.get_subfield_values("150", "a")

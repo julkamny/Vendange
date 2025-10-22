@@ -70,7 +70,7 @@ def get_nlp() -> Language:
     LOGGER.debug("Loading spaCy model '%s'", model_name)
     return spacy.load(model_name)
 
-def _render_dependency_graph(doc: Doc, context: str) -> Path | None:
+def render_dependency_graph(doc: Doc, context: str) -> Path | None:
     if not LOGGER.isEnabledFor(logging.DEBUG):
         return None
 
@@ -298,7 +298,7 @@ def clean_title_text(
 
     model = get_nlp()
     doc = model(title)
-    graph_path = _render_dependency_graph(doc, f"Title: {title}")
+    graph_path = render_dependency_graph(doc, f"Title: {title}")
 
     ranges: List[Tuple[int, int]] = []
     if person_spans:
@@ -346,12 +346,22 @@ def normalize_title_for_clustering(title: str) -> str:
 
     title = title.strip()
 
-    # Drop leading article when it immediately precedes a pipe, so
-    # "La |Bible" and "|Bible" collapse to the same key.
+    # Drop leading article (with or without pipe after it) so variants like
+    # "Les Petites filles modèles" and "Les |Petites filles modèles" collapse.
     drop_pipe_article = re.compile(r"^(un|une|le|la|les)\s*\|\s*(.*)$", re.IGNORECASE)
     match = drop_pipe_article.match(title)
     if match:
         title = match.group(2)
+    else:
+        drop_plain_article = re.compile(r"^(les|le|la|un|une)\s+(.*)$", re.IGNORECASE)
+        plain_match = drop_plain_article.match(title)
+        if plain_match:
+            title = plain_match.group(2)
+        else:
+            drop_apostrophe_article = re.compile(r"^(l['’])(.*)$", re.IGNORECASE)
+            apostrophe_match = drop_apostrophe_article.match(title)
+            if apostrophe_match:
+                title = apostrophe_match.group(2).lstrip()
 
     # Remove pipes altogether before accent stripping.
     title = title.replace("|", " ")
@@ -573,6 +583,7 @@ __all__ = [
     "normalize_title_for_clustering",
     "contains_illustration_trigger",
     "contains_adaptation_trigger",
+    "render_dependency_graph",
 ]
 
 

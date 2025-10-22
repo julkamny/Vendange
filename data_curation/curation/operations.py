@@ -5,6 +5,7 @@ from collections import Counter, defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Set, Tuple
 from datetime import date
+from pathlib import Path
 
 from data_curation.authority.nes_service import NameExpansionService
 from data_curation.models import AgentResponsibility, Entity, Intermarc, WorkGroupKey, Zone, SousZone
@@ -17,6 +18,7 @@ from data_curation.utils.title_cleaner import (
     get_nlp,
     match_variants_in_title,
     normalize_title_for_clustering,
+    render_dependency_graph,
 )
 from data_curation.matching.triggers import (
     RESP_TERMS_ADAPT,
@@ -69,6 +71,7 @@ class ManifestationTitleContext:
     illustration_spans: List[Any]
     adaptation_triggers: List[AdaptationTriggerMatch]
     agent_variants: List[str]
+    dependency_path: Path | None = None
 
 
 def _clone_intermarc(intermarc: Intermarc) -> Intermarc:
@@ -434,7 +437,7 @@ def cluster_works_by_title_responsibilities(
     adaptation_flag_cache: Dict[str, bool] = {}
     agent_counter_cache: Dict[str, Counter] = {}
     manifest_titles_cache: Dict[str, List[Tuple[str, Entity]]] = {}
-    manifest_analysis_cache: Dict[str, Tuple[Any, List[Any], List[AdaptationTriggerMatch]]] = {}
+    manifest_analysis_cache: Dict[str, Tuple[Any, List[Any], List[AdaptationTriggerMatch], Path | None]] = {}
     agent_variants_cache: Dict[str, List[str]] = {}
 
     controlled_lookup = _build_controlled_value_lookup(all_entities)
@@ -457,7 +460,14 @@ def cluster_works_by_title_responsibilities(
         if entity.id_entitelrm not in adaptation_flag_cache:
             title_segments = entity.intermarc.get_subfield_values("150", "a") + entity.intermarc.get_subfield_values("150", "u")
             raw_text = " ".join(segment for segment in title_segments if segment) or ""
-            adaptation_flag_cache[entity.id_entitelrm] = contains_adaptation_trigger(raw_text)
+            flag = contains_adaptation_trigger(raw_text)
+            if not flag and _has_source_creator_role(entity):
+                flag = True
+                LOGGER.debug(
+                    "[%s] Adaptation inferred via source creator role in agent responsibilities",
+                    entity.id_entitelrm,
+                )
+            adaptation_flag_cache[entity.id_entitelrm] = flag
             LOGGER.debug(
                 "[%s] Adaptation status cached: %s",
                 entity.id_entitelrm,
@@ -489,15 +499,24 @@ def cluster_works_by_title_responsibilities(
         agent_variants_cache[agent_ark] = variants
         return variants
 
-    def _get_or_create_title_analysis(title: str) -> Tuple[Any, List[Any], List[AdaptationTriggerMatch]]:
+    def _has_source_creator_role(entity: Entity) -> bool:
+        if not source_creator_role_ark:
+            return False
+        for agent in work_agents_map.get(entity.id_entitelrm, tuple()):
+            if agent.relator == source_creator_role_ark:
+                return True
+        return False
+
+    def _get_or_create_title_analysis(title: str) -> Tuple[Any, List[Any], List[AdaptationTriggerMatch], Path | None]:
         cached = manifest_analysis_cache.get(title)
         if cached is None:
             doc = get_nlp()(title)
             ill_spans = _build_trigger_spans(doc, title, ILLUSTRATION_TRIGGER_VARIANTS)
             adapt_triggers = _build_adaptation_triggers(doc, title)
-            cached = (doc, ill_spans, adapt_triggers)
+            dependency_path = render_dependency_graph(doc, f"Manifestation: {title}") if adapt_triggers else None
+            cached = (doc, ill_spans, adapt_triggers, dependency_path)
             manifest_analysis_cache[title] = cached
-            LOGGER.debug("Cached manifestation title analysis for '%s'", title)
+            LOGGER.debug("Cached manifestation title analysis for '%s' (adaptation triggers: %s)", title, bool(adapt_triggers))
         return cached
 
     def _manifestation_analyses(entity: Entity) -> List[ManifestationTitleContext]:
@@ -524,7 +543,13 @@ def cluster_works_by_title_responsibilities(
 
         analyses: List[ManifestationTitleContext] = []
         for title, manifestation in cached_entries:
-            doc, ill_spans, adapt_triggers = _get_or_create_title_analysis(title)
+            doc, ill_spans, adapt_triggers, dependency_path = _get_or_create_title_analysis(title)
+            if dependency_path:
+                LOGGER.debug(
+                    "[%s] Dependency graph for manifestation adaptation triggers: %s",
+                    entity.id_entitelrm,
+                    dependency_path,
+                )
             manifest_variants: List[str] = []
             for ark in extract_responsible_person_arks(manifestation):
                 manifest_variants.extend(_agent_variants(ark))
@@ -535,6 +560,7 @@ def cluster_works_by_title_responsibilities(
                     illustration_spans=ill_spans,
                     adaptation_triggers=adapt_triggers,
                     agent_variants=manifest_variants,
+                    dependency_path=dependency_path,
                 )
             )
         return analyses
@@ -543,6 +569,46 @@ def cluster_works_by_title_responsibilities(
         normalized_title = _normalized_title(work)
         if normalized_title:
             works_by_normalized_title.setdefault(normalized_title, []).append(work)
+
+    def _entity_adaptation_signals(entity: Entity) -> bool:
+        if _is_adaptation(entity):
+            return True
+        contexts = _manifestation_analyses(entity)
+        agents = work_agents_map.get(entity.id_entitelrm, tuple())
+        if not agents:
+            return False
+        for agent in agents:
+            if not agent.ark:
+                continue
+            variants = _agent_variants(agent.ark)
+            for analysis in contexts:
+                if not analysis.adaptation_triggers:
+                    continue
+                combined_variants = [v for v in variants + analysis.agent_variants if v]
+                if not combined_variants:
+                    continue
+                unique_variants = list(dict.fromkeys(combined_variants))
+                if _agent_linked_to_adaptation(
+                    analysis.title,
+                    analysis.doc,
+                    analysis.adaptation_triggers,
+                    unique_variants,
+                ):
+                    if analysis.dependency_path:
+                        LOGGER.debug(
+                            "[%s] Adaptation supported by manifestation '%s' (graph: %s)",
+                            entity.id_entitelrm,
+                            analysis.title,
+                            analysis.dependency_path,
+                        )
+                    else:
+                        LOGGER.debug(
+                            "[%s] Adaptation supported by manifestation '%s'",
+                            entity.id_entitelrm,
+                            analysis.title,
+                        )
+                    return True
+        return False
 
     def _evaluate_subset(
         smaller: Entity,
@@ -638,6 +704,24 @@ def cluster_works_by_title_responsibilities(
             return ("cluster", smaller, larger)
         return None
 
+    def _evaluate_equal_agents(left: Entity, right: Entity) -> Tuple[str, Entity, Entity] | None:
+        left_has_source = _has_source_creator_role(left)
+        right_has_source = _has_source_creator_role(right)
+
+        if left_has_source and not right_has_source:
+            return ("adaptation", right, left)
+        if right_has_source and not left_has_source:
+            return ("adaptation", left, right)
+
+        left_signals = _entity_adaptation_signals(left)
+        right_signals = _entity_adaptation_signals(right)
+
+        if left_signals and not right_signals:
+            return ("adaptation", right, left)
+        if right_signals and not left_signals:
+            return ("adaptation", left, right)
+        return None
+
     def _determine_relation(left: Entity, right: Entity) -> Tuple[str, Entity, Entity] | None:
         left_counter = _agent_counter(left)
         right_counter = _agent_counter(right)
@@ -651,6 +735,9 @@ def cluster_works_by_title_responsibilities(
             return None
 
         if left_counter == right_counter:
+            equal_relation = _evaluate_equal_agents(left, right)
+            if equal_relation:
+                return equal_relation
             if _is_adaptation(left) == _is_adaptation(right):
                 LOGGER.debug(
                     "[%s ↔ %s] Identical agent counters, eligible for clustering",
@@ -671,6 +758,57 @@ def cluster_works_by_title_responsibilities(
         if relation is None and _is_subset_counter(right_counter, left_counter):
             relation = _evaluate_subset(right, left, right_counter, left_counter)
         return relation
+
+    def _record_adaptation_pair(origin: Entity, adaptation: Entity) -> None:
+        nonlocal adaptation_pairs
+
+        origin_has_source = _has_source_creator_role(origin)
+        adaptation_has_source = _has_source_creator_role(adaptation)
+
+        if origin_has_source and not adaptation_has_source:
+            LOGGER.debug(
+                "[%s ↔ %s] Swapping adaptation orientation due to source creator role",
+                origin.id_entitelrm,
+                adaptation.id_entitelrm,
+            )
+            origin, adaptation = adaptation, origin
+            origin_has_source, adaptation_has_source = adaptation_has_source, origin_has_source
+        elif origin_has_source and adaptation_has_source:
+            LOGGER.debug(
+                "[%s ↔ %s] Skipping adaptation link; both works reference source creator role",
+                origin.id_entitelrm,
+                adaptation.id_entitelrm,
+            )
+            return
+
+        origin_adapt_signal = _entity_adaptation_signals(origin)
+        adaptation_adapt_signal = _entity_adaptation_signals(adaptation)
+
+        if origin_adapt_signal and not adaptation_adapt_signal:
+            LOGGER.debug(
+                "[%s ↔ %s] Swapping adaptation orientation based on adaptation signals",
+                origin.id_entitelrm,
+                adaptation.id_entitelrm,
+            )
+            origin, adaptation = adaptation, origin
+            origin_adapt_signal, adaptation_adapt_signal = adaptation_adapt_signal, origin_adapt_signal
+
+        if _has_source_creator_role(origin):
+            LOGGER.debug(
+                "[%s ↔ %s] Skipping adaptation link post-orientation; origin still has source creator role",
+                origin.id_entitelrm,
+                adaptation.id_entitelrm,
+            )
+            return
+
+        adaptation_pairs.add((origin.id_entitelrm, adaptation.id_entitelrm))
+        LOGGER.debug(
+            "[%s ↔ %s] Recorded adaptation pair (origin=%s, adaptation=%s)",
+            origin.id_entitelrm,
+            adaptation.id_entitelrm,
+            origin.id_entitelrm,
+            adaptation.id_entitelrm,
+        )
 
     def _add_cluster_edges(edges: Dict[str, Set[str]], a: Entity, b: Entity) -> None:
         edges.setdefault(a.id_entitelrm, set()).add(b.id_entitelrm)
@@ -721,7 +859,7 @@ def cluster_works_by_title_responsibilities(
                             origin.id_entitelrm,
                             adaptation.id_entitelrm,
                         )
-                        adaptation_pairs.add((origin.id_entitelrm, adaptation.id_entitelrm))
+                        _record_adaptation_pair(origin, adaptation)
 
             if not cluster_edges:
                 continue
@@ -812,7 +950,7 @@ def cluster_works_by_title_responsibilities(
                     origin.id_entitelrm,
                     adaptation.id_entitelrm,
                 )
-                adaptation_pairs.add((origin.id_entitelrm, adaptation.id_entitelrm))
+                _record_adaptation_pair(origin, adaptation)
 
     if link_has_adaptation_ark and link_is_adaptation_of_ark:
         for original_id, adaptation_id in adaptation_pairs:

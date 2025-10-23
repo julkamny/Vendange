@@ -187,9 +187,10 @@ def agent_linked_to_adaptation(
                 head_subtree_ids = {token.i for token in head.subtree}
                 if agent_token_ids & head_subtree_ids:
                     LOGGER.debug(
-                        "Adaptation trigger '%s' linked via head subtree '%s'",
+                        "Adaptation trigger '%s' linked via head subtree '%s' to agent span '%s'",
                         trigger_span.text,
                         head.text,
+                        agent_span.text,
                     )
                     return True
     return False

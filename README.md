@@ -30,7 +30,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
   - `90F$a` = ARK of the clustered work (from `001$a`)
   - `90F$q` = `Clusterisation script`
   - `90F$d` = today (YYYY-MM-DD)
-- To build the clusters : ```python -m data_curation.cli cluster --input data/current_export.csv --output data/curated.csv --clusters-json data/curated.json```
+- To build the clusters : ```python -m data_curation.cli cluster --input data_inspection/data/current_export.csv --output data_inspection/data/curated.csv --clusters-json data/curated.json```
 
 ---
 
@@ -79,10 +79,10 @@ On MacOS Monterey 12.6.7, use Python 3.11 to install spaCy:
 ```
 uv venv --python 3.11
 source .venv/bin/activate
-uv pip install "numpy==1.26.4"
-uv pip add pip
+uv add numpy==1.26.4
+uv pip install pip
 uv add spacy
-python3.11 -m spacy download fr_dep_news_trf
+uv run -- spacy download fr_dep_news_trf
 ```
 
 ### Next Steps

@@ -1,8 +1,8 @@
 ## Tips & instructions
 
 - When deriving the internal identifier from an ark, we need to remove the prefix up to `cb` and drop the final control character, e.g. `ark:/12148/cb359748158 -> 35974815`.
-- If you need to run Python, know that the .venv lives in data_curation and is managed by uv.
-- The db that reflects data_inspection/data/curated.csv located at data_curation/api/vendange.sqlite. The command that yielded that CSV then turned into a SQLite db was `uv run python -m data_curation.cli -vv cluster --input data_inspection/data/current_export.csv --output data_inspection/data/curated.csv` (don't run it yourself, it takes ages to complete). I ran it from the root of the directory, where you are have been summoned. The logs of the run can be found in data_curation/data_curation.log.
+- If you need to run Python, know that the .venv at the root of the repo (where you've been summoned) is managed by uv.
+- The db that reflects data_inspection/data/curated.csv located at data_curation/api/vendange.sqlite. The command that yielded that CSV then turned into a SQLite db was `uv run python -m data_curation.cli -vv cluster --input data_inspection/data/current_export.csv --output data_inspection/data/curated.csv` (don't run it yourself, it takes ages to complete). The logs of the run can be found in data_curation/data_curation.log.
 
 ## Linked entity ontology
 

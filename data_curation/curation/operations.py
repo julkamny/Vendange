@@ -320,6 +320,12 @@ def cluster_works_by_title_responsibilities(
             title_segments = entity.intermarc.get_subfield_values("150", "a") + entity.intermarc.get_subfield_values("150", "u")
             raw_text = " ".join(segment for segment in title_segments if segment) or ""
             flag = contains_adaptation_trigger(raw_text)
+            if not flag and _has_adaptation_role(entity):
+                flag = True
+                LOGGER.debug(
+                    "[%s] Adaptation inferred via adaptation relator in agent responsibilities",
+                    entity.id_entitelrm,
+                )
             if not flag and _has_source_creator_role(entity):
                 flag = True
                 LOGGER.debug(
@@ -367,6 +373,14 @@ def cluster_works_by_title_responsibilities(
             return False
         for agent in work_agents_map.get(entity.id_entitelrm, tuple()):
             if agent.relator == source_creator_role_ark:
+                return True
+        return False
+
+    def _has_adaptation_role(entity: Entity) -> bool:
+        if not adaptation_role_ark:
+            return False
+        for agent in work_agents_map.get(entity.id_entitelrm, tuple()):
+            if agent.relator == adaptation_role_ark:
                 return True
         return False
 

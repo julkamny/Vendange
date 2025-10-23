@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Any, List, Sequence
 
 from data_curation.matching.triggers import (
-    RESP_TERMS_ADAPT,
     RESP_TERMS_ADAPT_AGENT_SUBTREE,
     RESP_TERMS_ADAPT_HEAD_SUBTREE,
     RESP_TERMS_ILL,
@@ -18,7 +17,6 @@ from data_curation.utils.text_norm import normalize_for_match
 LOGGER = logging.getLogger(__name__)
 
 ILLUSTRATION_TRIGGER_VARIANTS = tuple(sorted(RESP_TERMS_ILL))
-ADAPTATION_TRIGGER_VARIANTS = tuple(sorted(RESP_TERMS_ADAPT))
 ADAPTATION_TRIGGER_AGENT_NORMALIZED = {
     normalize_for_match(term) for term in RESP_TERMS_ADAPT_AGENT_SUBTREE
 }
@@ -28,6 +26,7 @@ ADAPTATION_TRIGGER_HEAD_NORMALIZED = {
 MAX_DEP_DISTANCE = 4
 ADAPTATION_CATEGORY_AGENT_SUBTREE = "agent_subtree"
 ADAPTATION_CATEGORY_HEAD_SUBTREE = "head_subtree"
+MAX_TRIGGER_TOKENS = 3
 
 
 @dataclass(frozen=True)
@@ -92,32 +91,49 @@ def _build_agent_spans(title: str, doc, agent_variants: Sequence[str]) -> List[A
 
 def build_adaptation_triggers(doc, title: str) -> List[AdaptationTriggerMatch]:
     matches: List[AdaptationTriggerMatch] = []
-    for start, end in match_variants_in_title(title, ADAPTATION_TRIGGER_VARIANTS):
-        span = doc.char_span(start, end, alignment_mode="expand")
-        if span is None:
-            LOGGER.debug("Unable to align adaptation trigger in '%s' (%s:%s)", title, start, end)
+    _ = title  # title retained for API consistency
+    i = 0
+    while i < len(doc):
+        token = doc[i]
+        if token.is_space:
+            i += 1
             continue
-        span_text = span.text.strip()
-        if span_text.lower().endswith(("d'", "d’")) and span.end < len(doc):
-            next_token = doc[span.end]
-            if normalize_for_match(next_token.text) == "apres":
-                LOGGER.debug(
-                    "Extending adaptation trigger '%s' with following token '%s'",
-                    span.text,
-                    next_token.text,
+
+        if not normalize_for_match(token.text):
+            i += 1
+            continue
+
+        best_match: AdaptationTriggerMatch | None = None
+        max_end = min(len(doc), i + MAX_TRIGGER_TOKENS)
+
+        for end in range(i + 1, max_end + 1):
+            span = doc[i:end]
+            normalized = normalize_for_match(span.text)
+            if not normalized:
+                continue
+            if normalized in ADAPTATION_TRIGGER_AGENT_NORMALIZED:
+                candidate = AdaptationTriggerMatch(
+                    span=span,
+                    category=ADAPTATION_CATEGORY_AGENT_SUBTREE,
+                    normalized=normalized,
                 )
-                span = doc[span.start : span.end + 1]
-        normalized = normalize_for_match(span.text)
-        if not normalized:
-            continue
-        if normalized in ADAPTATION_TRIGGER_AGENT_NORMALIZED:
-            category = ADAPTATION_CATEGORY_AGENT_SUBTREE
-        elif normalized in ADAPTATION_TRIGGER_HEAD_NORMALIZED:
-            category = ADAPTATION_CATEGORY_HEAD_SUBTREE
+            elif normalized in ADAPTATION_TRIGGER_HEAD_NORMALIZED:
+                candidate = AdaptationTriggerMatch(
+                    span=span,
+                    category=ADAPTATION_CATEGORY_HEAD_SUBTREE,
+                    normalized=normalized,
+                )
+            else:
+                continue
+
+            if best_match is None or (span.end - span.start) < (best_match.span.end - best_match.span.start):
+                best_match = candidate
+
+        if best_match:
+            matches.append(best_match)
+            i = best_match.span.end
         else:
-            LOGGER.debug("Skipping unmatched adaptation trigger '%s' (%s)", span.text, normalized)
-            continue
-        matches.append(AdaptationTriggerMatch(span=span, category=category, normalized=normalized))
+            i += 1
     return matches
 
 

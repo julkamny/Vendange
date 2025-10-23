@@ -38,6 +38,7 @@ ADAPTATION_TRIGGER_HEAD_NORMALIZED = {normalize_for_match(term) for term in RESP
 MAX_DEP_DISTANCE = 4
 ADAPTATION_CATEGORY_AGENT_SUBTREE = "agent_subtree"
 ADAPTATION_CATEGORY_HEAD_SUBTREE = "head_subtree"
+ORIGINAL_AUTHOR_CANONICAL_KEY = "original_author"
 
 @dataclass
 class ClusterResult:
@@ -178,6 +179,16 @@ def _build_adaptation_triggers(doc, title: str) -> List[AdaptationTriggerMatch]:
         if span is None:
             LOGGER.debug("Unable to align adaptation trigger in '%s' (%s:%s)", title, start, end)
             continue
+        span_text = span.text.strip()
+        if span_text.lower().endswith(("d'", "d’")) and span.end < len(doc):
+            next_token = doc[span.end]
+            if normalize_for_match(next_token.text) == "apres":
+                LOGGER.debug(
+                    "Extending adaptation trigger '%s' with following token '%s'",
+                    span.text,
+                    next_token.text,
+                )
+                span = doc[span.start : span.end + 1]
         normalized = normalize_for_match(span.text)
         if not normalized:
             continue
@@ -319,7 +330,7 @@ def _extra_agent_entries(
     remaining = smaller_counter.copy()
     extras: List[AgentResponsibility] = []
     for agent in larger_agents:
-        key = (agent.ark, agent.relator)
+        key = (agent.ark, _canonical_relator(agent.relator))
         if remaining.get(key, 0):
             remaining[key] -= 1
             continue
@@ -441,6 +452,18 @@ def cluster_works_by_title_responsibilities(
     agent_variants_cache: Dict[str, List[str]] = {}
 
     controlled_lookup = _build_controlled_value_lookup(all_entities)
+    ark_to_label = {ark: label for label, ark in controlled_lookup.items() if ark}
+    canonical_relator_lookup: Dict[str, str] = {}
+    for ark, label in ark_to_label.items():
+        normalized_label = normalize_for_match(label)
+        if not normalized_label:
+            continue
+        if (
+            "auteur du texte" in normalized_label
+            or "autrice du texte" in normalized_label
+            or "oeuvre source" in normalized_label
+        ):
+            canonical_relator_lookup[ark] = ORIGINAL_AUTHOR_CANONICAL_KEY
     adaptation_role_ark = controlled_lookup.get("Responsable de l'adaptation")
     source_creator_role_ark = controlled_lookup.get(
         "Créateur de l'œuvre source (Auteur du texte) / Créatrice de l'œuvre source (Autrice du texte)"
@@ -475,10 +498,17 @@ def cluster_works_by_title_responsibilities(
             )
         return adaptation_flag_cache[entity.id_entitelrm]
 
+    def _canonical_relator(relator: str | None) -> str | None:
+        if not relator:
+            return None
+        return canonical_relator_lookup.get(relator, relator)
+
     def _agent_counter(entity: Entity) -> Counter:
         if entity.id_entitelrm not in agent_counter_cache:
             agents = work_agents_map.get(entity.id_entitelrm, tuple())
-            agent_counter_cache[entity.id_entitelrm] = Counter((a.ark, a.relator) for a in agents if a.ark)
+            agent_counter_cache[entity.id_entitelrm] = Counter(
+                (a.ark, _canonical_relator(a.relator)) for a in agents if a.ark
+            )
             LOGGER.debug(
                 "[%s] Computed agent counter with %s entries",
                 entity.id_entitelrm,
@@ -616,6 +646,26 @@ def cluster_works_by_title_responsibilities(
         smaller_counter: Counter,
         larger_counter: Counter,
     ) -> Tuple[str, Entity, Entity] | None:
+        def _adaptation_signal_fallback() -> Tuple[str, Entity, Entity] | None:
+            larger_signals = _entity_adaptation_signals(larger)
+            smaller_signals = _entity_adaptation_signals(smaller)
+
+            if larger_signals and not smaller_signals:
+                LOGGER.debug(
+                    "[%s → %s] Adaptation inferred via shared-agent signals",
+                    smaller.id_entitelrm,
+                    larger.id_entitelrm,
+                )
+                return ("adaptation", smaller, larger)
+            if smaller_signals and not larger_signals:
+                LOGGER.debug(
+                    "[%s → %s] Adaptation inferred via shared-agent signals",
+                    larger.id_entitelrm,
+                    smaller.id_entitelrm,
+                )
+                return ("adaptation", larger, smaller)
+            return None
+
         larger_agents = work_agents_map.get(larger.id_entitelrm, tuple())
         if not larger_agents:
             LOGGER.debug("[%s] No agents to evaluate subset relationship", larger.id_entitelrm)
@@ -636,6 +686,9 @@ def cluster_works_by_title_responsibilities(
 
         extras = _extra_agent_entries(larger_agents, smaller_counter)
         if not extras:
+            fallback_relation = _adaptation_signal_fallback()
+            if fallback_relation:
+                return fallback_relation
             LOGGER.debug(
                 "[%s → %s] No extra agents found during subset evaluation",
                 smaller.id_entitelrm,
@@ -699,6 +752,10 @@ def cluster_works_by_title_responsibilities(
                 return ("adaptation", smaller, larger)
             if not found_illustration:
                 unresolved = True
+
+        fallback_relation = _adaptation_signal_fallback()
+        if fallback_relation:
+            return fallback_relation
 
         if not unresolved and _is_adaptation(smaller) == _is_adaptation(larger):
             return ("cluster", smaller, larger)
@@ -792,6 +849,14 @@ def cluster_works_by_title_responsibilities(
             )
             origin, adaptation = adaptation, origin
             origin_adapt_signal, adaptation_adapt_signal = adaptation_adapt_signal, origin_adapt_signal
+
+        if origin_adapt_signal and adaptation_adapt_signal:
+            LOGGER.debug(
+                "[%s ↔ %s] Skipping adaptation link; both works exhibit adaptation signals",
+                origin.id_entitelrm,
+                adaptation.id_entitelrm,
+            )
+            return
 
         if _has_source_creator_role(origin):
             LOGGER.debug(

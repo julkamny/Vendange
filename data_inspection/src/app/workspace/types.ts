@@ -23,6 +23,8 @@ export type WorkspaceTabStateWorkspace = {
   inventoryExpressionFilterArk: string | null
   inventoryFocusWorkId: string | null
   inventoryFocusExpressionId: string | null
+  listScrollTop: number
+  detailsScrollTop: number
 }
 
 export type WorkspaceTabStateSql = {
@@ -53,6 +55,8 @@ export const DEFAULT_WORKSPACE_STATE: Omit<WorkspaceTabStateWorkspace, 'id' | 't
   inventoryExpressionFilterArk: null,
   inventoryFocusWorkId: null,
   inventoryFocusExpressionId: null,
+  listScrollTop: 0,
+  detailsScrollTop: 0,
 }
 
 export function createDefaultSqlState(id: string, title: string): WorkspaceTabStateSql {

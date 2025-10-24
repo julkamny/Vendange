@@ -389,7 +389,7 @@ button:focus-visible {
 .workspace-panel--details {
   background: color-mix(in srgb, var(--color-surface-alt) 90%, var(--color-bg));
   border-color: color-mix(in srgb, var(--color-border) 80%, transparent);
-  overflow: hidden;
+  overflow: visible;
   position: sticky;
   top: calc(var(--app-sticky-offset) + 0.75rem);
   align-self: flex-start;
@@ -496,6 +496,8 @@ button:focus-visible {
   line-height: 1.45;
   font-size: 0.88rem;
   color: var(--color-text);
+  position: relative;
+  overflow: visible;
 }
 .record-details .intermarc-view .cm-editor {
   background: transparent;
@@ -523,6 +525,13 @@ button:focus-visible {
   text-decoration-style: dashed;
   cursor: help;
   font-weight: 600;
+}
+.record-details .intermarc-view .ark-link.has-tooltip::after {
+  max-width: none;
+  min-width: 22ch;
+  white-space: nowrap;
+  width: max-content;
+  text-align: left;
 }
 .record-details .intermarc-view .ark-link:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--color-link) 60%, transparent);
@@ -1135,6 +1144,8 @@ button:focus-visible {
   background: var(--pill-agent-bg);
   color: var(--pill-agent-fg);
   border-color: color-mix(in srgb, var(--color-link) 35%, transparent);
+  justify-content: center;
+  min-width: 2.2rem;
 }
 .entity-count-badge--expressions {
   background: var(--pill-expression-bg);

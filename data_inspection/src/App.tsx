@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 import './app/style.css'
 import { AppDataProvider, useAppData } from './app/providers/AppDataContext'
@@ -31,6 +31,19 @@ function AppShell() {
   const [toolbarVisible, setToolbarVisible] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [shortcutOpen, setShortcutOpen] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const handleScroll = () => {
+      if (!toolbarVisible) return
+      if (window.scrollY <= 0) return
+      setToolbarVisible(false)
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, [toolbarVisible])
 
   return (
     <div className={`app-shell${toolbarVisible ? ' toolbar-open' : ''}`}>

@@ -1,5 +1,5 @@
 import { useTranslation } from '../hooks/useTranslation'
-import { supportedLanguages, changeLanguage, getCurrentLanguage } from '../i18n'
+import { supportedLanguages, changeLanguage } from '../i18n'
 import { useTheme } from '../providers/ThemeContext'
 import type { ChangeEvent } from 'react'
 
@@ -13,11 +13,10 @@ type ToolbarProps = {
 }
 
 export function Toolbar({ visible, onToggleVisible, onOpenUpload, onOpenShortcuts, onExport, exportDisabled }: ToolbarProps) {
-  const { t } = useTranslation()
+  const { t, language } = useTranslation()
   const { mode, toggle } = useTheme()
 
   const themeLabel = mode === 'dark' ? t('theme.switchToLight') : t('theme.switchToDark')
-  const language = getCurrentLanguage()
 
   const handleLanguageChange = (event: ChangeEvent<HTMLSelectElement>) => {
     const next = event.target.value

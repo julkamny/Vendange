@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from 'react'
 import type { RecordRow } from '../types'
 import type { WorkspaceTabStateWorkspace } from '../workspace/types'
 import { useAppData } from '../providers/AppDataContext'
@@ -144,6 +144,9 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
     return null
   }, [isAnchorSelection, isRecordClustered, record, recordInCurated, t])
   const [editingRecord, setEditingRecord] = useState(false)
+  const listPanelRef = useRef<HTMLElement | null>(null)
+  const detailsPanelRef = useRef<HTMLElement | null>(null)
+  const lastScrollKeyRef = useRef<string>('')
 
   useEffect(() => {
     setEditingRecord(false)
@@ -229,6 +232,54 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
 
   const handleCloseContextMenu = useCallback(() => setContextMenu(null), [])
 
+  useLayoutEffect(() => {
+    const listNode = listPanelRef.current
+    if (!listNode) return
+    if (Math.abs(listNode.scrollTop - state.listScrollTop) > 1) {
+      listNode.scrollTop = state.listScrollTop
+    }
+  }, [state.listScrollTop])
+
+  useLayoutEffect(() => {
+    const detailsNode = detailsPanelRef.current
+    if (!detailsNode) return
+    if (Math.abs(detailsNode.scrollTop - state.detailsScrollTop) > 1) {
+      detailsNode.scrollTop = state.detailsScrollTop
+    }
+  }, [state.detailsScrollTop])
+
+  const handleListScroll = useCallback(
+    (event: UIEvent<HTMLElement>) => {
+      const target = event.currentTarget
+      const next = target.scrollTop
+      onStateChange(prev => (Math.abs(prev.listScrollTop - next) < 0.5 ? prev : { ...prev, listScrollTop: next }))
+    },
+    [onStateChange],
+  )
+
+  const handleDetailsScroll = useCallback(
+    (event: UIEvent<HTMLElement>) => {
+      const target = event.currentTarget
+      const next = target.scrollTop
+      onStateChange(prev => (Math.abs(prev.detailsScrollTop - next) < 0.5 ? prev : { ...prev, detailsScrollTop: next }))
+    },
+    [onStateChange],
+  )
+
+  const scrollHighlightedEntityIntoView = useCallback(() => {
+    if (typeof window === 'undefined') return
+    const container = listPanelRef.current
+    if (!container) return
+    window.requestAnimationFrame(() => {
+      const target =
+        container.querySelector<HTMLElement>('.entity-row.selected') ||
+        container.querySelector<HTMLElement>('.entity-row.highlight') ||
+        container.querySelector<HTMLElement>('.manifestation-section.highlight')
+      if (!target) return
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+  }, [])
+
   useEffect(() => {
     if (!contextMenu) return undefined
     const handleClick = (event: MouseEvent) => {
@@ -252,6 +303,22 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
       window.removeEventListener('keydown', handleKeydown)
     }
   }, [contextMenu, handleCloseContextMenu])
+
+  useEffect(() => {
+    const selectedKey = state.selectedEntity ? `${state.selectedEntity.entityType}:${state.selectedEntity.id}` : ''
+    const key = `${state.viewMode}|${state.listScope}|${selectedKey}|${state.highlightedWorkArk ?? ''}|${state.highlightedExpressionArk ?? ''}`
+    if (lastScrollKeyRef.current === key) return
+    lastScrollKeyRef.current = key
+    scrollHighlightedEntityIntoView()
+  }, [
+    scrollHighlightedEntityIntoView,
+    state.highlightedExpressionArk,
+    state.highlightedWorkArk,
+    state.listScope,
+    state.selectedEntity?.entityType,
+    state.selectedEntity?.id,
+    state.viewMode,
+  ])
 
   const handleRecordContextMenu = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -458,10 +525,18 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
         <WorkspaceBreadcrumbs items={breadcrumbs} ariaLabel={t('breadcrumbs.ariaLabel')} />
       </header>
       <div className="workspace-view__body">
-        <aside className="workspace-panel workspace-panel--list">
+        <aside
+          className="workspace-panel workspace-panel--list"
+          ref={listPanelRef}
+          onScroll={handleListScroll}
+        >
           {renderListPanel(state.viewMode)}
         </aside>
-        <section className="workspace-panel workspace-panel--details">
+        <section
+          className="workspace-panel workspace-panel--details"
+          ref={detailsPanelRef}
+          onScroll={handleDetailsScroll}
+        >
           {record ? (
             <div className="record-details" onContextMenu={handleRecordContextMenu}>
               <header className="record-details__header">

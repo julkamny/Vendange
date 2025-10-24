@@ -12,6 +12,11 @@ function subCodeOf(raw: string): string | undefined {
   return raw.slice(dollarIdx + 1).toLowerCase()
 }
 
+function isUppercaseIgnoredName(raw: string, normalized: string): boolean {
+  if (normalized !== 'a') return false
+  return /\$A$/u.test(raw)
+}
+
 function normalizeArkForLookup(ark?: string | null): string | undefined {
   if (!ark) return undefined
   return ark.toLowerCase()
@@ -25,6 +30,7 @@ function labelForAgentRecord(rec: RecordRow): string {
         .map(sub => {
           const code = subCodeOf(sub.code)
           if (!code) return null
+          if (isUppercaseIgnoredName(sub.code, code)) return null
           if (['a', 'b', 'c', 'd', 'm', 'n', 'p', 'q'].includes(code)) {
             const value = sub.valeur?.trim()
             return value && value.length ? value : null
@@ -55,6 +61,7 @@ export function extractAgentNames(
       .map(sub => {
         const subCode = subCodeOf(sub.code)
         if (!subCode) return null
+        if (isUppercaseIgnoredName(sub.code, subCode)) return null
         if (AGENT_NAME_SUBCODES.has(subCode)) {
           const value = sub.valeur?.trim()
           if (value) return value

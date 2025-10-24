@@ -13,17 +13,21 @@ const arkLabelByIdCache = new Map<string, string>()
 const arkLabelByArkCache = new Map<string, string | null>()
 let arkLabelLoadPromise: Promise<ArkLabelMap> | null = null
 
-export const ARK_TOKEN_START = '\uE000'
-export const ARK_TOKEN_END = '\uE001'
+export type PrettyIntermarcLineMark = {
+  from: number
+  to: number
+  className: string
+  attributes?: Record<string, string>
+}
 
-export type PrettyIntermarcToken = {
-  index: number
-  ark: string
+export type PrettyIntermarcLine = {
+  text: string
+  marks: PrettyIntermarcLineMark[]
 }
 
 export type PrettyIntermarcResult = {
   text: string
-  tokens: PrettyIntermarcToken[]
+  lines: PrettyIntermarcLine[]
 }
 
 function looksLikeArk(value: string): boolean {
@@ -238,31 +242,55 @@ export async function prettyPrintIntermarc(
   options: PrettyPrintOptions = {},
 ): Promise<PrettyIntermarcResult> {
   const resolveLabels = options.resolveLabels ?? true
-  const lines: string[] = []
-  const tokens: PrettyIntermarcToken[] = []
-
-  const wrapArkLabel = (label: string, ark: string): string => {
-    const index = tokens.length
-    tokens.push({ index, ark })
-    return `${ARK_TOKEN_START}${index}|${label}${ARK_TOKEN_END}`
-  }
+  const lineEntries: PrettyIntermarcLine[] = []
 
   for (const z of im.zones) {
-    const subs = await Promise.all(
-      z.sousZones.map(async sz => {
-        const { text: shown, ark } = await displayValue(z.code, sz.code, sz.valeur, resolveLabels)
-        const label = formatSubLabel(z.code, sz.code)
-        const displayCode = label.startsWith('$') ? label : `$${label}`
-        const prefix = `${displayCode}`
-        if (!shown) return prefix
-        const rendered = ark ? wrapArkLabel(shown, sz.valeur) : shown
-        return `${prefix} ${rendered}`
-      }),
-    )
-    const suffix = subs.length ? ' ' + subs.join(' ') : ''
-    lines.push(`${z.code}${suffix}`)
+    let lineText = z.code ?? ''
+    const marks: PrettyIntermarcLineMark[] = []
+    if (lineText.length) {
+      marks.push({ className: 'intermarc-zone', from: 0, to: lineText.length })
+    }
+
+    for (const sz of z.sousZones) {
+      const { text: shown, ark } = await displayValue(z.code, sz.code, sz.valeur, resolveLabels)
+      const label = formatSubLabel(z.code, sz.code)
+      const displayCode = label.startsWith('$') ? label : `$${label}`
+      const subfieldStart = lineText.length
+      if (lineText.length) lineText += ' '
+      lineText += displayCode
+      const codeStart = lineText.length - displayCode.length
+      const codeEnd = lineText.length
+      marks.push({ className: 'intermarc-subfield-code', from: codeStart, to: codeEnd })
+
+      if (shown && shown.length) {
+        lineText += ' '
+        const valueStart = lineText.length
+        lineText += shown
+        if (ark) {
+          marks.push({
+            className: 'ark-link has-tooltip',
+            from: valueStart,
+            to: lineText.length,
+            attributes: {
+              'data-ark': ark,
+              'data-tooltip': ark,
+              'aria-label': ark,
+              title: ark,
+              tabindex: '0',
+            },
+          })
+        }
+      }
+
+      const subfieldEnd = lineText.length
+      marks.push({ className: 'intermarc-subfield', from: subfieldStart, to: subfieldEnd })
+    }
+
+    lineEntries.push({ text: lineText, marks })
   }
-  return { text: lines.join('\n'), tokens }
+
+  const text = lineEntries.map(entry => entry.text).join('\n')
+  return { text, lines: lineEntries }
 }
 
 export function parsePrettyPrintedIntermarc(text: string): Intermarc {

@@ -1089,19 +1089,12 @@ button:focus-visible {
   white-space: normal;
 }
 .entity-title-segment {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.25rem;
-  padding: 0.15rem 0.45rem;
+  display: initial;
   margin: 0 0.3rem 0.15rem 0;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent);
   background: transparent;
   box-shadow: none;
-  max-width: 100%;
   vertical-align: baseline;
-  min-width: 0;
 }
 .entity-title-segment-label {
   font-size: 0.6rem;

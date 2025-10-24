@@ -276,7 +276,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
         container.querySelector<HTMLElement>('.entity-row.highlight') ||
         container.querySelector<HTMLElement>('.manifestation-section.highlight')
       if (!target) return
-      target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      target.scrollIntoView({ block: 'center', behavior: 'auto' })
     })
   }, [])
 

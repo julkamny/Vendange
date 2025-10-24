@@ -538,6 +538,6 @@ function computeNextIndex(length: number, currentIndex: number, direction: Navig
 function activateEntry(entry: { row: HTMLElement; trigger: HTMLElement }) {
   entry.trigger.click()
   if (entry.row.scrollIntoView) {
-    entry.row.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    entry.row.scrollIntoView({ block: 'center', behavior: 'auto' })
   }
 }

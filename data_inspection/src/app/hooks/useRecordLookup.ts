@@ -3,12 +3,14 @@ import { useAppData } from '../providers/AppDataContext'
 import type { RecordRow } from '../types'
 import { extractAgentNames } from '../core/agents'
 import { countGeneralRelationships } from '../core/generalRelationships'
+import { extractMediaKinds, type MediaKind } from '../core/media'
 
 type RecordLookup = {
   getById: (id?: string | null) => RecordRow | undefined
   getByArk: (ark?: string | null) => RecordRow | undefined
   getAgentNames: (id?: string | null, ark?: string | null) => string[]
   getGeneralRelationshipCount: (id?: string | null, ark?: string | null) => number
+  getMediaKinds: (id?: string | null, ark?: string | null) => MediaKind[]
 }
 
 export function useRecordLookup(): RecordLookup {
@@ -28,6 +30,7 @@ export function useRecordLookup(): RecordLookup {
 
   const agentCache = useMemo(() => new Map<string, string[]>(), [index])
   const relationshipCache = useMemo(() => new Map<string, number>(), [index])
+  const mediaCache = useMemo(() => new Map<string, MediaKind[]>(), [index])
 
   const getById = useCallback(
     (id?: string | null) => {
@@ -76,5 +79,22 @@ export function useRecordLookup(): RecordLookup {
     [index, relationshipCache],
   )
 
-  return { getById, getByArk, getAgentNames, getGeneralRelationshipCount }
+  const getMediaKinds = useCallback(
+    (id?: string | null, ark?: string | null) => {
+      const record =
+        (id && index.byId.get(id)) ||
+        (typeof ark === 'string' ? index.byArk.get(ark.toLowerCase()) : undefined)
+      if (!record) return []
+      if (mediaCache.has(record.id)) return mediaCache.get(record.id)!
+      const kinds = extractMediaKinds(record, {
+        lookupRecordByArk: value =>
+          typeof value === 'string' ? index.byArk.get(value.toLowerCase()) : undefined,
+      })
+      mediaCache.set(record.id, kinds)
+      return kinds
+    },
+    [index, mediaCache],
+  )
+
+  return { getById, getByArk, getAgentNames, getGeneralRelationshipCount, getMediaKinds }
 }

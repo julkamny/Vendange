@@ -2,6 +2,7 @@ import { useMemo, type MouseEventHandler } from 'react'
 import type { EntityBadgeSpec, CountBadgeKind, EntityTitleSegment } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useArkDecoratedText } from '../hooks/useArkDecoratedText'
+import type { MediaKind } from '../core/media'
 
 export type EntityPillProps = EntityBadgeSpec
 
@@ -66,6 +67,7 @@ export type EntityLabelProps = {
   className?: string
   onClick?: MouseEventHandler<HTMLSpanElement>
   titleSegments?: EntityTitleSegment[]
+  mediaKinds?: MediaKind[]
 }
 
 export function EntityLabel({
@@ -78,6 +80,7 @@ export function EntityLabel({
   className,
   onClick,
   titleSegments,
+  mediaKinds,
 }: EntityLabelProps) {
   const decoratedTitle = useArkDecoratedText(title)
   const hasBadges = useMemo(() => {
@@ -96,6 +99,7 @@ export function EntityLabel({
   }, [className, onClick])
 
   const segments = titleSegments?.filter(segment => segment && segment.value.trim().length > 0)
+  const media = useMemo(() => mediaKinds ?? [], [mediaKinds])
 
   return (
     <span className={classes} onClick={onClick}>
@@ -122,6 +126,21 @@ export function EntityLabel({
             <RelationshipBadge count={relationshipsCount} />
           ) : null}
           {agentNames ? <AgentBadge names={agentNames} /> : null}
+        </span>
+      ) : null}
+      {media.length ? (
+        <span className="entity-media-emojis">
+          {media.map(kind => (
+            <span
+              key={kind.emoji}
+              className="entity-media-emoji"
+              role="img"
+              aria-label={kind.label}
+              title={kind.label}
+            >
+              {kind.emoji}
+            </span>
+          ))}
         </span>
       ) : null}
     </span>

@@ -27,7 +27,8 @@ export function WorkListPanel({
 }: WorkListPanelProps) {
   const { t, language } = useTranslation()
   const { originalIndexes } = useAppData()
-  const { getById, getByArk, getAgentNames, getGeneralRelationshipCount } = useRecordLookup()
+  const { getById, getByArk, getAgentNames, getGeneralRelationshipCount, getMediaKinds } =
+    useRecordLookup()
 
   const resolveWorkSegments = useCallback(
     (id?: string | null, ark?: string | null) => {
@@ -100,6 +101,7 @@ export function WorkListPanel({
           }
           const anchorAgentNames = getAgentNames(cluster.anchorId, cluster.anchorArk)
           const anchorSegments = resolveWorkSegments(cluster.anchorId, cluster.anchorArk)
+          const anchorMediaKinds = getMediaKinds(cluster.anchorId, cluster.anchorArk)
           return (
             <div key={cluster.anchorId} className={clusterClasses.join(' ')} data-cluster-anchor-id={cluster.anchorId}>
               <div
@@ -127,6 +129,7 @@ export function WorkListPanel({
                     agentNames={anchorAgentNames}
                     relationshipsCount={getGeneralRelationshipCount(cluster.anchorId, cluster.anchorArk)}
                     titleSegments={anchorSegments}
+                    mediaKinds={anchorMediaKinds}
                   />
                 </div>
                 <button
@@ -150,6 +153,7 @@ export function WorkListPanel({
                   }
                   const agentNames = getAgentNames(item.id, item.ark)
                   const itemSegments = resolveWorkSegments(item.id, item.ark)
+                  const mediaKinds = getMediaKinds(item.id, item.ark)
                   return (
                     <div
                       key={`${cluster.anchorId}-${item.ark || item.id}`}
@@ -184,6 +188,7 @@ export function WorkListPanel({
                         agentNames={agentNames}
                         relationshipsCount={getGeneralRelationshipCount(item.id, item.ark)}
                         titleSegments={itemSegments}
+                        mediaKinds={mediaKinds}
                       />
                     </div>
                   )
@@ -204,6 +209,7 @@ export function WorkListPanel({
         const agentNames = getAgentNames(work.id, work.ark)
         const relationships = getGeneralRelationshipCount(work.id, work.ark)
         const segments = workTitleSegments(work)
+        const mediaKinds = getMediaKinds(work.id, work.ark)
         return (
           <div key={`unclustered-${work.id}`} className={containerClasses.join(' ')} data-work-id={work.id} data-work-ark={work.ark}>
             <div
@@ -228,6 +234,7 @@ export function WorkListPanel({
                   agentNames={agentNames}
                   relationshipsCount={relationships}
                   titleSegments={segments}
+                  mediaKinds={mediaKinds}
                 />
               </div>
             </div>

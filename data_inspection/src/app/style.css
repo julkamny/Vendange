@@ -1085,22 +1085,23 @@ button:focus-visible {
   color: var(--color-text);
 }
 .entity-title--segmented {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
+  display: inline;
+  white-space: normal;
 }
 .entity-title-segment {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.3rem;
-  padding: 0.25rem 0.55rem;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--color-surface-alt) 82%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
-  box-shadow: 0 12px 26px color-mix(in srgb, var(--color-shadow) 60%, transparent);
-  backdrop-filter: blur(10px);
-  position: relative;
+  gap: 0.25rem;
+  padding: 0.15rem 0.45rem;
+  margin: 0 0.3rem 0.15rem 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent);
+  background: transparent;
+  box-shadow: none;
+  max-width: 100%;
+  vertical-align: baseline;
+  min-width: 0;
 }
 .entity-title-segment-label {
   font-size: 0.6rem;
@@ -1112,20 +1113,10 @@ button:focus-visible {
 .entity-title-segment-value {
   font-weight: 600;
   color: var(--color-text);
+  overflow-wrap: anywhere;
 }
 .entity-row--work .entity-title-segment {
-  background: color-mix(in srgb, var(--entity-work) 18%, var(--color-surface-alt) 84%);
-  border-color: color-mix(in srgb, var(--entity-work) 45%, transparent);
-}
-.entity-row--work .entity-title-segment + .entity-title-segment::before {
-  content: '';
-  position: absolute;
-  left: -0.3rem;
-  top: 18%;
-  bottom: 18%;
-  width: 1px;
-  background: color-mix(in srgb, var(--entity-work) 40%, transparent);
-  opacity: 0.6;
+  border-color: color-mix(in srgb, var(--entity-work) 55%, transparent);
 }
 .entity-subtitle {
   font-size: 0.78rem;
@@ -1136,6 +1127,18 @@ button:focus-visible {
   gap: 0.35rem;
   align-items: center;
   flex-wrap: wrap;
+}
+.entity-media-emojis {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 1.05rem;
+}
+.entity-media-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 .entity-pill {
   display: inline-flex;

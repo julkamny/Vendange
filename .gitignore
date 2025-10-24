@@ -30,8 +30,3 @@ dist-ssr
 
 # Repomix
 Vendange_codebase.md
-
-# Output of data-curation ops
-data/out.csv
-**/curated.csv
-**/*.sqlite

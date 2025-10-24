@@ -1,5 +1,5 @@
 import { useMemo, type MouseEventHandler } from 'react'
-import type { EntityBadgeSpec, CountBadgeKind } from '../types'
+import type { EntityBadgeSpec, CountBadgeKind, EntityTitleSegment } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useArkDecoratedText } from '../hooks/useArkDecoratedText'
 
@@ -65,6 +65,7 @@ export type EntityLabelProps = {
   relationshipsCount?: number
   className?: string
   onClick?: MouseEventHandler<HTMLSpanElement>
+  titleSegments?: EntityTitleSegment[]
 }
 
 export function EntityLabel({
@@ -76,6 +77,7 @@ export function EntityLabel({
   relationshipsCount,
   className,
   onClick,
+  titleSegments,
 }: EntityLabelProps) {
   const decoratedTitle = useArkDecoratedText(title)
   const hasBadges = useMemo(() => {
@@ -93,9 +95,19 @@ export function EntityLabel({
     return values.join(' ')
   }, [className, onClick])
 
+  const segments = titleSegments?.filter(segment => segment && segment.value.trim().length > 0)
+
   return (
     <span className={classes} onClick={onClick}>
-      <span className="entity-title">{decoratedTitle}</span>
+      {segments && segments.length ? (
+        <span className="entity-title entity-title--segmented">
+          {segments.map((segment, index) => (
+            <TitleSegmentChip key={`${segment.code}-${index}`} segment={segment} />
+          ))}
+        </span>
+      ) : (
+        <span className="entity-title">{decoratedTitle}</span>
+      )}
       {subtitle ? <span className="entity-subtitle">{subtitle}</span> : null}
       {hasBadges ? (
         <span className="entity-badges">
@@ -112,6 +124,16 @@ export function EntityLabel({
           {agentNames ? <AgentBadge names={agentNames} /> : null}
         </span>
       ) : null}
+    </span>
+  )
+}
+
+function TitleSegmentChip({ segment }: { segment: EntityTitleSegment }) {
+  const value = useArkDecoratedText(segment.value)
+  return (
+    <span className="entity-title-segment" data-subfield={segment.code}>
+      <span className="entity-title-segment-label">{segment.label}</span>
+      <span className="entity-title-segment-value">{value}</span>
     </span>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { EditorState, type Extension, type Range } from '@codemirror/state'
 import { Decoration, type DecorationSet, EditorView } from '@codemirror/view'
@@ -26,6 +26,7 @@ type IntermarcRender = {
 export function IntermarcView({ record }: IntermarcViewProps) {
   const [result, setResult] = useState<PrettyIntermarcResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -53,11 +54,52 @@ export function IntermarcView({ record }: IntermarcViewProps) {
     return [...INTERMARC_BASE_EXTENSIONS, decorations]
   }, [display])
 
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const computePlacement = (target: HTMLElement) => {
+      const scroller = container.querySelector<HTMLElement>('.cm-scroller')
+      const referenceRect = (scroller ?? container).getBoundingClientRect()
+      const targetRect = target.getBoundingClientRect()
+      const offsetTop = targetRect.top - referenceRect.top
+      const placement = offsetTop < 56 ? 'below' : 'above'
+      target.dataset.tooltipPlacement = placement
+    }
+
+    const handlePointer = (event: Event) => {
+      const target = (event.target as HTMLElement | null)?.closest<HTMLElement>('.ark-link.has-tooltip')
+      if (!target) return
+      computePlacement(target)
+    }
+
+    const handleScroll = () => {
+      const active =
+        container.querySelector<HTMLElement>('.ark-link.has-tooltip:hover') ||
+        container.querySelector<HTMLElement>('.ark-link.has-tooltip:focus')
+      if (active) computePlacement(active)
+    }
+
+    container.addEventListener('pointerenter', handlePointer, true)
+    container.addEventListener('pointermove', handlePointer, true)
+    container.addEventListener('focusin', handlePointer)
+
+    const scroller = container.querySelector<HTMLElement>('.cm-scroller')
+    scroller?.addEventListener('scroll', handleScroll, { passive: true })
+
+    return () => {
+      container.removeEventListener('pointerenter', handlePointer, true)
+      container.removeEventListener('pointermove', handlePointer, true)
+      container.removeEventListener('focusin', handlePointer)
+      scroller?.removeEventListener('scroll', handleScroll)
+    }
+  }, [result])
+
   if (error) return <pre className="intermarc-view error">{error}</pre>
   if (!display) return <pre className="intermarc-view loading">…</pre>
 
   return (
-    <div className="intermarc-view">
+    <div className="intermarc-view" ref={containerRef}>
       <CodeMirror
         value={display.doc}
         editable={false}

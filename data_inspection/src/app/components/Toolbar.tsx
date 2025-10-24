@@ -5,6 +5,7 @@ import type { ChangeEvent } from 'react'
 
 type ToolbarProps = {
   visible: boolean
+  atTop: boolean
   onToggleVisible: () => void
   onOpenUpload: () => void
   onOpenShortcuts: () => void
@@ -12,7 +13,15 @@ type ToolbarProps = {
   exportDisabled: boolean
 }
 
-export function Toolbar({ visible, onToggleVisible, onOpenUpload, onOpenShortcuts, onExport, exportDisabled }: ToolbarProps) {
+export function Toolbar({
+  visible,
+  atTop,
+  onToggleVisible,
+  onOpenUpload,
+  onOpenShortcuts,
+  onExport,
+  exportDisabled,
+}: ToolbarProps) {
   const { t, language } = useTranslation()
   const { mode, toggle } = useTheme()
 
@@ -28,11 +37,14 @@ export function Toolbar({ visible, onToggleVisible, onOpenUpload, onOpenShortcut
   return (
     <div className={`app-toolbar${visible ? ' is-visible' : ' is-collapsed'}`}>
       <button
-        className={`toolbar-toggle${visible ? ' is-active' : ''}`}
+        className={`toolbar-toggle${visible ? ' is-active' : ''}${atTop ? '' : ' is-hidden'}`}
         type="button"
         onClick={onToggleVisible}
         aria-expanded={visible}
         aria-label={toggleLabel}
+        tabIndex={atTop ? 0 : -1}
+        aria-hidden={!atTop}
+        disabled={!atTop}
       >
         🛠️
       </button>

@@ -1,6 +1,6 @@
 import { findZones } from '../lib/intermarc'
 import { CLUSTER_NOTE } from './constants'
-import type { Cluster, ExpressionItem, ExpressionClusterItem, ManifestationItem, RecordRow } from '../types'
+import type { EntityTitleSegment, Cluster, ExpressionItem, ExpressionClusterItem, ManifestationItem, RecordRow } from '../types'
 
 export function zoneText(zone: { sousZones: Array<{ valeur?: unknown }> }): string {
   const parts = zone.sousZones
@@ -9,10 +9,37 @@ export function zoneText(zone: { sousZones: Array<{ valeur?: unknown }> }): stri
   return parts.join(' ').replace(/\s+/g, ' ').trim()
 }
 
+function extractSubfieldLabel(code: string): string {
+  const trimmed = code?.trim() ?? ''
+  if (!trimmed) return ''
+  const dollarIndex = trimmed.lastIndexOf('$')
+  if (dollarIndex >= 0 && dollarIndex + 1 < trimmed.length) {
+    return trimmed.slice(dollarIndex + 1)
+  }
+  if (trimmed.startsWith('150')) {
+    return trimmed.slice(3)
+  }
+  return trimmed
+}
+
 export function titleOf(rec: RecordRow): string | undefined {
   const zone = findZones(rec.intermarc, '150')[0]
   const text = zone ? zoneText(zone) : undefined
   return text && text.length ? text : undefined
+}
+
+export function workTitleSegments(rec: RecordRow): EntityTitleSegment[] {
+  const zone = findZones(rec.intermarc, '150')[0]
+  if (!zone) return []
+  const segments: EntityTitleSegment[] = []
+  for (const sz of zone.sousZones) {
+    const value = typeof sz.valeur === 'string' ? sz.valeur.trim() : ''
+    if (!value) continue
+    const labelSource = extractSubfieldLabel(sz.code)
+    const label = labelSource ? labelSource.toUpperCase() : sz.code
+    segments.push({ code: sz.code, label, value })
+  }
+  return segments
 }
 
 export function expressionWorkArks(rec: RecordRow): string[] {

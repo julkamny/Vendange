@@ -29,17 +29,21 @@ function AppShell() {
   const { t } = useTranslation()
   const { clusters, exportCurated } = useAppData()
   const [toolbarVisible, setToolbarVisible] = useState(false)
+  const [atTop, setAtTop] = useState(true)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [shortcutOpen, setShortcutOpen] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
     const handleScroll = () => {
-      if (!toolbarVisible) return
-      if (window.scrollY <= 0) return
-      setToolbarVisible(false)
+      const top = window.scrollY <= 0
+      setAtTop(top)
+      if (!top && toolbarVisible) {
+        setToolbarVisible(false)
+      }
     }
     window.addEventListener('scroll', handleScroll, { passive: true })
+    handleScroll()
     return () => {
       window.removeEventListener('scroll', handleScroll)
     }
@@ -49,6 +53,7 @@ function AppShell() {
     <div className={`app-shell${toolbarVisible ? ' toolbar-open' : ''}`}>
       <Toolbar
         visible={toolbarVisible}
+        atTop={atTop}
         onToggleVisible={() => setToolbarVisible(prev => !prev)}
         onOpenUpload={() => setUploadOpen(true)}
         onOpenShortcuts={() => setShortcutOpen(true)}

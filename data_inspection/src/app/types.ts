@@ -98,6 +98,12 @@ export type EntityBadgeSpec = {
   tooltip?: string
 }
 
+export type EntityTitleSegment = {
+  code: string
+  label: string
+  value: string
+}
+
 export type CountBadgeKind = 'expressions' | 'manifestations'
 
 export type InventoryEntityContext = {

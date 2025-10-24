@@ -1,9 +1,9 @@
-import { useMemo, type MouseEvent } from 'react'
+import { useMemo, type MouseEvent, useCallback } from 'react'
 import type { Cluster, RecordRow } from '../../types'
 import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
 import { computeWorkCounts, computeUnclusteredWorkCounts } from '../../core/workCounts'
-import { titleOf } from '../../core/entities'
+import { titleOf, workTitleSegments } from '../../core/entities'
 import { EntityLabel } from '../../components/EntityLabel'
 import { useAppData } from '../../providers/AppDataContext'
 import { useRecordLookup } from '../../hooks/useRecordLookup'
@@ -27,7 +27,15 @@ export function WorkListPanel({
 }: WorkListPanelProps) {
   const { t, language } = useTranslation()
   const { originalIndexes } = useAppData()
-  const { getAgentNames, getGeneralRelationshipCount } = useRecordLookup()
+  const { getById, getByArk, getAgentNames, getGeneralRelationshipCount } = useRecordLookup()
+
+  const resolveWorkSegments = useCallback(
+    (id?: string | null, ark?: string | null) => {
+      const record = getById(id) ?? getByArk(ark)
+      return record ? workTitleSegments(record) : undefined
+    },
+    [getByArk, getById],
+  )
 
   const collator = useMemo(() => new Intl.Collator(language, { sensitivity: 'accent' }), [language])
   const sortedEntries = useMemo(() => {
@@ -91,6 +99,7 @@ export function WorkListPanel({
             anchorRowClasses.push('highlight')
           }
           const anchorAgentNames = getAgentNames(cluster.anchorId, cluster.anchorArk)
+          const anchorSegments = resolveWorkSegments(cluster.anchorId, cluster.anchorArk)
           return (
             <div key={cluster.anchorId} className={clusterClasses.join(' ')} data-cluster-anchor-id={cluster.anchorId}>
               <div
@@ -117,6 +126,7 @@ export function WorkListPanel({
                     counts={anchorCounts}
                     agentNames={anchorAgentNames}
                     relationshipsCount={getGeneralRelationshipCount(cluster.anchorId, cluster.anchorArk)}
+                    titleSegments={anchorSegments}
                   />
                 </div>
                 <button
@@ -139,6 +149,7 @@ export function WorkListPanel({
                     rowClasses.push('highlight')
                   }
                   const agentNames = getAgentNames(item.id, item.ark)
+                  const itemSegments = resolveWorkSegments(item.id, item.ark)
                   return (
                     <div
                       key={`${cluster.anchorId}-${item.ark || item.id}`}
@@ -172,6 +183,7 @@ export function WorkListPanel({
                         counts={itemCounts}
                         agentNames={agentNames}
                         relationshipsCount={getGeneralRelationshipCount(item.id, item.ark)}
+                        titleSegments={itemSegments}
                       />
                     </div>
                   )
@@ -191,6 +203,7 @@ export function WorkListPanel({
         const counts = computeUnclusteredWorkCounts(work, originalIndexes ?? null)
         const agentNames = getAgentNames(work.id, work.ark)
         const relationships = getGeneralRelationshipCount(work.id, work.ark)
+        const segments = workTitleSegments(work)
         return (
           <div key={`unclustered-${work.id}`} className={containerClasses.join(' ')} data-work-id={work.id} data-work-ark={work.ark}>
             <div
@@ -214,6 +227,7 @@ export function WorkListPanel({
                   counts={counts}
                   agentNames={agentNames}
                   relationshipsCount={relationships}
+                  titleSegments={segments}
                 />
               </div>
             </div>

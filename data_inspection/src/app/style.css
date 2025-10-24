@@ -180,7 +180,7 @@ button:focus-visible {
   box-shadow: 0 16px 32px color-mix(in srgb, var(--color-shadow) 80%, transparent);
   font-size: 0.75rem;
   white-space: pre-wrap;
-  max-width: 240px;
+  max-width: min(480px, calc(100vw - 4rem));
   z-index: 200;
   border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
   backdrop-filter: blur(14px);
@@ -194,6 +194,18 @@ button:focus-visible {
   border: 7px solid transparent;
   border-top-color: color-mix(in srgb, var(--color-surface) 92%, var(--color-surface-alt));
   z-index: 199;
+}
+.has-tooltip[data-tooltip-placement='below']::after {
+  top: calc(100% + 12px);
+  bottom: auto;
+  transform: translate(-50%, 6px) scale(0.95);
+}
+.has-tooltip[data-tooltip-placement='below']::before {
+  top: calc(100% + 4px);
+  bottom: auto;
+  transform: translate(-50%, 4px);
+  border-top-color: transparent;
+  border-bottom-color: color-mix(in srgb, var(--color-surface) 92%, var(--color-surface-alt));
 }
 .has-tooltip:hover::after,
 .has-tooltip:focus-visible::after {
@@ -312,6 +324,13 @@ button:focus-visible {
   opacity: 1;
   transform: translate(-50%, -2px);
   box-shadow: 0 18px 38px color-mix(in srgb, var(--color-shadow) 90%, transparent);
+}
+
+.toolbar-toggle.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -20px);
+  box-shadow: none;
 }
 
 .workspace-view {
@@ -526,7 +545,7 @@ button:focus-visible {
   cursor: help;
   font-weight: 600;
 }
-.record-details .intermarc-view .ark-link.has-tooltip::after {
+.intermarc-view .ark-link.has-tooltip::after {
   max-width: none;
   min-width: 22ch;
   white-space: nowrap;
@@ -1064,6 +1083,49 @@ button:focus-visible {
 .entity-title {
   font-weight: 600;
   color: var(--color-text);
+}
+.entity-title--segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+.entity-title-segment {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-surface-alt) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--color-shadow) 60%, transparent);
+  backdrop-filter: blur(10px);
+  position: relative;
+}
+.entity-title-segment-label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--color-text-soft);
+}
+.entity-title-segment-value {
+  font-weight: 600;
+  color: var(--color-text);
+}
+.entity-row--work .entity-title-segment {
+  background: color-mix(in srgb, var(--entity-work) 18%, var(--color-surface-alt) 84%);
+  border-color: color-mix(in srgb, var(--entity-work) 45%, transparent);
+}
+.entity-row--work .entity-title-segment + .entity-title-segment::before {
+  content: '';
+  position: absolute;
+  left: -0.3rem;
+  top: 18%;
+  bottom: 18%;
+  width: 1px;
+  background: color-mix(in srgb, var(--entity-work) 40%, transparent);
+  opacity: 0.6;
 }
 .entity-subtitle {
   font-size: 0.78rem;

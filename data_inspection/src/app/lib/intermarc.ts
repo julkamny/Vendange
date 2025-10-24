@@ -275,7 +275,7 @@ export async function prettyPrintIntermarc(
               'data-ark': ark,
               'data-tooltip': ark,
               'aria-label': ark,
-              title: ark,
+              'data-tooltip-placement': 'above',
               tabindex: '0',
             },
           })

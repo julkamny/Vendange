@@ -101,6 +101,7 @@ export function IntermarcView({ record }: IntermarcViewProps) {
   return (
     <div className="intermarc-view" ref={containerRef}>
       <CodeMirror
+        key={record.id}
         value={display.doc}
         editable={false}
         extensions={extensions}

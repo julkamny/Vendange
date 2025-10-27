@@ -28,3 +28,7 @@ Work A has 1 agent with relator code « Auteur du texte / Autrice du texte » an
 Work B has been analyzed as an adaptation, either because of the relator code of one of its agents, or because of its title, or because of the title of its manifestations:
 + An adaptation link can be created to work A if work A is not an adaptation and ALL the agents of work A are found in work B (although in work B their relator code might be different). Work A gets `552$q` "A pour adaptation", work B `552$q` "Est une adaptation de".
 + Work B can be clustered with works with the same title and the same agents that are also considered as adaptations of the same original work. In this case, different relator codes should not block clustering, as long as we know both works are adaptations.
+
+## Design and coding philosophy
+
+- When a file gets too long (more than 500 LOC), break it down into smaller files. Don't allow a file to grow out of hand.

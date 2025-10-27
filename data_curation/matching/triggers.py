@@ -3,18 +3,21 @@ from __future__ import annotations
 
 # Déclencheurs "responsabilité" (normalisés, sans diacritiques, minuscules)
 RESP_TERMS_ILL = {
-    "illustre", "illustree", "illustrations", "ill.", "illustr.",
+    "illustre", "illustree", "illustration", "illustrations", "ill.", "illustr.",
     "vignettes", "images",
     "gravures", "dessins", "photographies", "lithographies", "lith.", "couverture", "couv."
 }
 
 _TIRE_BASE = "tiré"
-_TIRE_SUFFIXES = ("", "e", "s", "es")
+_PAST_PARTICIPLE_SUFFIXES = ("", "e", "s", "es")
+
+_ADAPT_BASE = "adapté"
+_ADAPT_VERB_COMPLETE = {f"{_ADAPT_BASE}{suffix}" for suffix in _PAST_PARTICIPLE_SUFFIXES}
 
 _RESP_TERMS_ADAPT_AGENT_BASE = {"adapt.", "adaptation"}
-_RESP_TERMS_ADAPT_AGENT_TIRE = {f"{_TIRE_BASE}{suffix}" for suffix in _TIRE_SUFFIXES}
+_RESP_TERMS_ADAPT_AGENT_TIRE = {f"{_TIRE_BASE}{suffix}" for suffix in _PAST_PARTICIPLE_SUFFIXES}
 
-RESP_TERMS_ADAPT_AGENT_SUBTREE = _RESP_TERMS_ADAPT_AGENT_BASE | _RESP_TERMS_ADAPT_AGENT_TIRE
+RESP_TERMS_ADAPT_AGENT_SUBTREE = _RESP_TERMS_ADAPT_AGENT_BASE | _RESP_TERMS_ADAPT_AGENT_TIRE | _ADAPT_VERB_COMPLETE
 
 RESP_TERMS_ADAPT_HEAD_SUBTREE = {
     "d'après",

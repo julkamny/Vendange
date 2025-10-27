@@ -505,11 +505,11 @@ def cluster_works_by_title_responsibilities(
         work_oldest_year_cache[work.id_entitelrm] = oldest
         return oldest
 
-    def _prune_adaptation_origins(adaptation: Entity) -> Entity:
+    def _prune_adaptation_origins(adaptation: Entity) -> Tuple[Entity, Set[str]]:
         if not link_is_adaptation_of_ark:
-            return adaptation
+            return adaptation, set()
 
-        grouped: Dict[str, List[Tuple[int, Zone, Entity]]] = defaultdict(list)
+        grouped: Dict[str, List[Tuple[int, Zone, Entity, str]]] = defaultdict(list)
         for idx, zone in enumerate(adaptation.intermarc.zones):
             if zone.code != "552":
                 continue
@@ -524,14 +524,15 @@ def cluster_works_by_title_responsibilities(
             normalized = _normalized_title(origin_entity)
             if not normalized:
                 continue
-            grouped[normalized].append((idx, zone, origin_entity))
+            grouped[normalized].append((idx, zone, origin_entity, target_ark))
 
         removals: Set[int] = set()
+        removed_origin_arks: Set[str] = set()
         for normalized, entries in grouped.items():
             if len(entries) < 2:
                 continue
 
-            def _sort_key(entry: Tuple[int, Zone, Entity]) -> Tuple[int, float, str]:
+            def _sort_key(entry: Tuple[int, Zone, Entity, str]) -> Tuple[int, float, str]:
                 origin = entry[2]
                 oldest_year = _oldest_year_for_work(origin)
                 year_key = float(oldest_year) if oldest_year is not None else float("inf")
@@ -548,6 +549,7 @@ def cluster_works_by_title_responsibilities(
                     continue
                 removals.add(entry[0])
                 removed_entities.append(entry[2])
+                removed_origin_arks.add(entry[3])
 
             if removed_entities:
                 LOGGER.debug(
@@ -560,11 +562,37 @@ def cluster_works_by_title_responsibilities(
                 )
 
         if not removals:
-            return adaptation
+            return adaptation, removed_origin_arks
 
         new_intermarc = _clone_intermarc(adaptation.intermarc)
         new_intermarc.zones = [zone for idx, zone in enumerate(new_intermarc.zones) if idx not in removals]
-        return adaptation.clone_with_new_intermarc(new_intermarc)
+        return adaptation.clone_with_new_intermarc(new_intermarc), removed_origin_arks
+
+    def _remove_adaptation_targets_from_original(original: Entity, adaptation_ark: str) -> Entity:
+        if not adaptation_ark or not link_has_adaptation_ark:
+            return original
+
+        indices_to_remove: Set[int] = set()
+        for idx, zone in enumerate(original.intermarc.zones):
+            if zone.code != "552":
+                continue
+            has_target = any(sub.code == "552$3" and sub.valeur == adaptation_ark for sub in zone.sousZones)
+            has_qualifier = link_has_adaptation_ark in zone.subfield_values("552$q")
+            if has_target and has_qualifier:
+                indices_to_remove.add(idx)
+
+        if not indices_to_remove:
+            return original
+
+        new_intermarc = _clone_intermarc(original.intermarc)
+        new_intermarc.zones = [zone for idx, zone in enumerate(new_intermarc.zones) if idx not in indices_to_remove]
+        LOGGER.debug(
+            "[%s] Removed %s obsolete adaptation links targeting %s",
+            original.id_entitelrm,
+            len(indices_to_remove),
+            adaptation_ark,
+        )
+        return original.clone_with_new_intermarc(new_intermarc)
 
     for work in works:
         normalized_title = _normalized_title(work)
@@ -1034,7 +1062,17 @@ def cluster_works_by_title_responsibilities(
             adaptation_entity = updated.get(adaptation_id)
             if not adaptation_entity:
                 continue
-            updated[adaptation_id] = _prune_adaptation_origins(adaptation_entity)
+            adaptation_ark = adaptation_entity.ark()
+            pruned_adaptation, removed_origin_arks = _prune_adaptation_origins(adaptation_entity)
+            updated[adaptation_id] = pruned_adaptation
+            if not adaptation_ark or not removed_origin_arks:
+                continue
+            for origin_ark in removed_origin_arks:
+                origin_entity = _entity_by_ark(origin_ark)
+                if not origin_entity:
+                    continue
+                cleaned_origin = _remove_adaptation_targets_from_original(origin_entity, adaptation_ark)
+                updated[origin_entity.id_entitelrm] = cleaned_origin
 
     return [updated[w.id_entitelrm] for w in works], cluster_summaries
 

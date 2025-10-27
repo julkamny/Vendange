@@ -346,6 +346,11 @@ def normalize_title_for_clustering(title: str) -> str:
 
     title = title.strip()
 
+    # Strip leading punctuation artefacts that may remain after dependency-based cleansing.
+    while title and unicodedata.category(title[0]).startswith("P"):
+        title = title[1:]
+    title = title.lstrip()
+
     # Drop leading article (with or without pipe after it) so variants like
     # "Les Petites filles modèles" and "Les |Petites filles modèles" collapse.
     drop_pipe_article = re.compile(r"^(un|une|le|la|les)\s*\|\s*(.*)$", re.IGNORECASE)

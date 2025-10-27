@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from __future__ import annotations
-
 import logging
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from datetime import date
 from pathlib import Path
 
@@ -39,6 +38,8 @@ from data_curation.utils.text_norm import normalize_for_match
 
 LOGGER = logging.getLogger(__name__)
 
+YEAR_PATTERN = re.compile(r"\d{4}")
+
 @dataclass
 class ClusterResult:
     anchor_id: str
@@ -67,6 +68,8 @@ class AdaptationTriggerMatch:
 @dataclass
 class ManifestationTitleContext:
     title: str
+    manifestation_id: str
+    manifestation_ark: Optional[str]
     doc: Any
     illustration_spans: List[Any]
     adaptation_triggers: List[AdaptationTriggerMatch]
@@ -283,12 +286,22 @@ def cluster_works_by_title_responsibilities(
     updated: Dict[str, Entity] = {w.id_entitelrm: w for w in works}
     cluster_summaries: List[ClusterResult] = []
     adaptation_pairs: Set[Tuple[str, str]] = set()
+    adaptations_to_review: Set[str] = set()
 
-    ark_index = {
-        ark: entity
-        for entity in (all_entities or [])
-        if (ark := entity.ark())
-    }
+    ark_index: Dict[str, Entity] = {}
+    ark_to_id: Dict[str, str] = {}
+    for entity in (all_entities or []):
+        ark = entity.ark()
+        if not ark:
+            continue
+        ark_index[ark] = entity
+        ark_to_id[ark] = entity.id_entitelrm
+    for work in works:
+        ark = work.ark()
+        if not ark:
+            continue
+        ark_index.setdefault(ark, work)
+        ark_to_id.setdefault(ark, work.id_entitelrm)
 
     nes = NameExpansionService(local_entities_by_ark=ark_index)
     normalized_cache: Dict[str, str] = {}
@@ -297,6 +310,8 @@ def cluster_works_by_title_responsibilities(
     manifest_titles_cache: Dict[str, List[Tuple[str, Entity]]] = {}
     manifest_analysis_cache: Dict[str, Tuple[Any, List[Any], List[AdaptationTriggerMatch], Path | None]] = {}
     agent_variants_cache: Dict[str, List[str]] = {}
+    dependency_graph_logged_manifestations: Set[str] = set()
+    work_oldest_year_cache: Dict[str, Optional[int]] = {}
 
     controlled_lookup = _build_controlled_value_lookup(all_entities)
     canonical_relator_lookup = build_canonical_relator_lookup(controlled_lookup)
@@ -421,10 +436,15 @@ def cluster_works_by_title_responsibilities(
         analyses: List[ManifestationTitleContext] = []
         for title, manifestation in cached_entries:
             doc, ill_spans, adapt_triggers, dependency_path = _get_or_create_title_analysis(title)
-            if dependency_path:
+            manifestation_id = manifestation.id_entitelrm
+            manifestation_ark = manifestation.ark()
+            if dependency_path and manifestation_id not in dependency_graph_logged_manifestations:
+                dependency_graph_logged_manifestations.add(manifestation_id)
                 LOGGER.debug(
-                    "[%s] Dependency graph for manifestation adaptation triggers: %s",
+                    "[%s] Dependency graph for manifestation adaptation triggers (manifestation_id=%s, ark=%s): %s",
                     entity.id_entitelrm,
+                    manifestation_id,
+                    manifestation_ark or "N/A",
                     dependency_path,
                 )
             manifest_variants: List[str] = []
@@ -433,6 +453,8 @@ def cluster_works_by_title_responsibilities(
             analyses.append(
                 ManifestationTitleContext(
                     title=title,
+                    manifestation_id=manifestation_id,
+                    manifestation_ark=manifestation_ark,
                     doc=doc,
                     illustration_spans=ill_spans,
                     adaptation_triggers=adapt_triggers,
@@ -441,6 +463,108 @@ def cluster_works_by_title_responsibilities(
                 )
             )
         return analyses
+
+    def _entity_by_ark(ark: str) -> Entity | None:
+        entity_id = ark_to_id.get(ark)
+        if not entity_id:
+            return None
+        entity = updated.get(entity_id)
+        if entity:
+            return entity
+        return ark_index.get(ark)
+
+    def _extract_years(values: List[str]) -> List[int]:
+        years: List[int] = []
+        for value in values:
+            if not value:
+                continue
+            for candidate in YEAR_PATTERN.findall(value):
+                try:
+                    years.append(int(candidate))
+                except ValueError:
+                    continue
+        return years
+
+    def _oldest_year_for_work(work: Entity) -> Optional[int]:
+        if work.id_entitelrm in work_oldest_year_cache:
+            return work_oldest_year_cache[work.id_entitelrm]
+
+        years = _extract_years(work.intermarc.get_subfield_values("040", "d"))
+        work_ark = work.ark()
+        if work_ark:
+            for expression in expressions_by_work.get(work_ark, []):
+                expr_ark = expression.ark()
+                if not expr_ark:
+                    continue
+                for manifestation in manifestations_by_expression.get(expr_ark, []):
+                    years.extend(_extract_years(manifestation.intermarc.get_subfield_values("040", "d")))
+                    years.extend(_extract_years(manifestation.intermarc.get_subfield_values("260", "d")))
+                    years.extend(_extract_years(manifestation.intermarc.get_subfield_values("261", "d")))
+
+        oldest = min(years) if years else None
+        work_oldest_year_cache[work.id_entitelrm] = oldest
+        return oldest
+
+    def _prune_adaptation_origins(adaptation: Entity) -> Entity:
+        if not link_is_adaptation_of_ark:
+            return adaptation
+
+        grouped: Dict[str, List[Tuple[int, Zone, Entity]]] = defaultdict(list)
+        for idx, zone in enumerate(adaptation.intermarc.zones):
+            if zone.code != "552":
+                continue
+            if link_is_adaptation_of_ark not in zone.subfield_values("552$q"):
+                continue
+            target_ark = next((sz.valeur for sz in zone.sousZones if sz.code == "552$3"), "")
+            if not target_ark:
+                continue
+            origin_entity = _entity_by_ark(target_ark)
+            if not origin_entity:
+                continue
+            normalized = _normalized_title(origin_entity)
+            if not normalized:
+                continue
+            grouped[normalized].append((idx, zone, origin_entity))
+
+        removals: Set[int] = set()
+        for normalized, entries in grouped.items():
+            if len(entries) < 2:
+                continue
+
+            def _sort_key(entry: Tuple[int, Zone, Entity]) -> Tuple[int, float, str]:
+                origin = entry[2]
+                oldest_year = _oldest_year_for_work(origin)
+                year_key = float(oldest_year) if oldest_year is not None else float("inf")
+                return (
+                    0 if origin.id_entitelrm in anchor_ids else 1,
+                    year_key,
+                    origin.id_entitelrm,
+                )
+
+            winner = min(entries, key=_sort_key)
+            removed_entities: List[Entity] = []
+            for entry in entries:
+                if entry is winner:
+                    continue
+                removals.add(entry[0])
+                removed_entities.append(entry[2])
+
+            if removed_entities:
+                LOGGER.debug(
+                    "[%s] Trimmed adaptation originals sharing normalized title '%s'; kept %s (%s), removed %s",
+                    adaptation.id_entitelrm,
+                    normalized,
+                    winner[2].id_entitelrm,
+                    winner[2].ark() or "N/A",
+                    ", ".join(f"{ent.id_entitelrm} ({ent.ark() or 'N/A'})" for ent in removed_entities),
+                )
+
+        if not removals:
+            return adaptation
+
+        new_intermarc = _clone_intermarc(adaptation.intermarc)
+        new_intermarc.zones = [zone for idx, zone in enumerate(new_intermarc.zones) if idx not in removals]
+        return adaptation.clone_with_new_intermarc(new_intermarc)
 
     for work in works:
         normalized_title = _normalized_title(work)
@@ -471,18 +595,21 @@ def cluster_works_by_title_responsibilities(
                     analysis.adaptation_triggers,
                     unique_variants,
                 ):
+                    manifestation_descriptor = f"{analysis.manifestation_id} ({analysis.manifestation_ark or 'N/A'})"
                     if analysis.dependency_path:
                         LOGGER.debug(
-                            "[%s] Adaptation supported by manifestation '%s' (graph: %s)",
+                            "[%s] Adaptation supported by manifestation '%s' [%s] (graph: %s)",
                             entity.id_entitelrm,
                             analysis.title,
+                            manifestation_descriptor,
                             analysis.dependency_path,
                         )
                     else:
                         LOGGER.debug(
-                            "[%s] Adaptation supported by manifestation '%s'",
+                            "[%s] Adaptation supported by manifestation '%s' [%s]",
                             entity.id_entitelrm,
                             analysis.title,
+                            manifestation_descriptor,
                         )
                     return True
         return False
@@ -869,11 +996,6 @@ def cluster_works_by_title_responsibilities(
             if (original_id not in anchor_ids and original_id in clustered_non_anchor_ids) or (
                 adaptation_id not in anchor_ids and adaptation_id in clustered_non_anchor_ids
             ):
-                LOGGER.debug(
-                    "[%s → %s] Skipping adaptation link: non-anchor member of a cluster",
-                    original_id,
-                    adaptation_id,
-                )
                 continue
 
             original = updated.get(original_id)
@@ -901,11 +1023,18 @@ def cluster_works_by_title_responsibilities(
             updated_adaptation = _ensure_relationship_zone(adaptation, original_ark, link_is_adaptation_of_ark)
             updated[original_id] = updated_original
             updated[adaptation_id] = updated_adaptation
+            adaptations_to_review.add(adaptation_id)
             LOGGER.debug(
                 "[%s ↔ %s] Applied reciprocal adaptation relationships",
                 original_id,
                 adaptation_id,
             )
+
+        for adaptation_id in adaptations_to_review:
+            adaptation_entity = updated.get(adaptation_id)
+            if not adaptation_entity:
+                continue
+            updated[adaptation_id] = _prune_adaptation_origins(adaptation_entity)
 
     return [updated[w.id_entitelrm] for w in works], cluster_summaries
 

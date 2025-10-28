@@ -1,15 +1,19 @@
 # scripts/matching/triggers.py
 from __future__ import annotations
 
+_PAST_PARTICIPLE_SUFFIXES = ("", "e", "s", "es")
+
+_ILLUSTRE_BASE = "illustré"
+_ILLUSTRE_COMPLETE = {f"{_ILLUSTRE_BASE}{suffix}" for suffix in _PAST_PARTICIPLE_SUFFIXES}  
+
 # Déclencheurs "responsabilité" (normalisés, sans diacritiques, minuscules)
 RESP_TERMS_ILL = {
-    "illustre", "illustree", "illustration", "illustrations", "ill.", "illustr.",
+    "illustration", "illustrations", "ill.", "illustr.",
     "vignettes", "images",
     "gravures", "dessins", "photographies", "lithographies", "lith.", "couverture", "couv."
-}
+} | _ILLUSTRE_COMPLETE
 
 _TIRE_BASE = "tiré"
-_PAST_PARTICIPLE_SUFFIXES = ("", "e", "s", "es")
 
 _ADAPT_BASE = "adapté"
 _ADAPT_VERB_COMPLETE = {f"{_ADAPT_BASE}{suffix}" for suffix in _PAST_PARTICIPLE_SUFFIXES}

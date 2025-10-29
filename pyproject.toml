@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi[standard]",
+    "fastapi-cli>=0.0.5",
     "uvicorn[standard]",
     "pydantic",
     "python-multipart",
@@ -13,4 +14,19 @@ dependencies = [
     "pip>=25.2",
     "numpy==1.26.4",
     "spacy>=3.8.7",
+    "curated-tokenizers==0.0.9",
+    "curated-transformers==0.1.1",
+    "filelock==3.20.0",
+    "fsspec==2025.9.0",
+    "mpmath==1.3.0",
+    "networkx==3.5",
+    "protobuf==3.20.3",
+    "regex==2025.10.23",
+    "sentencepiece==0.2.1",
+    "spacy-curated-transformers==0.3.1",
+    "sympy==1.14.0",
+    "torch==2.2.2",
 ]
+
+[tool.uv]
+dev-dependencies = ["ruff>=0.6.2"]

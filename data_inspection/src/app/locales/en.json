@@ -13,7 +13,21 @@
     "unclusteredHeading": "Unclustered works",
     "unclusteredCount": "{{count}} works remain unclustered",
     "noUnclustered": "All works are clustered.",
-    "todo": "UI port in progress…"
+    "todo": "UI port in progress…",
+    "sparqlTabDefault": "SPARQL",
+    "addSparqlTab": "Add SPARQL tab",
+    "sparqlEditorTitle": "SPARQL query",
+    "sparqlRunQuery": "Run query",
+    "sparqlRunning": "Running…",
+    "sparqlClearResults": "Clear results",
+    "sparqlRowCount": "{{count}} rows",
+    "sparqlColumns": "Columns",
+    "sparqlNoResults": "Run a query to see results.",
+    "sparqlEmptyQuery": "Enter a SPARQL query first.",
+    "sparqlNoRecordForArk": "No record found for this ARK.",
+    "sparqlUploadOriginalError": "Failed to prepare original dataset for SPARQL search.",
+    "sparqlUploadCuratedError": "Failed to prepare curated dataset for SPARQL search.",
+    "sparqlSyncError": "Failed to update SPARQL index for the record."
   },
   "toolbar": {
     "loadCsv": "Load CSVs",

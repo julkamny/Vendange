@@ -30,3 +30,6 @@ dist-ssr
 
 # Repomix
 Vendange_codebase.md
+
+# Oxigraph store (generated)
+data_curation/api/vendange_store/

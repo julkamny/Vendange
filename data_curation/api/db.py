@@ -1,107 +1,86 @@
-"""SQLite ingestion and query helpers for the Vendange search API."""
+"""Oxigraph-based ingestion and SPARQL query helpers for the Vendange search API."""
 
 from __future__ import annotations
 
 import csv
 import io
 import json
-import sqlite3
+import shutil
 import sys
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import Iterable, List, Optional, Sequence
+from urllib.parse import quote
+
+from pyoxigraph import (
+    BlankNode,
+    Literal,
+    NamedNode,
+    QuerySolution,
+    QuerySolutions,
+    Quad,
+    Store,
+)
 
 from ..models import Intermarc
 from ..utils.text_norm import fold_diacritics, normalize_for_match
 
 csv.field_size_limit(sys.maxsize)
-DB_PATH = Path(__file__).resolve().parent / "vendange.sqlite"
 
-_CONNECTION_LOCK = threading.Lock()
+STORE_DIR = Path(__file__).resolve().parent / "vendange_store"
+LEGACY_SQLITE_PATH = Path(__file__).resolve().parent / "vendange.sqlite"
 
+_STORE_LOCK = threading.RLock()
+_STORE: Store | None = None
 
-def get_connection() -> sqlite3.Connection:
-    """Return a SQLite connection with a row factory suitable for JSON serialisation."""
+RDF_TYPE = NamedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
+XSD_NS = "http://www.w3.org/2001/XMLSchema#"
+XSD_BOOLEAN = NamedNode(f"{XSD_NS}boolean")
+XSD_INTEGER_TYPES = {
+    f"{XSD_NS}integer",
+    f"{XSD_NS}int",
+    f"{XSD_NS}long",
+    f"{XSD_NS}short",
+    f"{XSD_NS}byte",
+    f"{XSD_NS}nonNegativeInteger",
+    f"{XSD_NS}positiveInteger",
+    f"{XSD_NS}nonPositiveInteger",
+    f"{XSD_NS}negativeInteger",
+    f"{XSD_NS}unsignedLong",
+    f"{XSD_NS}unsignedInt",
+    f"{XSD_NS}unsignedShort",
+    f"{XSD_NS}unsignedByte",
+}
+XSD_DECIMAL_TYPES = {
+    f"{XSD_NS}decimal",
+    f"{XSD_NS}double",
+    f"{XSD_NS}float",
+}
 
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
+BASE_ENTITY_NS = "https://vendange.bnf.fr/entity/"
+BASE_GRAPH_NS = "https://vendange.bnf.fr/graph/"
+FIELD_NS = "https://vendange.bnf.fr/field/"
+FIELD_NORM_NS = "https://vendange.bnf.fr/field_norm/"
+RELATION_NS = "https://vendange.bnf.fr/relation/"
+RELATION_ARK_NS = "https://vendange.bnf.fr/relation_ark/"
+PROPERTY_NS = "https://vendange.bnf.fr/property/"
+CLASS_NS = "https://vendange.bnf.fr/class/"
+META_GRAPH = NamedNode(f"{BASE_GRAPH_NS}metadata")
+META_DATASET = NamedNode(f"{BASE_ENTITY_NS}dataset")
+PROP_ARK = NamedNode(f"{PROPERTY_NS}ark")
+PROP_RECORD_ID = NamedNode(f"{PROPERTY_NS}record_id")
+PROP_TYPE_RAW = NamedNode(f"{PROPERTY_NS}type_raw")
+PROP_TYPE_NORM = NamedNode(f"{PROPERTY_NS}type_norm")
+PROP_DATASET_LABEL = NamedNode(f"{PROPERTY_NS}dataset_label")
+PROP_SOURCE_DATASET = NamedNode(f"{PROPERTY_NS}source_dataset")
 
-
-def initialize_storage() -> None:
-    """Ensure the database file and schema exist."""
-
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with _CONNECTION_LOCK:
-        conn = get_connection()
-        try:
-            _create_schema(conn)
-        finally:
-            conn.close()
-
-
-def reset_storage() -> None:
-    """Remove the existing database file to start with a clean state."""
-
-    if DB_PATH.exists():
-        DB_PATH.unlink()
-    initialize_storage()
-
-
-def _create_schema(conn: sqlite3.Connection) -> None:
-    cursor = conn.cursor()
-    cursor.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS records (
-            id TEXT PRIMARY KEY,
-            type_norm TEXT,
-            ark TEXT,
-            intermarc_json TEXT
-        );
-
-        CREATE TABLE IF NOT EXISTS subfields (
-            record_id TEXT NOT NULL,
-            zone TEXT,
-            sub TEXT,
-            code TEXT,
-            value TEXT,
-            value_norm TEXT,
-            is_ark INTEGER DEFAULT 0,
-            FOREIGN KEY(record_id) REFERENCES records(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE IF NOT EXISTS edges (
-            src_id TEXT NOT NULL,
-            src_type TEXT,
-            relation TEXT,
-            dst_ark TEXT,
-            dst_id TEXT,
-            zone TEXT,
-            sub TEXT,
-            FOREIGN KEY(src_id) REFERENCES records(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE IF NOT EXISTS arks (
-            ark TEXT PRIMARY KEY,
-            record_id TEXT NOT NULL,
-            FOREIGN KEY(record_id) REFERENCES records(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE IF NOT EXISTS metadata (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        );
-        """
-    )
-    cursor.executescript(
-        """
-        CREATE INDEX IF NOT EXISTS subfields_code_valnorm ON subfields(code, value_norm);
-        CREATE INDEX IF NOT EXISTS edges_rel_src ON edges(relation, src_id);
-        CREATE INDEX IF NOT EXISTS edges_rel_dst ON edges(relation, dst_ark);
-        """
-    )
-    conn.commit()
+TYPE_CLASS_MAP = {
+    "oeuvre": NamedNode(f"{CLASS_NS}Work"),
+    "expression": NamedNode(f"{CLASS_NS}Expression"),
+    "manifestation": NamedNode(f"{CLASS_NS}Manifestation"),
+}
+DEFAULT_ENTITY_CLASS = NamedNode(f"{CLASS_NS}Entity")
 
 
 @dataclass
@@ -117,23 +96,88 @@ class ParsedRecord:
 @dataclass
 class SubfieldRow:
     record_id: str
-    zone: str
-    sub: str
     code: str
     value: str
     value_norm: str
-    is_ark: int
 
 
 @dataclass
 class EdgeRow:
     src_id: str
-    src_type: str
     relation: str
     dst_ark: str
     dst_id: Optional[str]
-    zone: str
-    sub: str
+
+
+def initialize_storage() -> None:
+    """Ensure the Oxigraph store directory exists and is ready for use."""
+
+    with _STORE_LOCK:
+        global _STORE
+        if LEGACY_SQLITE_PATH.exists():
+            LEGACY_SQLITE_PATH.unlink()
+        if _STORE is None:
+            STORE_DIR.mkdir(parents=True, exist_ok=True)
+            _STORE = Store(str(STORE_DIR))
+
+
+def reset_storage() -> None:
+    """Drop the current store contents and recreate an empty Oxigraph store."""
+
+    with _STORE_LOCK:
+        global _STORE
+        if _STORE is not None:
+            _STORE.flush()
+            _STORE = None
+        if STORE_DIR.exists():
+            shutil.rmtree(STORE_DIR)
+        STORE_DIR.mkdir(parents=True, exist_ok=True)
+        _STORE = Store(str(STORE_DIR))
+
+
+def _get_store_locked() -> Store:
+    global _STORE
+    if _STORE is None:
+        _STORE = Store(str(STORE_DIR))
+    return _STORE
+
+
+def _record_iri(record_id: str) -> NamedNode:
+    return NamedNode(f"{BASE_ENTITY_NS}{quote(record_id, safe='')}")
+
+
+def _record_graph(record_id: str) -> NamedNode:
+    return NamedNode(f"{BASE_GRAPH_NS}{quote(record_id, safe='')}")
+
+
+def _field_predicate(code: str) -> NamedNode:
+    return NamedNode(f"{FIELD_NS}{quote(code, safe='$')}")
+
+
+def _field_norm_predicate(code: str) -> NamedNode:
+    return NamedNode(f"{FIELD_NORM_NS}{quote(code, safe='$')}")
+
+
+def _relation_predicate(code: str) -> NamedNode:
+    return NamedNode(f"{RELATION_NS}{quote(code, safe='$')}")
+
+
+def _relation_ark_predicate(code: str) -> NamedNode:
+    return NamedNode(f"{RELATION_ARK_NS}{quote(code, safe='$')}")
+
+
+def _emit_quads(
+    subject: NamedNode,
+    predicate: NamedNode,
+    obj: object,
+    graph: Optional[NamedNode],
+    *,
+    include_default: bool = True,
+) -> Iterable[Quad]:
+    if include_default:
+        yield Quad(subject, predicate, obj)
+    if graph is not None:
+        yield Quad(subject, predicate, obj, graph)
 
 
 def _normalize_type(value: str) -> str:
@@ -226,11 +270,11 @@ def _extract_ark(intermarc: Intermarc) -> Optional[str]:
     return None
 
 
-def _split_code(zone_code: str, subfield_code: str) -> tuple[str, str, str]:
+def _split_code(zone_code: str, subfield_code: str) -> str:
     if "$" in subfield_code:
         zone, sub = subfield_code.split("$", 1)
-        return (zone or zone_code, sub, f"{zone or zone_code}${sub}")
-    return zone_code, "", subfield_code or zone_code
+        return f"{zone or zone_code}${sub}"
+    return subfield_code or zone_code
 
 
 def _extract_rows(record: ParsedRecord) -> tuple[List[SubfieldRow], List[EdgeRow]]:
@@ -239,132 +283,96 @@ def _extract_rows(record: ParsedRecord) -> tuple[List[SubfieldRow], List[EdgeRow
     for zone in record.intermarc.zones:
         zone_code = zone.code or ""
         for sub in zone.sousZones:
-            sub_code = sub.code or ""
-            zone_value, sub_value, code_value = _split_code(zone_code, sub_code)
+            zone_and_sub = _split_code(zone_code, sub.code or "")
             raw_value = str(sub.valeur) if sub.valeur is not None else ""
             normalized_value = normalize_for_match(raw_value)
-            looks_like_ark = int(_looks_like_ark(raw_value.strip()))
             subfields.append(
                 SubfieldRow(
                     record_id=record.id,
-                    zone=zone_value,
-                    sub=sub_value,
-                    code=code_value,
+                    code=zone_and_sub,
                     value=raw_value,
                     value_norm=normalized_value,
-                    is_ark=looks_like_ark,
                 )
             )
-            if looks_like_ark and code_value.endswith("$3"):
+            if _looks_like_ark(raw_value.strip()) and zone_and_sub.endswith("$3"):
                 edges.append(
                     EdgeRow(
                         src_id=record.id,
-                        src_type=record.type_norm,
-                        relation=code_value,
+                        relation=zone_and_sub,
                         dst_ark=raw_value.strip(),
                         dst_id=None,
-                        zone=zone_value,
-                        sub=sub_value,
                     )
                 )
     return subfields, edges
 
 
 def ingest_csv(content: bytes, *, dataset_label: Optional[str] = None) -> int:
-    """Ingest the provided CSV content into SQLite.
+    """Ingest the provided CSV content into the Oxigraph store.
 
     Returns the number of records stored.
     """
 
     records = _parse_csv_bytes(content)
-    reset_storage()
-    if not records:
-        return 0
+    with _STORE_LOCK:
+        reset_storage()
+        if not records:
+            return 0
 
-    subfield_rows: List[SubfieldRow] = []
-    edge_rows: List[EdgeRow] = []
-    ark_to_id: dict[str, str] = {}
-    for record in records:
-        sub_rows, edge_items = _extract_rows(record)
-        subfield_rows.extend(sub_rows)
-        edge_rows.extend(edge_items)
-        if record.ark:
-            ark_to_id[record.ark] = record.id
-
-    for edge in edge_rows:
-        if edge.dst_ark:
-            edge.dst_id = ark_to_id.get(edge.dst_ark)
-
-    with _CONNECTION_LOCK:
-        conn = get_connection()
-        try:
-            _create_schema(conn)
-            cursor = conn.cursor()
-            cursor.executemany(
-                "INSERT INTO records(id, type_norm, ark, intermarc_json) VALUES (?, ?, ?, ?)",
-                [(r.id, r.type_norm, r.ark, r.intermarc_raw) for r in records],
-            )
-            if subfield_rows:
-                cursor.executemany(
-                    """
-                    INSERT INTO subfields(record_id, zone, sub, code, value, value_norm, is_ark)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    [
-                        (
-                            row.record_id,
-                            row.zone,
-                            row.sub,
-                            row.code,
-                            row.value,
-                            row.value_norm,
-                            row.is_ark,
-                        )
-                        for row in subfield_rows
-                    ],
-                )
-            if edge_rows:
-                cursor.executemany(
-                    """
-                    INSERT INTO edges(src_id, src_type, relation, dst_ark, dst_id, zone, sub)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    [
-                        (
-                            row.src_id,
-                            row.src_type,
-                            row.relation,
-                            row.dst_ark,
-                            row.dst_id,
-                            row.zone,
-                            row.sub,
-                        )
-                        for row in edge_rows
-                    ],
-                )
-            if ark_to_id:
-                cursor.executemany(
-                    "INSERT INTO arks(ark, record_id) VALUES (?, ?)",
-                    list(ark_to_id.items()),
-                )
-            cursor.execute("DELETE FROM metadata")
-            if dataset_label:
-                cursor.execute(
-                    "INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)",
-                    ("dataset", dataset_label),
-                )
-            conn.commit()
-        finally:
-            conn.close()
-
+        ark_to_id = {record.ark: record.id for record in records if record.ark}
+        store = _get_store_locked()
+        quads = _build_dataset_quads(records, ark_to_id, dataset_label)
+        store.bulk_extend(quads)
+        store.flush()
     return len(records)
 
 
-def _build_record_from_payload(
-    record_id: str,
-    type_raw: str,
-    intermarc_json: str,
-) -> ParsedRecord:
+def _build_dataset_quads(
+    records: Sequence[ParsedRecord],
+    ark_to_id: dict[str | None, str],
+    dataset_label: Optional[str],
+) -> Iterable[Quad]:
+    for record in records:
+        yield from _build_record_quads(record, ark_to_id)
+    if dataset_label:
+        yield from _emit_quads(META_DATASET, PROP_DATASET_LABEL, Literal(dataset_label), META_GRAPH)
+
+
+def _build_record_quads(record: ParsedRecord, ark_to_id: dict[str | None, str]) -> Iterable[Quad]:
+    subject = _record_iri(record.id)
+    graph = _record_graph(record.id)
+    entity_class = TYPE_CLASS_MAP.get(record.type_norm, DEFAULT_ENTITY_CLASS)
+
+    yield from _emit_quads(subject, RDF_TYPE, entity_class, graph)
+    yield from _emit_quads(subject, PROP_RECORD_ID, Literal(record.id), graph)
+    if record.type_raw:
+        yield from _emit_quads(subject, PROP_TYPE_RAW, Literal(record.type_raw), graph)
+    if record.type_norm:
+        yield from _emit_quads(subject, PROP_TYPE_NORM, Literal(record.type_norm), graph)
+    if record.ark:
+        yield from _emit_quads(subject, PROP_ARK, Literal(record.ark), graph)
+        yield from _emit_quads(subject, PROP_SOURCE_DATASET, META_DATASET, graph)
+
+    subfields, edges = _extract_rows(record)
+    for subfield in subfields:
+        if subfield.value:
+            yield from _emit_quads(subject, _field_predicate(subfield.code), Literal(subfield.value), graph)
+        if subfield.value_norm:
+            yield from _emit_quads(subject, _field_norm_predicate(subfield.code), Literal(subfield.value_norm), graph)
+
+    for edge in edges:
+        target_id = edge.dst_id or ark_to_id.get(edge.dst_ark)
+        target_node: Optional[NamedNode] = None
+        if target_id:
+            target_node = _record_iri(target_id)
+        elif edge.dst_ark:
+            target_node = NamedNode(edge.dst_ark)
+        if target_node is not None:
+            yield from _emit_quads(subject, _relation_predicate(edge.relation), target_node, graph)
+        if edge.dst_ark:
+            yield from _emit_quads(subject, _relation_ark_predicate(edge.relation), Literal(edge.dst_ark), graph)
+
+
+def _build_record_from_payload(record_id: str, type_raw: str, intermarc_json: str) -> ParsedRecord:
     intermarc = Intermarc.from_json_string(intermarc_json)
     return ParsedRecord(
         id=record_id,
@@ -377,108 +385,109 @@ def _build_record_from_payload(
 
 
 def update_record(record_id: str, *, type_raw: str, intermarc_json: str) -> None:
-    """Update a single record and its derived tables."""
+    """Update a single record graph with fresh data."""
 
     initialize_storage()
     record = _build_record_from_payload(record_id, type_raw, intermarc_json)
-    subfields, edges = _extract_rows(record)
 
-    with _CONNECTION_LOCK:
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT INTO records(id, type_norm, ark, intermarc_json)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    type_norm=excluded.type_norm,
-                    ark=excluded.ark,
-                    intermarc_json=excluded.intermarc_json
-                """,
-                (record.id, record.type_norm, record.ark, record.intermarc_raw),
-            )
-            cursor.execute("DELETE FROM subfields WHERE record_id = ?", (record.id,))
-            cursor.execute("DELETE FROM edges WHERE src_id = ?", (record.id,))
-            cursor.execute("DELETE FROM arks WHERE record_id = ?", (record.id,))
-            if subfields:
-                cursor.executemany(
-                    """
-                    INSERT INTO subfields(record_id, zone, sub, code, value, value_norm, is_ark)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    [
-                        (
-                            row.record_id,
-                            row.zone,
-                            row.sub,
-                            row.code,
-                            row.value,
-                            row.value_norm,
-                            row.is_ark,
-                        )
-                        for row in subfields
-                    ],
-                )
-            if edges:
-                ark_map = {
-                    row["ark"]: row["record_id"]
-                    for row in cursor.execute("SELECT ark, record_id FROM arks")
-                    if row["ark"]
-                }
-                if record.ark:
-                    ark_map[record.ark] = record.id
-                cursor.executemany(
-                    """
-                    INSERT INTO edges(src_id, src_type, relation, dst_ark, dst_id, zone, sub)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    [
-                        (
-                            row.src_id,
-                            row.src_type,
-                            row.relation,
-                            row.dst_ark,
-                            ark_map.get(row.dst_ark),
-                            row.zone,
-                            row.sub,
-                        )
-                        for row in edges
-                    ],
-                )
-            if record.ark:
-                cursor.execute(
-                    "INSERT OR REPLACE INTO arks(ark, record_id) VALUES (?, ?)",
-                    (record.ark, record.id),
-                )
-            conn.commit()
-        finally:
-            conn.close()
+    with _STORE_LOCK:
+        store = _get_store_locked()
+        ark_index = _load_ark_index(store)
+        if record.ark:
+            ark_index[record.ark] = record.id
+        graph = _record_graph(record.id)
+        store.clear_graph(graph)
+        quads = list(_build_record_quads(record, ark_index))
+        if quads:
+            store.extend(quads)
+        store.flush()
 
 
-def run_sql_query(sql: str) -> list[sqlite3.Row]:
-    """Execute a read-only SQL query and return the resulting rows."""
+def _load_ark_index(store: Store) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for quad in store.quads_for_pattern(None, PROP_ARK, None, None):
+        if isinstance(quad.subject, NamedNode) and isinstance(quad.object, Literal):
+            mapping[quad.object.value] = _record_id_from_subject(quad.subject.value)
+    return mapping
+
+
+def _record_id_from_subject(subject_iri: str) -> str:
+    if not subject_iri.startswith(BASE_ENTITY_NS):
+        return subject_iri
+    return subject_iri[len(BASE_ENTITY_NS) :]
+
+
+def run_sparql_query(query: str) -> tuple[List[str], List[dict[str, object]]]:
+    """Execute a read-only SPARQL SELECT query and return column names with JSON-friendly rows."""
 
     initialize_storage()
-    statement = sql.strip().rstrip(";")
-    lowered = statement.lstrip().lower()
-    if not lowered.startswith("select") and not lowered.startswith("with"):
-        raise ValueError("Only SELECT queries are allowed")
+    statement = query.strip()
+    if not statement:
+        raise ValueError("SPARQL query cannot be empty")
 
-    with _CONNECTION_LOCK:
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(statement)
-            rows = cursor.fetchall()
-        finally:
-            conn.close()
-    return rows
+    keyword = _leading_query_keyword(statement)
+    if keyword.lower() != "select":
+        raise ValueError("Only SPARQL SELECT queries are supported")
+
+    with _STORE_LOCK:
+        store = _get_store_locked()
+        solutions = store.query(statement)
+        if not isinstance(solutions, QuerySolutions):
+            raise ValueError("Query did not return a SELECT result set")
+        variables = [var.value for var in solutions.variables]
+        rows = [_convert_solution(solution, variables) for solution in solutions]
+    return variables, rows
 
 
-def list_columns(rows: Sequence[sqlite3.Row]) -> List[str]:
-    """Extract column names from SQLite row objects."""
+def _leading_query_keyword(statement: str) -> str:
+    lowered = statement.lstrip()
+    lines = lowered.splitlines()
+    idx = 0
+    while idx < len(lines):
+        line = lines[idx].strip()
+        if not line or line.startswith("#"):
+            idx += 1
+            continue
+        if line.lower().startswith("prefix ") or line.lower().startswith("base "):
+            idx += 1
+            continue
+        for part in line.split():
+            return part
+        idx += 1
+    return ""
 
-    if not rows:
-        return []
-    return list(rows[0].keys())
+
+def _convert_solution(solution: QuerySolution, variables: Sequence[str]) -> dict[str, object]:
+    row: dict[str, object] = {}
+    for variable in variables:
+        term = solution[variable]
+        if term is None:
+            row[variable] = None
+        else:
+            row[variable] = _term_to_python(term)
+    return row
+
+
+def _term_to_python(term: object) -> object:
+    if isinstance(term, NamedNode):
+        return term.value
+    if isinstance(term, BlankNode):
+        return f"_:{term.value}"
+    if isinstance(term, Literal):
+        if term.language:
+            return term.value
+        datatype = term.datatype.value if term.datatype else ""
+        if datatype in XSD_INTEGER_TYPES:
+            try:
+                return int(term.value)
+            except ValueError:
+                return term.value
+        if datatype in XSD_DECIMAL_TYPES:
+            try:
+                return float(term.value)
+            except ValueError:
+                return term.value
+        if datatype == XSD_BOOLEAN.value:
+            return term.value.lower() in {"true", "1"}
+        return term.value
+    return term

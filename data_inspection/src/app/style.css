@@ -1520,20 +1520,20 @@ body.modal-open {
   border-style: dashed;
 }
 
-.workspace-tab.add.sql {
+.workspace-tab.add.sparql {
   font-size: 0.85rem;
   padding-inline: 0.6rem;
   margin-right: 0.45rem;
 }
 
-.sql-workspace {
+.sparql-workspace {
   display: flex;
   flex-direction: column;
   gap: 1rem;
   height: 100%;
 }
 
-.sql-editor {
+.sparql-editor {
   background: var(--color-surface);
   border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
   border-radius: 14px;
@@ -1544,66 +1544,66 @@ body.modal-open {
   gap: 0.75rem;
 }
 
-.sql-editor__header {
+.sparql-editor__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
 }
 
-.sql-editor__header strong {
+.sparql-editor__header strong {
   font-size: 0.95rem;
 }
 
-.sql-editor__base-url {
+.sparql-editor__base-url {
   display: block;
   font-size: 0.75rem;
   color: var(--color-text-soft);
   margin-top: 0.2rem;
 }
 
-.sql-editor__actions {
+.sparql-editor__actions {
   display: inline-flex;
   gap: 0.5rem;
 }
 
-.sql-editor .cm-editor {
+.sparql-editor .cm-editor {
   border: 1px solid color-mix(in srgb, var(--color-border) 65%, transparent);
   border-radius: 10px;
   overflow: hidden;
 }
 
-.sql-editor .cm-editor .cm-content {
+.sparql-editor .cm-editor .cm-content {
   font-family: 'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace;
   font-size: 0.9rem;
 }
 
-.sql-error {
+.sparql-error {
   color: #f47d7d;
   font-size: 0.85rem;
   margin: 0;
 }
 
-.sql-results {
+.sparql-results {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
 }
 
-.sql-results__toolbar {
+.sparql-results__toolbar {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1.25rem;
 }
 
-.sql-results__toolbar > span {
+.sparql-results__toolbar > span {
   font-size: 0.85rem;
   color: var(--color-text-soft);
 }
 
-.sql-columns {
+.sparql-columns {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -1614,20 +1614,20 @@ body.modal-open {
   max-width: min(520px, 60%);
 }
 
-.sql-columns__list {
+.sparql-columns__list {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem 0.75rem;
 }
 
-.sql-columns__list label {
+.sparql-columns__list label {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   font-size: 0.8rem;
 }
 
-.sql-results__table {
+.sparql-results__table {
   flex: 1 1 auto;
   border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
   border-radius: 12px;
@@ -1635,29 +1635,29 @@ body.modal-open {
   background: color-mix(in srgb, var(--color-surface-alt) 94%, transparent);
 }
 
-.sql-results__table table {
+.sparql-results__table table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
 }
 
-.sql-results__table th,
-.sql-results__table td {
+.sparql-results__table th,
+.sparql-results__table td {
   border-bottom: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
   padding: 0.5rem 0.75rem;
   vertical-align: top;
 }
 
-.sql-results__table th:last-child,
-.sql-results__table td:last-child {
+.sparql-results__table th:last-child,
+.sparql-results__table td:last-child {
   padding-right: 1rem;
 }
 
-.sql-results__table tbody tr:nth-child(even) {
+.sparql-results__table tbody tr:nth-child(even) {
   background: color-mix(in srgb, var(--color-surface-alt) 80%, transparent);
 }
 
-.sql-results__table th button {
+.sparql-results__table th button {
   background: none;
   border: none;
   color: inherit;
@@ -1669,23 +1669,23 @@ body.modal-open {
   padding: 0;
 }
 
-.sql-sort-indicator {
+.sparql-sort-indicator {
   font-size: 0.7rem;
   color: var(--color-text-soft);
 }
 
-.sql-null {
+.sparql-null {
   font-style: italic;
   color: var(--color-text-soft);
 }
 
-.sql-placeholder {
+.sparql-placeholder {
   margin: 0;
   color: var(--color-text-soft);
   font-size: 0.9rem;
 }
 
-.sql-results__table .ark-link {
+.sparql-results__table .ark-link {
   color: var(--color-link);
   border: none;
   background: none;
@@ -1693,8 +1693,8 @@ body.modal-open {
   cursor: pointer;
 }
 
-.sql-results__table .ark-link:hover,
-.sql-results__table .ark-link:focus-visible {
+.sparql-results__table .ark-link:hover,
+.sparql-results__table .ark-link:focus-visible {
   color: var(--color-link-hover);
 }
 

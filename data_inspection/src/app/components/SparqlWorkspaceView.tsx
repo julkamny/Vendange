@@ -1,8 +1,8 @@
 import CodeMirror from '@uiw/react-codemirror'
-import { sql } from '@codemirror/lang-sql'
 import { useCallback, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import { executeSqlQuery, getApiBaseUrl } from '../lib/api'
-import type { WorkspaceTabStateSql, WorkspaceTabStateWorkspace } from '../workspace/types'
+import { sql } from '@codemirror/lang-sql'
+import { executeSparqlQuery, getApiBaseUrl } from '../lib/api'
+import type { WorkspaceTabStateSparql, WorkspaceTabStateWorkspace } from '../workspace/types'
 import { DEFAULT_WORKSPACE_STATE } from '../workspace/types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useToast } from '../providers/ToastContext'
@@ -14,9 +14,9 @@ import { deriveInternalIdFromArk } from '../lib/ark'
 
 const ARK_REGEX = /ark:\/\S+/g
 
-type SqlWorkspaceViewProps = {
-  state: WorkspaceTabStateSql
-  onStateChange: (updater: (prev: WorkspaceTabStateSql) => WorkspaceTabStateSql) => void
+type SparqlWorkspaceViewProps = {
+  state: WorkspaceTabStateSparql
+  onStateChange: (updater: (prev: WorkspaceTabStateSparql) => WorkspaceTabStateSparql) => void
   onOpenWorkspaceTab: (
     initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace,
   ) => void
@@ -31,13 +31,13 @@ function normalizeArk(value: string): string {
   return value.trim()
 }
 
-export function SqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }: SqlWorkspaceViewProps) {
+export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }: SparqlWorkspaceViewProps) {
   const { t, language } = useTranslation()
   const { showToast } = useToast()
   const { clusters, curated, original } = useAppData()
   const { getByArk, getById } = useRecordLookup()
   const stubWorkspaceState = useMemo<WorkspaceTabStateWorkspace>(
-    () => ({ ...DEFAULT_WORKSPACE_STATE, id: '__sql__', title: 'SQL' }),
+    () => ({ ...DEFAULT_WORKSPACE_STATE, id: '__sparql__', title: 'SPARQL' }),
     [],
   )
   const workspaceData = useWorkspaceData(stubWorkspaceState)
@@ -110,20 +110,23 @@ export function SqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }: S
   const handleRunQuery = useCallback(async () => {
     const trimmed = state.query.trim()
     if (!trimmed) {
-      onStateChange(prev => ({ ...prev, lastRunError: t('workspace.sqlEmptyQuery', { defaultValue: 'Enter a SQL query first.' }) }))
-      showToast(t('workspace.sqlEmptyQuery', { defaultValue: 'Enter a SQL query first.' }), { tone: 'error' })
+      onStateChange(prev => ({
+        ...prev,
+        lastRunError: t('workspace.sparqlEmptyQuery', { defaultValue: 'Enter a SPARQL query first.' }),
+      }))
+      showToast(t('workspace.sparqlEmptyQuery', { defaultValue: 'Enter a SPARQL query first.' }), { tone: 'error' })
       return
     }
     onStateChange(prev => ({ ...prev, isExecuting: true, lastRunError: null }))
     try {
-      const result = await executeSqlQuery(state.query)
+      const result = await executeSparqlQuery(state.query)
       onStateChange(prev => {
         const preservedHidden = new Set([...prev.hiddenColumns].filter(column => result.columns.includes(column)))
         const nextSort = prev.sort && result.columns.includes(prev.sort.column) ? prev.sort : null
         return {
           ...prev,
           isExecuting: false,
-          lastRunSql: state.query,
+          lastRunQuery: state.query,
           lastRunError: null,
           result,
           hiddenColumns: preservedHidden,
@@ -138,7 +141,7 @@ export function SqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }: S
   }, [state.query, onStateChange, showToast, t])
 
   const handleClearResults = useCallback(() => {
-    onStateChange(prev => ({ ...prev, result: null, lastRunSql: null, sort: null }))
+    onStateChange(prev => ({ ...prev, result: null, lastRunQuery: null, sort: null }))
   }, [onStateChange])
 
   const toggleColumn = useCallback(
@@ -181,7 +184,9 @@ export function SqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }: S
         if (fallbackId) record = getById(fallbackId)
       }
       if (!record) {
-        showToast(t('workspace.sqlNoRecordForArk', { defaultValue: 'No record found for this ARK.' }), { tone: 'error' })
+        showToast(t('workspace.sparqlNoRecordForArk', { defaultValue: 'No record found for this ARK.' }), {
+          tone: 'error',
+        })
         return
       }
       setContextMenu(null)
@@ -245,7 +250,7 @@ export function SqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }: S
   const renderCell = useCallback(
     (value: unknown) => {
       if (value === null || value === undefined) {
-        return <span className="sql-null">NULL</span>
+        return <span className="sparql-null">NULL</span>
       }
       if (typeof value === 'number' || typeof value === 'bigint') {
         return value.toString()
@@ -276,21 +281,21 @@ export function SqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }: S
   )
 
   return (
-    <div className="sql-workspace" onContextMenu={handleContextMenu}>
-      <section className="sql-editor">
-        <header className="sql-editor__header">
+    <div className="sparql-workspace" onContextMenu={handleContextMenu}>
+      <section className="sparql-editor">
+        <header className="sparql-editor__header">
           <div>
-            <strong>{t('workspace.sqlEditorTitle', { defaultValue: 'SQL query' })}</strong>
-            <span className="sql-editor__base-url">{apiBaseUrl}</span>
+            <strong>{t('workspace.sparqlEditorTitle', { defaultValue: 'SPARQL query' })}</strong>
+            <span className="sparql-editor__base-url">{apiBaseUrl}</span>
           </div>
-          <div className="sql-editor__actions">
+          <div className="sparql-editor__actions">
             <button type="button" onClick={handleRunQuery} disabled={state.isExecuting}>
               {state.isExecuting
-                ? t('workspace.sqlRunning', { defaultValue: 'Running…' })
-                : t('workspace.sqlRunQuery', { defaultValue: 'Run query' })}
+                ? t('workspace.sparqlRunning', { defaultValue: 'Running…' })
+                : t('workspace.sparqlRunQuery', { defaultValue: 'Run query' })}
             </button>
             <button type="button" onClick={handleClearResults} disabled={!state.result}>
-              {t('workspace.sqlClearResults', { defaultValue: 'Clear results' })}
+              {t('workspace.sparqlClearResults', { defaultValue: 'Clear results' })}
             </button>
           </div>
         </header>
@@ -300,21 +305,21 @@ export function SqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }: S
           height="200px"
           extensions={extensions}
         />
-        {state.lastRunError ? <p className="sql-error">{state.lastRunError}</p> : null}
+        {state.lastRunError ? <p className="sparql-error">{state.lastRunError}</p> : null}
       </section>
-      <section className="sql-results">
+      <section className="sparql-results">
         {state.result ? (
           <>
-            <header className="sql-results__toolbar">
+            <header className="sparql-results__toolbar">
               <span>
-                {t('workspace.sqlRowCount', {
+                {t('workspace.sparqlRowCount', {
                   defaultValue: '{{count}} rows',
                   count: state.result.rows.length,
                 })}
               </span>
-              <div className="sql-columns">
-                <strong>{t('workspace.sqlColumns', { defaultValue: 'Columns' })}</strong>
-                <div className="sql-columns__list">
+              <div className="sparql-columns">
+                <strong>{t('workspace.sparqlColumns', { defaultValue: 'Columns' })}</strong>
+                <div className="sparql-columns__list">
                   {state.result.columns.map(column => (
                     <label key={column}>
                       <input
@@ -328,7 +333,7 @@ export function SqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }: S
                 </div>
               </div>
             </header>
-            <div className="sql-results__table" role="region" aria-live="polite">
+            <div className="sparql-results__table" role="region" aria-live="polite">
               <table>
                 <thead>
                   <tr>
@@ -339,7 +344,7 @@ export function SqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }: S
                         <th key={column}>
                           <button type="button" onClick={() => toggleSort(column)}>
                             {column}
-                            <span className="sql-sort-indicator">{indicator}</span>
+                            <span className="sparql-sort-indicator">{indicator}</span>
                           </button>
                         </th>
                       )
@@ -359,7 +364,9 @@ export function SqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }: S
             </div>
           </>
         ) : (
-          <p className="sql-placeholder">{t('workspace.sqlNoResults', { defaultValue: 'Run a query to see results.' })}</p>
+          <p className="sparql-placeholder">
+            {t('workspace.sparqlNoResults', { defaultValue: 'Run a query to see results.' })}
+          </p>
         )}
       </section>
       {contextMenu ? (

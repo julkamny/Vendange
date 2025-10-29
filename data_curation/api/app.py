@@ -15,8 +15,8 @@ class UpdateRecordPayload(BaseModel):
     intermarc_json: str = Field(..., alias="intermarc")
 
 
-class SqlQueryPayload(BaseModel):
-    sql: str
+class SparqlQueryPayload(BaseModel):
+    query: str
 
 
 app = FastAPI(title="Vendange Search API")
@@ -61,15 +61,13 @@ async def update_record(payload: UpdateRecordPayload) -> dict[str, str]:
 
 
 @app.post("/api/query")
-async def execute_query(payload: SqlQueryPayload) -> dict[str, object]:
-    if not payload.sql.strip():
-        raise HTTPException(status_code=400, detail="SQL query cannot be empty")
+async def execute_query(payload: SparqlQueryPayload) -> dict[str, object]:
+    if not payload.query.strip():
+        raise HTTPException(status_code=400, detail="SPARQL query cannot be empty")
     try:
-        rows = db.run_sql_query(payload.sql)
+        columns, rows = db.run_sparql_query(payload.query)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # pragma: no cover - defensive guard for runtime SQL errors
+    except Exception as exc:  # pragma: no cover - defensive guard for runtime SPARQL errors
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    columns = db.list_columns(rows)
-    data = [dict(row) for row in rows]
-    return {"columns": columns, "rows": data}
+    return {"columns": columns, "rows": rows}

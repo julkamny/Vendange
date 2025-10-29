@@ -92,7 +92,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         await uploadDataset('original', file)
       } catch (error) {
         console.error('Failed to upload original dataset to search backend', error)
-        showToast(t('workspace.sqlUploadOriginalError', { defaultValue: 'Failed to prepare original dataset for search.' }), {
+        showToast(t('workspace.sparqlUploadOriginalError', { defaultValue: 'Failed to prepare original dataset for SPARQL search.' }), {
           tone: 'error',
         })
       }
@@ -114,7 +114,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         await uploadDataset('curated', file)
       } catch (error) {
         console.error('Failed to upload curated dataset to search backend', error)
-        showToast(t('workspace.sqlUploadCuratedError', { defaultValue: 'Failed to prepare curated dataset for search.' }), {
+        showToast(t('workspace.sparqlUploadCuratedError', { defaultValue: 'Failed to prepare curated dataset for SPARQL search.' }), {
           tone: 'error',
         })
       }
@@ -188,7 +188,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         } catch (error) {
           console.error('Failed to upload default original dataset to search backend', error)
           showToast(
-            t('workspace.sqlUploadOriginalError', { defaultValue: 'Failed to prepare original dataset for search.' }),
+            t('workspace.sparqlUploadOriginalError', { defaultValue: 'Failed to prepare original dataset for SPARQL search.' }),
             { tone: 'error' },
           )
         }
@@ -199,7 +199,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         } catch (error) {
           console.error('Failed to upload default curated dataset to search backend', error)
           showToast(
-            t('workspace.sqlUploadCuratedError', { defaultValue: 'Failed to prepare curated dataset for search.' }),
+            t('workspace.sparqlUploadCuratedError', { defaultValue: 'Failed to prepare curated dataset for SPARQL search.' }),
             { tone: 'error' },
           )
         }
@@ -234,7 +234,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         } catch (error) {
           console.error('Failed to synchronise record with search backend', error)
           showToast(
-            t('workspace.sqlSyncError', { defaultValue: 'Failed to update search index for the record.' }),
+            t('workspace.sparqlSyncError', { defaultValue: 'Failed to update SPARQL index for the record.' }),
             { tone: 'error' },
           )
         }

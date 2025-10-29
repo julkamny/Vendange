@@ -1,4 +1,4 @@
-import type { SqlQueryResult } from '../workspace/types'
+import type { SparqlQueryResult } from '../workspace/types'
 
 const DEFAULT_API_BASE_URL = 'http://localhost:8000'
 
@@ -51,12 +51,12 @@ export async function syncRecordUpdate(payload: { id: string; type: string; inte
   }
 }
 
-export async function executeSqlQuery(sql: string): Promise<SqlQueryResult> {
+export async function executeSparqlQuery(sparql: string): Promise<SparqlQueryResult> {
   const url = `${API_BASE_URL}/api/query`
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sql }),
+    body: JSON.stringify({ query: sparql }),
   })
   if (!response.ok) {
     const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))

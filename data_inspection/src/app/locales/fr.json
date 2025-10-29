@@ -13,7 +13,21 @@
     "unclusteredHeading": "Œuvres non regroupées",
     "unclusteredCount": "{{count}} œuvres restent à regrouper",
     "noUnclustered": "Toutes les œuvres sont regroupées.",
-    "todo": "Portage en cours…"
+    "todo": "Portage en cours…",
+    "sparqlTabDefault": "SPARQL",
+    "addSparqlTab": "Ajouter un onglet SPARQL",
+    "sparqlEditorTitle": "Requête SPARQL",
+    "sparqlRunQuery": "Exécuter la requête",
+    "sparqlRunning": "Exécution…",
+    "sparqlClearResults": "Effacer les résultats",
+    "sparqlRowCount": "{{count}} lignes",
+    "sparqlColumns": "Colonnes",
+    "sparqlNoResults": "Exécutez une requête pour afficher les résultats.",
+    "sparqlEmptyQuery": "Saisissez d'abord une requête SPARQL.",
+    "sparqlNoRecordForArk": "Aucune notice trouvée pour cet ARK.",
+    "sparqlUploadOriginalError": "Impossible de préparer l'ensemble original pour la recherche SPARQL.",
+    "sparqlUploadCuratedError": "Impossible de préparer l'ensemble curé pour la recherche SPARQL.",
+    "sparqlSyncError": "La mise à jour de l'index SPARQL a échoué."
   },
   "toolbar": {
     "loadCsv": "Charger des CSV",

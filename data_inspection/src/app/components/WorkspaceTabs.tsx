@@ -1,12 +1,12 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { WorkspaceView } from './WorkspaceView'
-import { SqlWorkspaceView } from './SqlWorkspaceView'
+import { SparqlWorkspaceView } from './SparqlWorkspaceView'
 import type { WorkspaceTabState, WorkspaceTabStateWorkspace } from '../workspace/types'
 import type { RecordRow } from '../types'
 import {
   DEFAULT_WORKSPACE_STATE,
-  createDefaultSqlState,
-  isSqlTab,
+  createDefaultSparqlState,
+  isSparqlTab,
   isWorkspaceTab,
 } from '../workspace/types'
 import { useTranslation } from '../hooks/useTranslation'
@@ -43,7 +43,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     () => t('workspace.tabDefault', { defaultValue: 'Workspace' }),
     [t],
   )
-  const defaultSqlTitle = useMemo(() => t('workspace.sqlTabDefault', { defaultValue: 'SQL' }), [t])
+  const defaultSparqlTitle = useMemo(() => t('workspace.sparqlTabDefault', { defaultValue: 'SPARQL' }), [t])
   const recordIndexes = useMemo(() => {
     const byId = new Map<string, RecordRow>()
     const byArk = new Map<string, RecordRow>()
@@ -66,11 +66,11 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     setActiveId(newTab.id)
   }, [defaultWorkspaceTitle])
 
-  const addSqlTab = useCallback(() => {
-    const newTab = createDefaultSqlState(`tab-${++tabSequence}`, defaultSqlTitle)
+  const addSparqlTab = useCallback(() => {
+    const newTab = createDefaultSparqlState(`tab-${++tabSequence}`, defaultSparqlTitle)
     setTabs(prev => [...prev, newTab])
     setActiveId(newTab.id)
-  }, [defaultSqlTitle])
+  }, [defaultSparqlTitle])
 
   const openTabWithState = useCallback(
     (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => {
@@ -124,13 +124,13 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   const workspace = useWorkspaceData(workspaceSource)
   const getWorkspaceLabel = useCallback(
     (tab: WorkspaceTabState) => {
-      if (isSqlTab(tab)) {
+      if (isSparqlTab(tab)) {
         const trimmed = tab.query.trim()
         if (trimmed.length) {
           const firstLine = trimmed.split(/\r?\n/, 1)[0]
           return firstLine.length > 80 ? `${firstLine.slice(0, 77)}…` : firstLine
         }
-        return tab.title || defaultSqlTitle
+        return tab.title || defaultSparqlTitle
       }
 
       const fallbackLabel = tab.title || defaultWorkspaceTitle
@@ -184,7 +184,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       }
       return fallbackLabel
     },
-    [recordIndexes, defaultWorkspaceTitle, defaultSqlTitle],
+    [recordIndexes, defaultWorkspaceTitle, defaultSparqlTitle],
   )
 
   const handleShortcutAction = useCallback(
@@ -298,11 +298,11 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         ))}
         <button
           type="button"
-          className="workspace-tab add sql"
-          onClick={addSqlTab}
-          aria-label={t('workspace.addSqlTab', { defaultValue: 'Add SQL tab' })}
+          className="workspace-tab add sparql"
+          onClick={addSparqlTab}
+          aria-label={t('workspace.addSparqlTab', { defaultValue: 'Add SPARQL tab' })}
         >
-          SQL
+          SPARQL
         </button>
         <button
           type="button"
@@ -325,12 +325,12 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
               }
               onOpenTab={openTabWithState}
             />
-          ) : isSqlTab(activeTab) ? (
-            <SqlWorkspaceView
+          ) : isSparqlTab(activeTab) ? (
+            <SparqlWorkspaceView
               state={activeTab}
               onStateChange={updater =>
                 updateTabState(activeTab.id, prev =>
-                  isSqlTab(prev) ? updater(prev) : prev,
+                  isSparqlTab(prev) ? updater(prev) : prev,
                 )
               }
               onOpenWorkspaceTab={openTabWithState}

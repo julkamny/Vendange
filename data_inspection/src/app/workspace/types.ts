@@ -2,11 +2,11 @@ import type { InventoryScope, SelectedEntity } from '../types'
 
 export type ViewMode = 'works' | 'expressions' | 'manifestations'
 
-export type WorkspaceTabKind = 'workspace' | 'sql'
+export type WorkspaceTabKind = 'workspace' | 'sparql'
 
-export type SqlQueryRow = Record<string, unknown>
+export type SparqlQueryRow = Record<string, unknown>
 
-export type SqlQueryResult = { columns: string[]; rows: SqlQueryRow[] }
+export type SparqlQueryResult = { columns: string[]; rows: SparqlQueryRow[] }
 
 export type WorkspaceTabStateWorkspace = {
   kind: 'workspace'
@@ -27,20 +27,20 @@ export type WorkspaceTabStateWorkspace = {
   detailsScrollTop: number
 }
 
-export type WorkspaceTabStateSql = {
-  kind: 'sql'
+export type WorkspaceTabStateSparql = {
+  kind: 'sparql'
   id: string
   title: string
   query: string
-  lastRunSql: string | null
+  lastRunQuery: string | null
   lastRunError: string | null
   isExecuting: boolean
-  result: SqlQueryResult | null
+  result: SparqlQueryResult | null
   hiddenColumns: Set<string>
   sort: { column: string; direction: 'asc' | 'desc' } | null
 }
 
-export type WorkspaceTabState = WorkspaceTabStateWorkspace | WorkspaceTabStateSql
+export type WorkspaceTabState = WorkspaceTabStateWorkspace | WorkspaceTabStateSparql
 
 export const DEFAULT_WORKSPACE_STATE: Omit<WorkspaceTabStateWorkspace, 'id' | 'title'> = {
   kind: 'workspace',
@@ -59,13 +59,13 @@ export const DEFAULT_WORKSPACE_STATE: Omit<WorkspaceTabStateWorkspace, 'id' | 't
   detailsScrollTop: 0,
 }
 
-export function createDefaultSqlState(id: string, title: string): WorkspaceTabStateSql {
+export function createDefaultSparqlState(id: string, title: string): WorkspaceTabStateSparql {
   return {
-    kind: 'sql',
+    kind: 'sparql',
     id,
     title,
     query: '',
-    lastRunSql: null,
+    lastRunQuery: null,
     lastRunError: null,
     isExecuting: false,
     result: null,
@@ -78,6 +78,6 @@ export function isWorkspaceTab(tab: WorkspaceTabState): tab is WorkspaceTabState
   return tab.kind === 'workspace'
 }
 
-export function isSqlTab(tab: WorkspaceTabState): tab is WorkspaceTabStateSql {
-  return tab.kind === 'sql'
+export function isSparqlTab(tab: WorkspaceTabState): tab is WorkspaceTabStateSparql {
+  return tab.kind === 'sparql'
 }

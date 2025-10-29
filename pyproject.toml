@@ -26,6 +26,8 @@ dependencies = [
     "spacy-curated-transformers==0.3.1",
     "sympy==1.14.0",
     "torch==2.2.2",
+    "pyoxigraph>=0.5.2",
+    "oxigraph>=0.5.2",
 ]
 
 [tool.uv]

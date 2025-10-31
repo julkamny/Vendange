@@ -1,69 +1,41 @@
 # Vendange SPARQL Store
 
-The Vendange search backend now relies on an on-disk [Oxigraph](https://github.com/oxigraph/oxigraph/tree/main/python) database. Every CSV upload received by `POST /api/upload` wipes the previous content and materialises the curated dataset as RDF quads that can be queried with SPARQL.
+The FastAPI backend now materialises every curated CSV upload as an [Oxigraph](https://github.com/oxigraph/oxigraph/tree/main/python) database. Each record becomes a collection of RDF **quads** `(subject, predicate, object, graph)`:
 
-## Quads & graphs
+- `subject` — the entity the fact is about
+- `predicate` — the property/relationship being asserted
+- `object` — the value (literal or another node)
+- `graph` — optional named graph. When omitted the quad lives in the default graph.
 
-Oxigraph stores **quads**: `(subject, predicate, object, graph)`.
+For every fact we write both to the default graph and to a per-record named graph `https://vendange.bnf.fr/graph/<record_id>`. That makes SPARQL `SELECT` queries simple while keeping updates cheap: rewriting a record only requires clearing its named graph and the subject’s default-graph quads.
 
-- The **subject** is the entity we talk about.
-- The **predicate** is the property or relationship.
-- The **object** is the value or target entity.
-- The optional **graph name** scopes the triple to a named graph. When no graph is provided, the triple lives in the **default graph**.
+## Where the data lives
 
-Vendange writes every fact twice:
+- Oxigraph files: `data_curation/api/vendange_store/` (recreated on each ingestion)
+- Legacy SQLite file: removed automatically on startup
+- Dataset metadata: `https://vendange.bnf.fr/entity/dataset` (stores the last dataset label)
 
-1. In the default graph, so a simple `SELECT` sees it immediately.
-2. In a named graph `https://vendange.bnf.fr/graph/<record_id>` that contains only the quads extracted from that record. Updating a record is therefore a cheap “clear graph + reinsert” operation.
+## Vocabulary cheat sheet
 
-## Store location & lifecycle
+IRIs are rooted under `https://vendange.bnf.fr/…`.
 
-- The generated database lives in `data_curation/api/vendange_store/`. The directory is recreated from scratch on every ingestion.
-- The legacy `vendange.sqlite` file is removed automatically when the API starts.
-- The named node `https://vendange.bnf.fr/entity/dataset` carries metadata such as the last uploaded dataset label.
+| Subject → Predicate → Object | Description |
+| --- | --- |
+| `entity/<id>` → `rdf:type` → `class/{Workar Expressionar Manifestationar PublicIdentityar Collectivear ControlledValuear DeweyConceptar Brandar Family}` | Entity type inferred from `type_entite` (diacritics folded). |
+| `entity/<id>` → `property/type_raw` → _literal_ | Raw `type_entite` string. |
+| `entity/<id>` → `property/ark` → _literal_ | `001$a` when present. |
+| `entity/<id>` → `property/source_dataset` → `entity/dataset` | Dataset provenance. |
+| `entity/<id>` → `hasField` → `_:` field blank node | Connects the entity to every MARC field. |
+| field blank node → `fieldCode` → _literal_ | MARC zone code (`245`, `700`, …). |
+| field blank node → `fieldIndex` → _integer literal_ | 0-based position in the record (preserves CSV order). |
+| field blank node → `hasSubfield` → `_:` subfield blank node | Links fields to their subfields. |
+| subfield blank node → `subfieldCode` → _literal_ | Subfield code with `$` replaced by `s` (`245$a` → `245sa`). |
+| subfield blank node → `subfieldIndex` → _integer literal_ | Position within the parent field. |
+| subfield blank node → `subfieldValue` → _literal_ | Raw value. |
+| `entity/<id>` → `relation/<code>` → target | `$3` relationships (code sanitised as above). Target is another record IRI when known, otherwise we keep the named node for the ARK. |
+| `entity/<id>` → `relation_ark/<code>` → _literal_ | Literal ARK value for every `$3`. |
 
-## Vocabulary overview
-
-All IRIs are rooted under `https://vendange.bnf.fr/…`.
-
-| Concept | IRI pattern | Notes |
-| --- | --- | --- |
-| Entity identifier | `entity/<record_id>` | Same identifier as the CSV (`id_entitelrm`). |
-| Record type | `class/{Work\|Expression\|Manifestation\|PublicIdentity\|Collective\|ControlledValue\|DeweyConcept\|Brand\|Family}` | The type is inferred from the `type_entite` column (diacritics ignored). |
-| Raw CSV type | `property/type_raw` | Literal copy of `type_entite`. |
-| ARK | `property/ark` | Literal ARK if present in `001$a`. |
-| Dataset provenance | `property/source_dataset` | Points to `entity/dataset`. |
-| MARC field | `field/<zone>` | One quad per field occurrence. Object is a JSON literal containing the zone and all its subfields. |
-| `$3` relationship | `relation/<zone>$3` | Points to another record IRI (when known) or to the literal ARK named node. |
-| `$3` literal | `relation_ark/<zone>$3` | Always stores the literal ARK string for auditing. |
-
-### Field literals
-
-Each MARC field is stored as a compact JSON string. Example for a `245` field:
-
-```json
-{"code":"245","sousZones":[{"code":"245$a","valeur":"Un |Bon petit diable"},{"code":"245$f","valeur":"[d'après la] Comtesse de Ségur"}],"index":7}
-```
-
-The optional `index` reflects the position of the field in the record; it helps distinguish repeated occurrences.
-
-### Targeting subfields with regex
-
-Because subfields are embedded in the JSON literal, SPARQL filters need a regular expression. For instance, all manifestations whose `245$a` contains “anémone” (accent insensitive thanks to the CSV preprocessing) can be written as:
-
-```sparql
-SELECT ?manifest ?field
-WHERE {
-  ?manifest <https://vendange.bnf.fr/field/245> ?field .
-  FILTER regex(
-    ?field,
-    "\"code\"\\s*:\\s*\"245\\$a\"[^}]*\"valeur\"\\s*:\\s*\"[^\"]*anemon",
-    "i"
-  )
-}
-```
-
-You can adapt the pattern to match several subfields or to capture `$3` occurrences (`"code":"740$3"` etc.).
+> **Sanitised subfield codes** — every `$` becomes `s`, e.g. `740$3` → `740s3`. This keeps IRIs prefix-friendly for tools like Sparnatural.
 
 ## Example queries
 
@@ -74,41 +46,71 @@ SELECT (COUNT(?work) AS ?count)
 WHERE { ?work a <https://vendange.bnf.fr/class/Work> }
 ```
 
-Traverse manifestation → expression → work while excluding works whose `150$a` mentions adaptation:
+Manifestations whose `245$a` contains “anémone” (case-insensitive). We pattern-match on sanitised codes `245sa`:
 
 ```sparql
-SELECT ?manifest ?expression ?work ?field
+SELECT ?manifest ?value
 WHERE {
-  ?manifest <https://vendange.bnf.fr/relation/740$3> ?expression ;
-             <https://vendange.bnf.fr/field/245> ?field .
-  ?expression <https://vendange.bnf.fr/relation/750$3> ?work .
+  ?manifest <https://vendange.bnf.fr/hasField> ?field .
+  ?field <https://vendange.bnf.fr/fieldCode> "245" .
+  ?field <https://vendange.bnf.fr/hasSubfield> ?subfield .
+  ?subfield <https://vendange.bnf.fr/subfieldCode> "245sa" ;
+            <https://vendange.bnf.fr/subfieldValue> ?value .
+  FILTER regex(?value, "anemone", "i")
+}
+```
+
+Walk manifestation → expression → work while excluding works whose `150$a` contains “adaptation”:
+
+```sparql
+SELECT ?manifest ?expr ?work ?title
+WHERE {
+  ?manifest <https://vendange.bnf.fr/relation/740s3> ?expr .
+  ?expr      <https://vendange.bnf.fr/relation/750s3> ?work .
+  ?manifest <https://vendange.bnf.fr/hasField> ?field .
+  ?field <https://vendange.bnf.fr/fieldCode> "245" ;
+         <https://vendange.bnf.fr/hasSubfield> ?titleSub .
+  ?titleSub <https://vendange.bnf.fr/subfieldCode> "245sa" ;
+            <https://vendange.bnf.fr/subfieldValue> ?title .
   FILTER NOT EXISTS {
-    ?work <https://vendange.bnf.fr/field/150> ?workField .
-    FILTER regex(
-      ?workField,
-      "\"code\"\\s*:\\s*\"150\\$a\"[^}]*\"valeur\"\\s*:\\s*\"[^\"]*adaptation",
-      "i"
-    )
+    ?work <https://vendange.bnf.fr/hasField> ?wField .
+    ?wField <https://vendange.bnf.fr/fieldCode> "150" ;
+            <https://vendange.bnf.fr/hasSubfield> ?wSub .
+    ?wSub <https://vendange.bnf.fr/subfieldCode> "150sa" ;
+          <https://vendange.bnf.fr/subfieldValue> ?wValue .
+    FILTER regex(?wValue, "adaptation", "i")
   }
 }
 LIMIT 25
 ```
 
-List manifestations whose `245` field contains multiple subfields:
+List the second `245` field (index = 1) alongside its subfields in order:
 
 ```sparql
-SELECT ?manifest ?field
+SELECT ?field ?subfield ?code ?value ?pos
 WHERE {
-  ?manifest <https://vendange.bnf.fr/field/245> ?field .
-  FILTER regex(?field, "\"245\\\\$a\"")  # ensure $a exists
-  FILTER regex(?field, "\"245\\\\$g\"")  # ensure $g exists
+  ?entity <https://vendange.bnf.fr/hasField> ?field .
+  ?field <https://vendange.bnf.fr/fieldCode> "245" ;
+         <https://vendange.bnf.fr/fieldIndex> ?posField .
+  FILTER(?posField = 1)
+  ?field <https://vendange.bnf.fr/hasSubfield> ?subfield .
+  ?subfield <https://vendange.bnf.fr/subfieldIndex> ?pos ;
+            <https://vendange.bnf.fr/subfieldCode> ?code ;
+            <https://vendange.bnf.fr/subfieldValue> ?value .
 }
-LIMIT 10
+ORDER BY ?pos
 ```
 
-## Querying with the Oxigraph CLI
+## Regex tips
 
-The CLI is already available via `uv`:
+Need to match a specific code/value without the join overhead? You can stay on the entity level and use `REGEX` on the sanitised `subfieldCode` literal. Example: grab any subfield whose code starts with `5`:
+
+```sparql
+FILTER regex(?code, '^5')
+```
+
+
+## Querying with the Oxigraph CLI
 
 ```bash
 uv run oxigraph query \
@@ -117,10 +119,11 @@ uv run oxigraph query \
   --results-format tsv
 ```
 
-`--results-format` supports `tsv`, `json`, `xml`, `sparql`, and more.
+`--results-format` accepts `tsv`, `json`, `xml`, `sparql`, etc.
 
 ## Notes & caveats
 
-- No normalised duplicates are stored: only the raw field JSON survives. Use SPARQL functions (`regex`, `LCASE`, etc.) when you need case- or accent-insensitive matching.
-- `$3` relations always expose both the linked entity (when resolvable) and the literal ARK.
-- Updating a record rewrites its named graph and the corresponding default-graph quads atomically; there is no need to re-upload the whole CSV after manual edits.
+- Fields and subfields are blank nodes; indexes capture the CSV order (0-based).
+- Only raw values are stored; use SPARQL functions for accent/ case-insensitive filters.
+- `$3` relations expose both the linked entity (when resolvable) and the literal ARK.
+- Updating a record rewrites its named graph and default-graph quads atomically—no need to re-upload the full CSV after an edit.

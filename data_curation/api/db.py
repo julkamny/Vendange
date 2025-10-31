@@ -24,7 +24,7 @@ from pyoxigraph import (
     Store,
 )
 
-from ..models import Intermarc, Zone
+from ..models import Intermarc
 from ..utils.text_norm import fold_diacritics
 
 csv.field_size_limit(sys.maxsize)
@@ -58,6 +58,7 @@ XSD_DECIMAL_TYPES = {
     f"{XSD_NS}double",
     f"{XSD_NS}float",
 }
+XSD_INTEGER = NamedNode(f"{XSD_NS}integer")
 
 BASE_ENTITY_NS = "https://vendange.bnf.fr/entity/"
 BASE_GRAPH_NS = "https://vendange.bnf.fr/graph/"
@@ -66,6 +67,13 @@ RELATION_NS = "https://vendange.bnf.fr/relation/"
 RELATION_ARK_NS = "https://vendange.bnf.fr/relation_ark/"
 PROPERTY_NS = "https://vendange.bnf.fr/property/"
 CLASS_NS = "https://vendange.bnf.fr/class/"
+HAS_FIELD = NamedNode("https://vendange.bnf.fr/hasField")
+HAS_SUBFIELD = NamedNode("https://vendange.bnf.fr/hasSubfield")
+FIELD_CODE_PROP = NamedNode("https://vendange.bnf.fr/fieldCode")
+FIELD_INDEX_PROP = NamedNode("https://vendange.bnf.fr/fieldIndex")
+SUBFIELD_CODE_PROP = NamedNode("https://vendange.bnf.fr/subfieldCode")
+SUBFIELD_INDEX_PROP = NamedNode("https://vendange.bnf.fr/subfieldIndex")
+SUBFIELD_VALUE_PROP = NamedNode("https://vendange.bnf.fr/subfieldValue")
 META_GRAPH = NamedNode(f"{BASE_GRAPH_NS}metadata")
 META_DATASET = NamedNode(f"{BASE_ENTITY_NS}dataset")
 PROP_ARK = NamedNode(f"{PROPERTY_NS}ark")
@@ -98,16 +106,26 @@ class ParsedRecord:
 
 
 @dataclass
-class FieldRow:
-    record_id: str
+class SubfieldRow:
+    node: BlankNode
     code: str
+    raw_code: str
+    index: int
     value: str
+
+
+@dataclass
+class FieldRow:
+    node: BlankNode
+    code: str
+    index: int
+    subfields: List[SubfieldRow]
 
 
 @dataclass
 class EdgeRow:
     src_id: str
-    relation: str
+    relation_code: str
     dst_ark: str
     dst_id: Optional[str]
 
@@ -158,11 +176,11 @@ def _field_predicate(code: str) -> NamedNode:
 
 
 def _relation_predicate(code: str) -> NamedNode:
-    return NamedNode(f"{RELATION_NS}{quote(code, safe='$')}")
+    return NamedNode(f"{RELATION_NS}{quote(code, safe='')}")
 
 
 def _relation_ark_predicate(code: str) -> NamedNode:
-    return NamedNode(f"{RELATION_ARK_NS}{quote(code, safe='$')}")
+    return NamedNode(f"{RELATION_ARK_NS}{quote(code, safe='')}")
 
 
 def _emit_quads(
@@ -189,6 +207,10 @@ def _class_for_type(value: str) -> NamedNode:
 
 def _looks_like_ark(value: str) -> bool:
     return value.startswith("ark:/")
+
+
+def _sanitize_subfield_code(code: str) -> str:
+    return (code or "").replace("$", "s")
 
 
 def _normalize_header_name(value: str) -> str:
@@ -272,37 +294,44 @@ def _extract_ark(intermarc: Intermarc) -> Optional[str]:
     return None
 
 
-def _zone_literal(zone: Zone, *, index: int) -> str:
-    payload = zone.to_dict()
-    payload["index"] = index
-    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-
-
 def _extract_rows(record: ParsedRecord) -> tuple[List[FieldRow], List[EdgeRow]]:
     fields: List[FieldRow] = []
     edges: List[EdgeRow] = []
     for zone_index, zone in enumerate(record.intermarc.zones):
         zone_code = zone.code or ""
-        if zone_code:
-            fields.append(
-                FieldRow(
-                    record_id=record.id,
-                    code=zone_code,
-                    value=_zone_literal(zone, index=zone_index),
+        field_node = BlankNode(f"{record.id}:f:{zone_index}")
+        subfields: List[SubfieldRow] = []
+        for sub_index, sub in enumerate(zone.sousZones):
+            raw_code = sub.code or ""
+            sanitized_code = _sanitize_subfield_code(raw_code)
+            raw_value = str(sub.valeur) if sub.valeur is not None else ""
+            sub_node = BlankNode(f"{record.id}:f:{zone_index}:s:{sub_index}")
+            subfields.append(
+                SubfieldRow(
+                    node=sub_node,
+                    code=sanitized_code,
+                    raw_code=raw_code,
+                    index=sub_index,
+                    value=raw_value,
                 )
             )
-        for sub in zone.sousZones:
-            raw_value = str(sub.valeur) if sub.valeur is not None else ""
-            code = sub.code or ""
-            if code and _looks_like_ark(raw_value.strip()) and code.endswith("$3"):
+            if raw_code.endswith("$3") and _looks_like_ark(raw_value.strip()):
                 edges.append(
                     EdgeRow(
                         src_id=record.id,
-                        relation=code,
+                        relation_code=_sanitize_subfield_code(raw_code),
                         dst_ark=raw_value.strip(),
                         dst_id=None,
                     )
                 )
+        fields.append(
+            FieldRow(
+                node=field_node,
+                code=zone_code,
+                index=zone_index,
+                subfields=subfields,
+            )
+        )
     return fields, edges
 
 
@@ -352,8 +381,27 @@ def _build_record_quads(record: ParsedRecord, ark_to_id: dict[str | None, str]) 
 
     fields, edges = _extract_rows(record)
     for field in fields:
-        if field.code and field.value:
-            yield from _emit_quads(subject, _field_predicate(field.code), Literal(field.value), graph)
+        yield from _emit_quads(subject, HAS_FIELD, field.node, graph)
+        if field.code:
+            yield from _emit_quads(field.node, FIELD_CODE_PROP, Literal(field.code), graph)
+        yield from _emit_quads(
+            field.node,
+            FIELD_INDEX_PROP,
+            Literal(str(field.index), datatype=XSD_INTEGER),
+            graph,
+        )
+        for sub in field.subfields:
+            yield from _emit_quads(field.node, HAS_SUBFIELD, sub.node, graph)
+            if sub.code:
+                yield from _emit_quads(sub.node, SUBFIELD_CODE_PROP, Literal(sub.code), graph)
+            yield from _emit_quads(
+                sub.node,
+                SUBFIELD_INDEX_PROP,
+                Literal(str(sub.index), datatype=XSD_INTEGER),
+                graph,
+            )
+            if sub.value:
+                yield from _emit_quads(sub.node, SUBFIELD_VALUE_PROP, Literal(sub.value), graph)
 
     for edge in edges:
         target_id = edge.dst_id or ark_to_id.get(edge.dst_ark)
@@ -363,9 +411,9 @@ def _build_record_quads(record: ParsedRecord, ark_to_id: dict[str | None, str]) 
         elif edge.dst_ark:
             target_node = NamedNode(edge.dst_ark)
         if target_node is not None:
-            yield from _emit_quads(subject, _relation_predicate(edge.relation), target_node, graph)
+            yield from _emit_quads(subject, _relation_predicate(edge.relation_code), target_node, graph)
         if edge.dst_ark:
-            yield from _emit_quads(subject, _relation_ark_predicate(edge.relation), Literal(edge.dst_ark), graph)
+            yield from _emit_quads(subject, _relation_ark_predicate(edge.relation_code), Literal(edge.dst_ark), graph)
 
 
 def _build_record_from_payload(record_id: str, type_raw: str, intermarc_json: str) -> ParsedRecord:

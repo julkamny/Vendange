@@ -1287,6 +1287,25 @@ button:focus-visible {
   color: color-mix(in srgb, #ff6b8a 85%, var(--entity-expression));
   font-weight: 600;
 }
+.intermarc-zone.curation-created,
+.intermarc-subfield.curation-created,
+.intermarc-subfield-code.curation-created,
+.ark-link.curation-created {
+  background: color-mix(in srgb, #4caf50 32%, transparent);
+}
+.intermarc-zone.curation-modified,
+.intermarc-subfield.curation-modified,
+.intermarc-subfield-code.curation-modified,
+.ark-link.curation-modified {
+  background: color-mix(in srgb, #ffd54f 40%, transparent);
+}
+.intermarc-zone.curation-deleted,
+.intermarc-subfield.curation-deleted,
+.intermarc-subfield-code.curation-deleted,
+.ark-link.curation-deleted {
+  background: color-mix(in srgb, #ef5350 40%, transparent);
+  text-decoration: line-through;
+}
 
 .diff-original {
   background: color-mix(in srgb, var(--entity-expression) 30%, transparent);

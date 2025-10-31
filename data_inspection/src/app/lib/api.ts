@@ -96,6 +96,40 @@ export async function deleteDataset(datasetId: string): Promise<void> {
   }
 }
 
+export type DatasetRecordPayload = {
+  id: string
+  type: string
+  ark?: string | null
+  intermarc: string
+}
+
+export async function fetchDatasetRecords(datasetId: string): Promise<{ dataset: DatasetSummary; records: DatasetRecordPayload[] }> {
+  const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/records`
+  const response = await fetch(url)
+  if (!response.ok) {
+    const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
+    throw new Error(detail.detail || 'Failed to load dataset records')
+  }
+  const data = await parseJson<{ dataset: DatasetSummary; records: DatasetRecordPayload[] }>(response)
+  return data
+}
+
+export async function syncRecordUpdate(
+  datasetId: string,
+  payload: { id: string; type: string; intermarc: string },
+): Promise<void> {
+  const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/update_record`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: payload.id, type: payload.type, intermarc: payload.intermarc }),
+  })
+  if (!response.ok) {
+    const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
+    throw new Error(detail.detail || 'Failed to synchronise record update')
+  }
+}
+
 export type ClusterLogEvent = {
   type: 'log'
   datasetId: string

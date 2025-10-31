@@ -1,8 +1,9 @@
+import type { RecordRow } from '../types'
 import { parseCsv } from './csv'
 import { buildHeaderLookup, normalizeHeaderName } from './csvHeaders'
 
-export type SousZone = { code: string; valeur: string }
-export type Zone = { code: string; sousZones: SousZone[] }
+export type SousZone = { code: string; valeur: string; affectedByCuration?: string }
+export type Zone = { code: string; sousZones: SousZone[]; affectedByCuration?: string }
 export type Intermarc = { zones: Zone[] }
 
 const CURRENT_EXPORT_PATH = '/data/current_export.csv'
@@ -225,8 +226,17 @@ export function parseIntermarc(s: string): Intermarc {
     const cleaned = stripBom(String(s)).trim()
     const obj = JSON.parse(cleaned)
     if (!obj || !Array.isArray(obj.zones)) throw new Error('Invalid intermarc')
-    // Normalize shape
-    return { zones: obj.zones.map((z: any) => ({ code: String(z.code), sousZones: (z.sousZones || []).map((sz: any) => ({ code: String(sz.code), valeur: String(sz.valeur) })) })) }
+    return {
+      zones: obj.zones.map((z: any) => ({
+        code: String(z.code),
+        affectedByCuration: typeof z.affectedByCuration === 'string' ? z.affectedByCuration : undefined,
+        sousZones: (z.sousZones || []).map((sz: any) => ({
+          code: String(sz.code),
+          valeur: sz.valeur != null ? String(sz.valeur) : '',
+          affectedByCuration: typeof sz.affectedByCuration === 'string' ? sz.affectedByCuration : undefined,
+        })),
+      })),
+    }
   } catch (e) {
     console.error('Failed to parse intermarc:', e)
     return { zones: [] }
@@ -235,6 +245,15 @@ export function parseIntermarc(s: string): Intermarc {
 
 type PrettyPrintOptions = {
   resolveLabels?: boolean
+}
+
+function curationClass(flag?: string): string {
+  if (!flag) return ''
+  const normalized = flag.toLowerCase()
+  if (normalized === 'created') return ' curation-created'
+  if (normalized === 'modified') return ' curation-modified'
+  if (normalized === 'deleted') return ' curation-deleted'
+  return ''
 }
 
 export async function prettyPrintIntermarc(
@@ -248,7 +267,7 @@ export async function prettyPrintIntermarc(
     let lineText = z.code ?? ''
     const marks: PrettyIntermarcLineMark[] = []
     if (lineText.length) {
-      marks.push({ className: 'intermarc-zone', from: 0, to: lineText.length })
+      marks.push({ className: `intermarc-zone${curationClass(z.affectedByCuration)}`, from: 0, to: lineText.length })
     }
 
     for (const sz of z.sousZones) {
@@ -260,7 +279,8 @@ export async function prettyPrintIntermarc(
       lineText += displayCode
       const codeStart = lineText.length - displayCode.length
       const codeEnd = lineText.length
-      marks.push({ className: 'intermarc-subfield-code', from: codeStart, to: codeEnd })
+      const highlight = curationClass(sz.affectedByCuration ?? z.affectedByCuration)
+      marks.push({ className: `intermarc-subfield-code${highlight}`, from: codeStart, to: codeEnd })
 
       if (shown && shown.length) {
         lineText += ' '
@@ -268,7 +288,7 @@ export async function prettyPrintIntermarc(
         lineText += shown
         if (ark) {
           marks.push({
-            className: 'ark-link has-tooltip',
+            className: `ark-link has-tooltip${highlight}`,
             from: valueStart,
             to: lineText.length,
             attributes: {
@@ -283,7 +303,7 @@ export async function prettyPrintIntermarc(
       }
 
       const subfieldEnd = lineText.length
-      marks.push({ className: 'intermarc-subfield', from: subfieldStart, to: subfieldEnd })
+      marks.push({ className: `intermarc-subfield${highlight}`, from: subfieldStart, to: subfieldEnd })
     }
 
     lineEntries.push({ text: lineText, marks })
@@ -339,12 +359,35 @@ export function add90FEntries(im: Intermarc, entries: { ark: string; date: strin
   for (const e of entries) {
     filtered.push({
       code: '90F',
+      affectedByCuration: 'created',
       sousZones: [
-        { code: '90F$a', valeur: e.ark },
-        { code: '90F$q', valeur: e.note },
-        { code: '90F$d', valeur: e.date },
+        { code: '90F$a', valeur: e.ark, affectedByCuration: 'created' },
+        { code: '90F$q', valeur: e.note, affectedByCuration: 'created' },
+        { code: '90F$d', valeur: e.date, affectedByCuration: 'created' },
       ],
     })
   }
   return { zones: filtered }
+}
+
+export function resetArkLabelCache(): void {
+  arkLabelByIdCache.clear()
+  arkLabelByArkCache.clear()
+  arkLabelLoadPromise = null
+}
+
+export function registerArkLabelForRecord(record: RecordRow): void {
+  const label = buildLabelFromIntermarc(record.intermarc, record.type)
+  if (!label) return
+  arkLabelByIdCache.set(record.id, label)
+  if (record.ark) {
+    arkLabelByArkCache.set(record.ark, label)
+  } else {
+    const ark = getFirstSubZoneValue(record.intermarc, '001', '001$a')
+    if (ark) arkLabelByArkCache.set(ark, label)
+  }
+}
+
+export function primeArkLabelCache(records: RecordRow[]): void {
+  records.forEach(registerArkLabelForRecord)
 }

@@ -24,6 +24,7 @@
     "sparqlColumns": "Colonnes",
     "sparqlNoResults": "Exécutez une requête pour afficher les résultats.",
     "sparqlEmptyQuery": "Saisissez d'abord une requête SPARQL.",
+    "sparqlNoDataset": "Chargez une base avant d’exécuter une requête.",
     "sparqlNoRecordForArk": "Aucune notice trouvée pour cet ARK.",
     "sparqlUploadOriginalError": "Impossible de préparer l'ensemble original pour la recherche SPARQL.",
     "sparqlUploadCuratedError": "Impossible de préparer l'ensemble curé pour la recherche SPARQL.",

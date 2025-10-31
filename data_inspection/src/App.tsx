@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import './App.css'
 import './app/style.css'
 import { AppDataProvider, useAppData } from './app/providers/AppDataContext'
@@ -7,36 +7,55 @@ import { WorkspaceTabs } from './app/components/WorkspaceTabs'
 import { useTranslation } from './app/hooks/useTranslation'
 import { ThemeProvider } from './app/providers/ThemeContext'
 import { Toolbar } from './app/components/Toolbar'
-import { UploadModal } from './app/components/UploadModal'
 import { ShortcutModal } from './app/components/ShortcutModal'
 import { ShortcutProvider } from './app/providers/ShortcutContext'
 import { DatasetDashboard } from './app/components/DatasetDashboard'
 import type { DatasetSummary } from './app/types'
 
 function App() {
-  const [view, setView] = useState<'dashboard' | 'inspection'>('dashboard')
-  const [activeDataset, setActiveDataset] = useState<DatasetSummary | null>(null)
-
-  const openInspection = (dataset: DatasetSummary) => {
-    setActiveDataset(dataset)
-    setView('inspection')
-  }
-
-  const goHome = () => {
-    setView('dashboard')
-  }
-
   return (
     <ThemeProvider>
       <ShortcutProvider>
         <ToastProvider>
           <AppDataProvider>
-            {view === 'dashboard' ? <DatasetDashboard onOpenInspection={openInspection} /> : <AppShell onBack={goHome} dataset={activeDataset} />}
+            <AppRouter />
           </AppDataProvider>
         </ToastProvider>
       </ShortcutProvider>
     </ThemeProvider>
   )
+}
+
+function AppRouter() {
+  const [view, setView] = useState<'dashboard' | 'inspection'>('dashboard')
+  const [activeDataset, setActiveDataset] = useState<DatasetSummary | null>(null)
+  const [openingDatasetId, setOpeningDatasetId] = useState<string | null>(null)
+  const { loadDataset, clearData } = useAppData()
+
+  const openInspection = useCallback(async (dataset: DatasetSummary) => {
+    setOpeningDatasetId(dataset.id)
+    try {
+      await loadDataset(dataset.id, { title: dataset.title })
+      setActiveDataset(dataset)
+      setView('inspection')
+    } catch (error) {
+      // loadDataset already reports the error
+    } finally {
+      setOpeningDatasetId(null)
+    }
+  }, [loadDataset])
+
+  const goHome = useCallback(() => {
+    clearData()
+    setActiveDataset(null)
+    setView('dashboard')
+  }, [clearData])
+
+  if (view === 'dashboard') {
+    return <DatasetDashboard onOpenInspection={openInspection} openingDatasetId={openingDatasetId ?? undefined} />
+  }
+
+  return <AppShell onBack={goHome} dataset={activeDataset} />
 }
 
 type AppShellProps = {
@@ -49,7 +68,6 @@ function AppShell({ onBack, dataset }: AppShellProps) {
   const { clusters, exportCurated } = useAppData()
   const [toolbarVisible, setToolbarVisible] = useState(false)
   const [atTop, setAtTop] = useState(true)
-  const [uploadOpen, setUploadOpen] = useState(false)
   const [shortcutOpen, setShortcutOpen] = useState(false)
 
   useEffect(() => {
@@ -74,7 +92,6 @@ function AppShell({ onBack, dataset }: AppShellProps) {
         visible={toolbarVisible}
         atTop={atTop}
         onToggleVisible={() => setToolbarVisible(prev => !prev)}
-        onOpenUpload={() => setUploadOpen(true)}
         onOpenShortcuts={() => setShortcutOpen(true)}
         onExport={exportCurated}
         exportDisabled={!clusters.length}
@@ -83,7 +100,6 @@ function AppShell({ onBack, dataset }: AppShellProps) {
       <main className="app-main">
         <WorkspaceTabs shortcutModalOpen={shortcutOpen} />
       </main>
-      <UploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
       <ShortcutModal open={shortcutOpen} onClose={() => setShortcutOpen(false)} />
       <footer className="app-footer">
         <span>{t('app.title')}</span>

@@ -76,6 +76,8 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
     -H "Content-Type: application/json" \
     -X POST http://localhost:8000/api/datasets/my-dataset/cluster \
     -d '{"includeExpressions": false}'
+
+- `GET /api/datasets/<dataset_id>/records` returns every entity currently stored in the Oxigraph dataset (id, type, ark, intermarc JSON). The front-end uses this to populate the inspection workspace directly from the store—no more CSV ingestion.
   ```
 
 ### Debug & Fixtures

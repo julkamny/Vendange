@@ -7,7 +7,7 @@ type ToolbarProps = {
   visible: boolean
   atTop: boolean
   onToggleVisible: () => void
-  onOpenUpload: () => void
+  onOpenUpload?: () => void
   onOpenShortcuts: () => void
   onExport: () => void
   exportDisabled: boolean
@@ -57,9 +57,11 @@ export function Toolbar({
               🏠 Dashboard
             </button>
           ) : null}
-          <button type="button" onClick={onOpenUpload}>
-            {t('toolbar.loadCsv')}
-          </button>
+          {onOpenUpload ? (
+            <button type="button" onClick={onOpenUpload}>
+              {t('toolbar.loadCsv')}
+            </button>
+          ) : null}
           <button type="button" onClick={toggle} aria-pressed={mode === 'light'}>
             {themeLabel}
           </button>

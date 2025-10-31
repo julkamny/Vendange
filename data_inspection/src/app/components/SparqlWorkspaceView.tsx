@@ -34,7 +34,7 @@ function normalizeArk(value: string): string {
 export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }: SparqlWorkspaceViewProps) {
   const { t, language } = useTranslation()
   const { showToast } = useToast()
-  const { clusters, curated, original } = useAppData()
+  const { clusters, curated, original, datasetId } = useAppData()
   const { getByArk, getById } = useRecordLookup()
   const stubWorkspaceState = useMemo<WorkspaceTabStateWorkspace>(
     () => ({ ...DEFAULT_WORKSPACE_STATE, id: '__sparql__', title: 'SPARQL' }),
@@ -117,9 +117,15 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
       showToast(t('workspace.sparqlEmptyQuery', { defaultValue: 'Enter a SPARQL query first.' }), { tone: 'error' })
       return
     }
+    if (!datasetId) {
+      showToast(t('workspace.sparqlNoDataset', { defaultValue: 'Chargez une base avant d’exécuter une requête.' }), {
+        tone: 'error',
+      })
+      return
+    }
     onStateChange(prev => ({ ...prev, isExecuting: true, lastRunError: null }))
     try {
-      const result = await executeSparqlQuery(state.query)
+      const result = await executeSparqlQuery(datasetId, state.query)
       onStateChange(prev => {
         const preservedHidden = new Set([...prev.hiddenColumns].filter(column => result.columns.includes(column)))
         const nextSort = prev.sort && result.columns.includes(prev.sort.column) ? prev.sort : null
@@ -138,7 +144,7 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
       onStateChange(prev => ({ ...prev, isExecuting: false, lastRunError: message }))
       showToast(message, { tone: 'error' })
     }
-  }, [state.query, onStateChange, showToast, t])
+  }, [state.query, onStateChange, showToast, t, datasetId])
 
   const handleClearResults = useCallback(() => {
     onStateChange(prev => ({ ...prev, result: null, lastRunQuery: null, sort: null }))

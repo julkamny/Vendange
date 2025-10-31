@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useMemo, useState, useCallback, useRef, useEffect, type ReactNode } from 'react'
 import type {
   CsvTable,
   RecordRow,
@@ -8,16 +8,19 @@ import type {
   ManifestationItem,
 } from '../types'
 import type { Intermarc } from '../lib/intermarc'
-import { parseCsvText, indexRecords, findIntermarcColumnIndex } from '../core/records'
-import { stringifyCsv } from '../lib/csv'
+import { parseIntermarc, primeArkLabelCache, resetArkLabelCache, registerArkLabelForRecord, findZones } from '../lib/intermarc'
 import { detectClusters, buildArkIndex } from '../core/clusters'
 import { buildOriginalIndexes, type OriginalIndexes } from '../core/originalIndexes'
 import { getCurrentLanguage } from '../i18n'
-import { useTranslation } from '../hooks/useTranslation'
-import { DEFAULT_CURATED_NAME, DEFAULT_ORIGINAL_CANDIDATES, CLUSTER_NOTE } from '../core/constants'
-import { add90FEntries } from '../lib/intermarc'
-import { cloneIntermarc } from '../core/intermarc-utils'
+import { normalizeType } from '../core/records'
+import { stringifyCsv } from '../lib/csv'
 import { useToast } from './ToastContext'
+import { cloneIntermarc } from '../core/intermarc-utils'
+import { add90FEntries } from '../lib/intermarc'
+import { CLUSTER_NOTE } from '../core/constants'
+import { fetchDatasetRecords, syncRecordUpdate, type DatasetRecordPayload } from '../lib/api'
+
+// --- Types -----------------------------------------------------------------
 
 type DataSet = {
   csv: CsvTable
@@ -25,19 +28,26 @@ type DataSet = {
   intermarcIndex: number
 }
 
+type UpdatePayload = {
+  id: string
+  type: string
+  intermarc: string
+}
+
 export type AppDataState = {
+  datasetId: string | null
+  datasetTitle: string | null
   original: DataSet | null
   curated: DataSet | null
   curatedBaseline: DataSet | null
   clusters: Cluster[]
-  loadingDefaults: boolean
+  loadingDataset: boolean
   originalIndexes: OriginalIndexes | null
 }
 
 type AppDataContextValue = AppDataState & {
-  loadOriginal: (file: File) => Promise<void>
-  loadCurated: (file: File) => Promise<void>
-  loadDefaults: () => Promise<void>
+  loadDataset: (datasetId: string, options?: { title?: string }) => Promise<void>
+  refreshDataset: () => Promise<void>
   updateRecordIntermarc: (recordId: string, intermarc: Intermarc) => void
   getCuratedBaselineRecord: (recordId: string) => RecordRow | null
   setWorkAccepted: (clusterId: string, workArk: string, accepted: boolean) => void
@@ -56,6 +66,17 @@ type AppDataContextValue = AppDataState & {
   clearData: () => void
 }
 
+const INITIAL_STATE: AppDataState = {
+  datasetId: null,
+  datasetTitle: null,
+  original: null,
+  curated: null,
+  curatedBaseline: null,
+  clusters: [],
+  loadingDataset: false,
+  originalIndexes: null,
+}
+
 const AppDataContext = createContext<AppDataContextValue | null>(null)
 
 export function useAppData() {
@@ -66,119 +87,78 @@ export function useAppData() {
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const { showToast } = useToast()
-  const { t } = useTranslation()
-  const [state, setState] = useState<AppDataState>({
-    original: null,
-    curated: null,
-    curatedBaseline: null,
-    clusters: [],
-    loadingDefaults: false,
-    originalIndexes: null,
-  })
+  const [state, setState] = useState<AppDataState>(INITIAL_STATE)
+  const datasetIdRef = useRef<string | null>(null)
 
-  const loadOriginal = useCallback(
-    async (file: File) => {
-      const text = await readFileAsText(file)
-      const csv = parseCsvText(text)
-      const records = indexRecords(csv)
-      setState(prev => {
-        const original = { csv, records, intermarcIndex: findIntermarcColumnIndex(csv) }
-        const originalIndexes = buildOriginalIndexes(records, getCurrentLanguage())
-        const clusters = prev.curated ? detectClusters(prev.curated.records, buildArkIndex(records)) : []
-        return { ...prev, original, clusters, originalIndexes }
-      })
-    },
-    [showToast, t],
-  )
+  useEffect(() => {
+    datasetIdRef.current = state.datasetId
+  }, [state.datasetId])
 
-  const loadCurated = useCallback(
-    async (file: File) => {
-      const text = await readFileAsText(file)
-      const csv = parseCsvText(text)
-      const records = indexRecords(csv)
-      setState(prev => {
-        const curated = { csv, records, intermarcIndex: findIntermarcColumnIndex(csv) }
-        const clusters = prev.original ? detectClusters(records, buildArkIndex(prev.original.records)) : []
-        return { ...prev, curated, curatedBaseline: cloneDataSet(curated), clusters }
-      })
-    },
-    [showToast, t],
-  )
-
-  const loadDefaults = useCallback(async () => {
-    setState(prev => ({ ...prev, loadingDefaults: true }))
-    try {
-      let curated: DataSet | null = null
+  const loadDataset = useCallback(
+    async (datasetId: string, options?: { title?: string }) => {
+      setState(prev => ({ ...prev, loadingDataset: true }))
       try {
-        const resp = await fetch(`/data/${DEFAULT_CURATED_NAME}`)
-        if (resp.ok) {
-          const text = await resp.text()
-          const csv = parseCsvText(text)
-          const records = indexRecords(csv)
-          curated = { csv, records, intermarcIndex: findIntermarcColumnIndex(csv) }
-        }
-      } catch (error) {
-        console.error('Failed to load curated defaults', error)
-      }
-
-      let original: DataSet | null = null
-      for (const candidate of DEFAULT_ORIGINAL_CANDIDATES) {
-        try {
-          const resp = await fetch(`/data/${candidate}`)
-          if (!resp.ok) continue
-          const text = await resp.text()
-          const csv = parseCsvText(text)
-          const records = indexRecords(csv)
-          original = { csv, records, intermarcIndex: findIntermarcColumnIndex(csv) }
-          break
-        } catch (error) {
-          console.error(`Failed to load original defaults (${candidate})`, error)
-        }
-      }
-
-      setState(prev => {
-        const nextOriginal = original ?? prev.original
-        const nextCurated = curated ?? prev.curated
-        const nextBaseline = curated
-          ? cloneDataSet(curated)
-          : curated === null && !prev.curated
-            ? null
-            : prev.curatedBaseline
-        const originalIndexes = nextOriginal
-          ? buildOriginalIndexes(nextOriginal.records, getCurrentLanguage())
-          : prev.originalIndexes
-        const clusters = nextOriginal && nextCurated
-          ? detectClusters(nextCurated.records, buildArkIndex(nextOriginal.records))
-          : []
-        return {
-          ...prev,
-          original: nextOriginal,
-          curated: nextCurated,
-          curatedBaseline: nextBaseline,
+        const { dataset, records } = await fetchDatasetRecords(datasetId)
+        const built = buildDataSetFromRecords(records)
+        const original = cloneDataSet(built)
+        const curated = cloneDataSet(built)
+        const baseline = cloneDataSet(built)
+        const language = getCurrentLanguage()
+        const originalIndexes = buildOriginalIndexes(original.records, language)
+        const clusters = detectClusters(curated.records, buildArkIndex(original.records))
+        resetArkLabelCache()
+        primeArkLabelCache(curated.records)
+        setState({
+          datasetId,
+          datasetTitle: options?.title ?? dataset.title,
+          original,
+          curated,
+          curatedBaseline: baseline,
           clusters,
+          loadingDataset: false,
           originalIndexes,
-          loadingDefaults: false,
+        })
+      } catch (error) {
+        console.error('Failed to load dataset', error)
+        showToast('Impossible de charger la base sélectionnée.', { tone: 'error' })
+        setState(prev => ({ ...prev, loadingDataset: false }))
+        throw error
+      }
+    },
+    [showToast],
+  )
+
+  const refreshDataset = useCallback(async () => {
+    if (!state.datasetId) return
+    await loadDataset(state.datasetId, { title: state.datasetTitle ?? undefined })
+  }, [loadDataset, state.datasetId, state.datasetTitle])
+
+  const updateRecordIntermarc = useCallback(
+    (recordId: string, intermarc: Intermarc) => {
+      const updates: UpdatePayload[] = []
+      setState(prev => {
+        if (!prev.curated) return prev
+        const curated = updateRecordIntermarcInDataset(prev.curated, recordId, intermarc)
+        const updatedRecord = curated.records.find(r => r.id === recordId)
+        if (updatedRecord) {
+          updates.push({ id: updatedRecord.id, type: updatedRecord.type, intermarc: updatedRecord.intermarcStr })
+          registerArkLabelForRecord(updatedRecord)
         }
+        const clusters = detectClusters(curated.records, buildArkIndex(prev.original?.records ?? []))
+        return { ...prev, curated, clusters }
       })
-
-    } catch (error) {
-      console.error('Failed to load default data', error)
-      setState(prev => ({ ...prev, loadingDefaults: false }))
-    }
-  }, [showToast, t])
-
-  const updateRecordIntermarc = useCallback((recordId: string, intermarc: Intermarc) => {
-    setState(prev => {
-      if (!prev.curated) return prev
-      const nextCurated = updateRecordIntermarcInDataset(prev.curated, recordId, intermarc)
-      if (nextCurated === prev.curated) return prev
-      const nextClusters =
-        prev.original && prev.original.records.length > 0
-          ? detectClusters(nextCurated.records, buildArkIndex(prev.original.records))
-          : prev.clusters
-      return { ...prev, curated: nextCurated, clusters: nextClusters }
-    })
-  }, [])
+      const datasetId = datasetIdRef.current
+      if (datasetId && updates.length) {
+        updates.forEach(payload => {
+          syncRecordUpdate(datasetId, payload).catch(err => {
+            console.error('Failed to synchronise record', err)
+            showToast('Synchronisation avec la base impossible.', { tone: 'error' })
+          })
+        })
+      }
+    },
+    [showToast],
+  )
 
   const getCuratedBaselineRecord = useCallback(
     (recordId: string) => {
@@ -188,17 +168,179 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [state.curatedBaseline],
   )
 
+  const setWorkAccepted = useCallback(
+    (clusterId: string, workArk: string, accepted: boolean) => {
+      const updates: UpdatePayload[] = []
+      setState(prev => {
+        if (!prev.curated) return prev
+        const clusterIndex = prev.clusters.findIndex(c => c.anchorId === clusterId)
+        if (clusterIndex === -1) return prev
+        const targetCluster = cloneCluster(prev.clusters[clusterIndex])
+        const item = targetCluster.items.find(entry => entry.ark === workArk)
+        if (!item) return prev
+
+        const today = new Date().toISOString().slice(0, 10)
+        item.accepted = accepted
+        if (accepted && !item.date) item.date = today
+
+        const affectedAnchors = new Set<string>()
+        if (!accepted) {
+          for (const group of targetCluster.expressionGroups) {
+            for (const expr of group.clustered) {
+              if (expr.workArk === workArk && expr.accepted) {
+                expr.accepted = false
+                expr.date = undefined
+                affectedAnchors.add(group.anchor.id)
+              }
+            }
+          }
+        }
+
+        let curated = updateWorkClusterIntermarc(targetCluster, prev.curated)
+        const anchorRecord = curated.records.find(r => r.id === targetCluster.anchorId)
+        if (anchorRecord) {
+          updates.push({ id: anchorRecord.id, type: anchorRecord.type, intermarc: anchorRecord.intermarcStr })
+          registerArkLabelForRecord(anchorRecord)
+        }
+
+        for (const anchorId of affectedAnchors) {
+          curated = updateExpressionClusterIntermarc(targetCluster, anchorId, curated)
+          const expressionRecord = curated.records.find(r => r.id === anchorId)
+          if (expressionRecord) {
+            updates.push({ id: expressionRecord.id, type: expressionRecord.type, intermarc: expressionRecord.intermarcStr })
+            registerArkLabelForRecord(expressionRecord)
+          }
+        }
+
+        const clusters = prev.clusters.slice()
+        clusters[clusterIndex] = targetCluster
+        return { ...prev, clusters, curated }
+      })
+      const datasetId = datasetIdRef.current
+      if (datasetId && updates.length) {
+        updates.forEach(payload => {
+          syncRecordUpdate(datasetId, payload).catch(err => {
+            console.error('Failed to synchronise record', err)
+            showToast('Synchronisation avec la base impossible.', { tone: 'error' })
+          })
+        })
+      }
+    },
+    [showToast],
+  )
+
+  const setExpressionAccepted = useCallback(
+    (clusterId: string, anchorExpressionId: string, expressionArk: string, accepted: boolean) => {
+      const updates: UpdatePayload[] = []
+      setState(prev => {
+        if (!prev.curated) return prev
+        const clusterIndex = prev.clusters.findIndex(c => c.anchorId === clusterId)
+        if (clusterIndex === -1) return prev
+        const targetCluster = cloneCluster(prev.clusters[clusterIndex])
+        const group = targetCluster.expressionGroups.find(g => g.anchor.id === anchorExpressionId)
+        if (!group) return prev
+        const expression = group.clustered.find(expr => expr.ark === expressionArk)
+        if (!expression) return prev
+
+        const today = new Date().toISOString().slice(0, 10)
+        expression.accepted = accepted
+        expression.date = accepted ? expression.date ?? today : undefined
+
+        let curated = updateExpressionClusterIntermarc(targetCluster, anchorExpressionId, prev.curated)
+        const anchorRecord = curated.records.find(r => r.id === anchorExpressionId)
+        if (anchorRecord) {
+          updates.push({ id: anchorRecord.id, type: anchorRecord.type, intermarc: anchorRecord.intermarcStr })
+          registerArkLabelForRecord(anchorRecord)
+        }
+
+        const clusters = prev.clusters.slice()
+        clusters[clusterIndex] = targetCluster
+        return { ...prev, clusters, curated }
+      })
+      const datasetId = datasetIdRef.current
+      if (datasetId && updates.length) {
+        updates.forEach(payload => {
+          syncRecordUpdate(datasetId, payload).catch(err => {
+            console.error('Failed to synchronise record', err)
+            showToast('Synchronisation avec la base impossible.', { tone: 'error' })
+          })
+        })
+      }
+    },
+    [showToast],
+  )
+
+  const moveManifestation = useCallback(
+    (
+      clusterId: string,
+      manifestationId: string,
+      target: { anchorExpressionId: string | null; expressionId?: string; expressionArk: string },
+    ) => {
+      const updates: UpdatePayload[] = []
+      setState(prev => {
+        if (!prev.curated) return prev
+        const clusterIndex = prev.clusters.findIndex(c => c.anchorId === clusterId)
+        if (clusterIndex === -1) return prev
+        const targetCluster = cloneCluster(prev.clusters[clusterIndex])
+        const detachResult = detachManifestationFromCluster(targetCluster, manifestationId)
+        if (!detachResult) return prev
+        if (detachResult.previousExpressionArk === target.expressionArk) return prev
+        const attached = attachManifestationToCluster(targetCluster, target, detachResult.item)
+        if (!attached) return prev
+
+        let curated = updateManifestationParentInDataset(
+          prev.curated,
+          manifestationId,
+          detachResult.previousExpressionArk,
+          target.expressionArk,
+          target.expressionId,
+        )
+        const manifestationRecord = curated.records.find(r => r.id === manifestationId)
+        if (manifestationRecord) {
+          updates.push({ id: manifestationRecord.id, type: manifestationRecord.type, intermarc: manifestationRecord.intermarcStr })
+          registerArkLabelForRecord(manifestationRecord)
+        }
+        if (detachResult.anchorExpressionId) {
+          curated = updateExpressionClusterIntermarc(targetCluster, detachResult.anchorExpressionId, curated)
+          const expressionRecord = curated.records.find(r => r.id === detachResult.anchorExpressionId)
+          if (expressionRecord) {
+            updates.push({ id: expressionRecord.id, type: expressionRecord.type, intermarc: expressionRecord.intermarcStr })
+            registerArkLabelForRecord(expressionRecord)
+          }
+        }
+        if (target.anchorExpressionId) {
+          curated = updateExpressionClusterIntermarc(targetCluster, target.anchorExpressionId, curated)
+          const expressionRecord = curated.records.find(r => r.id === target.anchorExpressionId)
+          if (expressionRecord) {
+            updates.push({ id: expressionRecord.id, type: expressionRecord.type, intermarc: expressionRecord.intermarcStr })
+            registerArkLabelForRecord(expressionRecord)
+          }
+        }
+
+        const clusters = prev.clusters.slice()
+        clusters[clusterIndex] = targetCluster
+        return { ...prev, clusters, curated }
+      })
+      const datasetId = datasetIdRef.current
+      if (datasetId && updates.length) {
+        updates.forEach(payload => {
+          syncRecordUpdate(datasetId, payload).catch(err => {
+            console.error('Failed to synchroniser record', err)
+            showToast('Synchronisation avec la base impossible.', { tone: 'error' })
+          })
+        })
+      }
+    },
+    [showToast],
+  )
+
   const exportCurated = useCallback(async () => {
     if (!state.curated) {
-      console.warn('No curated dataset available for export')
+      showToast('Aucune base chargée.', { tone: 'info' })
       return
     }
-
     try {
-      const csvText = stringifyCsv({
-        headers: state.curated.csv.headers,
-        rows: state.curated.csv.rows.slice(1),
-      })
+      const csvText = stringifyCsv({ headers: state.curated.csv.headers, rows: state.curated.csv.rows.slice(1) })
       const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8' })
       const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').split('.')[0]
       const fileName = `curated_${timestamp}.csv`
@@ -212,119 +354,20 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Failed to export curated CSV', error)
+      showToast('Impossible d\'exporter le CSV.', { tone: 'error' })
     }
-  }, [state.curated])
-
-  const setWorkAccepted = useCallback((clusterId: string, workArk: string, accepted: boolean) => {
-    setState(prev => {
-      if (!prev.curated) return prev
-      const clusterIndex = prev.clusters.findIndex(c => c.anchorId === clusterId)
-      if (clusterIndex === -1) return prev
-      const targetCluster = cloneCluster(prev.clusters[clusterIndex])
-      const item = targetCluster.items.find(entry => entry.ark === workArk)
-      if (!item) return prev
-
-      const today = new Date().toISOString().slice(0, 10)
-      item.accepted = accepted
-      if (accepted && !item.date) item.date = today
-
-      const affectedAnchors = new Set<string>()
-      if (!accepted) {
-        for (const group of targetCluster.expressionGroups) {
-          for (const expr of group.clustered) {
-            if (expr.workArk === workArk && expr.accepted) {
-              expr.accepted = false
-              expr.date = undefined
-              affectedAnchors.add(group.anchor.id)
-            }
-          }
-        }
-      }
-
-      let curated = updateWorkClusterIntermarc(targetCluster, prev.curated)
-      for (const anchorId of affectedAnchors) {
-        curated = updateExpressionClusterIntermarc(targetCluster, anchorId, curated)
-      }
-
-      const clusters = prev.clusters.slice()
-      clusters[clusterIndex] = targetCluster
-      return { ...prev, clusters, curated }
-    })
-  }, [])
-
-  const setExpressionAccepted = useCallback(
-    (clusterId: string, anchorExpressionId: string, expressionArk: string, accepted: boolean) => {
-      setState(prev => {
-        if (!prev.curated) return prev
-        const clusterIndex = prev.clusters.findIndex(c => c.anchorId === clusterId)
-        if (clusterIndex === -1) return prev
-        const targetCluster = cloneCluster(prev.clusters[clusterIndex])
-        const group = targetCluster.expressionGroups.find(g => g.anchor.id === anchorExpressionId)
-        if (!group) return prev
-        const expression = group.clustered.find(expr => expr.ark === expressionArk)
-        if (!expression) return prev
-        const today = new Date().toISOString().slice(0, 10)
-        expression.accepted = accepted
-        expression.date = accepted ? expression.date ?? today : undefined
-        let curated = updateExpressionClusterIntermarc(targetCluster, anchorExpressionId, prev.curated)
-        const clusters = prev.clusters.slice()
-        clusters[clusterIndex] = targetCluster
-        return { ...prev, clusters, curated }
-      })
-    },
-    [],
-  )
-
-  const moveManifestation = useCallback(
-    (
-      clusterId: string,
-      manifestationId: string,
-      target: { anchorExpressionId: string | null; expressionId?: string; expressionArk: string },
-    ) => {
-      setState(prev => {
-        if (!prev.curated) return prev
-        const clusterIndex = prev.clusters.findIndex(c => c.anchorId === clusterId)
-        if (clusterIndex === -1) return prev
-        const targetCluster = cloneCluster(prev.clusters[clusterIndex])
-        const detachResult = detachManifestationFromCluster(targetCluster, manifestationId)
-        if (!detachResult) return prev
-        if (detachResult.previousExpressionArk === target.expressionArk) return prev
-        const attached = attachManifestationToCluster(targetCluster, target, detachResult.item)
-        if (!attached) return prev
-        let curated = updateManifestationParentInDataset(
-          prev.curated,
-          manifestationId,
-          detachResult.previousExpressionArk,
-          target.expressionArk,
-          target.expressionId,
-        )
-        detachResult.item.expressionArk = target.expressionArk
-        detachResult.item.expressionId = target.expressionId
-        const clusters = prev.clusters.slice()
-        clusters[clusterIndex] = targetCluster
-        return { ...prev, clusters, curated }
-      })
-    },
-    [],
-  )
+  }, [showToast, state.curated])
 
   const clearData = useCallback(() => {
-    setState(prev => ({
-      ...prev,
-      original: null,
-      curated: null,
-      curatedBaseline: null,
-      clusters: [],
-      originalIndexes: null,
-    }))
+    resetArkLabelCache()
+    setState(INITIAL_STATE)
   }, [])
 
-  const value = useMemo(
+  const value = useMemo<AppDataContextValue>(
     () => ({
       ...state,
-      loadOriginal,
-      loadCurated,
-      loadDefaults,
+      loadDataset,
+      refreshDataset,
       updateRecordIntermarc,
       getCuratedBaselineRecord,
       setWorkAccepted,
@@ -335,9 +378,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }),
     [
       state,
-      loadOriginal,
-      loadCurated,
-      loadDefaults,
+      loadDataset,
+      refreshDataset,
       updateRecordIntermarc,
       getCuratedBaselineRecord,
       setWorkAccepted,
@@ -351,13 +393,39 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>
 }
 
-function readFileAsText(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error)
-    reader.readAsText(file, 'utf-8')
+// --- Helpers ----------------------------------------------------------------
+
+function buildDataSetFromRecords(records: DatasetRecordPayload[]): DataSet {
+  const headers = ['id_entitelrm', 'type_entite', 'intermarc']
+  const rows: string[][] = [headers]
+  const recordRows: RecordRow[] = records.map((record, index) => {
+    const intermarcStr = String(record.intermarc ?? '')
+    const intermarc = parseIntermarc(intermarcStr)
+    const row = [record.id, record.type, intermarcStr]
+    rows.push(row)
+    const ark = record.ark ?? findArkInIntermarc(intermarc)
+    return {
+      id: record.id,
+      type: record.type,
+      typeNorm: normalizeType(record.type),
+      rowIndex: index + 1,
+      intermarcStr,
+      intermarc,
+      ark: ark ?? undefined,
+      raw: row,
+    }
   })
+  return {
+    csv: { headers, rows },
+    records: recordRows,
+    intermarcIndex: 2,
+  }
+}
+
+function findArkInIntermarc(intermarc: Intermarc): string | null {
+  const zone = findZones(intermarc, '001')[0]
+  const ark = zone?.sousZones.find(sz => sz.code === '001$a')?.valeur
+  return ark ?? null
 }
 
 function updateRecordIntermarcInDataset(dataset: DataSet, recordId: string, intermarc: Intermarc): DataSet {
@@ -505,24 +573,36 @@ function updateManifestationParentInDataset(
     for (const sub of zone.sousZones) {
       if (sub.code === '740$3' && sub.valeur === previousExpressionArk) {
         sub.valeur = newExpressionArk
+        sub.affectedByCuration = 'modified'
+        zone.affectedByCuration = 'modified'
         updated = true
       }
     }
   }
   if (!updated) {
     const zone = cloned.zones.find(z => z.code === '740')
-    const target = zone?.sousZones.find(sz => sz.code === '740$3')
-    if (target) {
-      target.valeur = newExpressionArk
+    const targetSub = zone?.sousZones.find(sz => sz.code === '740$3')
+    if (targetSub) {
+      targetSub.valeur = newExpressionArk
+      targetSub.affectedByCuration = 'modified'
+      if (zone) zone.affectedByCuration = 'modified'
       updated = true
     }
+  }
+  if (!updated) {
+    cloned.zones.push({
+      code: '740',
+      affectedByCuration: 'modified',
+      sousZones: [{ code: '740$3', valeur: newExpressionArk, affectedByCuration: 'modified' }],
+    })
+    updated = true
   }
   if (!updated) return dataset
   let next = updateRecordIntermarcInDataset(dataset, manifestationId, cloned)
   if (newExpressionId) {
-    const nextRecord = next.records.find(r => r.id === manifestationId)
-    if (nextRecord) {
-      nextRecord.raw = nextRecord.raw.slice()
+    const updatedRecord = next.records.find(r => r.id === manifestationId)
+    if (updatedRecord) {
+      updatedRecord.raw = updatedRecord.raw.slice()
     }
   }
   return next

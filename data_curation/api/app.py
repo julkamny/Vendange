@@ -283,3 +283,21 @@ async def trigger_cluster(dataset_id: str, payload: ClusterRequest) -> Streaming
         "X-Accel-Buffering": "no",
     }
     return StreamingResponse(stream, media_type="text/event-stream", headers=headers)
+
+
+@app.get("/api/datasets/{dataset_id}/records")
+def list_dataset_records(dataset_id: str) -> dict[str, object]:
+    meta = _ensure_dataset(dataset_id)
+    records = db.load_records(dataset_id)
+    return {
+        "dataset": _serialize_dataset(meta),
+        "records": [
+            {
+                "id": record.id,
+                "type": record.type_raw,
+                "ark": record.ark,
+                "intermarc": record.intermarc_raw,
+            }
+            for record in records
+        ],
+    }

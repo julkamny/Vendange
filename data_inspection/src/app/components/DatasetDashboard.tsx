@@ -12,7 +12,8 @@ import type { DatasetSummary } from '../types'
 import { useToast } from '../providers/ToastContext'
 
 type DatasetDashboardProps = {
-  onOpenInspection: (dataset: DatasetSummary) => void
+  onOpenInspection: (dataset: DatasetSummary) => Promise<void>
+  openingDatasetId?: string
 }
 
 type ClusterState = {
@@ -42,7 +43,7 @@ function formatTimestamp(value: string): string {
   return date.toLocaleString()
 }
 
-export function DatasetDashboard({ onOpenInspection }: DatasetDashboardProps) {
+export function DatasetDashboard({ onOpenInspection, openingDatasetId }: DatasetDashboardProps) {
   const { showToast } = useToast()
   const [datasets, setDatasets] = useState<DatasetSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -439,8 +440,12 @@ export function DatasetDashboard({ onOpenInspection }: DatasetDashboardProps) {
                         ? 'Clusterisation effectuée'
                         : 'Lancer la clusterisation'}
                   </button>
-                  <button type="button" onClick={() => onOpenInspection(dataset)} disabled={state.running}>
-                    Ouvrir l&#39;inspection
+                  <button
+                    type="button"
+                    onClick={() => void onOpenInspection(dataset)}
+                    disabled={state.running || openingDatasetId === dataset.id}
+                  >
+                    {openingDatasetId === dataset.id ? 'Ouverture…' : "Ouvrir l'inspection"}
                   </button>
                   <button type="button" className="danger" onClick={() => handleDeleteDataset(dataset)} disabled={state.running}>
                     Supprimer

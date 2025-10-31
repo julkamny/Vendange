@@ -12,7 +12,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.theme import Theme
 
-from data_curation.api import db
+from data_curation.api import db, datasets as dataset_registry
 from data_curation.curation.pipeline import run_cluster_operation, run_cluster_with_expression_operation
 
 LOGGER = logging.getLogger("scripts.cli")
@@ -100,7 +100,7 @@ def _apply_input_fixture(input_path: str | Path, fixture: str | None) -> Path:
     return temp_path
 
 
-def _ingest_csv(path: Path, dataset_label: str | None) -> None:
+def _ingest_csv(path: Path, dataset_id: str, dataset_label: str | None) -> None:
     LOGGER.info(
         "[bold blue]Loading dataset[/]: [link=file://%s]%s[/link]%s",
         path,
@@ -108,8 +108,12 @@ def _ingest_csv(path: Path, dataset_label: str | None) -> None:
         f" (label: {dataset_label})" if dataset_label else "",
     )
     content = path.read_bytes()
-    count = db.ingest_csv(content, dataset_label=dataset_label)
-    LOGGER.info("[bold green]Store updated[/]: %s records ingested", count)
+    stats = db.ingest_csv(content, dataset_id, dataset_label=dataset_label)
+    LOGGER.info(
+        "[bold green]Store updated[/]: %s records, %s quads",
+        stats.records,
+        stats.quads,
+    )
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="WEM trees curation CLI")
@@ -140,6 +144,11 @@ def main() -> None:
         "--dataset-label",
         dest="dataset_label",
         help="Dataset label recorded alongside the ingestion metadata",
+    )
+    ingest_parent.add_argument(
+        "--dataset",
+        required=True,
+        help="Identifier of the dataset to operate on",
     )
 
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -173,17 +182,21 @@ def main() -> None:
 
     csv_source = getattr(args, "csv", None)
     dataset_label = getattr(args, "dataset_label", None)
+    dataset_input = getattr(args, "dataset")
+    dataset_meta = dataset_registry.ensure_dataset(dataset_input, title=dataset_label or dataset_input)
+    dataset_id = dataset_meta.id
+    if dataset_id != dataset_input:
+        LOGGER.info("[bold yellow]Dataset identifier normalised[/]: %s → %s", dataset_input, dataset_id)
+
     if csv_source:
         csv_path = Path(csv_source)
         if getattr(args, "fixture", None):
             csv_path = _apply_input_fixture(csv_source, args.fixture)
-        _ingest_csv(csv_path, dataset_label)
-    else:
-        db.initialize_storage()
-        LOGGER.debug("Using existing store at %s", db.STORE_DIR)
+        label = dataset_label or dataset_meta.title
+        _ingest_csv(csv_path, dataset_id, label)
 
     if args.cmd == "cluster":
-        clusters = run_cluster_operation(clusters_json=args.clusters_json)
+        clusters = run_cluster_operation(dataset_id=dataset_id, clusters_json=args.clusters_json)
         LOGGER.info("[bold green]Clusters created:[/] %s", len(clusters))
         for c in clusters:
             LOGGER.info(
@@ -195,6 +208,7 @@ def main() -> None:
 
     elif args.cmd == "cluster-with-expressions":
         work_clusters, expression_clusters = run_cluster_with_expression_operation(
+            dataset_id=dataset_id,
             works_json=args.work_clusters_json,
             expressions_json=args.expression_clusters_json,
         )

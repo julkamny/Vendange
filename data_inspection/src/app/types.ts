@@ -13,6 +13,21 @@ export type RecordRow = {
   raw: string[]
 }
 
+export type DatasetStats = {
+  entityCount: number
+  quadCount: number
+  sizeBytes: number
+}
+
+export type DatasetSummary = {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+  sourceFilename?: string | null
+  stats: DatasetStats
+}
+
 export type ClusterItem = { ark: string; id?: string; title?: string; accepted: boolean; date?: string }
 export type ManifestationItem = {
   id: string

@@ -6,15 +6,17 @@ import asyncio
 import contextlib
 import json
 import logging
+import shutil
 from dataclasses import asdict
-from typing import Any, AsyncIterator, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from data_curation.api import db
+from data_curation.api import db, datasets
+from data_curation.api.datasets import DatasetMetadata
 from data_curation.curation.pipeline import (
     run_cluster_operation,
     run_cluster_with_expression_operation,
@@ -36,6 +38,10 @@ class SparqlQueryPayload(BaseModel):
 
 class ClusterRequest(BaseModel):
     include_expressions: bool = Field(False, alias="includeExpressions")
+
+
+class DatasetTitlePayload(BaseModel):
+    title: str
 
 
 app = FastAPI(title="Vendange Search API")
@@ -82,16 +88,18 @@ def _format_sse(event: str, data: dict[str, Any]) -> str:
 
 
 def _run_cluster_job(
+    dataset_id: str,
     include_expressions: bool,
     loop: asyncio.AbstractEventLoop,
     queue: asyncio.Queue[Optional[dict[str, Any]]],
 ) -> None:
     try:
-        LOGGER.info("Starting clustering job (include_expressions=%s)", include_expressions)
+        LOGGER.info("Starting clustering job for dataset %s (include_expressions=%s)", dataset_id, include_expressions)
         if include_expressions:
-            work_clusters, expression_clusters = run_cluster_with_expression_operation()
+            work_clusters, expression_clusters = run_cluster_with_expression_operation(dataset_id=dataset_id)
             LOGGER.info(
-                "Work clusters created: %s • expression clusters: %s",
+                "Dataset %s → work clusters: %s • expression clusters: %s",
+                dataset_id,
                 len(work_clusters),
                 len(expression_clusters),
             )
@@ -100,38 +108,38 @@ def _run_cluster_job(
                 "expressionClusters": [asdict(cluster) for cluster in expression_clusters],
             }
         else:
-            work_clusters = run_cluster_operation()
-            LOGGER.info("Work clusters created: %s", len(work_clusters))
+            work_clusters = run_cluster_operation(dataset_id=dataset_id)
+            LOGGER.info("Dataset %s → work clusters created: %s", dataset_id, len(work_clusters))
             payload = {"workClusters": [asdict(cluster) for cluster in work_clusters]}
 
-        LOGGER.info("Clustering job completed")
+        LOGGER.info("Clustering job completed for dataset %s", dataset_id)
         loop.call_soon_threadsafe(
             queue.put_nowait,
             {
                 "event": "result",
-                "data": payload,
+                "data": {"datasetId": dataset_id, **payload},
             },
         )
     except Exception as exc:  # pragma: no cover - defensive safety net
-        LOGGER.exception("Clustering job failed")
+        LOGGER.exception("Clustering job failed for dataset %s", dataset_id)
         loop.call_soon_threadsafe(
             queue.put_nowait,
             {
                 "event": "error",
-                "data": {"message": str(exc)},
+                "data": {"datasetId": dataset_id, "message": str(exc)},
             },
         )
     finally:
         loop.call_soon_threadsafe(queue.put_nowait, None)
 
 
-async def _cluster_stream(include_expressions: bool) -> AsyncIterator[str]:
+async def _cluster_stream(dataset_id: str, include_expressions: bool) -> AsyncIterator[str]:
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[Optional[dict[str, Any]]] = asyncio.Queue()
     handler = _QueueLogHandler(queue, loop)
     root_logger = logging.getLogger()
     root_logger.addHandler(handler)
-    worker = asyncio.create_task(asyncio.to_thread(_run_cluster_job, include_expressions, loop, queue))
+    worker = asyncio.create_task(asyncio.to_thread(_run_cluster_job, dataset_id, include_expressions, loop, queue))
     try:
         while True:
             item = await queue.get()
@@ -149,33 +157,96 @@ def ensure_schema() -> None:
     db.initialize_storage()
 
 
-@app.post("/api/upload")
-async def upload_dataset(dataset: str = Form("curated"), file: UploadFile = File(...)) -> dict[str, int]:
+def _ensure_dataset(dataset_id: str) -> DatasetMetadata:
+    try:
+        return datasets.get_dataset(dataset_id)
+    except KeyError as exc:  # pragma: no cover - defensive guard
+        raise HTTPException(status_code=404, detail=f"Dataset not found: {dataset_id}") from exc
+
+
+def _serialize_dataset(meta: DatasetMetadata) -> dict[str, Any]:
+    stats = db.dataset_stats(meta.id)
+    return {
+        "id": meta.id,
+        "title": meta.title,
+        "createdAt": meta.created_at,
+        "updatedAt": meta.updated_at,
+        "sourceFilename": meta.source_filename,
+        "stats": stats,
+    }
+
+
+@app.get("/api/datasets")
+def list_datasets() -> dict[str, List[dict[str, Any]]]:
+    metas = datasets.list_datasets()
+    summaries = [_serialize_dataset(meta) for meta in metas]
+    return {"datasets": summaries}
+
+
+@app.post("/api/datasets")
+async def create_dataset(title: str = Form(None), file: UploadFile = File(...)) -> dict[str, Any]:
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="Empty file uploaded")
+
+    chosen_title = title.strip() if title else file.filename
+    meta = datasets.create_dataset_entry(chosen_title, file.filename)
     try:
-        count = db.ingest_csv(content, dataset_label=dataset)
-    except ValueError as exc:
+        db.ingest_csv(content, meta.id, dataset_label=chosen_title)
+    except Exception as exc:  # pragma: no cover - defensive cleanup
+        db.close_dataset(meta.id)
+        datasets.delete_dataset_entry(meta.id)
+        dataset_dir = datasets.dataset_directory(meta.id)
+        if dataset_dir.exists():
+            shutil.rmtree(dataset_dir, ignore_errors=True)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"records": count}
+
+    refreshed = _ensure_dataset(meta.id)
+    return {"dataset": _serialize_dataset(refreshed)}
 
 
-@app.post("/api/update_record")
-async def update_record(payload: UpdateRecordPayload) -> dict[str, str]:
+@app.get("/api/datasets/{dataset_id}")
+def fetch_dataset(dataset_id: str) -> dict[str, Any]:
+    meta = _ensure_dataset(dataset_id)
+    return {"dataset": _serialize_dataset(meta)}
+
+
+@app.patch("/api/datasets/{dataset_id}")
+def rename_dataset(dataset_id: str, payload: DatasetTitlePayload) -> dict[str, Any]:
     try:
-        db.update_record(payload.record_id, type_raw=payload.type_raw, intermarc_json=payload.intermarc_json)
+        meta = datasets.update_dataset_title(dataset_id, payload.title)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Dataset not found: {dataset_id}") from exc
+    return {"dataset": _serialize_dataset(meta)}
+
+
+@app.delete("/api/datasets/{dataset_id}", status_code=204)
+def delete_dataset(dataset_id: str) -> None:
+    _ensure_dataset(dataset_id)
+    db.close_dataset(dataset_id)
+    dataset_dir = datasets.dataset_directory(dataset_id)
+    if dataset_dir.exists():
+        shutil.rmtree(dataset_dir, ignore_errors=True)
+    datasets.delete_dataset_entry(dataset_id)
+
+
+@app.post("/api/datasets/{dataset_id}/update_record")
+async def update_record(dataset_id: str, payload: UpdateRecordPayload) -> dict[str, str]:
+    _ensure_dataset(dataset_id)
+    try:
+        db.update_record(dataset_id, payload.record_id, type_raw=payload.type_raw, intermarc_json=payload.intermarc_json)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "ok"}
 
 
-@app.post("/api/query")
-async def execute_query(payload: SparqlQueryPayload) -> dict[str, object]:
+@app.post("/api/datasets/{dataset_id}/query")
+async def execute_query(dataset_id: str, payload: SparqlQueryPayload) -> dict[str, object]:
     if not payload.query.strip():
         raise HTTPException(status_code=400, detail="SPARQL query cannot be empty")
+    _ensure_dataset(dataset_id)
     try:
-        columns, rows = db.run_sparql_query(payload.query)
+        columns, rows = db.run_sparql_query(dataset_id, payload.query)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover - defensive guard for runtime SPARQL errors
@@ -183,7 +254,8 @@ async def execute_query(payload: SparqlQueryPayload) -> dict[str, object]:
     return {"columns": columns, "rows": rows}
 
 
-@app.post("/api/curation/cluster")
-async def trigger_cluster(payload: ClusterRequest) -> StreamingResponse:
-    stream = _cluster_stream(payload.include_expressions)
+@app.post("/api/datasets/{dataset_id}/cluster")
+async def trigger_cluster(dataset_id: str, payload: ClusterRequest) -> StreamingResponse:
+    _ensure_dataset(dataset_id)
+    stream = _cluster_stream(dataset_id, payload.include_expressions)
     return StreamingResponse(stream, media_type="text/event-stream")

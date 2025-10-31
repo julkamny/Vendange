@@ -10,7 +10,7 @@ import sys
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Set
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from urllib.parse import quote
 
 from pyoxigraph import (
@@ -24,16 +24,14 @@ from pyoxigraph import (
     Store,
 )
 
+from . import datasets
 from ..models import Entity, Intermarc, Zone, SousZone
 from ..utils.text_norm import fold_diacritics
 
 csv.field_size_limit(sys.maxsize)
 
-STORE_DIR = Path(__file__).resolve().parent / "vendange_store"
-LEGACY_SQLITE_PATH = Path(__file__).resolve().parent / "vendange.sqlite"
-
 _STORE_LOCK = threading.RLock()
-_STORE: Store | None = None
+_STORE_CACHE: dict[str, Store] = {}
 
 RDF_TYPE = NamedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
 DEFAULT_GRAPH = DefaultGraph()
@@ -108,6 +106,12 @@ class ParsedRecord:
 
 
 @dataclass
+class IngestionStats:
+    records: int
+    quads: int
+
+
+@dataclass
 class SubfieldRow:
     node: BlankNode
     code: str
@@ -135,36 +139,32 @@ class EdgeRow:
 
 
 def initialize_storage() -> None:
-    """Ensure the Oxigraph store directory exists and is ready for use."""
+    """Ensure the datasets root directory exists."""
+
+    datasets.ensure_root()
+
+
+def _dataset_store_path(dataset_id: str) -> Path:
+    return datasets.dataset_directory(dataset_id)
+
+
+def close_dataset(dataset_id: str) -> None:
+    """Flush and drop the cached store for the given dataset."""
 
     with _STORE_LOCK:
-        global _STORE
-        if LEGACY_SQLITE_PATH.exists():
-            LEGACY_SQLITE_PATH.unlink()
-        if _STORE is None:
-            STORE_DIR.mkdir(parents=True, exist_ok=True)
-            _STORE = Store(str(STORE_DIR))
+        store = _STORE_CACHE.pop(dataset_id, None)
+        if store is not None:
+            store.flush()
 
 
-def reset_storage() -> None:
-    """Drop the current store contents and recreate an empty Oxigraph store."""
-
-    with _STORE_LOCK:
-        global _STORE
-        if _STORE is not None:
-            _STORE.flush()
-            _STORE = None
-        if STORE_DIR.exists():
-            shutil.rmtree(STORE_DIR)
-        STORE_DIR.mkdir(parents=True, exist_ok=True)
-        _STORE = Store(str(STORE_DIR))
-
-
-def _get_store_locked() -> Store:
-    global _STORE
-    if _STORE is None:
-        _STORE = Store(str(STORE_DIR))
-    return _STORE
+def _get_store_locked(dataset_id: str) -> Store:
+    store = _STORE_CACHE.get(dataset_id)
+    if store is None:
+        path = _dataset_store_path(dataset_id)
+        path.mkdir(parents=True, exist_ok=True)
+        store = Store(str(path))
+        _STORE_CACHE[dataset_id] = store
+    return store
 
 
 def _record_iri(record_id: str) -> NamedNode:
@@ -232,6 +232,24 @@ def _literal_first_value(store: Store, subject: object, predicate: NamedNode) ->
         if isinstance(obj, Literal):
             return obj.value
     return None
+
+
+def _reset_dataset_store(dataset_id: str) -> None:
+    close_dataset(dataset_id)
+    path = _dataset_store_path(dataset_id)
+    if path.exists():
+        shutil.rmtree(path)
+    path.mkdir(parents=True, exist_ok=True)
+
+
+def _directory_size(path: Path) -> int:
+    if not path.exists():
+        return 0
+    total = 0
+    for child in path.rglob("*"):
+        if child.is_file():
+            total += child.stat().st_size
+    return total
 
 
 def _normalize_header_name(value: str) -> str:
@@ -358,24 +376,27 @@ def _extract_rows(record: ParsedRecord) -> tuple[List[FieldRow], List[EdgeRow]]:
     return fields, edges
 
 
-def ingest_csv(content: bytes, *, dataset_label: Optional[str] = None) -> int:
-    """Ingest the provided CSV content into the Oxigraph store.
-
-    Returns the number of records stored.
-    """
+def ingest_csv(
+    content: bytes,
+    dataset_id: str,
+    *,
+    dataset_label: Optional[str] = None,
+) -> IngestionStats:
+    """Ingest the provided CSV content into the Oxigraph store for the given dataset."""
 
     records = _parse_csv_bytes(content)
     with _STORE_LOCK:
-        reset_storage()
+        _reset_dataset_store(dataset_id)
         if not records:
-            return 0
+            return IngestionStats(records=0, quads=0)
 
         ark_to_id = {record.ark: record.id for record in records if record.ark}
-        store = _get_store_locked()
-        quads = _build_dataset_quads(records, ark_to_id, dataset_label)
+        store = _get_store_locked(dataset_id)
+        quads = list(_build_dataset_quads(records, ark_to_id, dataset_label))
         store.bulk_extend(quads)
         store.flush()
-    return len(records)
+    datasets.touch_dataset(dataset_id)
+    return IngestionStats(records=len(records), quads=len(quads))
 
 
 def _build_dataset_quads(
@@ -464,14 +485,13 @@ def _build_record_from_payload(record_id: str, type_raw: str, intermarc_json: st
     )
 
 
-def update_record(record_id: str, *, type_raw: str, intermarc_json: str) -> None:
+def update_record(dataset_id: str, record_id: str, *, type_raw: str, intermarc_json: str) -> None:
     """Update a single record graph with fresh data."""
 
-    initialize_storage()
     record = _build_record_from_payload(record_id, type_raw, intermarc_json)
 
     with _STORE_LOCK:
-        store = _get_store_locked()
+        store = _get_store_locked(dataset_id)
         ark_index = _load_ark_index(store)
         if record.ark:
             ark_index[record.ark] = record.id
@@ -487,6 +507,7 @@ def update_record(record_id: str, *, type_raw: str, intermarc_json: str) -> None
         if quads:
             store.extend(quads)
         store.flush()
+    datasets.touch_dataset(dataset_id)
 
 
 def _load_ark_index(store: Store) -> dict[str, str]:
@@ -503,10 +524,9 @@ def _record_id_from_subject(subject_iri: str) -> str:
     return subject_iri[len(BASE_ENTITY_NS) :]
 
 
-def run_sparql_query(query: str) -> tuple[List[str], List[dict[str, object]]]:
+def run_sparql_query(dataset_id: str, query: str) -> tuple[List[str], List[dict[str, object]]]:
     """Execute a read-only SPARQL SELECT query and return column names with JSON-friendly rows."""
 
-    initialize_storage()
     statement = query.strip()
     if not statement:
         raise ValueError("SPARQL query cannot be empty")
@@ -516,7 +536,7 @@ def run_sparql_query(query: str) -> tuple[List[str], List[dict[str, object]]]:
         raise ValueError("Only SPARQL SELECT queries are supported")
 
     with _STORE_LOCK:
-        store = _get_store_locked()
+        store = _get_store_locked(dataset_id)
         solutions = store.query(statement)
         if not isinstance(solutions, QuerySolutions):
             raise ValueError("Query did not return a SELECT result set")
@@ -654,16 +674,19 @@ def _record_subjects(store: Store) -> dict[str, NamedNode]:
     return subjects
 
 
-def load_records(*, types: Optional[Sequence[str]] = None) -> List[ParsedRecord]:
+def load_records(
+    dataset_id: str,
+    *,
+    types: Optional[Sequence[str]] = None,
+) -> List[ParsedRecord]:
     """Return every record stored in the Oxigraph store as ParsedRecord instances."""
 
-    initialize_storage()
     requested_types: Optional[Set[str]] = None
     if types:
         requested_types = {_canonical_type_key(t) for t in types}
 
     with _STORE_LOCK:
-        store = _get_store_locked()
+        store = _get_store_locked(dataset_id)
         subjects = _record_subjects(store)
         records: List[ParsedRecord] = []
         for record_id, subject in subjects.items():
@@ -675,13 +698,32 @@ def load_records(*, types: Optional[Sequence[str]] = None) -> List[ParsedRecord]
     return records
 
 
-def load_entities(*, types: Optional[Sequence[str]] = None) -> List[Entity]:
+def load_entities(
+    dataset_id: str,
+    *,
+    types: Optional[Sequence[str]] = None,
+) -> List[Entity]:
     """Return all entities reconstructed from the Oxigraph store."""
 
-    records = load_records(types=types)
+    records = load_records(dataset_id, types=types)
     entities: List[Entity] = []
     for record in records:
         entity = Entity(record.id, record.type_raw, record.intermarc_raw)
         entity.intermarc = record.intermarc
         entities.append(entity)
     return entities
+
+
+def dataset_stats(dataset_id: str) -> Dict[str, int]:
+    """Return lightweight statistics describing a dataset."""
+
+    with _STORE_LOCK:
+        store = _get_store_locked(dataset_id)
+        entity_count = sum(1 for _ in store.quads_for_pattern(None, PROP_RECORD_ID, None, DEFAULT_GRAPH))
+        quad_count = sum(1 for _ in store.quads_for_pattern(None, None, None, None))
+    size_bytes = _directory_size(_dataset_store_path(dataset_id))
+    return {
+        "entityCount": entity_count,
+        "quadCount": quad_count,
+        "sizeBytes": size_bytes,
+    }

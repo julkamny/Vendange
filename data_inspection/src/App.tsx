@@ -10,14 +10,28 @@ import { Toolbar } from './app/components/Toolbar'
 import { UploadModal } from './app/components/UploadModal'
 import { ShortcutModal } from './app/components/ShortcutModal'
 import { ShortcutProvider } from './app/providers/ShortcutContext'
+import { DatasetDashboard } from './app/components/DatasetDashboard'
+import type { DatasetSummary } from './app/types'
 
 function App() {
+  const [view, setView] = useState<'dashboard' | 'inspection'>('dashboard')
+  const [activeDataset, setActiveDataset] = useState<DatasetSummary | null>(null)
+
+  const openInspection = (dataset: DatasetSummary) => {
+    setActiveDataset(dataset)
+    setView('inspection')
+  }
+
+  const goHome = () => {
+    setView('dashboard')
+  }
+
   return (
     <ThemeProvider>
       <ShortcutProvider>
         <ToastProvider>
           <AppDataProvider>
-            <AppShell />
+            {view === 'dashboard' ? <DatasetDashboard onOpenInspection={openInspection} /> : <AppShell onBack={goHome} dataset={activeDataset} />}
           </AppDataProvider>
         </ToastProvider>
       </ShortcutProvider>
@@ -25,7 +39,12 @@ function App() {
   )
 }
 
-function AppShell() {
+type AppShellProps = {
+  onBack?: () => void
+  dataset?: DatasetSummary | null
+}
+
+function AppShell({ onBack, dataset }: AppShellProps) {
   const { t } = useTranslation()
   const { clusters, exportCurated } = useAppData()
   const [toolbarVisible, setToolbarVisible] = useState(false)
@@ -59,6 +78,7 @@ function AppShell() {
         onOpenShortcuts={() => setShortcutOpen(true)}
         onExport={exportCurated}
         exportDisabled={!clusters.length}
+        onNavigateHome={onBack}
       />
       <main className="app-main">
         <WorkspaceTabs shortcutModalOpen={shortcutOpen} />
@@ -67,6 +87,7 @@ function AppShell() {
       <ShortcutModal open={shortcutOpen} onClose={() => setShortcutOpen(false)} />
       <footer className="app-footer">
         <span>{t('app.title')}</span>
+        {dataset ? <span className="app-footer__dataset">Base en cours&nbsp;: {dataset.title}</span> : null}
       </footer>
     </div>
   )

@@ -11,6 +11,7 @@ type ToolbarProps = {
   onOpenShortcuts: () => void
   onExport: () => void
   exportDisabled: boolean
+  onNavigateHome?: () => void
 }
 
 export function Toolbar({
@@ -21,6 +22,7 @@ export function Toolbar({
   onOpenShortcuts,
   onExport,
   exportDisabled,
+  onNavigateHome,
 }: ToolbarProps) {
   const { t, language } = useTranslation()
   const { mode, toggle } = useTheme()
@@ -50,6 +52,11 @@ export function Toolbar({
       </button>
       <header className={`toolbar${visible ? ' toolbar--visible' : ' toolbar--collapsed'}`}>
         <div className="toolbar-left">
+          {onNavigateHome ? (
+            <button type="button" onClick={onNavigateHome}>
+              🏠 Dashboard
+            </button>
+          ) : null}
           <button type="button" onClick={onOpenUpload}>
             {t('toolbar.loadCsv')}
           </button>

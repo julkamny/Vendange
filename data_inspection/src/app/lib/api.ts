@@ -109,6 +109,7 @@ export type ClusterResultEvent = {
   datasetId: string
   workClusters: unknown
   expressionClusters?: unknown
+  lastClusteredAt?: string | null
 }
 
 export type ClusterErrorEvent = {
@@ -188,6 +189,7 @@ export function startClusterStream(
               datasetId: parsed.datasetId ?? datasetId,
               workClusters: parsed.workClusters,
               expressionClusters: parsed.expressionClusters,
+              lastClusteredAt: parsed.lastClusteredAt,
             })
           } else if (event === 'error') {
             onEvent({ type: 'error', datasetId: parsed.datasetId ?? datasetId, message: parsed.message || 'Unknown error' })
@@ -216,6 +218,7 @@ export function startClusterStream(
               datasetId: parsed.datasetId ?? datasetId,
               workClusters: parsed.workClusters,
               expressionClusters: parsed.expressionClusters,
+              lastClusteredAt: parsed.lastClusteredAt,
             })
           } else if (event === 'error') {
             onEvent({ type: 'error', datasetId: parsed.datasetId ?? datasetId, message: parsed.message || 'Unknown error' })

@@ -205,6 +205,7 @@ def main() -> None:
                 len(c.clustered_ids),
                 "s" if len(c.clustered_ids) != 1 else "",
             )
+        dataset_registry.mark_clustered(dataset_id)
 
     elif args.cmd == "cluster-with-expressions":
         work_clusters, expression_clusters = run_cluster_with_expression_operation(
@@ -228,6 +229,7 @@ def main() -> None:
                 len(ec.clustered_expression_ids),
                 "s" if len(ec.clustered_expression_ids) != 1 else "",
             )
+        dataset_registry.mark_clustered(dataset_id)
 
 if __name__ == "__main__":
     main()

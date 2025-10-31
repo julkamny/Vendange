@@ -62,8 +62,14 @@ app.add_middleware(
 class _QueueLogHandler(logging.Handler):
     """Forward log records from background curation jobs to an asyncio queue."""
 
-    def __init__(self, queue: asyncio.Queue[Optional[dict[str, Any]]], loop: asyncio.AbstractEventLoop) -> None:
+    def __init__(
+        self,
+        dataset_id: str,
+        queue: asyncio.Queue[Optional[dict[str, Any]]],
+        loop: asyncio.AbstractEventLoop,
+    ) -> None:
         super().__init__(level=logging.INFO)
+        self.dataset_id = dataset_id
         self.queue = queue
         self.loop = loop
         self.setFormatter(logging.Formatter("%(message)s"))
@@ -75,6 +81,7 @@ class _QueueLogHandler(logging.Handler):
         payload = {
             "event": "log",
             "data": {
+                "datasetId": self.dataset_id,
                 "level": record.levelname,
                 "logger": record.name,
                 "message": message,
@@ -112,12 +119,18 @@ def _run_cluster_job(
             LOGGER.info("Dataset %s → work clusters created: %s", dataset_id, len(work_clusters))
             payload = {"workClusters": [asdict(cluster) for cluster in work_clusters]}
 
+        datasets.mark_clustered(dataset_id)
+        meta = datasets.get_dataset(dataset_id)
         LOGGER.info("Clustering job completed for dataset %s", dataset_id)
         loop.call_soon_threadsafe(
             queue.put_nowait,
             {
                 "event": "result",
-                "data": {"datasetId": dataset_id, **payload},
+                "data": {
+                    "datasetId": dataset_id,
+                    "lastClusteredAt": meta.last_clustered_at,
+                    **payload,
+                },
             },
         )
     except Exception as exc:  # pragma: no cover - defensive safety net
@@ -136,9 +149,12 @@ def _run_cluster_job(
 async def _cluster_stream(dataset_id: str, include_expressions: bool) -> AsyncIterator[str]:
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[Optional[dict[str, Any]]] = asyncio.Queue()
-    handler = _QueueLogHandler(queue, loop)
+    handler = _QueueLogHandler(dataset_id, queue, loop)
     root_logger = logging.getLogger()
+    previous_level = root_logger.level
     root_logger.addHandler(handler)
+    if previous_level > logging.INFO:
+        root_logger.setLevel(logging.INFO)
     worker = asyncio.create_task(asyncio.to_thread(_run_cluster_job, dataset_id, include_expressions, loop, queue))
     try:
         while True:
@@ -146,8 +162,11 @@ async def _cluster_stream(dataset_id: str, include_expressions: bool) -> AsyncIt
             if item is None:
                 break
             yield _format_sse(item["event"], item["data"])
+    except asyncio.CancelledError:  # pragma: no cover - cancelled by client
+        pass
     finally:
         root_logger.removeHandler(handler)
+        root_logger.setLevel(previous_level)
         if not worker.done():
             worker.cancel()
         with contextlib.suppress(Exception):
@@ -172,6 +191,7 @@ def _serialize_dataset(meta: DatasetMetadata) -> dict[str, Any]:
         "createdAt": meta.created_at,
         "updatedAt": meta.updated_at,
         "sourceFilename": meta.source_filename,
+        "lastClusteredAt": meta.last_clustered_at,
         "stats": stats,
     }
 
@@ -258,4 +278,8 @@ async def execute_query(dataset_id: str, payload: SparqlQueryPayload) -> dict[st
 async def trigger_cluster(dataset_id: str, payload: ClusterRequest) -> StreamingResponse:
     _ensure_dataset(dataset_id)
     stream = _cluster_stream(dataset_id, payload.include_expressions)
-    return StreamingResponse(stream, media_type="text/event-stream")
+    headers = {
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+    }
+    return StreamingResponse(stream, media_type="text/event-stream", headers=headers)

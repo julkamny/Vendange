@@ -58,7 +58,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 
 ### Curation API
 
-- `POST /api/curation/cluster` starts the clustering pipeline (optionally cascading to expressions) and streams progress as Server-Sent Events. Request payload:
+- `POST /api/datasets/<dataset_id>/cluster` starts the clustering pipeline (optionally cascading to expressions) and streams progress as Server-Sent Events. Request payload:
 
   ```json
   { "includeExpressions": true }
@@ -74,7 +74,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
   ```bash
   curl -N \
     -H "Content-Type: application/json" \
-    -X POST http://localhost:8000/api/curation/cluster \
+    -X POST http://localhost:8000/api/datasets/my-dataset/cluster \
     -d '{"includeExpressions": false}'
   ```
 

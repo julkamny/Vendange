@@ -25,6 +25,7 @@ export type DatasetSummary = {
   createdAt: string
   updatedAt: string
   sourceFilename?: string | null
+  lastClusteredAt?: string | null
   stats: DatasetStats
 }
 

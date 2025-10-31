@@ -21,6 +21,7 @@ class DatasetMetadata:
     created_at: str
     updated_at: str
     source_filename: Optional[str] = None
+    last_clustered_at: Optional[str] = None
 
     def to_dict(self) -> Dict[str, str | None]:
         data = asdict(self)
@@ -55,6 +56,7 @@ def _load_metadata_unlocked() -> Dict[str, DatasetMetadata]:
             created_at=item["created_at"],
             updated_at=item["updated_at"],
             source_filename=item.get("source_filename"),
+            last_clustered_at=item.get("last_clustered_at"),
         )
         lookup[meta.id] = meta
     return lookup
@@ -105,6 +107,7 @@ def create_dataset_entry(title: Optional[str], source_filename: Optional[str]) -
             created_at=now,
             updated_at=now,
             source_filename=source_filename,
+            last_clustered_at=None,
         )
         data[dataset_id] = meta
         _save_metadata_unlocked(data.values())
@@ -127,6 +130,7 @@ def ensure_dataset(dataset_id: str, title: Optional[str] = None, source_filename
             created_at=now,
             updated_at=now,
             source_filename=source_filename,
+            last_clustered_at=None,
         )
         data[normalized_id] = meta
         _save_metadata_unlocked(data.values())
@@ -171,3 +175,17 @@ def delete_dataset_entry(dataset_id: str) -> None:
 
 def dataset_directory(dataset_id: str) -> Path:
     return DATASETS_ROOT / dataset_id
+
+
+def mark_clustered(dataset_id: str) -> None:
+    with _METADATA_LOCK:
+        ensure_root()
+        data = _load_metadata_unlocked()
+        if dataset_id not in data:
+            return
+        meta = data[dataset_id]
+        timestamp = _now_iso()
+        meta.last_clustered_at = timestamp
+        meta.updated_at = timestamp
+        data[dataset_id] = meta
+        _save_metadata_unlocked(data.values())

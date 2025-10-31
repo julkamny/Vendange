@@ -19,6 +19,7 @@ type ClusterState = {
   includeExpressions: boolean
   running: boolean
   logs: string[]
+  hasRun: boolean
   error?: string
 }
 
@@ -54,12 +55,18 @@ export function DatasetDashboard({ onOpenInspection }: DatasetDashboardProps) {
 
   const ensureClusterState = useCallback(
     (datasetId: string): ClusterState => {
-      if (!clusterStates[datasetId]) {
-        return { includeExpressions: false, running: false, logs: [] }
+      const existing = clusterStates[datasetId]
+      if (existing) return existing
+      const dataset = datasets.find(item => item.id === datasetId)
+      return {
+        includeExpressions: false,
+        running: false,
+        logs: [],
+        hasRun: Boolean(dataset?.lastClusteredAt),
+        error: undefined,
       }
-      return clusterStates[datasetId]
     },
-    [clusterStates],
+    [clusterStates, datasets],
   )
 
   const refreshDatasets = useCallback(async () => {
@@ -70,7 +77,14 @@ export function DatasetDashboard({ onOpenInspection }: DatasetDashboardProps) {
       setClusterStates(prev => {
         const next: Record<string, ClusterState> = {}
         for (const dataset of list) {
-          next[dataset.id] = prev[dataset.id] ?? { includeExpressions: false, running: false, logs: [] }
+          const previous = prev[dataset.id]
+          next[dataset.id] = {
+            includeExpressions: previous?.includeExpressions ?? false,
+            running: false,
+            logs: previous?.logs ?? [],
+            error: undefined,
+            hasRun: previous?.hasRun ?? Boolean(dataset.lastClusteredAt),
+          }
         }
         return next
       })
@@ -92,7 +106,7 @@ export function DatasetDashboard({ onOpenInspection }: DatasetDashboardProps) {
 
   const handleFileButtonClick = useCallback(() => {
     fileInputRef.current?.click()
-  }, [])
+  }, [datasets])
 
   const handleFileChange = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
@@ -107,7 +121,7 @@ export function DatasetDashboard({ onOpenInspection }: DatasetDashboardProps) {
         setDatasets(prev => [dataset, ...prev.filter(item => item.id !== dataset.id)])
         setClusterStates(prev => ({
           ...prev,
-          [dataset.id]: prev[dataset.id] ?? { includeExpressions: false, running: false, logs: [] },
+          [dataset.id]: prev[dataset.id] ?? { includeExpressions: false, running: false, logs: [], hasRun: Boolean(dataset.lastClusteredAt) },
         }))
         showToast(`Base "${dataset.title}" prête.`, { tone: 'success' })
       } catch (error) {
@@ -174,14 +188,20 @@ export function DatasetDashboard({ onOpenInspection }: DatasetDashboardProps) {
 
   const appendLog = useCallback((datasetId: string, message: string) => {
     setClusterStates(prev => {
-      const current = prev[datasetId] ?? { includeExpressions: false, running: false, logs: [] }
+      const current = prev[datasetId] ?? {
+        includeExpressions: false,
+        running: false,
+        logs: [],
+        hasRun: Boolean(datasets.find(item => item.id === datasetId)?.lastClusteredAt),
+        error: undefined,
+      }
       const logs = [...current.logs, message].slice(-MAX_LOG_LINES)
       return {
         ...prev,
         [datasetId]: { ...current, logs },
       }
     })
-  }, [])
+  }, [datasets])
 
   const handleClusterEvent = useCallback(
     (datasetId: string, event: ClusterEvent) => {
@@ -191,11 +211,35 @@ export function DatasetDashboard({ onOpenInspection }: DatasetDashboardProps) {
         const workCount = Array.isArray(event.workClusters) ? event.workClusters.length : 0
         const expressionCount = Array.isArray(event.expressionClusters) ? event.expressionClusters.length : 0
         appendLog(datasetId, `Terminé. Regroupements œuvres: ${workCount}, expressions: ${expressionCount}`)
+        setClusterStates(prev => {
+          const current = prev[datasetId] ?? {
+            includeExpressions: false,
+            running: false,
+            logs: [],
+            hasRun: false,
+            error: undefined,
+          }
+          return {
+            ...prev,
+            [datasetId]: { ...current, hasRun: true },
+          }
+        })
+        if (event.lastClusteredAt) {
+          setDatasets(prev =>
+            prev.map(item => (item.id === datasetId ? { ...item, lastClusteredAt: event.lastClusteredAt } : item)),
+          )
+        }
         showToast('Clusterisation terminée.', { tone: 'success' })
       } else if (event.type === 'error') {
         appendLog(datasetId, `Erreur: ${event.message}`)
         setClusterStates(prev => {
-          const current = prev[datasetId] ?? { includeExpressions: false, running: false, logs: [] }
+          const current = prev[datasetId] ?? {
+            includeExpressions: false,
+            running: false,
+            logs: [],
+            hasRun: false,
+            error: undefined,
+          }
           return {
             ...prev,
             [datasetId]: { ...current, running: false, error: event.message },
@@ -211,17 +255,27 @@ export function DatasetDashboard({ onOpenInspection }: DatasetDashboardProps) {
     (datasetId: string) => {
       const state = ensureClusterState(datasetId)
       if (state.running) return
-      setClusterStates(prev => ({
-        ...prev,
-        [datasetId]: { ...state, running: true, error: undefined, logs: [] },
-      }))
+      if (state.hasRun) {
+        showToast('La clusterisation a déjà été effectuée pour cette base.', { tone: 'info' })
+        return
+      }
+        setClusterStates(prev => ({
+          ...prev,
+          [datasetId]: { ...state, running: true, error: undefined, logs: [], hasRun: false },
+        }))
       const stream = startClusterStream(datasetId, state.includeExpressions, event => handleClusterEvent(datasetId, event))
       clusterControllers.current.set(datasetId, stream)
       stream.completed
         .then(() => {
           clusterControllers.current.delete(datasetId)
           setClusterStates(prev => {
-            const current = prev[datasetId] ?? { includeExpressions: false, running: false, logs: [] }
+            const current = prev[datasetId] ?? {
+              includeExpressions: false,
+              running: false,
+              logs: [],
+              hasRun: false,
+              error: undefined,
+            }
             return { ...prev, [datasetId]: { ...current, running: false } }
           })
           refreshDatasets().catch(error => console.error(error))
@@ -230,7 +284,13 @@ export function DatasetDashboard({ onOpenInspection }: DatasetDashboardProps) {
           if (error && typeof error === 'object' && 'name' in error && (error as { name?: string }).name === 'AbortError') {
             clusterControllers.current.delete(datasetId)
             setClusterStates(prev => {
-              const current = prev[datasetId] ?? { includeExpressions: false, running: false, logs: [] }
+              const current = prev[datasetId] ?? {
+                includeExpressions: false,
+                running: false,
+                logs: [],
+                hasRun: false,
+                error: undefined,
+              }
               return { ...prev, [datasetId]: { ...current, running: false } }
             })
             return
@@ -238,7 +298,13 @@ export function DatasetDashboard({ onOpenInspection }: DatasetDashboardProps) {
           console.error('Cluster stream failed', error)
           clusterControllers.current.delete(datasetId)
           setClusterStates(prev => {
-            const current = prev[datasetId] ?? { includeExpressions: false, running: false, logs: [] }
+            const current = prev[datasetId] ?? {
+              includeExpressions: false,
+              running: false,
+              logs: [],
+              hasRun: false,
+              error: undefined,
+            }
             return { ...prev, [datasetId]: { ...current, running: false, error: String(error) } }
           })
           showToast("La clusterisation a échoué.", { tone: 'error' })
@@ -249,13 +315,18 @@ export function DatasetDashboard({ onOpenInspection }: DatasetDashboardProps) {
 
   const handleToggleIncludeExpressions = useCallback((datasetId: string, includeExpressions: boolean) => {
     setClusterStates(prev => {
-      const current = prev[datasetId] ?? { includeExpressions: false, running: false, logs: [] }
+      const current = prev[datasetId] ?? {
+        includeExpressions: false,
+        running: false,
+        logs: [],
+        hasRun: Boolean(datasets.find(item => item.id === datasetId)?.lastClusteredAt),
+      }
       return {
         ...prev,
         [datasetId]: { ...current, includeExpressions },
       }
     })
-  }, [])
+  }, [datasets])
 
   const sortedDatasets = useMemo(
     () =>
@@ -339,20 +410,34 @@ export function DatasetDashboard({ onOpenInspection }: DatasetDashboardProps) {
                   <dt>Modifiée</dt>
                   <dd>{formatTimestamp(dataset.updatedAt)}</dd>
                 </div>
+                {dataset.lastClusteredAt ? (
+                  <div>
+                    <dt>Clusterisée</dt>
+                    <dd>{formatTimestamp(dataset.lastClusteredAt)}</dd>
+                  </div>
+                ) : null}
               </dl>
               <div className="dataset-card__controls">
                 <label>
                   <input
                     type="checkbox"
                     checked={state.includeExpressions}
-                    disabled={state.running}
+                    disabled={state.running || state.hasRun}
                     onChange={event => handleToggleIncludeExpressions(dataset.id, event.target.checked)}
                   />{' '}
                   Propager aux expressions
                 </label>
                 <div className="dataset-card__buttons">
-                  <button type="button" onClick={() => runCluster(dataset.id)} disabled={state.running}>
-                    {state.running ? 'En cours…' : 'Lancer la clusterisation'}
+                  <button
+                    type="button"
+                    onClick={() => runCluster(dataset.id)}
+                    disabled={state.running || state.hasRun}
+                  >
+                    {state.running
+                      ? 'En cours…'
+                      : state.hasRun
+                        ? 'Clusterisation effectuée'
+                        : 'Lancer la clusterisation'}
                   </button>
                   <button type="button" onClick={() => onOpenInspection(dataset)} disabled={state.running}>
                     Ouvrir l&#39;inspection

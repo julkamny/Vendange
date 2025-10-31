@@ -10,7 +10,7 @@ import sys
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence
+from typing import Iterable, List, Optional, Sequence, Set
 from urllib.parse import quote
 
 from pyoxigraph import (
@@ -24,7 +24,7 @@ from pyoxigraph import (
     Store,
 )
 
-from ..models import Intermarc
+from ..models import Entity, Intermarc, Zone, SousZone
 from ..utils.text_norm import fold_diacritics
 
 csv.field_size_limit(sys.maxsize)
@@ -36,6 +36,7 @@ _STORE_LOCK = threading.RLock()
 _STORE: Store | None = None
 
 RDF_TYPE = NamedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
+DEFAULT_GRAPH = DefaultGraph()
 XSD_NS = "http://www.w3.org/2001/XMLSchema#"
 XSD_BOOLEAN = NamedNode(f"{XSD_NS}boolean")
 XSD_INTEGER_TYPES = {
@@ -74,6 +75,7 @@ FIELD_INDEX_PROP = NamedNode("https://vendange.bnf.fr/fieldIndex")
 SUBFIELD_CODE_PROP = NamedNode("https://vendange.bnf.fr/subfieldCode")
 SUBFIELD_INDEX_PROP = NamedNode("https://vendange.bnf.fr/subfieldIndex")
 SUBFIELD_VALUE_PROP = NamedNode("https://vendange.bnf.fr/subfieldValue")
+AFFECTED_BY_CURATION_PROP = NamedNode("https://vendange.bnf.fr/property/affectedByCuration")
 META_GRAPH = NamedNode(f"{BASE_GRAPH_NS}metadata")
 META_DATASET = NamedNode(f"{BASE_ENTITY_NS}dataset")
 PROP_ARK = NamedNode(f"{PROPERTY_NS}ark")
@@ -112,6 +114,7 @@ class SubfieldRow:
     raw_code: str
     index: int
     value: str
+    affected_by_curation: Optional[str] = None
 
 
 @dataclass
@@ -120,6 +123,7 @@ class FieldRow:
     code: str
     index: int
     subfields: List[SubfieldRow]
+    affected_by_curation: Optional[str] = None
 
 
 @dataclass
@@ -211,6 +215,23 @@ def _looks_like_ark(value: str) -> bool:
 
 def _sanitize_subfield_code(code: str) -> str:
     return (code or "").replace("$", "s")
+
+
+def _unsanitize_subfield_code(code: str) -> str:
+    if not code:
+        return code
+    idx = code.find("s")
+    if idx == -1:
+        return code
+    return f"{code[:idx]}${code[idx + 1:]}"
+
+
+def _literal_first_value(store: Store, subject: object, predicate: NamedNode) -> Optional[str]:
+    for quad in store.quads_for_pattern(subject, predicate, None, DEFAULT_GRAPH):
+        obj = quad.object
+        if isinstance(obj, Literal):
+            return obj.value
+    return None
 
 
 def _normalize_header_name(value: str) -> str:
@@ -313,6 +334,7 @@ def _extract_rows(record: ParsedRecord) -> tuple[List[FieldRow], List[EdgeRow]]:
                     raw_code=raw_code,
                     index=sub_index,
                     value=raw_value,
+                    affected_by_curation=sub.affected_by_curation,
                 )
             )
             if raw_code.endswith("$3") and _looks_like_ark(raw_value.strip()):
@@ -330,6 +352,7 @@ def _extract_rows(record: ParsedRecord) -> tuple[List[FieldRow], List[EdgeRow]]:
                 code=zone_code,
                 index=zone_index,
                 subfields=subfields,
+                affected_by_curation=zone.affected_by_curation,
             )
         )
     return fields, edges
@@ -390,6 +413,13 @@ def _build_record_quads(record: ParsedRecord, ark_to_id: dict[str | None, str]) 
             Literal(str(field.index), datatype=XSD_INTEGER),
             graph,
         )
+        if field.affected_by_curation:
+            yield from _emit_quads(
+                field.node,
+                AFFECTED_BY_CURATION_PROP,
+                Literal(field.affected_by_curation),
+                graph,
+            )
         for sub in field.subfields:
             yield from _emit_quads(field.node, HAS_SUBFIELD, sub.node, graph)
             if sub.code:
@@ -402,6 +432,13 @@ def _build_record_quads(record: ParsedRecord, ark_to_id: dict[str | None, str]) 
             )
             if sub.value:
                 yield from _emit_quads(sub.node, SUBFIELD_VALUE_PROP, Literal(sub.value), graph)
+            if sub.affected_by_curation:
+                yield from _emit_quads(
+                    sub.node,
+                    AFFECTED_BY_CURATION_PROP,
+                    Literal(sub.affected_by_curation),
+                    graph,
+                )
 
     for edge in edges:
         target_id = edge.dst_id or ark_to_id.get(edge.dst_ark)
@@ -540,3 +577,111 @@ def _term_to_python(term: object) -> object:
             return term.value.lower() in {"true", "1"}
         return term.value
     return term
+
+
+def _load_record_from_store(
+    store: Store,
+    record_id: str,
+    subject: NamedNode,
+    *,
+    cached_type: Optional[str] = None,
+) -> ParsedRecord:
+    type_raw = cached_type if cached_type is not None else _literal_first_value(store, subject, PROP_TYPE_RAW) or ""
+    ark = _literal_first_value(store, subject, PROP_ARK)
+
+    field_rows: List[tuple[int, Zone]] = []
+    for field_quad in store.quads_for_pattern(subject, HAS_FIELD, None, DEFAULT_GRAPH):
+        field_node = field_quad.object
+        if not isinstance(field_node, BlankNode):
+            continue
+        code = _literal_first_value(store, field_node, FIELD_CODE_PROP) or ""
+        index_literal = _literal_first_value(store, field_node, FIELD_INDEX_PROP) or "0"
+        try:
+            index = int(index_literal)
+        except ValueError:
+            index = 0
+        field_affected = _literal_first_value(store, field_node, AFFECTED_BY_CURATION_PROP)
+
+        subfield_rows: List[tuple[int, SousZone]] = []
+        for sub_quad in store.quads_for_pattern(field_node, HAS_SUBFIELD, None, DEFAULT_GRAPH):
+            sub_node = sub_quad.object
+            if not isinstance(sub_node, BlankNode):
+                continue
+            sanitized_code = _literal_first_value(store, sub_node, SUBFIELD_CODE_PROP) or ""
+            raw_code = _unsanitize_subfield_code(sanitized_code)
+            sub_index_literal = _literal_first_value(store, sub_node, SUBFIELD_INDEX_PROP) or "0"
+            try:
+                sub_index = int(sub_index_literal)
+            except ValueError:
+                sub_index = 0
+            value = _literal_first_value(store, sub_node, SUBFIELD_VALUE_PROP) or ""
+            sub_affected = _literal_first_value(store, sub_node, AFFECTED_BY_CURATION_PROP)
+            subfield_rows.append(
+                (
+                    sub_index,
+                    SousZone(code=raw_code, valeur=value, affected_by_curation=sub_affected),
+                )
+            )
+        subfield_rows.sort(key=lambda item: item[0])
+        zone = Zone(
+            code=code,
+            sousZones=[row[1] for row in subfield_rows],
+            affected_by_curation=field_affected,
+        )
+        field_rows.append((index, zone))
+    field_rows.sort(key=lambda item: item[0])
+    intermarc = Intermarc(zones=[row[1] for row in field_rows])
+    intermarc_json = intermarc.to_json_string()
+
+    return ParsedRecord(
+        id=record_id,
+        type_raw=type_raw,
+        ark=ark,
+        intermarc_raw=intermarc_json,
+        intermarc=intermarc,
+    )
+
+
+def _record_subjects(store: Store) -> dict[str, NamedNode]:
+    subjects: dict[str, NamedNode] = {}
+    for quad in store.quads_for_pattern(None, PROP_RECORD_ID, None, DEFAULT_GRAPH):
+        if not isinstance(quad.subject, NamedNode):
+            continue
+        if not isinstance(quad.object, Literal):
+            continue
+        record_id = quad.object.value
+        subjects[record_id] = quad.subject
+    return subjects
+
+
+def load_records(*, types: Optional[Sequence[str]] = None) -> List[ParsedRecord]:
+    """Return every record stored in the Oxigraph store as ParsedRecord instances."""
+
+    initialize_storage()
+    requested_types: Optional[Set[str]] = None
+    if types:
+        requested_types = {_canonical_type_key(t) for t in types}
+
+    with _STORE_LOCK:
+        store = _get_store_locked()
+        subjects = _record_subjects(store)
+        records: List[ParsedRecord] = []
+        for record_id, subject in subjects.items():
+            type_raw = _literal_first_value(store, subject, PROP_TYPE_RAW) or ""
+            if requested_types is not None and _canonical_type_key(type_raw) not in requested_types:
+                continue
+            record = _load_record_from_store(store, record_id, subject, cached_type=type_raw)
+            records.append(record)
+    return records
+
+
+def load_entities(*, types: Optional[Sequence[str]] = None) -> List[Entity]:
+    """Return all entities reconstructed from the Oxigraph store."""
+
+    records = load_records(types=types)
+    entities: List[Entity] = []
+    for record in records:
+        entity = Entity(record.id, record.type_raw, record.intermarc_raw)
+        entity.intermarc = record.intermarc
+        entities.append(entity)
+    return entities

@@ -28,10 +28,12 @@ IRIs are rooted under `https://vendange.bnf.fr/…`.
 | `entity/<id>` → `hasField` → `_:` field blank node | Connects the entity to every MARC field. |
 | field blank node → `fieldCode` → _literal_ | MARC zone code (`245`, `700`, …). |
 | field blank node → `fieldIndex` → _integer literal_ | 0-based position in the record (preserves CSV order). |
+| field blank node → `property/affectedByCuration` → _literal_ | Curation impact for the whole field (`created`, `modified`, …). |
 | field blank node → `hasSubfield` → `_:` subfield blank node | Links fields to their subfields. |
 | subfield blank node → `subfieldCode` → _literal_ | Subfield code with `$` replaced by `s` (`245$a` → `245sa`). |
 | subfield blank node → `subfieldIndex` → _integer literal_ | Position within the parent field. |
 | subfield blank node → `subfieldValue` → _literal_ | Raw value. |
+| subfield blank node → `property/affectedByCuration` → _literal_ | Curation impact for the specific subfield (`created`, `modified`, …). |
 | `entity/<id>` → `relation/<code>` → target | `$3` relationships (code sanitised as above). Target is another record IRI when known, otherwise we keep the named node for the ARK. |
 | `entity/<id>` → `relation_ark/<code>` → _literal_ | Literal ARK value for every `$3`. |
 

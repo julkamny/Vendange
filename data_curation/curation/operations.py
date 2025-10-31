@@ -81,7 +81,14 @@ def _clone_intermarc(intermarc: Intermarc) -> Intermarc:
     """Create a fresh copy of an intermarc structure to avoid mutating originals."""
     return Intermarc(
         zones=[
-            Zone(code=z.code, sousZones=[SousZone(code=sz.code, valeur=sz.valeur) for sz in z.sousZones])
+            Zone(
+                code=z.code,
+                sousZones=[
+                    SousZone(code=sz.code, valeur=sz.valeur, affected_by_curation=sz.affected_by_curation)
+                    for sz in z.sousZones
+                ],
+                affected_by_curation=z.affected_by_curation,
+            )
             for z in intermarc.zones
         ]
     )
@@ -202,9 +209,10 @@ def _ensure_relationship_zone(entity: Entity, target_ark: str, qualifier_ark: st
     new_zone = Zone(
         code="552",
         sousZones=[
-            SousZone(code="552$3", valeur=target_ark),
-            SousZone(code="552$q", valeur=qualifier_ark),
+            SousZone(code="552$3", valeur=target_ark, affected_by_curation="created"),
+            SousZone(code="552$q", valeur=qualifier_ark, affected_by_curation="created"),
         ],
+        affected_by_curation="created",
     )
     new_intermarc.add_zone(new_zone)
     return entity.clone_with_new_intermarc(new_intermarc)
@@ -972,10 +980,11 @@ def cluster_works_by_title_responsibilities(
                     zone = Zone(
                         code="90F",
                         sousZones=[
-                            SousZone(code="90F$a", valeur=ark),
-                            SousZone(code="90F$q", valeur="Clusterisation script"),
-                            SousZone(code="90F$d", valeur=today),
+                            SousZone(code="90F$a", valeur=ark, affected_by_curation="created"),
+                            SousZone(code="90F$q", valeur="Clusterisation script", affected_by_curation="created"),
+                            SousZone(code="90F$d", valeur=today, affected_by_curation="created"),
                         ],
+                        affected_by_curation="created",
                     )
                     new_inter.add_zone(zone)
                     if ark:
@@ -1144,10 +1153,11 @@ def cluster_expressions_by_051_and_041(
                     new_zone = Zone(
                         code="90F",
                         sousZones=[
-                            SousZone(code="90F$a", valeur=candidate_ark),
-                            SousZone(code="90F$q", valeur="Clusterisation script"),
-                            SousZone(code="90F$d", valeur=today),
+                            SousZone(code="90F$a", valeur=candidate_ark, affected_by_curation="created"),
+                            SousZone(code="90F$q", valeur="Clusterisation script", affected_by_curation="created"),
+                            SousZone(code="90F$d", valeur=today, affected_by_curation="created"),
                         ],
+                        affected_by_curation="created",
                     )
                     new_intermarc.add_zone(new_zone)
 

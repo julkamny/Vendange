@@ -1,0 +1,12 @@
+.git
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+data_curation/api/vendange_store/
+data_curation/data_curation.log
+data_inspection/node_modules/
+data_inspection/dist/
+node_modules/
+env/
+*.log

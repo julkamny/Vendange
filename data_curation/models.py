@@ -31,25 +31,45 @@ class WorkGroupKey:
 class SousZone:
     code: str
     valeur: str
+    affected_by_curation: Optional[str] = None
 
 
 @dataclass
 class Zone:
     code: str
     sousZones: List[SousZone] = field(default_factory=list)
+    affected_by_curation: Optional[str] = None
 
     @staticmethod
     def from_dict(d: Dict[str, Any]) -> "Zone":
         return Zone(
             code=d.get("code", ""),
-            sousZones=[SousZone(code=sz.get("code", ""), valeur=str(sz.get("valeur", ""))) for sz in d.get("sousZones", [])],
+            sousZones=[
+                SousZone(
+                    code=sz.get("code", ""),
+                    valeur=str(sz.get("valeur", "")),
+                    affected_by_curation=sz.get("affectedByCuration"),
+                )
+                for sz in d.get("sousZones", [])
+            ],
+            affected_by_curation=d.get("affectedByCuration"),
         )
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        data: Dict[str, Any] = {
             "code": self.code,
-            "sousZones": [{"code": sz.code, "valeur": sz.valeur} for sz in self.sousZones],
+            "sousZones": [
+                {
+                    "code": sz.code,
+                    "valeur": sz.valeur,
+                    **({"affectedByCuration": sz.affected_by_curation} if sz.affected_by_curation else {}),
+                }
+                for sz in self.sousZones
+            ],
         }
+        if self.affected_by_curation:
+            data["affectedByCuration"] = self.affected_by_curation
+        return data
 
     def subfield_values(self, sub_code: str) -> List[str]:
         """Return values for sousZones matching exact sub_code like '150$a' or '90F$q'."""

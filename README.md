@@ -7,7 +7,7 @@ _Vérification Experte, Nettoyage et Dédoublonnage des Arbres NOEMI par Grappag
 While the ideas behind Vendange's clustering operations and its UI are the result of human reflexion, the code was produced by gpt-5-codex in codex cli.
 
 ### Overview
-- Python CLI to run modular data-curation operations on Intermarc CSV for IFLA-LRM entities.
+- Python CLI to run modular data-curation operations directly against the Oxigraph SPARQL store for IFLA-LRM entities (with an optional helper flag to ingest fixture CSVs during development).
 - Web UI to review, approve/reject/alter merges and export a curated dataset.
 
 ### Getting Started
@@ -34,13 +34,72 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
   2. The adaptation gets a `552$q` with the ARK identifier of the controled value with `169$a` "Est une adaptation de" and a `552$3` subfield pointing to the ARK identifier of the original work.
   
 4) Running the script
-- To build only the clusters: ```python -m data_curation.cli cluster --input data_inspection/data/current_export.csv --output data_inspection/data/curated.csv --clusters-json data/curated.json```
-- To launch the FastAPI server in `data_curation/api`: `uv run fastapi dev app.py`. See below for explanations.
+- Optionally ingest a CSV snapshot into the Oxigraph store and run the clustering script in one go:
+
+  ```bash
+  uv run python -m data_curation.cli cluster \
+    --csv data_inspection/data/current_export.csv \
+    --clusters-json data/curated.json
+  ```
+
+  Skip `--csv` to operate on the existing store in `data_curation/api/vendange_store`.
+
+- Propagate clustering decisions to expressions as well:
+
+  ```bash
+  uv run python -m data_curation.cli cluster-with-expressions \
+    --csv data_inspection/data/current_export.csv \
+    --work-clusters-json data/work_clusters.json \
+    --expression-clusters-json data/expression_clusters.json
+  ```
+
+- To launch the FastAPI server in `data_curation/api`: `uv run fastapi dev data_curation/api/app.py`. See below for explanations.
+
+### Curation API
+
+- `POST /api/curation/cluster` starts the clustering pipeline (optionally cascading to expressions) and streams progress as Server-Sent Events. Request payload:
+
+  ```json
+  { "includeExpressions": true }
+  ```
+
+  Stream events carry either:
+  - `log` — incremental log lines with `level`, `logger`, `message`.
+  - `result` — JSON payload containing `workClusters` and, when requested, `expressionClusters`.
+  - `error` — terminal error message (HTTP 200, but the stream ends right after).
+
+  Example:
+
+  ```bash
+  curl -N \
+    -H "Content-Type: application/json" \
+    -X POST http://localhost:8000/api/curation/cluster \
+    -d '{"includeExpressions": false}'
+  ```
 
 ### Debug & Fixtures
 
 - **Interactive variant debugging** — set `TITLE_MATCH_DEBUGGER=1` when running the CLI (typically with `-vv`) to drop into `pdb` right before NLP cleaning. Example: ```TITLE_MATCH_DEBUGGER=1 python3 -m data_curation.cli -vv detect-contamination --input data/in.csv --out-json data/out.json``` lets you inspect the exact strings matched against the title before spaCy processes them.
 - **Styled debug logs** — use `-vv` to unlock Rich-powered logs: the CLI renders colourful panels, syntax-highlighted titles, and tables for matched variants and removed segments.
+
+### Deployment
+
+- Build and run the FastAPI backend together with the static React front-end:
+
+  ```bash
+  docker compose up --build
+  ```
+
+  The backend listens on `http://localhost:8000`, the front-end on `http://localhost:5173`. The Oxigraph store is persisted in the `vendange_store` named volume so your curation state survives container restarts.
+
+- Build images separately if you prefer independent deployments:
+
+  ```bash
+  docker build -f Dockerfile.backend -t vendange-backend .
+  docker build -f Dockerfile.frontend -t vendange-frontend .
+  ```
+
+  The backend image boots `uvicorn` with the app located at `data_curation.api.app:app`; the front-end image serves the pre-built Vite bundle via Nginx.
 
 Review in the Web UI
 - Start the UI: `npm run dev`

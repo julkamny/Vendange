@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.theme import Theme
 
+from data_curation.api import db
 from data_curation.curation.pipeline import run_cluster_operation, run_cluster_with_expression_operation
 
 LOGGER = logging.getLogger("scripts.cli")
@@ -98,6 +99,18 @@ def _apply_input_fixture(input_path: str | Path, fixture: str | None) -> Path:
 
     return temp_path
 
+
+def _ingest_csv(path: Path, dataset_label: str | None) -> None:
+    LOGGER.info(
+        "[bold blue]Loading dataset[/]: [link=file://%s]%s[/link]%s",
+        path,
+        path.name,
+        f" (label: {dataset_label})" if dataset_label else "",
+    )
+    content = path.read_bytes()
+    count = db.ingest_csv(content, dataset_label=dataset_label)
+    LOGGER.info("[bold green]Store updated[/]: %s records ingested", count)
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="WEM trees curation CLI")
     parser.add_argument(
@@ -114,23 +127,35 @@ def main() -> None:
         "--test",
         dest="fixture",
         metavar="NAME",
-        help="Load fixture data/test_NAME.csv into the provided input path before running the command",
+        help="Load fixture data/test_NAME.csv instead of the provided CSV before ingestion",
+    )
+
+    ingest_parent = argparse.ArgumentParser(add_help=False)
+    ingest_parent.add_argument(
+        "--csv",
+        dest="csv",
+        help="Optional CSV to ingest into the Oxigraph store before running the command",
+    )
+    ingest_parent.add_argument(
+        "--dataset-label",
+        dest="dataset_label",
+        help="Dataset label recorded alongside the ingestion metadata",
     )
 
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p_cluster = sub.add_parser("cluster", help="Run clustering operation on works", parents=[fixture_parent])
-    p_cluster.add_argument("--input", required=True, help="Path to input CSV")
-    p_cluster.add_argument("--output", required=True, help="Path to output CSV (curated)")
+    p_cluster = sub.add_parser(
+        "cluster",
+        help="Run clustering operation on works and persist results into the store",
+        parents=[fixture_parent, ingest_parent],
+    )
     p_cluster.add_argument("--clusters-json", required=False, help="Optional path to write clusters summary JSON")
 
     p_cluster_expr = sub.add_parser(
         "cluster-with-expressions",
-        help="Run clustering on works and propagate to expressions",
-        parents=[fixture_parent],
+        help="Run clustering on works and propagate to expressions, persisting into the store",
+        parents=[fixture_parent, ingest_parent],
     )
-    p_cluster_expr.add_argument("--input", required=True, help="Path to input CSV")
-    p_cluster_expr.add_argument("--output", required=True, help="Path to output CSV (curated)")
     p_cluster_expr.add_argument(
         "--work-clusters-json",
         required=False,
@@ -146,12 +171,19 @@ def main() -> None:
 
     _configure_logging(args.verbose)
 
-    input_path = Path(args.input)
-    if getattr(args, "fixture", None):
-        input_path = _apply_input_fixture(args.input, args.fixture)
+    csv_source = getattr(args, "csv", None)
+    dataset_label = getattr(args, "dataset_label", None)
+    if csv_source:
+        csv_path = Path(csv_source)
+        if getattr(args, "fixture", None):
+            csv_path = _apply_input_fixture(csv_source, args.fixture)
+        _ingest_csv(csv_path, dataset_label)
+    else:
+        db.initialize_storage()
+        LOGGER.debug("Using existing store at %s", db.STORE_DIR)
 
     if args.cmd == "cluster":
-        clusters = run_cluster_operation(str(input_path), args.output, args.clusters_json)
+        clusters = run_cluster_operation(clusters_json=args.clusters_json)
         LOGGER.info("[bold green]Clusters created:[/] %s", len(clusters))
         for c in clusters:
             LOGGER.info(
@@ -163,10 +195,8 @@ def main() -> None:
 
     elif args.cmd == "cluster-with-expressions":
         work_clusters, expression_clusters = run_cluster_with_expression_operation(
-            str(input_path),
-            args.output,
-            args.work_clusters_json,
-            args.expression_clusters_json,
+            works_json=args.work_clusters_json,
+            expressions_json=args.expression_clusters_json,
         )
         LOGGER.info("[bold green]Work clusters created:[/] %s", len(work_clusters))
         for c in work_clusters:

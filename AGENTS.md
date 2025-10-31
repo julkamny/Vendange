@@ -2,7 +2,8 @@
 
 - When deriving the internal identifier from an ark, we need to remove the prefix up to `cb` and drop the final control character, e.g. `ark:/12148/cb359748158 -> 35974815`.
 - If you need to run Python, know that the .venv at the root of the repo (where you've been summoned) is managed by uv.
-- The searchable dataset is now an Oxigraph store under `data_curation/api/vendange_store/`. It is regenerated from `data_inspection/data/curated.csv` whenever the React app uploads a file (same CLI as before: `uv run python -m data_curation.cli -vv cluster --input data_inspection/data/current_export.csv --output data_inspection/data/curated.csv`, **do not** run it yourself, it still processes ~4 k entities). Run logs are in `data_curation/data_curation.log`.
+- The searchable dataset is now an Oxigraph store under `data_curation/api/vendange_store/`. It is regenerated from `data_inspection/data/curated.csv` whenever the React app uploads a file (CLI: `uv run python -m data_curation.cli -vv cluster --input data_inspection/data/current_export.csv --output data_inspection/data/curated.csv`, **do not** run it yourself, it still processes ~4k entities). Run logs are in `data_curation/data_curation.log`.
+- The DB can be inspected with the Oxigraph CLI, see [sparql_store.md](documentation/sparql_store.md)
 
 ## Linked entity ontology
 

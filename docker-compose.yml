@@ -1,0 +1,27 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - vendange_store:/app/data_curation/api/vendange_store
+    environment:
+      - UVICORN_WORKERS=1
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "5173:4173"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  vendange_store:

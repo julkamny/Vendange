@@ -15,6 +15,7 @@ from urllib.parse import quote
 
 from pyoxigraph import (
     BlankNode,
+    DefaultGraph,
     Literal,
     NamedNode,
     QuerySolution,
@@ -23,8 +24,8 @@ from pyoxigraph import (
     Store,
 )
 
-from ..models import Intermarc
-from ..utils.text_norm import fold_diacritics, normalize_for_match
+from ..models import Intermarc, Zone
+from ..utils.text_norm import fold_diacritics
 
 csv.field_size_limit(sys.maxsize)
 
@@ -61,7 +62,6 @@ XSD_DECIMAL_TYPES = {
 BASE_ENTITY_NS = "https://vendange.bnf.fr/entity/"
 BASE_GRAPH_NS = "https://vendange.bnf.fr/graph/"
 FIELD_NS = "https://vendange.bnf.fr/field/"
-FIELD_NORM_NS = "https://vendange.bnf.fr/field_norm/"
 RELATION_NS = "https://vendange.bnf.fr/relation/"
 RELATION_ARK_NS = "https://vendange.bnf.fr/relation_ark/"
 PROPERTY_NS = "https://vendange.bnf.fr/property/"
@@ -71,7 +71,6 @@ META_DATASET = NamedNode(f"{BASE_ENTITY_NS}dataset")
 PROP_ARK = NamedNode(f"{PROPERTY_NS}ark")
 PROP_RECORD_ID = NamedNode(f"{PROPERTY_NS}record_id")
 PROP_TYPE_RAW = NamedNode(f"{PROPERTY_NS}type_raw")
-PROP_TYPE_NORM = NamedNode(f"{PROPERTY_NS}type_norm")
 PROP_DATASET_LABEL = NamedNode(f"{PROPERTY_NS}dataset_label")
 PROP_SOURCE_DATASET = NamedNode(f"{PROPERTY_NS}source_dataset")
 
@@ -79,6 +78,12 @@ TYPE_CLASS_MAP = {
     "oeuvre": NamedNode(f"{CLASS_NS}Work"),
     "expression": NamedNode(f"{CLASS_NS}Expression"),
     "manifestation": NamedNode(f"{CLASS_NS}Manifestation"),
+    "identite publique de personne": NamedNode(f"{CLASS_NS}PublicIdentity"),
+    "collectivite": NamedNode(f"{CLASS_NS}Collective"),
+    "valeur controlee": NamedNode(f"{CLASS_NS}ControlledValue"),
+    "concept dewey": NamedNode(f"{CLASS_NS}DeweyConcept"),
+    "marque": NamedNode(f"{CLASS_NS}Brand"),
+    "famille": NamedNode(f"{CLASS_NS}Family"),
 }
 DEFAULT_ENTITY_CLASS = NamedNode(f"{CLASS_NS}Entity")
 
@@ -87,18 +92,16 @@ DEFAULT_ENTITY_CLASS = NamedNode(f"{CLASS_NS}Entity")
 class ParsedRecord:
     id: str
     type_raw: str
-    type_norm: str
     ark: Optional[str]
     intermarc_raw: str
     intermarc: Intermarc
 
 
 @dataclass
-class SubfieldRow:
+class FieldRow:
     record_id: str
     code: str
     value: str
-    value_norm: str
 
 
 @dataclass
@@ -154,10 +157,6 @@ def _field_predicate(code: str) -> NamedNode:
     return NamedNode(f"{FIELD_NS}{quote(code, safe='$')}")
 
 
-def _field_norm_predicate(code: str) -> NamedNode:
-    return NamedNode(f"{FIELD_NORM_NS}{quote(code, safe='$')}")
-
-
 def _relation_predicate(code: str) -> NamedNode:
     return NamedNode(f"{RELATION_NS}{quote(code, safe='$')}")
 
@@ -180,8 +179,12 @@ def _emit_quads(
         yield Quad(subject, predicate, obj, graph)
 
 
-def _normalize_type(value: str) -> str:
+def _canonical_type_key(value: str) -> str:
     return fold_diacritics(value or "").lower().strip()
+
+
+def _class_for_type(value: str) -> NamedNode:
+    return TYPE_CLASS_MAP.get(_canonical_type_key(value), DEFAULT_ENTITY_CLASS)
 
 
 def _looks_like_ark(value: str) -> bool:
@@ -251,7 +254,6 @@ def _parse_csv_bytes(data: bytes) -> List[ParsedRecord]:
             ParsedRecord(
                 id=record_id,
                 type_raw=type_raw,
-                type_norm=_normalize_type(type_raw),
                 ark=ark,
                 intermarc_raw=intermarc_raw,
                 intermarc=intermarc,
@@ -270,40 +272,38 @@ def _extract_ark(intermarc: Intermarc) -> Optional[str]:
     return None
 
 
-def _split_code(zone_code: str, subfield_code: str) -> str:
-    if "$" in subfield_code:
-        zone, sub = subfield_code.split("$", 1)
-        return f"{zone or zone_code}${sub}"
-    return subfield_code or zone_code
+def _zone_literal(zone: Zone, *, index: int) -> str:
+    payload = zone.to_dict()
+    payload["index"] = index
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
-def _extract_rows(record: ParsedRecord) -> tuple[List[SubfieldRow], List[EdgeRow]]:
-    subfields: List[SubfieldRow] = []
+def _extract_rows(record: ParsedRecord) -> tuple[List[FieldRow], List[EdgeRow]]:
+    fields: List[FieldRow] = []
     edges: List[EdgeRow] = []
-    for zone in record.intermarc.zones:
+    for zone_index, zone in enumerate(record.intermarc.zones):
         zone_code = zone.code or ""
-        for sub in zone.sousZones:
-            zone_and_sub = _split_code(zone_code, sub.code or "")
-            raw_value = str(sub.valeur) if sub.valeur is not None else ""
-            normalized_value = normalize_for_match(raw_value)
-            subfields.append(
-                SubfieldRow(
+        if zone_code:
+            fields.append(
+                FieldRow(
                     record_id=record.id,
-                    code=zone_and_sub,
-                    value=raw_value,
-                    value_norm=normalized_value,
+                    code=zone_code,
+                    value=_zone_literal(zone, index=zone_index),
                 )
             )
-            if _looks_like_ark(raw_value.strip()) and zone_and_sub.endswith("$3"):
+        for sub in zone.sousZones:
+            raw_value = str(sub.valeur) if sub.valeur is not None else ""
+            code = sub.code or ""
+            if code and _looks_like_ark(raw_value.strip()) and code.endswith("$3"):
                 edges.append(
                     EdgeRow(
                         src_id=record.id,
-                        relation=zone_and_sub,
+                        relation=code,
                         dst_ark=raw_value.strip(),
                         dst_id=None,
                     )
                 )
-    return subfields, edges
+    return fields, edges
 
 
 def ingest_csv(content: bytes, *, dataset_label: Optional[str] = None) -> int:
@@ -340,24 +340,20 @@ def _build_dataset_quads(
 def _build_record_quads(record: ParsedRecord, ark_to_id: dict[str | None, str]) -> Iterable[Quad]:
     subject = _record_iri(record.id)
     graph = _record_graph(record.id)
-    entity_class = TYPE_CLASS_MAP.get(record.type_norm, DEFAULT_ENTITY_CLASS)
+    entity_class = _class_for_type(record.type_raw)
 
     yield from _emit_quads(subject, RDF_TYPE, entity_class, graph)
     yield from _emit_quads(subject, PROP_RECORD_ID, Literal(record.id), graph)
     if record.type_raw:
         yield from _emit_quads(subject, PROP_TYPE_RAW, Literal(record.type_raw), graph)
-    if record.type_norm:
-        yield from _emit_quads(subject, PROP_TYPE_NORM, Literal(record.type_norm), graph)
     if record.ark:
         yield from _emit_quads(subject, PROP_ARK, Literal(record.ark), graph)
         yield from _emit_quads(subject, PROP_SOURCE_DATASET, META_DATASET, graph)
 
-    subfields, edges = _extract_rows(record)
-    for subfield in subfields:
-        if subfield.value:
-            yield from _emit_quads(subject, _field_predicate(subfield.code), Literal(subfield.value), graph)
-        if subfield.value_norm:
-            yield from _emit_quads(subject, _field_norm_predicate(subfield.code), Literal(subfield.value_norm), graph)
+    fields, edges = _extract_rows(record)
+    for field in fields:
+        if field.code and field.value:
+            yield from _emit_quads(subject, _field_predicate(field.code), Literal(field.value), graph)
 
     for edge in edges:
         target_id = edge.dst_id or ark_to_id.get(edge.dst_ark)
@@ -377,7 +373,6 @@ def _build_record_from_payload(record_id: str, type_raw: str, intermarc_json: st
     return ParsedRecord(
         id=record_id,
         type_raw=type_raw,
-        type_norm=_normalize_type(type_raw),
         ark=_extract_ark(intermarc),
         intermarc_raw=intermarc_json,
         intermarc=intermarc,
@@ -395,7 +390,13 @@ def update_record(record_id: str, *, type_raw: str, intermarc_json: str) -> None
         ark_index = _load_ark_index(store)
         if record.ark:
             ark_index[record.ark] = record.id
+        subject = _record_iri(record.id)
         graph = _record_graph(record.id)
+        existing_default = list(store.quads_for_pattern(subject, None, None, None))
+        for quad in existing_default:
+            graph_name = getattr(quad, "graph_name", None)
+            if graph_name is None or isinstance(graph_name, DefaultGraph):
+                store.remove(quad)
         store.clear_graph(graph)
         quads = list(_build_record_quads(record, ark_index))
         if quads:

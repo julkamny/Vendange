@@ -70,6 +70,7 @@ Exploring W–E–M links
 SPARQL searches
 - When the CSV files are loaded, the curated one is ingested into an Oxigraph store exposed by the FastAPI server in `data_curation/api`.
 - Open a SPARQL tab to explore the dataset. You can traverse W–E–M links, filter on MARC subfields, and join on `$3` relationships; see [`documentation/sparql_store.md`](documentation/sparql_store.md) for a quick vocabulary reference and example queries.
+- Every `<https://vendange.bnf.fr/field/<zone>>` triple stores the full MARC field (including all subfields) as a JSON literal—use SPARQL `REGEX` filters when you need to target a specific subfield inside that JSON blob.
 
 Design Notes
 - UI performs all actions client-side; no network dependencies, but relies on FastAPI for the SPARQL store and query endpoint.

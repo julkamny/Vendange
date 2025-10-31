@@ -13,8 +13,6 @@ from rich.logging import RichHandler
 from rich.theme import Theme
 
 from data_curation.curation.pipeline import run_cluster_operation, run_cluster_with_expression_operation
-from data_curation.pipeline_title_contamination import run_title_contamination_detection
-
 
 LOGGER = logging.getLogger("scripts.cli")
 RICH_THEME = Theme({
@@ -144,16 +142,6 @@ def main() -> None:
         help="Optional path to write expressions clusters summary JSON",
     )
 
-    p_detect = sub.add_parser(
-        "detect-contamination",
-        help="Detect titles contaminated with author names",
-        parents=[fixture_parent],
-    )
-    p_detect.add_argument("--input", required=True, help="Path to input CSV")
-    p_detect.add_argument("--out-json", required=True, help="Where to write detections JSON")
-    p_detect.add_argument("--tau-hi", type=float, default=0.85, help="High-confidence threshold")
-    p_detect.add_argument("--tau-lo", type=float, default=0.65, help="Medium-confidence threshold")
-
     args = parser.parse_args()
 
     _configure_logging(args.verbose)
@@ -196,10 +184,6 @@ def main() -> None:
                 len(ec.clustered_expression_ids),
                 "s" if len(ec.clustered_expression_ids) != 1 else "",
             )
-
-    elif args.cmd == "detect-contamination":
-        recs = run_title_contamination_detection(str(input_path), args.out_json, tau_hi=args.tau_hi, tau_lo=args.tau_lo)
-        LOGGER.info("[bold green]Detections written:[/] %s", len(recs))
 
 if __name__ == "__main__":
     main()

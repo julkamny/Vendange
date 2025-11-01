@@ -1,0 +1,73 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.17.6"
+  },
+  "cells": [
+    {
+      "id": "WacC",
+      "code_hash": "1d0db38904205bec4d6f6f6a1f6cec3e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "CNav",
+      "code_hash": "9c5e09a49d306b9f31d09004e9aa9ba4",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "SSNs",
+      "code_hash": "f7546663ee46755bc17e9ff85a9872ca",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><span class=\"paragraph\">Co\u00fbt recours \u00e0 LLM pour segmenter titres et assigner \u00e0 chaque agent son code-fonction dans corpus Comtesse S\u00e9gur.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "rRNZ",
+      "code_hash": "03e0166e51c0ab3680535f6f3fea09ad",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": [
+        {
+          "type": "stream",
+          "name": "stdout",
+          "text": "24.00 \u20ac\n",
+          "mimetype": "text/plain"
+        }
+      ]
+    },
+    {
+      "id": "qvKX",
+      "code_hash": null,
+      "outputs": [],
+      "console": []
+    }
+  ]
+}

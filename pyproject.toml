@@ -28,6 +28,7 @@ dependencies = [
     "torch==2.2.2",
     "pyoxigraph>=0.5.2",
     "oxigraph>=0.5.2",
+    "marimo>=0.17.6",
 ]
 
 [tool.uv]

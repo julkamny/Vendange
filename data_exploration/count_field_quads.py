@@ -15,7 +15,7 @@ Requires: pyoxigraph >= 0.5
 
 Usage:
 
-python data_curation/graph_exploration/count_named_only.py \
+python data_exploration/count_field_quads.py \
   --store data_curation/api/datasets/current-exportcsv \
   --codes 90F 990 907 90H 901 991 \
   --progress-every 1000 \

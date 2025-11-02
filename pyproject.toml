@@ -14,6 +14,7 @@ dependencies = [
     "pip>=25.2",
     "numpy==1.26.4",
     "spacy>=3.8.7",
+    # "fr-dep-news-trf==3.8.0",
     "curated-tokenizers==0.0.9",
     "curated-transformers==0.1.1",
     "filelock==3.20.0",
@@ -28,8 +29,16 @@ dependencies = [
     "torch==2.2.2",
     "pyoxigraph>=0.5.2",
     "oxigraph>=0.5.2",
-    "marimo>=0.17.6",
 ]
 
 [tool.uv]
 dev-dependencies = ["ruff>=0.6.2"]
+
+[dependency-groups]
+dev = ["marimo>=0.17.6", 
+    "matplotlib>=3.10.7",
+    "pandas>=2.3.3",
+]
+
+[tool.uv.sources]
+# fr-dep-news-trf = { git = "https://github.com/explosion/spacy-models/releases/download/fr_dep_news_trf-3.8.0" }

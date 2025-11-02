@@ -507,6 +507,26 @@ wheels = [
 ]
 
 [[package]]
+name = "fr-dep-news-trf"
+version = "3.8.0"
+source = { url = "https://github.com/explosion/spacy-models/releases/download/fr_dep_news_trf-3.8.0/fr_dep_news_trf-3.8.0-py3-none-any.whl" }
+dependencies = [
+    { name = "protobuf" },
+    { name = "sentencepiece" },
+    { name = "spacy-curated-transformers" },
+]
+wheels = [
+    { url = "https://github.com/explosion/spacy-models/releases/download/fr_dep_news_trf-3.8.0/fr_dep_news_trf-3.8.0-py3-none-any.whl", hash = "sha256:df243e539bbc365390744a411aa574fb03eb2ee2f948cf6149ad722c59ab419b" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "protobuf", specifier = "<3.21.0" },
+    { name = "sentencepiece", specifier = ">=0.1.91,!=0.1.92" },
+    { name = "spacy-curated-transformers", specifier = ">=0.2.2,<1.0.0" },
+]
+
+[[package]]
 name = "fsspec"
 version = "2025.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2553,6 +2573,7 @@ dependencies = [
     { name = "fastapi", extra = ["standard"] },
     { name = "fastapi-cli" },
     { name = "filelock" },
+    { name = "fr-dep-news-trf" },
     { name = "fsspec" },
     { name = "mpmath" },
     { name = "networkx" },
@@ -2588,6 +2609,7 @@ requires-dist = [
     { name = "fastapi", extras = ["standard"] },
     { name = "fastapi-cli", specifier = ">=0.0.5" },
     { name = "filelock", specifier = "==3.20.0" },
+    { name = "fr-dep-news-trf", url = "https://github.com/explosion/spacy-models/releases/download/fr_dep_news_trf-3.8.0/fr_dep_news_trf-3.8.0-py3-none-any.whl" },
     { name = "fsspec", specifier = "==2025.9.0" },
     { name = "mpmath", specifier = "==1.3.0" },
     { name = "networkx", specifier = "==3.5" },
@@ -2601,7 +2623,7 @@ requires-dist = [
     { name = "regex", specifier = "==2025.10.23" },
     { name = "rich", specifier = ">=14.2.0" },
     { name = "sentencepiece", specifier = "==0.2.1" },
-    { name = "spacy", specifier = ">=3.8.7" },
+    { name = "spacy", specifier = "==3.8.7" },
     { name = "spacy-curated-transformers", specifier = "==0.3.1" },
     { name = "sympy", specifier = "==1.14.0" },
     { name = "torch", specifier = "==2.2.2" },

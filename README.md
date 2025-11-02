@@ -143,10 +143,7 @@ On MacOS Monterey 12.6.7, use Python 3.11 to install spaCy:
 
 ```
 uv venv --python 3.11
-source .venv/bin/activate
-uv add numpy==1.26.4
-uv pip install pip
-uv add spacy
+uv sync
 uv run -- spacy download fr_dep_news_trf
 ```
 

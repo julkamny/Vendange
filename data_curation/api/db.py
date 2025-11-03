@@ -84,8 +84,6 @@ TYPE_CLASS_MAP = {
 DEFAULT_ENTITY_CLASS = NamedNode(f"{CLASS_NS}Entity")
 COMPACT_FIELD_CODES = {"990", "907", "90H", "901", "991"}
 FIELD_BNODE_PREFIX = "b"
-FIELD_NODE_TEMPLATE_OLD = "{record}:f:{index}"
-SUBFIELD_NODE_TEMPLATE_OLD = "{record}:f:{index}:s:{sub_index}"
 
 
 @dataclass
@@ -180,17 +178,9 @@ def _relation_ark_predicate(code: str) -> NamedNode:
 
 def _field_sort_key(record_id: str, node: BlankNode) -> tuple[int, str]:
     value = node.value
-    legacy_prefix = FIELD_NODE_TEMPLATE_OLD.format(record=record_id, index="")
-    if value.startswith(legacy_prefix):
-        remainder = value[len(legacy_prefix) :]
-        segment = remainder.split(":", 1)[0]
-        try:
-            return int(segment), value
-        except ValueError:
-            pass
-    modern_prefix = f"{FIELD_BNODE_PREFIX}{record_id}-f-"
-    if value.startswith(modern_prefix):
-        remainder = value[len(modern_prefix) :]
+    prefix = f"{FIELD_BNODE_PREFIX}{record_id}-f-"
+    if value.startswith(prefix):
+        remainder = value[len(prefix) :]
         segment = remainder.split("-", 1)[0]
         try:
             return int(segment), value
@@ -201,15 +191,9 @@ def _field_sort_key(record_id: str, node: BlankNode) -> tuple[int, str]:
 
 def _subfield_sort_key(node: BlankNode) -> tuple[int, str]:
     value = node.value
-    if ":s:" in value:
-        suffix = value.rsplit(":s:", 1)[1]
-        segment = suffix.split(":", 1)[0]
-        try:
-            return int(segment), value
-        except ValueError:
-            pass
-    if "-s-" in value:
-        suffix = value.rsplit("-s-", 1)[1]
+    marker = "-s-"
+    if marker in value:
+        suffix = value.rsplit(marker, 1)[1]
         segment = suffix.split("-", 1)[0]
         try:
             return int(segment), value
@@ -777,3 +761,27 @@ def dataset_stats(dataset_id: str) -> Dict[str, int]:
         "quadCount": quad_count,
         "sizeBytes": size_bytes,
     }
+
+
+def compact_dataset(dataset_id: str) -> None:
+    """Rewrite the dataset with deterministic blank-node identifiers and compact storage."""
+
+    records = load_records(dataset_id)
+    try:
+        dataset_label = datasets.get_dataset(dataset_id).title
+    except KeyError:
+        dataset_label = None
+
+    ark_to_id = {record.ark: record.id for record in records if record.ark}
+
+    with _STORE_LOCK:
+        store_before = _get_store_locked(dataset_id)
+        label_literal = _literal_first_value(store_before, META_DATASET, PROP_DATASET_LABEL, META_GRAPH)
+        del store_before
+        _reset_dataset_store(dataset_id)
+        store = _get_store_locked(dataset_id)
+        quads = list(_build_dataset_quads(records, ark_to_id, label_literal or dataset_label))
+        if quads:
+            store.bulk_extend(quads)
+        store.flush()
+    datasets.touch_dataset(dataset_id)

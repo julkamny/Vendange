@@ -56,6 +56,7 @@ def run_cluster_operation(
     updated_works, clusters = cluster_works_by_title_responsibilities(works, entities)
 
     _persist_entities(dataset_id, updated_works)
+    db.compact_dataset(dataset_id)
 
     if clusters_json:
         _dump_json(clusters_json, [asdict(c) for c in clusters])
@@ -78,6 +79,7 @@ def run_cluster_with_expression_operation(
 
     updated_expressions, expression_clusters = cluster_expressions_by_051_and_041(expressions, work_clusters)
     _persist_entities(dataset_id, updated_expressions)
+    db.compact_dataset(dataset_id)
 
     if works_json:
         _dump_json(works_json, [asdict(c) for c in work_clusters])

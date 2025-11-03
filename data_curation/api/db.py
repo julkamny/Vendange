@@ -83,6 +83,9 @@ TYPE_CLASS_MAP = {
 }
 DEFAULT_ENTITY_CLASS = NamedNode(f"{CLASS_NS}Entity")
 COMPACT_FIELD_CODES = {"990", "907", "90H", "901", "991"}
+FIELD_BNODE_PREFIX = "b"
+FIELD_NODE_TEMPLATE_OLD = "{record}:f:{index}"
+SUBFIELD_NODE_TEMPLATE_OLD = "{record}:f:{index}:s:{sub_index}"
 
 
 @dataclass
@@ -176,11 +179,19 @@ def _relation_ark_predicate(code: str) -> NamedNode:
 
 
 def _field_sort_key(record_id: str, node: BlankNode) -> tuple[int, str]:
-    prefix = f"{record_id}:f:"
     value = node.value
-    if value.startswith(prefix):
-        remainder = value[len(prefix):]
+    legacy_prefix = FIELD_NODE_TEMPLATE_OLD.format(record=record_id, index="")
+    if value.startswith(legacy_prefix):
+        remainder = value[len(legacy_prefix) :]
         segment = remainder.split(":", 1)[0]
+        try:
+            return int(segment), value
+        except ValueError:
+            pass
+    modern_prefix = f"{FIELD_BNODE_PREFIX}{record_id}-f-"
+    if value.startswith(modern_prefix):
+        remainder = value[len(modern_prefix) :]
+        segment = remainder.split("-", 1)[0]
         try:
             return int(segment), value
         except ValueError:
@@ -190,15 +201,31 @@ def _field_sort_key(record_id: str, node: BlankNode) -> tuple[int, str]:
 
 def _subfield_sort_key(node: BlankNode) -> tuple[int, str]:
     value = node.value
-    marker = ":s:"
-    if marker in value:
-        suffix = value.rsplit(marker, 1)[1]
+    if ":s:" in value:
+        suffix = value.rsplit(":s:", 1)[1]
         segment = suffix.split(":", 1)[0]
         try:
             return int(segment), value
         except ValueError:
             pass
+    if "-s-" in value:
+        suffix = value.rsplit("-s-", 1)[1]
+        segment = suffix.split("-", 1)[0]
+        try:
+            return int(segment), value
+        except ValueError:
+            pass
     return sys.maxsize, value
+
+
+def _field_blank_node(record_id: str, field_index: int) -> BlankNode:
+    identifier = f"{FIELD_BNODE_PREFIX}{record_id}-f-{field_index}"
+    return BlankNode(identifier)
+
+
+def _subfield_blank_node(record_id: str, field_index: int, sub_index: int) -> BlankNode:
+    identifier = f"{FIELD_BNODE_PREFIX}{record_id}-f-{field_index}-s-{sub_index}"
+    return BlankNode(identifier)
 
 
 def _emit_quads(
@@ -353,7 +380,7 @@ def _extract_rows(record: ParsedRecord) -> tuple[List[FieldRow], List[EdgeRow]]:
     for zone_index, zone in enumerate(record.intermarc.zones):
         zone_code = zone.code or ""
         normalized_code = zone_code.strip().upper()
-        field_node = BlankNode(f"{record.id}:f:{zone_index}")
+        field_node = _field_blank_node(record.id, zone_index)
         subfields: List[SubfieldRow] = []
         compact_value: Optional[str] = None
         is_compact = normalized_code in COMPACT_FIELD_CODES
@@ -364,7 +391,7 @@ def _extract_rows(record: ParsedRecord) -> tuple[List[FieldRow], List[EdgeRow]]:
             sanitized_code = _sanitize_subfield_code(raw_code)
             raw_value = str(sub.valeur) if sub.valeur is not None else ""
             if not is_compact:
-                sub_node = BlankNode(f"{record.id}:f:{zone_index}:s:{sub_index}")
+                sub_node = _subfield_blank_node(record.id, zone_index, sub_index)
                 subfields.append(
                     SubfieldRow(
                         node=sub_node,

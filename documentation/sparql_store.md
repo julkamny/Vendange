@@ -124,7 +124,7 @@ Replace `<dataset_id>` with the identifier assigned when the CSV was uploaded (s
 
 ## Notes & caveats
 
-- Fields and subfields are blank nodes; their identifiers encode CSV order (e.g. `_:123:f:0`). Use `ORDER BY STR(?field)` or `STR(?subfield)` when you need deterministic ordering.
+- Fields and subfields are blank nodes; their identifiers encode CSV order (e.g. `_:b123-f-0`). Use `ORDER BY STR(?field)` or `STR(?subfield)` when you need deterministic ordering.
 - Only raw values are stored; use SPARQL functions for accent/ case-insensitive filters.
 - `$3` relations expose both the linked entity (when resolvable) and the literal ARK.
 - The default graph is empty; queries spanning all data should leave the graph parameter unspecified.

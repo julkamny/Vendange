@@ -35,7 +35,7 @@ def _():
         "gpt-oss-20b": {"price": (0.03, 0.14)},
     }
     default_model = "gpt-oss-20b"
-    default_currency_symbol = "€"  # original notebook printed euros
+    default_currency_symbol = "€"
     return available_models, default_currency_symbol, default_model
 
 

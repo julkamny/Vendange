@@ -31,10 +31,10 @@
     "sparqlSyncError": "La mise à jour de l'index SPARQL a échoué."
   },
   "toolbar": {
-    "loadCsv": "Charger des CSV",
+    "loadCsv": "Importer un CSV",
     "darkMode": "Mode sombre",
     "shortcuts": "Raccourcis",
-    "export": "Exporter le CSV curé"
+    "export": "Exporter le CSV du jeu de données"
   },
   "language": {
     "ariaLabel": "Langue de l'interface",
@@ -69,24 +69,24 @@
     }
   },
   "layout": {
-    "loadPrompt": "Chargez des fichiers pour commencer.",
+    "loadPrompt": "Importez un jeu de données pour commencer.",
     "selectPrompt": "Sélectionnez une notice dans le panneau de gauche.",
-    "dropHint": "Déposez des fichiers ici (curated.csv et/ou original)",
-    "defaultDataLoaded": "Données par défaut chargées depuis /data. Déposez des fichiers pour les remplacer.",
-    "provideFiles": "Fournissez curated.csv et original/current_export.csv pour commencer."
+    "dropHint": "Déposez ici vos fichiers CSV de jeu de données.",
+    "defaultDataLoaded": "Jeu de données chargé. Déposez un autre CSV pour le remplacer.",
+    "provideFiles": "Importez un CSV de jeu de données pour démarrer."
   },
   "listScope": {
     "clusters": "Clusters",
     "inventory": "Toutes les entités"
   },
   "uploadModal": {
-    "title": "Charger des fichiers CSV",
-    "instructions": "Déposez ici les CSV curé et original ou sélectionnez-les manuellement.",
+    "title": "Importer un CSV de jeu de données",
+    "instructions": "Déposez ici un ou plusieurs CSV de jeu de données ou sélectionnez-les manuellement.",
     "drop": "Déposer des fichiers",
-    "expected": "Attendu : curated.csv et original/current_export.csv",
-    "original": "CSV original",
-    "curated": "CSV curé",
-    "loadDefaults": "Charger les données par défaut",
+    "expected": "Attendu : fichier CSV contenant des notices Intermarc",
+    "original": "CSV de jeu de données",
+    "curated": "CSV alternatif",
+    "loadDefaults": "Charger un exemple",
     "clear": "Effacer",
     "close": "Fermer"
   },
@@ -153,7 +153,7 @@
     "noManifestations": "Aucune manifestation disponible pour cette expression",
     "manifestationMoved": "Manifestation déplacée vers une nouvelle expression",
     "csvLoaded": "Fichiers CSV chargés",
-    "needCuratedAndOriginal": "Fournissez les fichiers curated.csv et original",
+    "needCuratedAndOriginal": "Importez un CSV de jeu de données avant de continuer",
     "workKept": "Œuvre conservée dans le cluster",
     "workUnchecked": "Œuvre non validée ; expressions liées désactivées",
     "expressionKept": "Expression conservée dans le cluster",

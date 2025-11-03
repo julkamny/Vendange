@@ -2,7 +2,7 @@
 
 - When deriving the internal identifier from an ark, we need to remove the prefix up to `cb` and drop the final control character, e.g. `ark:/12148/cb359748158 -> 35974815`.
 - If you need to run Python, know that the .venv at the root of the repo (where you've been summoned) is managed by uv.
-- The searchable datasets uploaded by users are now Oxigraph stores under `data_curation/api/datasets/`. They are generated from CSV holding intermarc records of LRM entities (e.g. `current_export.csv`) whenever the user uploads a  file in the React app.
+- The searchable datasets uploaded by users are now Oxigraph stores under `data_curation/api/datasets/`, created from user-provided CSVs of Intermarc records. A development sample lives in `sample_data/current_export.csv`.
 - The DB can be inspected with the Oxigraph CLI, see [sparql_store.md](documentation/sparql_store.md)
 
 ## Linked entity ontology

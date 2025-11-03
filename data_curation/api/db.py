@@ -13,16 +13,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from urllib.parse import quote
 
-from pyoxigraph import (
-    BlankNode,
-    DefaultGraph,
-    Literal,
-    NamedNode,
-    QuerySolution,
-    QuerySolutions,
-    Quad,
-    Store,
-)
+from pyoxigraph import BlankNode, DefaultGraph, Literal, NamedNode, QuerySolution, QuerySolutions, Quad, Store
 
 from . import datasets
 from ..models import Entity, Intermarc, Zone, SousZone
@@ -34,7 +25,6 @@ _STORE_LOCK = threading.RLock()
 _STORE_CACHE: dict[str, Store] = {}
 
 RDF_TYPE = NamedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
-DEFAULT_GRAPH = DefaultGraph()
 XSD_NS = "http://www.w3.org/2001/XMLSchema#"
 XSD_BOOLEAN = NamedNode(f"{XSD_NS}boolean")
 XSD_INTEGER_TYPES = {
@@ -57,7 +47,6 @@ XSD_DECIMAL_TYPES = {
     f"{XSD_NS}double",
     f"{XSD_NS}float",
 }
-XSD_INTEGER = NamedNode(f"{XSD_NS}integer")
 
 BASE_ENTITY_NS = "https://vendange.bnf.fr/entity/"
 BASE_GRAPH_NS = "https://vendange.bnf.fr/graph/"
@@ -69,9 +58,8 @@ CLASS_NS = "https://vendange.bnf.fr/class/"
 HAS_FIELD = NamedNode("https://vendange.bnf.fr/hasField")
 HAS_SUBFIELD = NamedNode("https://vendange.bnf.fr/hasSubfield")
 FIELD_CODE_PROP = NamedNode("https://vendange.bnf.fr/fieldCode")
-FIELD_INDEX_PROP = NamedNode("https://vendange.bnf.fr/fieldIndex")
+FIELD_COMPACT_VALUE_PROP = NamedNode("https://vendange.bnf.fr/fieldCompactValue")
 SUBFIELD_CODE_PROP = NamedNode("https://vendange.bnf.fr/subfieldCode")
-SUBFIELD_INDEX_PROP = NamedNode("https://vendange.bnf.fr/subfieldIndex")
 SUBFIELD_VALUE_PROP = NamedNode("https://vendange.bnf.fr/subfieldValue")
 AFFECTED_BY_CURATION_PROP = NamedNode("https://vendange.bnf.fr/property/affectedByCuration")
 META_GRAPH = NamedNode(f"{BASE_GRAPH_NS}metadata")
@@ -94,6 +82,7 @@ TYPE_CLASS_MAP = {
     "famille": NamedNode(f"{CLASS_NS}Family"),
 }
 DEFAULT_ENTITY_CLASS = NamedNode(f"{CLASS_NS}Entity")
+COMPACT_FIELD_CODES = {"990", "907", "90H", "901", "991"}
 
 
 @dataclass
@@ -116,7 +105,6 @@ class SubfieldRow:
     node: BlankNode
     code: str
     raw_code: str
-    index: int
     value: str
     affected_by_curation: Optional[str] = None
 
@@ -125,8 +113,8 @@ class SubfieldRow:
 class FieldRow:
     node: BlankNode
     code: str
-    index: int
     subfields: List[SubfieldRow]
+    compact_value: Optional[str] = None
     affected_by_curation: Optional[str] = None
 
 
@@ -187,18 +175,39 @@ def _relation_ark_predicate(code: str) -> NamedNode:
     return NamedNode(f"{RELATION_ARK_NS}{quote(code, safe='')}")
 
 
+def _field_sort_key(record_id: str, node: BlankNode) -> tuple[int, str]:
+    prefix = f"{record_id}:f:"
+    value = node.value
+    if value.startswith(prefix):
+        remainder = value[len(prefix):]
+        segment = remainder.split(":", 1)[0]
+        try:
+            return int(segment), value
+        except ValueError:
+            pass
+    return sys.maxsize, value
+
+
+def _subfield_sort_key(node: BlankNode) -> tuple[int, str]:
+    value = node.value
+    marker = ":s:"
+    if marker in value:
+        suffix = value.rsplit(marker, 1)[1]
+        segment = suffix.split(":", 1)[0]
+        try:
+            return int(segment), value
+        except ValueError:
+            pass
+    return sys.maxsize, value
+
+
 def _emit_quads(
-    subject: NamedNode,
+    subject: NamedNode | BlankNode,
     predicate: NamedNode,
     obj: object,
-    graph: Optional[NamedNode],
-    *,
-    include_default: bool = True,
+    graph: NamedNode,
 ) -> Iterable[Quad]:
-    if include_default:
-        yield Quad(subject, predicate, obj)
-    if graph is not None:
-        yield Quad(subject, predicate, obj, graph)
+    yield Quad(subject, predicate, obj, graph)
 
 
 def _canonical_type_key(value: str) -> str:
@@ -226,8 +235,13 @@ def _unsanitize_subfield_code(code: str) -> str:
     return f"{code[:idx]}${code[idx + 1:]}"
 
 
-def _literal_first_value(store: Store, subject: object, predicate: NamedNode) -> Optional[str]:
-    for quad in store.quads_for_pattern(subject, predicate, None, DEFAULT_GRAPH):
+def _literal_first_value(
+    store: Store,
+    subject: object,
+    predicate: NamedNode,
+    graph: NamedNode | DefaultGraph | None = None,
+) -> Optional[str]:
+    for quad in store.quads_for_pattern(subject, predicate, None, graph):
         obj = quad.object
         if isinstance(obj, Literal):
             return obj.value
@@ -338,23 +352,28 @@ def _extract_rows(record: ParsedRecord) -> tuple[List[FieldRow], List[EdgeRow]]:
     edges: List[EdgeRow] = []
     for zone_index, zone in enumerate(record.intermarc.zones):
         zone_code = zone.code or ""
+        normalized_code = zone_code.strip().upper()
         field_node = BlankNode(f"{record.id}:f:{zone_index}")
         subfields: List[SubfieldRow] = []
+        compact_value: Optional[str] = None
+        is_compact = normalized_code in COMPACT_FIELD_CODES
+        if is_compact:
+            compact_value = json.dumps(zone.to_dict(), ensure_ascii=False)
         for sub_index, sub in enumerate(zone.sousZones):
             raw_code = sub.code or ""
             sanitized_code = _sanitize_subfield_code(raw_code)
             raw_value = str(sub.valeur) if sub.valeur is not None else ""
-            sub_node = BlankNode(f"{record.id}:f:{zone_index}:s:{sub_index}")
-            subfields.append(
-                SubfieldRow(
-                    node=sub_node,
-                    code=sanitized_code,
-                    raw_code=raw_code,
-                    index=sub_index,
-                    value=raw_value,
-                    affected_by_curation=sub.affected_by_curation,
+            if not is_compact:
+                sub_node = BlankNode(f"{record.id}:f:{zone_index}:s:{sub_index}")
+                subfields.append(
+                    SubfieldRow(
+                        node=sub_node,
+                        code=sanitized_code,
+                        raw_code=raw_code,
+                        value=raw_value,
+                        affected_by_curation=sub.affected_by_curation,
+                    )
                 )
-            )
             if raw_code.endswith("$3") and _looks_like_ark(raw_value.strip()):
                 edges.append(
                     EdgeRow(
@@ -368,8 +387,8 @@ def _extract_rows(record: ParsedRecord) -> tuple[List[FieldRow], List[EdgeRow]]:
             FieldRow(
                 node=field_node,
                 code=zone_code,
-                index=zone_index,
                 subfields=subfields,
+                compact_value=compact_value,
                 affected_by_curation=zone.affected_by_curation,
             )
         )
@@ -428,12 +447,8 @@ def _build_record_quads(record: ParsedRecord, ark_to_id: dict[str | None, str]) 
         yield from _emit_quads(subject, HAS_FIELD, field.node, graph)
         if field.code:
             yield from _emit_quads(field.node, FIELD_CODE_PROP, Literal(field.code), graph)
-        yield from _emit_quads(
-            field.node,
-            FIELD_INDEX_PROP,
-            Literal(str(field.index), datatype=XSD_INTEGER),
-            graph,
-        )
+        if field.compact_value is not None:
+            yield from _emit_quads(field.node, FIELD_COMPACT_VALUE_PROP, Literal(field.compact_value), graph)
         if field.affected_by_curation:
             yield from _emit_quads(
                 field.node,
@@ -441,25 +456,20 @@ def _build_record_quads(record: ParsedRecord, ark_to_id: dict[str | None, str]) 
                 Literal(field.affected_by_curation),
                 graph,
             )
-        for sub in field.subfields:
-            yield from _emit_quads(field.node, HAS_SUBFIELD, sub.node, graph)
-            if sub.code:
-                yield from _emit_quads(sub.node, SUBFIELD_CODE_PROP, Literal(sub.code), graph)
-            yield from _emit_quads(
-                sub.node,
-                SUBFIELD_INDEX_PROP,
-                Literal(str(sub.index), datatype=XSD_INTEGER),
-                graph,
-            )
-            if sub.value:
-                yield from _emit_quads(sub.node, SUBFIELD_VALUE_PROP, Literal(sub.value), graph)
-            if sub.affected_by_curation:
-                yield from _emit_quads(
-                    sub.node,
-                    AFFECTED_BY_CURATION_PROP,
-                    Literal(sub.affected_by_curation),
-                    graph,
-                )
+        if field.compact_value is None:
+            for sub in field.subfields:
+                yield from _emit_quads(field.node, HAS_SUBFIELD, sub.node, graph)
+                if sub.code:
+                    yield from _emit_quads(sub.node, SUBFIELD_CODE_PROP, Literal(sub.code), graph)
+                if sub.value:
+                    yield from _emit_quads(sub.node, SUBFIELD_VALUE_PROP, Literal(sub.value), graph)
+                if sub.affected_by_curation:
+                    yield from _emit_quads(
+                        sub.node,
+                        AFFECTED_BY_CURATION_PROP,
+                        Literal(sub.affected_by_curation),
+                        graph,
+                    )
 
     for edge in edges:
         target_id = edge.dst_id or ark_to_id.get(edge.dst_ark)
@@ -502,6 +512,7 @@ def update_record(dataset_id: str, record_id: str, *, type_raw: str, intermarc_j
             graph_name = getattr(quad, "graph_name", None)
             if graph_name is None or isinstance(graph_name, DefaultGraph):
                 store.remove(quad)
+        # Rebuild the whole named graph to keep blank node identifiers in sync with field order.
         store.clear_graph(graph)
         quads = list(_build_record_quads(record, ark_index))
         if quads:
@@ -606,49 +617,60 @@ def _load_record_from_store(
     *,
     cached_type: Optional[str] = None,
 ) -> ParsedRecord:
-    type_raw = cached_type if cached_type is not None else _literal_first_value(store, subject, PROP_TYPE_RAW) or ""
-    ark = _literal_first_value(store, subject, PROP_ARK)
+    graph = _record_graph(record_id)
+    type_raw = (
+        cached_type
+        if cached_type is not None
+        else _literal_first_value(store, subject, PROP_TYPE_RAW, graph) or ""
+    )
+    ark = _literal_first_value(store, subject, PROP_ARK, graph)
 
-    field_rows: List[tuple[int, Zone]] = []
-    for field_quad in store.quads_for_pattern(subject, HAS_FIELD, None, DEFAULT_GRAPH):
+    field_rows: List[tuple[tuple[int, str], Zone]] = []
+    for field_quad in store.quads_for_pattern(subject, HAS_FIELD, None, graph):
         field_node = field_quad.object
         if not isinstance(field_node, BlankNode):
             continue
-        code = _literal_first_value(store, field_node, FIELD_CODE_PROP) or ""
-        index_literal = _literal_first_value(store, field_node, FIELD_INDEX_PROP) or "0"
-        try:
-            index = int(index_literal)
-        except ValueError:
-            index = 0
-        field_affected = _literal_first_value(store, field_node, AFFECTED_BY_CURATION_PROP)
+        code = _literal_first_value(store, field_node, FIELD_CODE_PROP, graph) or ""
+        field_affected = _literal_first_value(store, field_node, AFFECTED_BY_CURATION_PROP, graph)
+        compact_raw = _literal_first_value(store, field_node, FIELD_COMPACT_VALUE_PROP, graph)
 
-        subfield_rows: List[tuple[int, SousZone]] = []
-        for sub_quad in store.quads_for_pattern(field_node, HAS_SUBFIELD, None, DEFAULT_GRAPH):
-            sub_node = sub_quad.object
-            if not isinstance(sub_node, BlankNode):
-                continue
-            sanitized_code = _literal_first_value(store, sub_node, SUBFIELD_CODE_PROP) or ""
-            raw_code = _unsanitize_subfield_code(sanitized_code)
-            sub_index_literal = _literal_first_value(store, sub_node, SUBFIELD_INDEX_PROP) or "0"
+        if compact_raw:
             try:
-                sub_index = int(sub_index_literal)
-            except ValueError:
-                sub_index = 0
-            value = _literal_first_value(store, sub_node, SUBFIELD_VALUE_PROP) or ""
-            sub_affected = _literal_first_value(store, sub_node, AFFECTED_BY_CURATION_PROP)
-            subfield_rows.append(
-                (
-                    sub_index,
-                    SousZone(code=raw_code, valeur=value, affected_by_curation=sub_affected),
+                payload = json.loads(compact_raw)
+            except json.JSONDecodeError:
+                payload = None
+            if isinstance(payload, dict):
+                zone = Zone.from_dict(payload)
+                if not zone.code:
+                    zone.code = code
+                if field_affected and not zone.affected_by_curation:
+                    zone.affected_by_curation = field_affected
+            else:
+                zone = Zone(code=code, sousZones=[], affected_by_curation=field_affected)
+        else:
+            subfield_rows: List[tuple[tuple[int, str], SousZone]] = []
+            for sub_quad in store.quads_for_pattern(field_node, HAS_SUBFIELD, None, graph):
+                sub_node = sub_quad.object
+                if not isinstance(sub_node, BlankNode):
+                    continue
+                sanitized_code = _literal_first_value(store, sub_node, SUBFIELD_CODE_PROP, graph) or ""
+                raw_code = _unsanitize_subfield_code(sanitized_code)
+                value = _literal_first_value(store, sub_node, SUBFIELD_VALUE_PROP, graph) or ""
+                sub_affected = _literal_first_value(store, sub_node, AFFECTED_BY_CURATION_PROP, graph)
+                order_key = _subfield_sort_key(sub_node)
+                subfield_rows.append(
+                    (
+                        order_key,
+                        SousZone(code=raw_code, valeur=value, affected_by_curation=sub_affected),
+                    )
                 )
+            subfield_rows.sort(key=lambda item: item[0])
+            zone = Zone(
+                code=code,
+                sousZones=[row[1] for row in subfield_rows],
+                affected_by_curation=field_affected,
             )
-        subfield_rows.sort(key=lambda item: item[0])
-        zone = Zone(
-            code=code,
-            sousZones=[row[1] for row in subfield_rows],
-            affected_by_curation=field_affected,
-        )
-        field_rows.append((index, zone))
+        field_rows.append((_field_sort_key(record_id, field_node), zone))
     field_rows.sort(key=lambda item: item[0])
     intermarc = Intermarc(zones=[row[1] for row in field_rows])
     intermarc_json = intermarc.to_json_string()
@@ -664,7 +686,7 @@ def _load_record_from_store(
 
 def _record_subjects(store: Store) -> dict[str, NamedNode]:
     subjects: dict[str, NamedNode] = {}
-    for quad in store.quads_for_pattern(None, PROP_RECORD_ID, None, DEFAULT_GRAPH):
+    for quad in store.quads_for_pattern(None, PROP_RECORD_ID, None, None):
         if not isinstance(quad.subject, NamedNode):
             continue
         if not isinstance(quad.object, Literal):
@@ -690,7 +712,8 @@ def load_records(
         subjects = _record_subjects(store)
         records: List[ParsedRecord] = []
         for record_id, subject in subjects.items():
-            type_raw = _literal_first_value(store, subject, PROP_TYPE_RAW) or ""
+            graph = _record_graph(record_id)
+            type_raw = _literal_first_value(store, subject, PROP_TYPE_RAW, graph) or ""
             if requested_types is not None and _canonical_type_key(type_raw) not in requested_types:
                 continue
             record = _load_record_from_store(store, record_id, subject, cached_type=type_raw)
@@ -719,7 +742,7 @@ def dataset_stats(dataset_id: str) -> Dict[str, int]:
 
     with _STORE_LOCK:
         store = _get_store_locked(dataset_id)
-        entity_count = sum(1 for _ in store.quads_for_pattern(None, PROP_RECORD_ID, None, DEFAULT_GRAPH))
+        entity_count = sum(1 for _ in store.quads_for_pattern(None, PROP_RECORD_ID, None, None))
         quad_count = sum(1 for _ in store.quads_for_pattern(None, None, None, None))
     size_bytes = _directory_size(_dataset_store_path(dataset_id))
     return {

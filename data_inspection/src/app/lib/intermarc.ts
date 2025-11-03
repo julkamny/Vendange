@@ -1,18 +1,13 @@
 import type { RecordRow } from '../types'
-import { parseCsv } from './csv'
-import { buildHeaderLookup, normalizeHeaderName } from './csvHeaders'
 
 export type SousZone = { code: string; valeur: string; affectedByCuration?: string }
 export type Zone = { code: string; sousZones: SousZone[]; affectedByCuration?: string }
 export type Intermarc = { zones: Zone[] }
 
-const CURRENT_EXPORT_PATH = '/data/current_export.csv'
 const ARK_PREFIX = 'ark:/'
 
-type ArkLabelMap = Map<string, string>
 const arkLabelByIdCache = new Map<string, string>()
 const arkLabelByArkCache = new Map<string, string | null>()
-let arkLabelLoadPromise: Promise<ArkLabelMap> | null = null
 
 export type PrettyIntermarcLineMark = {
   from: number
@@ -104,62 +99,6 @@ function buildLabelFromIntermarc(im: Intermarc, type: string): string | undefine
   }
 }
 
-async function loadArkLabels(): Promise<ArkLabelMap> {
-  if (arkLabelLoadPromise) return arkLabelLoadPromise
-  arkLabelLoadPromise = (async () => {
-    try {
-      const resp = await fetch(CURRENT_EXPORT_PATH)
-      if (!resp.ok) throw new Error(`Failed to load ${CURRENT_EXPORT_PATH}: ${resp.status}`)
-      const text = await resp.text()
-      const delimiter = guessDelimiter(text)
-      const parsed = parseCsv(text, delimiter)
-      const headers = parsed.headers
-      const headerLookup = buildHeaderLookup(headers)
-      const idIdx = headerLookup.get('id_entitelrm') ?? -1
-      const typeIdx = headerLookup.get('type_entite') ?? -1
-      const interIdx = headerLookup.get('intermarc') ?? -1
-      if (idIdx === -1 || typeIdx === -1 || interIdx === -1) {
-        const available = headers.map(normalizeHeaderName).filter(Boolean).join(', ') || 'none'
-        console.error(`current_export.csv is missing expected headers (available: ${available})`)
-        return new Map<string, string>()
-      }
-      const result = new Map<string, string>()
-      for (const row of parsed.rows.slice(1)) {
-        if (!row || row.length === 0) continue
-        const rawId = row[idIdx]?.trim()
-        const type = row[typeIdx]?.trim()
-        const inter = row[interIdx]
-        if (!rawId || !type || !inter) continue
-        const intermarc = parseIntermarc(inter)
-        const label = buildLabelFromIntermarc(intermarc, type)
-        if (!label) continue
-        result.set(rawId, label)
-        const arkValue = getFirstSubZoneValue(intermarc, '001', '001$a')
-        if (arkValue) {
-          arkLabelByArkCache.set(arkValue, label)
-        }
-      }
-      return result
-    } catch (err) {
-      console.error('Failed to build ARK label index from current_export.csv', err)
-      return new Map<string, string>()
-    }
-  })()
-  arkLabelLoadPromise.then(map => {
-    map.forEach((value, key) => arkLabelByIdCache.set(key, value))
-  })
-  return arkLabelLoadPromise
-}
-
-function guessDelimiter(text: string): string {
-  const firstLine = text.split(/\r?\n/, 1)[0] || ''
-  const count = (ch: string) => (firstLine.match(new RegExp(`\\${ch}`, 'g')) || []).length
-  const semi = count(';')
-  const comma = count(',')
-  if (semi === 0 && comma === 0) return ';'
-  return semi >= comma ? ';' : ','
-}
-
 export async function resolveArkLabel(ark: string): Promise<string | undefined> {
   if (arkLabelByArkCache.has(ark)) {
     const cached = arkLabelByArkCache.get(ark)
@@ -178,11 +117,8 @@ export async function resolveArkLabel(ark: string): Promise<string | undefined> 
     return cached
   }
 
-  const labels = await loadArkLabels()
-  const label = labels.get(id) ?? undefined
-  arkLabelByArkCache.set(ark, label ?? null)
-  if (label) arkLabelByIdCache.set(id, label)
-  return label
+  arkLabelByArkCache.set(ark, null)
+  return undefined
 }
 
 type DisplayValueResult = { text: string; ark?: string }
@@ -373,7 +309,6 @@ export function add90FEntries(im: Intermarc, entries: { ark: string; date: strin
 export function resetArkLabelCache(): void {
   arkLabelByIdCache.clear()
   arkLabelByArkCache.clear()
-  arkLabelLoadPromise = null
 }
 
 export function registerArkLabelForRecord(record: RecordRow): void {

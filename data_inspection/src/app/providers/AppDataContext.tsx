@@ -343,7 +343,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const csvText = stringifyCsv({ headers: state.curated.csv.headers, rows: state.curated.csv.rows.slice(1) })
       const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8' })
       const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').split('.')[0]
-      const fileName = `curated_${timestamp}.csv`
+      const fileName = `vendange_export_${timestamp}.csv`
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -353,7 +353,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
     } catch (error) {
-      console.error('Failed to export curated CSV', error)
+      console.error('Failed to export dataset CSV', error)
       showToast('Impossible d\'exporter le CSV.', { tone: 'error' })
     }
   }, [showToast, state.curated])

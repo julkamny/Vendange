@@ -5,15 +5,15 @@ The FastAPI backend now materialises every curated CSV upload as an [Oxigraph](h
 - `subject` — the entity the fact is about
 - `predicate` — the property/relationship being asserted
 - `object` — the value (literal or another node)
-- `graph` — optional named graph. When omitted the quad lives in the default graph.
+- `graph` — the named graph that scopes the statement. Vendange always stores quads in record-specific named graphs; the default graph stays empty.
 
-For every fact we write both to the default graph and to a per-record named graph `https://vendange.bnf.fr/graph/<record_id>`. That makes SPARQL `SELECT` queries simple while keeping updates cheap: rewriting a record only requires clearing its named graph and the subject’s default-graph quads.
+Every record lives in its own named graph `https://vendange.bnf.fr/graph/<record_id>`. Updates simply clear that graph and re-insert fresh quads.
 
 ## Where the data lives
 
-- Oxigraph files: `data_curation/api/vendange_store/` (recreated on each ingestion)
-- Legacy SQLite file: removed automatically on startup
-- Dataset metadata: `https://vendange.bnf.fr/entity/dataset` (stores the last dataset label)
+- Oxigraph files: `data_curation/api/datasets/<dataset_id>/`
+- Dataset registry: `data_curation/api/datasets/datasets.json`
+- Dataset metadata entity: `https://vendange.bnf.fr/entity/dataset` (stores the last dataset label)
 
 ## Vocabulary cheat sheet
 
@@ -27,17 +27,18 @@ IRIs are rooted under `https://vendange.bnf.fr/…`.
 | `entity/<id>` → `property/source_dataset` → `entity/dataset` | Dataset provenance. |
 | `entity/<id>` → `hasField` → `_:` field blank node | Connects the entity to every MARC field. |
 | field blank node → `fieldCode` → _literal_ | MARC zone code (`245`, `700`, …). |
-| field blank node → `fieldIndex` → _integer literal_ | 0-based position in the record (preserves CSV order). |
 | field blank node → `property/affectedByCuration` → _literal_ | Curation impact for the whole field (`created`, `modified`, …). |
 | field blank node → `hasSubfield` → `_:` subfield blank node | Links fields to their subfields. |
+| field blank node → `fieldCompactValue` → _literal (JSON)_ | Storage zones (990/907/90H/901/991) serialised as Intermarc JSON. |
 | subfield blank node → `subfieldCode` → _literal_ | Subfield code with `$` replaced by `s` (`245$a` → `245sa`). |
-| subfield blank node → `subfieldIndex` → _integer literal_ | Position within the parent field. |
 | subfield blank node → `subfieldValue` → _literal_ | Raw value. |
 | subfield blank node → `property/affectedByCuration` → _literal_ | Curation impact for the specific subfield (`created`, `modified`, …). |
 | `entity/<id>` → `relation/<code>` → target | `$3` relationships (code sanitised as above). Target is another record IRI when known, otherwise we keep the named node for the ARK. |
 | `entity/<id>` → `relation_ark/<code>` → _literal_ | Literal ARK value for every `$3`. |
 
 > **Sanitised subfield codes** — every `$` becomes `s`, e.g. `740$3` → `740s3`. This keeps IRIs prefix-friendly for tools like Sparnatural.
+
+Storage fields (`990`, `907`, `90H`, `901`, `991`) rely on `fieldCompactValue` and do not expose `hasSubfield` blank nodes; parse the JSON payload if you need individual subfields.
 
 ## Example queries
 
@@ -86,21 +87,17 @@ WHERE {
 LIMIT 25
 ```
 
-List the second `245` field (index = 1) alongside its subfields in order:
+List storage fields and their compact JSON payloads:
 
 ```sparql
-SELECT ?field ?subfield ?code ?value ?pos
+SELECT ?entity ?code ?payload
 WHERE {
   ?entity <https://vendange.bnf.fr/hasField> ?field .
-  ?field <https://vendange.bnf.fr/fieldCode> "245" ;
-         <https://vendange.bnf.fr/fieldIndex> ?posField .
-  FILTER(?posField = 1)
-  ?field <https://vendange.bnf.fr/hasSubfield> ?subfield .
-  ?subfield <https://vendange.bnf.fr/subfieldIndex> ?pos ;
-            <https://vendange.bnf.fr/subfieldCode> ?code ;
-            <https://vendange.bnf.fr/subfieldValue> ?value .
+  ?field <https://vendange.bnf.fr/fieldCode> ?code ;
+         <https://vendange.bnf.fr/fieldCompactValue> ?payload .
+  VALUES ?code { "990" "907" "90H" "901" "991" }
 }
-ORDER BY ?pos
+LIMIT 25
 ```
 
 ## Regex tips
@@ -116,16 +113,19 @@ FILTER regex(?code, '^5')
 
 ```bash
 uv run oxigraph query \
-  --location data_curation/api/vendange_store \
+  --location data_curation/api/datasets/<dataset_id> \
   --query 'SELECT (COUNT(?m) AS ?count) WHERE { ?m a <https://vendange.bnf.fr/class/Manifestation> }' \
   --results-format tsv
 ```
 
 `--results-format` accepts `tsv`, `json`, `xml`, `sparql`, etc.
 
+Replace `<dataset_id>` with the identifier assigned when the CSV was uploaded (see `data_curation/api/datasets/datasets.json`).
+
 ## Notes & caveats
 
-- Fields and subfields are blank nodes; indexes capture the CSV order (0-based).
+- Fields and subfields are blank nodes; their identifiers encode CSV order (e.g. `_:123:f:0`). Use `ORDER BY STR(?field)` or `STR(?subfield)` when you need deterministic ordering.
 - Only raw values are stored; use SPARQL functions for accent/ case-insensitive filters.
 - `$3` relations expose both the linked entity (when resolvable) and the literal ARK.
-- Updating a record rewrites its named graph and default-graph quads atomically—no need to re-upload the full CSV after an edit.
+- The default graph is empty; queries spanning all data should leave the graph parameter unspecified.
+- Updating a record rewrites its named graph atomically—no need to re-upload the full CSV after an edit.

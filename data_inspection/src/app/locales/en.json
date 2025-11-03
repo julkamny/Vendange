@@ -31,10 +31,10 @@
     "sparqlSyncError": "Failed to update SPARQL index for the record."
   },
   "toolbar": {
-    "loadCsv": "Load CSVs",
+    "loadCsv": "Upload CSV",
     "darkMode": "Dark mode",
     "shortcuts": "Shortcuts",
-    "export": "Export curated CSV"
+    "export": "Export dataset CSV"
   },
   "language": {
     "ariaLabel": "Interface language",
@@ -69,24 +69,24 @@
     }
   },
   "layout": {
-    "loadPrompt": "Load files to begin.",
+    "loadPrompt": "Upload a dataset to begin.",
     "selectPrompt": "Select a record from the left panel.",
-    "dropHint": "Drop files here (curated.csv and/or original)",
-    "defaultDataLoaded": "Defaults loaded from /data. You can drop files to override.",
-    "provideFiles": "Provide curated.csv and original/current_export.csv to begin."
+    "dropHint": "Drop dataset CSV files here.",
+    "defaultDataLoaded": "Dataset loaded. Drop another CSV to replace it.",
+    "provideFiles": "Upload a dataset CSV to get started."
   },
   "listScope": {
     "clusters": "Clusters",
     "inventory": "All entities"
   },
   "uploadModal": {
-    "title": "Load CSV files",
-    "instructions": "Drop both curated and original CSVs here or pick them manually.",
+    "title": "Upload dataset CSV",
+    "instructions": "Drop one or more dataset CSV files here or pick them manually.",
     "drop": "Drop files",
-    "expected": "Expected: curated.csv and original/current_export.csv",
-    "original": "Original CSV",
-    "curated": "Curated CSV",
-    "loadDefaults": "Load defaults",
+    "expected": "Expected: CSV file with Intermarc records",
+    "original": "Dataset CSV",
+    "curated": "Alternate CSV",
+    "loadDefaults": "Load sample data",
     "clear": "Clear",
     "close": "Close"
   },
@@ -153,7 +153,7 @@
     "noManifestations": "No manifestations available for this expression",
     "manifestationMoved": "Manifestation moved to new expression",
     "csvLoaded": "CSV files loaded",
-    "needCuratedAndOriginal": "Provide both curated.csv and original CSV files",
+    "needCuratedAndOriginal": "Upload a dataset CSV before continuing",
     "workKept": "Work kept in cluster",
     "workUnchecked": "Work unchecked; linked expressions disabled",
     "expressionKept": "Expression kept in cluster",

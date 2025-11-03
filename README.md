@@ -15,7 +15,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - The starting point of our project is a database containing the **French National Library's catalog** in Intermarc Nouvelle Génération (NG), a format that's compatible with IFLA LRM and implements the RDA-FR cataloguing code. Information about the purpose of the migration can be found [here](https://www.rdatoolkit.org/sites/default/files/rsc/BNF_intermarc_Foucher.pdf). This format belongs to the broad family of MARC (*Machine-Readable Cataloging Record*) formats, about which please see this page of the [Library of Congress](https://www.loc.gov/marc/umb/um01to06.html).
   - Cataloging guidelines for Intermarc NG can be found on [Kitcat NG](https://kitcatng-ext.bnf.fr/consignes-catalogage), the BNF's cataloging reference guide for the new format, but the description of Intermarc NG fields is not publicly available yet. Meanwhile, one can rely on [Kitcat](https://kitcat.bnf.fr/manuel-intermarc), the previous reference guide, which contains a detailed description of fields in Intermarc.
 - We accessed the database through the current version of NOEMI, an internal website of the National Library that allows its teams to access, modify and augment the catalog. NOEMI is still in a pre-release phase during which migration tests are regularly conducted, from Intermarc to Intermarc NG. It is populated by a temporary version of the database after a mock migration.
-- current_export.csv is a **small sample taken from this temporary snapshot**.
+- The repository includes `sample_data/current_export.csv`, a **small sample taken from this temporary snapshot**.
   - It comprises all works whose agent (relator fields 700, 701 or 702 for people, 710, 711, or 712 for groups) is the Comtesse de Ségur (technically the ark identifier of her record : ark:/12148/cb130916590), the expressions pointing to those works, and the manifestations pointing to those manifestations.
   - In the SQL query, we also had to retrieve all entities (agents, works, expressions, manifestations, *valeur contrôlée*, *brand*) whose ark identifier appears in any field of the initial matches, to be able to display the record of those initial matches with all values in human-readable format, as at, the time of writing, there is no API access to the new catalog.
   - The list of initial works and the SQL query can be found in folder [sql](documentation/sql_NOEMI).
@@ -38,7 +38,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 
   ```bash
   uv run python -m data_curation.cli cluster \
-    --csv data_inspection/data/current_export.csv \
+    --csv sample_data/current_export.csv \
     --clusters-json data/curated.json
   ```
 
@@ -48,7 +48,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 
   ```bash
   uv run python -m data_curation.cli cluster-with-expressions \
-    --csv data_inspection/data/current_export.csv \
+    --csv sample_data/current_export.csv \
     --work-clusters-json data/work_clusters.json \
     --expression-clusters-json data/expression_clusters.json
   ```
@@ -106,7 +106,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 
 Review in the Web UI
 - Start the UI: `npm run dev`
-- Click **Load CSVs** to open the modal dropzone, then drop the pair (curated + original) or pick them manually. A file named `curated.csv` replaces the curated dataset; any other `.csv` replaces the original dataset.
+- From the dashboard, upload one or more dataset CSV snapshots. Each upload becomes its own Oxigraph store under `data_curation/api/datasets/`; use the dataset’s **Open** action to inspect or curate it.
 - The UI detects clusters by scanning for `90F$q = "Clusterisation script"` in works.
 - Key information about entities is displayed in badges:
   - Yellow for children expressions.
@@ -115,7 +115,7 @@ Review in the Web UI
   - Deeper blue for agents in 7XX fields.
 - Central panel: list of anchors with merged works (checkbox to accept/reject, option to add ARKs).
 - Side panel: prettified Intermarc of selected record.
-- Click "Export curated CSV" to download a curated dataset based on Original CSV with overridden edited records from Curated CSV.
+- Use the toolbar’s **Export dataset CSV** button to download the current dataset with your curated changes applied.
 - UI quality-of-life:
   - Hierarchical selectors show anchors and clustered entries in clearly separated sections with 🍇 for clustered items.
   - Double-click or use user-defined shortcuts on cluster/expression banners to jump between works ⇄ expressions ⇄ manifestations, and the pane auto-scrolls to the linked card.
@@ -130,9 +130,9 @@ Exploring W–E–M links
 - For Expressions with `90F` fields, the UI displays the anchor/clustered hierarchy similarly to works.
 
 SPARQL searches
-- When the CSV files are loaded, the curated one is ingested into an Oxigraph store exposed by the FastAPI server in `data_curation/api`.
+- Whenever a CSV dataset is uploaded, it is ingested into an Oxigraph store exposed by the FastAPI server in `data_curation/api`.
 - Open a SPARQL tab to explore the dataset. You can traverse W–E–M links, filter on MARC subfields, and join on `$3` relationships; see [`documentation/sparql_store.md`](documentation/sparql_store.md) for a quick vocabulary reference and example queries.
-- Each entity links to blank-node fields via `<https://vendange.bnf.fr/hasField>`; fields expose their `fieldCode`/`fieldIndex` and contain blank-node subfields (`hasSubfield`) with sanitised codes (`$` → `s`), indexes, and values—filter on those nodes directly to reach any MARC subfield.
+- Each entity links to blank-node fields via `<https://vendange.bnf.fr/hasField>`; fields expose their `fieldCode` and either a `fieldCompactValue` literal (for storage zones 990/907/90H/901/991) or nested `hasSubfield` blank nodes with sanitised codes (`$` → `s`) and values—filter on those nodes directly to reach any MARC subfield.
 
 Design Notes
 - UI performs all actions client-side; no network dependencies, but relies on FastAPI for the SPARQL store and query endpoint.

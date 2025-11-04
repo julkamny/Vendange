@@ -33,26 +33,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
   1. The original work gets a `552$q` subfield with the ARK identifier of the controled value with `169$a` "A pour adaptation" and a `552$3` subfield pointing to the ARK identifier of the adaptation.
   2. The adaptation gets a `552$q` with the ARK identifier of the controled value with `169$a` "Est une adaptation de" and a `552$3` subfield pointing to the ARK identifier of the original work.
   
-4) Running the script
-- Optionally ingest a CSV snapshot into the Oxigraph store and run the clustering script in one go:
-
-  ```bash
-  uv run python -m data_curation.cli cluster \
-    --csv sample_data/current_export.csv \
-    --clusters-json data/curated.json
-  ```
-
-  Skip `--csv` to operate on the existing store in `data_curation/api/vendange_store`.
-
-- Propagate clustering decisions to expressions as well:
-
-  ```bash
-  uv run python -m data_curation.cli cluster-with-expressions \
-    --csv sample_data/current_export.csv \
-    --work-clusters-json data/work_clusters.json \
-    --expression-clusters-json data/expression_clusters.json
-  ```
-
+4) Running data curation operations
 - To launch the FastAPI server in `data_curation/api`: `uv run fastapi dev data_curation/api/app.py`. See below for explanations.
 - The React UI now opens on a dashboard that lets you upload CSV snapshots, launch clustering (with or without expression propagation) while streaming script logs, jump into the legacy inspection workspace, or delete a dataset. Every upload becomes its own Oxigraph store—colleagues can curate multiple corpora in parallel.
 

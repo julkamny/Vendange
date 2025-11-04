@@ -5,6 +5,7 @@ import {
   fetchDatasets,
   renameDataset,
   startClusterStream,
+  fetchClusterLog,
   type ClusterEvent,
   type ClusterStream,
 } from '../lib/api'
@@ -16,12 +17,24 @@ type DatasetDashboardProps = {
   openingDatasetId?: string
 }
 
+type ClusterLogEntry = {
+  timestamp?: string
+  level: string
+  logger?: string
+  message: string
+  exception?: string
+  logFile?: string
+  logUrl?: string
+}
+
 type ClusterState = {
   includeExpressions: boolean
   running: boolean
-  logs: string[]
+  logs: ClusterLogEntry[]
   hasRun: boolean
   error?: string
+  logFile?: string
+  logUrl?: string
 }
 
 const MAX_LOG_LINES = 200
@@ -41,6 +54,23 @@ function formatTimestamp(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString()
+}
+
+function formatLogTimestamp(value?: string): string | undefined {
+  if (!value) return undefined
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function formatLogEntry(entry: ClusterLogEntry): string {
+  const timestamp = formatLogTimestamp(entry.timestamp)
+  const parts: string[] = []
+  if (timestamp) parts.push(`[${timestamp}]`)
+  parts.push(`[${entry.level.toUpperCase()}]`)
+  if (entry.logger) parts.push(entry.logger)
+  parts.push(entry.message)
+  return parts.join(' ')
 }
 
 export function DatasetDashboard({ onOpenInspection, openingDatasetId }: DatasetDashboardProps) {
@@ -65,6 +95,8 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
         logs: [],
         hasRun: Boolean(dataset?.lastClusteredAt),
         error: undefined,
+        logFile: undefined,
+        logUrl: undefined,
       }
     },
     [clusterStates, datasets],
@@ -85,6 +117,8 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
             logs: previous?.logs ?? [],
             error: undefined,
             hasRun: previous?.hasRun ?? Boolean(dataset.lastClusteredAt),
+            logFile: previous?.logFile,
+            logUrl: previous?.logUrl,
           }
         }
         return next
@@ -187,7 +221,7 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
     [showToast],
   )
 
-  const appendLog = useCallback((datasetId: string, message: string) => {
+  const appendLog = useCallback((datasetId: string, entry: ClusterLogEntry) => {
     setClusterStates(prev => {
       const current = prev[datasetId] ?? {
         includeExpressions: false,
@@ -195,11 +229,18 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
         logs: [],
         hasRun: Boolean(datasets.find(item => item.id === datasetId)?.lastClusteredAt),
         error: undefined,
+        logFile: undefined,
+        logUrl: undefined,
       }
-      const logs = [...current.logs, message].slice(-MAX_LOG_LINES)
+      const logs = [...current.logs, entry].slice(-MAX_LOG_LINES)
       return {
         ...prev,
-        [datasetId]: { ...current, logs },
+        [datasetId]: {
+          ...current,
+          logs,
+          logFile: entry.logFile ?? current.logFile,
+          logUrl: entry.logUrl ?? current.logUrl,
+        },
       }
     })
   }, [datasets])
@@ -207,11 +248,25 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
   const handleClusterEvent = useCallback(
     (datasetId: string, event: ClusterEvent) => {
       if (event.type === 'log') {
-        appendLog(datasetId, `[${event.level}] ${event.message}`)
+        appendLog(datasetId, {
+          level: event.level,
+          logger: event.logger,
+          message: event.message,
+          timestamp: event.timestamp,
+          exception: event.exception,
+          logFile: event.logFile,
+          logUrl: event.logUrl,
+        })
       } else if (event.type === 'result') {
         const workCount = Array.isArray(event.workClusters) ? event.workClusters.length : 0
         const expressionCount = Array.isArray(event.expressionClusters) ? event.expressionClusters.length : 0
-        appendLog(datasetId, `Terminé. Regroupements œuvres: ${workCount}, expressions: ${expressionCount}`)
+        appendLog(datasetId, {
+          level: 'INFO',
+          message: `Terminé. Regroupements œuvres: ${workCount}, expressions: ${expressionCount}`,
+          timestamp: event.lastClusteredAt ?? undefined,
+          logFile: event.logFile,
+          logUrl: event.logUrl,
+        })
         setClusterStates(prev => {
           const current = prev[datasetId] ?? {
             includeExpressions: false,
@@ -219,20 +274,32 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
             logs: [],
             hasRun: false,
             error: undefined,
+            logFile: undefined,
+            logUrl: undefined,
           }
           return {
             ...prev,
-            [datasetId]: { ...current, hasRun: true },
+            [datasetId]: {
+              ...current,
+              hasRun: true,
+              logFile: event.logFile ?? current.logFile,
+              logUrl: event.logUrl ?? current.logUrl,
+            },
           }
         })
         if (event.lastClusteredAt) {
           setDatasets(prev =>
-            prev.map(item => (item.id === datasetId ? { ...item, lastClusteredAt: event.lastClusteredAt } : item)),
+            prev.map(item => (item.id === datasetId ? { ...item, lastClusteredAt: event.lastClusteredAt ?? item.lastClusteredAt } : item)),
           )
         }
         showToast('Clusterisation terminée.', { tone: 'success' })
       } else if (event.type === 'error') {
-        appendLog(datasetId, `Erreur: ${event.message}`)
+        appendLog(datasetId, {
+          level: 'ERROR',
+          message: `Erreur: ${event.message}`,
+          logFile: event.logFile,
+          logUrl: event.logUrl,
+        })
         setClusterStates(prev => {
           const current = prev[datasetId] ?? {
             includeExpressions: false,
@@ -240,10 +307,18 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
             logs: [],
             hasRun: false,
             error: undefined,
+            logFile: undefined,
+            logUrl: undefined,
           }
           return {
             ...prev,
-            [datasetId]: { ...current, running: false, error: event.message },
+            [datasetId]: {
+              ...current,
+              running: false,
+              error: event.message,
+              logFile: event.logFile ?? current.logFile,
+              logUrl: event.logUrl ?? current.logUrl,
+            },
           }
         })
         showToast("La clusterisation a échoué.", { tone: 'error' })
@@ -260,10 +335,10 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
         showToast('La clusterisation a déjà été effectuée pour cette base.', { tone: 'info' })
         return
       }
-        setClusterStates(prev => ({
-          ...prev,
-          [datasetId]: { ...state, running: true, error: undefined, logs: [], hasRun: false },
-        }))
+      setClusterStates(prev => ({
+        ...prev,
+        [datasetId]: { ...state, running: true, error: undefined, logs: [], hasRun: false, logFile: undefined, logUrl: undefined },
+      }))
       const stream = startClusterStream(datasetId, state.includeExpressions, event => handleClusterEvent(datasetId, event))
       clusterControllers.current.set(datasetId, stream)
       stream.completed
@@ -276,6 +351,8 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
               logs: [],
               hasRun: false,
               error: undefined,
+              logFile: undefined,
+              logUrl: undefined,
             }
             return { ...prev, [datasetId]: { ...current, running: false } }
           })
@@ -291,6 +368,8 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
                 logs: [],
                 hasRun: false,
                 error: undefined,
+                logFile: undefined,
+                logUrl: undefined,
               }
               return { ...prev, [datasetId]: { ...current, running: false } }
             })
@@ -305,6 +384,8 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
               logs: [],
               hasRun: false,
               error: undefined,
+              logFile: undefined,
+              logUrl: undefined,
             }
             return { ...prev, [datasetId]: { ...current, running: false, error: String(error) } }
           })
@@ -321,6 +402,9 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
         running: false,
         logs: [],
         hasRun: Boolean(datasets.find(item => item.id === datasetId)?.lastClusteredAt),
+        error: undefined,
+        logFile: undefined,
+        logUrl: undefined,
       }
       return {
         ...prev,
@@ -328,6 +412,31 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
       }
     })
   }, [datasets])
+
+  const handleDownloadLogs = useCallback(
+    async (datasetId: string) => {
+      const state = ensureClusterState(datasetId)
+      if (!state.logFile && state.logs.length === 0) {
+        showToast('Aucun log disponible pour cette base.', { tone: 'info' })
+        return
+      }
+      try {
+        const { blob, filename } = await fetchClusterLog(datasetId, state.logFile)
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = filename
+        document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+        URL.revokeObjectURL(url)
+      } catch (error) {
+        console.error('Failed to download cluster logs', error)
+        showToast("Impossible de télécharger les logs.", { tone: 'error' })
+      }
+    },
+    [ensureClusterState, showToast],
+  )
 
   const sortedDatasets = useMemo(
     () =>
@@ -456,8 +565,23 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
                 {state.logs.length === 0 ? (
                   <span className="dataset-card__console--placeholder">Console en attente…</span>
                 ) : (
-                  state.logs.map((line, index) => <div key={`${dataset.id}-log-${index}`}>{line}</div>)
+                  state.logs.map((entry, index) => (
+                    <div key={`${dataset.id}-log-${index}`} className={`dataset-card__log dataset-card__log--${entry.level.toLowerCase()}`}>
+                      <div>{formatLogEntry(entry)}</div>
+                      {entry.exception ? <pre>{entry.exception}</pre> : null}
+                    </div>
+                  ))
                 )}
+              </div>
+              <div className="dataset-card__log-actions">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadLogs(dataset.id)}
+                  disabled={state.logs.length === 0 && !state.logFile}
+                >
+                  Télécharger les logs
+                </button>
+                {state.logFile ? <span className="dataset-card__log-footnote">Dernier fichier : {state.logFile}</span> : null}
               </div>
               {state.error && <p className="dataset-card__error">Erreur : {state.error}</p>}
             </section>

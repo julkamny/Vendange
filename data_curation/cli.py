@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import logging
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -24,6 +25,8 @@ RICH_THEME = Theme({
 })
 RICH_CONSOLE = Console(theme=RICH_THEME, highlight=True, soft_wrap=True)
 _TEMP_FIXTURES: list[Path] = []
+_MARKUP_TAG_RE = re.compile(r"\[[^\]]+\]")
+FILE_LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
 
 
 def _cleanup_temp_fixtures() -> None:
@@ -39,14 +42,26 @@ def _cleanup_temp_fixtures() -> None:
 atexit.register(_cleanup_temp_fixtures)
 
 
+def _verbosity_to_level(verbosity: int) -> int:
+    if verbosity >= 2:
+        return logging.DEBUG
+    if verbosity == 1:
+        return logging.INFO
+    return logging.WARNING
+
+
+class PlainLogFormatter(logging.Formatter):
+    """Formatter that removes Rich-style markup from log messages."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        rendered = super().format(record)
+        return _MARKUP_TAG_RE.sub("", rendered)
+
+
 def _configure_logging(verbosity: int) -> None:
     """Configure logging once based on CLI verbosity."""
 
-    level = logging.WARNING
-    if verbosity >= 2:
-        level = logging.DEBUG
-    elif verbosity == 1:
-        level = logging.INFO
+    level = _verbosity_to_level(verbosity)
 
     handler = RichHandler(
         console=RICH_CONSOLE,
@@ -70,6 +85,21 @@ def _configure_logging(verbosity: int) -> None:
         "markdown_it.rules_inline",
     ):
         logging.getLogger(noisy).setLevel(logging.WARNING)
+
+
+def _install_file_logging(dataset_id: str, verbosity: int) -> Path:
+    """Attach a plain-text file handler mirroring the CLI verbosity."""
+
+    log_path = dataset_registry.create_dataset_log_file(dataset_id, prefix="cli")
+    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    file_handler.setLevel(_verbosity_to_level(verbosity))
+    file_handler.setFormatter(PlainLogFormatter(FILE_LOG_FORMAT, "%Y-%m-%d %H:%M:%S"))
+
+    root_logger = logging.getLogger()
+    root_logger.addHandler(file_handler)
+    if root_logger.level > file_handler.level:
+        root_logger.setLevel(file_handler.level)
+    return log_path
 
 
 def _apply_input_fixture(input_path: str | Path, fixture: str | None) -> Path:
@@ -185,6 +215,13 @@ def main() -> None:
     dataset_input = getattr(args, "dataset")
     dataset_meta = dataset_registry.ensure_dataset(dataset_input, title=dataset_label or dataset_input)
     dataset_id = dataset_meta.id
+    try:
+        log_path = _install_file_logging(dataset_id, args.verbose)
+    except OSError as exc:
+        RICH_CONSOLE.print(f"[bold red]Impossible d'activer la journalisation fichier[/]: {exc}")
+        log_path = None
+    else:
+        RICH_CONSOLE.print(f"[dim cyan]Journal CLI enregistré dans[/] [link=file://{log_path}]{log_path}[/link]")
     if dataset_id != dataset_input:
         LOGGER.info("[bold yellow]Dataset identifier normalised[/]: %s → %s", dataset_input, dataset_id)
 
@@ -230,6 +267,9 @@ def main() -> None:
                 "s" if len(ec.clustered_expression_ids) != 1 else "",
             )
         dataset_registry.mark_clustered(dataset_id)
+
+    if log_path:
+        LOGGER.info("Command logs archived at %s", log_path)
 
 if __name__ == "__main__":
     main()

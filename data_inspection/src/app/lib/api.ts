@@ -136,6 +136,10 @@ export type ClusterLogEvent = {
   level: string
   logger: string
   message: string
+  timestamp?: string
+  logFile?: string
+  logUrl?: string
+  exception?: string
 }
 
 export type ClusterResultEvent = {
@@ -144,12 +148,16 @@ export type ClusterResultEvent = {
   workClusters: unknown
   expressionClusters?: unknown
   lastClusteredAt?: string | null
+  logFile?: string
+  logUrl?: string
 }
 
 export type ClusterErrorEvent = {
   type: 'error'
   datasetId: string
   message: string
+  logFile?: string
+  logUrl?: string
 }
 
 export type ClusterEvent = ClusterLogEvent | ClusterResultEvent | ClusterErrorEvent
@@ -177,6 +185,10 @@ function parseSseChunk(buffer: string, emit: (event: { event: string; data: stri
   return incomplete
 }
 
+function isAbortError(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && 'name' in error && (error as { name?: string }).name === 'AbortError')
+}
+
 export function startClusterStream(
   datasetId: string,
   includeExpressions: boolean,
@@ -201,66 +213,67 @@ export function startClusterStream(
     const reader = response.body.getReader()
     const decoder = new TextDecoder('utf-8')
     let buffer = ''
-    while (true) {
-      const { value, done } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      buffer = parseSseChunk(buffer, ({ event, data }) => {
-        if (!data) return
-        try {
-          const parsed = JSON.parse(data)
-          if (event === 'log') {
-            onEvent({
-              type: 'log',
-              datasetId: parsed.datasetId ?? datasetId,
-              level: parsed.level,
-              logger: parsed.logger,
-              message: parsed.message,
-            })
-          } else if (event === 'result') {
-            onEvent({
-              type: 'result',
-              datasetId: parsed.datasetId ?? datasetId,
-              workClusters: parsed.workClusters,
-              expressionClusters: parsed.expressionClusters,
-              lastClusteredAt: parsed.lastClusteredAt,
-            })
-          } else if (event === 'error') {
-            onEvent({ type: 'error', datasetId: parsed.datasetId ?? datasetId, message: parsed.message || 'Unknown error' })
-          }
-        } catch (error) {
-          console.error('Failed to parse SSE payload', error, data)
+    const emitFromChunk = ({ event, data }: { event: string; data: string }) => {
+      if (!data) return
+      try {
+        const parsed = JSON.parse(data)
+        const targetDataset = parsed.datasetId ?? datasetId
+        if (event === 'log') {
+          onEvent({
+            type: 'log',
+            datasetId: targetDataset,
+            level: parsed.level ?? 'INFO',
+            logger: parsed.logger ?? 'data_curation',
+            message: parsed.message ?? '',
+            timestamp: parsed.timestamp,
+            logFile: parsed.logFile,
+            logUrl: parsed.logUrl,
+            exception: parsed.exception,
+          })
+        } else if (event === 'result') {
+          onEvent({
+            type: 'result',
+            datasetId: targetDataset,
+            workClusters: parsed.workClusters,
+            expressionClusters: parsed.expressionClusters,
+            lastClusteredAt: parsed.lastClusteredAt,
+            logFile: parsed.logFile,
+            logUrl: parsed.logUrl,
+          })
+        } else if (event === 'error') {
+          onEvent({
+            type: 'error',
+            datasetId: targetDataset,
+            message: parsed.message || 'Unknown error',
+            logFile: parsed.logFile,
+            logUrl: parsed.logUrl,
+          })
         }
-      })
+      } catch (error) {
+        console.error('Failed to parse SSE payload', error, data)
+      }
+    }
+    try {
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        buffer = parseSseChunk(buffer, emitFromChunk)
+      }
+    } catch (error) {
+      if (error instanceof TypeError && /input stream/i.test(error.message)) {
+        if (buffer.trim().length > 0) {
+          parseSseChunk(buffer, emitFromChunk)
+        }
+        return
+      }
+      if (isAbortError(error)) {
+        throw error
+      }
+      throw error
     }
     if (buffer.trim().length > 0) {
-      parseSseChunk(buffer, ({ event, data }) => {
-        if (!data) return
-        try {
-          const parsed = JSON.parse(data)
-          if (event === 'log') {
-            onEvent({
-              type: 'log',
-              datasetId: parsed.datasetId ?? datasetId,
-              level: parsed.level,
-              logger: parsed.logger,
-              message: parsed.message,
-            })
-          } else if (event === 'result') {
-            onEvent({
-              type: 'result',
-              datasetId: parsed.datasetId ?? datasetId,
-              workClusters: parsed.workClusters,
-              expressionClusters: parsed.expressionClusters,
-              lastClusteredAt: parsed.lastClusteredAt,
-            })
-          } else if (event === 'error') {
-            onEvent({ type: 'error', datasetId: parsed.datasetId ?? datasetId, message: parsed.message || 'Unknown error' })
-          }
-        } catch (error) {
-          console.error('Failed to parse trailing SSE payload', error, data)
-        }
-      })
+      parseSseChunk(buffer, emitFromChunk)
     }
   })()
 
@@ -268,4 +281,33 @@ export function startClusterStream(
     cancel: () => controller.abort(),
     completed,
   }
+}
+
+function parseFilenameFromContentDisposition(header: string | null): string | undefined {
+  if (!header) return undefined
+  const filenameMatch =
+    header.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i) ?? header.match(/filename="?([^\";]+)"?/i)
+  if (!filenameMatch || filenameMatch.length < 2) return undefined
+  const raw = filenameMatch[1].trim()
+  try {
+    return decodeURIComponent(raw.replace(/"/g, ''))
+  } catch {
+    return raw.replace(/"/g, '')
+  }
+}
+
+export async function fetchClusterLog(datasetId: string, logFile?: string): Promise<{ blob: Blob; filename: string }> {
+  const endpoint = logFile
+    ? `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/cluster/logs/${encodeURIComponent(logFile)}`
+    : `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/cluster/logs/latest`
+  const response = await fetch(endpoint)
+  if (!response.ok) {
+    const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
+    throw new Error(detail.detail || 'Failed to download cluster logs')
+  }
+  const blob = await response.blob()
+  const filename =
+    parseFilenameFromContentDisposition(response.headers.get('Content-Disposition')) ??
+    (logFile ? `${logFile}` : `${datasetId}-cluster.log`)
+  return { blob, filename }
 }

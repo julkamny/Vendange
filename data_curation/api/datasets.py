@@ -177,6 +177,31 @@ def dataset_directory(dataset_id: str) -> Path:
     return DATASETS_ROOT / dataset_id
 
 
+def dataset_logs_directory(dataset_id: str) -> Path:
+    directory = dataset_directory(dataset_id) / "logs"
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
+def create_dataset_log_file(dataset_id: str, prefix: str = "cluster") -> Path:
+    logs_dir = dataset_logs_directory(dataset_id)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+    return logs_dir / f"{prefix}_{timestamp}.log"
+
+
+def list_dataset_logs(dataset_id: str, prefix: Optional[str] = None) -> List[Path]:
+    logs_dir = dataset_directory(dataset_id) / "logs"
+    if not logs_dir.exists():
+        return []
+    pattern = f"{prefix}_*.log" if prefix else "*.log"
+    return sorted(logs_dir.glob(pattern))
+
+
+def latest_dataset_log(dataset_id: str, prefix: Optional[str] = None) -> Optional[Path]:
+    logs = list_dataset_logs(dataset_id, prefix=prefix)
+    return logs[-1] if logs else None
+
+
 def mark_clustered(dataset_id: str) -> None:
     with _METADATA_LOCK:
         ensure_root()

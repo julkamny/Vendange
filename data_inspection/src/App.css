@@ -302,6 +302,64 @@ html {
   color: #586070;
 }
 
+.dataset-card__log {
+  padding: 0.2rem 0;
+  border-bottom: 1px solid color-mix(in srgb, #1f2630 55%, transparent);
+}
+
+.dataset-card__log:last-child {
+  border-bottom: none;
+}
+
+.dataset-card__log pre {
+  margin: 0.35rem 0 0;
+  white-space: pre-wrap;
+  color: #f2f2f2;
+}
+
+.dataset-card__log--debug {
+  color: #9bb6ff;
+}
+
+.dataset-card__log--info,
+.dataset-card__log--result {
+  color: #c6f68d;
+}
+
+.dataset-card__log--warning {
+  color: #ffe28a;
+}
+
+.dataset-card__log--error {
+  color: #ff9c9c;
+}
+
+.dataset-card__log-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.45rem;
+}
+
+.dataset-card__log-actions button {
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.dataset-card__log-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.dataset-card__log-footnote {
+  font-size: 0.75rem;
+  color: #8891a4;
+}
+
 .dataset-card__error {
   color: #ff7b7b;
   margin: 0;

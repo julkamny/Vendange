@@ -8,11 +8,13 @@ import json
 import logging
 import shutil
 from dataclasses import asdict
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from data_curation.api import db, datasets
@@ -60,24 +62,44 @@ app.add_middleware(
 
 
 class _QueueLogHandler(logging.Handler):
-    """Forward log records from background curation jobs to an asyncio queue."""
+    """Forward log records from background curation jobs to an asyncio queue and file."""
 
     def __init__(
         self,
         dataset_id: str,
         queue: asyncio.Queue[Optional[dict[str, Any]]],
         loop: asyncio.AbstractEventLoop,
+        log_file: Path,
     ) -> None:
-        super().__init__(level=logging.INFO)
+        super().__init__(level=logging.DEBUG)
         self.dataset_id = dataset_id
         self.queue = queue
         self.loop = loop
-        self.setFormatter(logging.Formatter("%(message)s"))
+        self.log_file = log_file
+        self._file_stream = log_file.open("a", encoding="utf-8")
+        self._file_formatter = logging.Formatter(
+            "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+            "%Y-%m-%d %H:%M:%S",
+        )
 
     def emit(self, record: logging.LogRecord) -> None:
         if not record.name.startswith("data_curation"):
             return
-        message = self.format(record)
+        try:
+            message = record.getMessage()
+        except Exception:  # pragma: no cover - safety net
+            message = str(record.msg)
+
+        timestamp = datetime.fromtimestamp(record.created, timezone.utc).isoformat()
+        file_line = self._file_formatter.format(record)
+        self._file_stream.write(f"{file_line}\n")
+        self._file_stream.flush()
+
+        exception_text: Optional[str] = None
+        if record.exc_info:
+            exception_text = self._file_formatter.formatException(record.exc_info)
+        elif record.exc_text:
+            exception_text = record.exc_text
         payload = {
             "event": "log",
             "data": {
@@ -85,9 +107,19 @@ class _QueueLogHandler(logging.Handler):
                 "level": record.levelname,
                 "logger": record.name,
                 "message": message,
+                "timestamp": timestamp,
+                "logFile": self.log_file.name,
             },
         }
+        if exception_text:
+            payload["data"]["exception"] = exception_text
         self.loop.call_soon_threadsafe(self.queue.put_nowait, payload)
+
+    def close(self) -> None:  # pragma: no cover - defensive cleanup
+        try:
+            self._file_stream.close()
+        finally:
+            super().close()
 
 
 def _format_sse(event: str, data: dict[str, Any]) -> str:
@@ -99,7 +131,10 @@ def _run_cluster_job(
     include_expressions: bool,
     loop: asyncio.AbstractEventLoop,
     queue: asyncio.Queue[Optional[dict[str, Any]]],
+    log_file: Path,
 ) -> None:
+    log_name = log_file.name
+    log_endpoint = f"/api/datasets/{dataset_id}/cluster/logs/{log_name}"
     try:
         LOGGER.info("Starting clustering job for dataset %s (include_expressions=%s)", dataset_id, include_expressions)
         if include_expressions:
@@ -129,6 +164,8 @@ def _run_cluster_job(
                 "data": {
                     "datasetId": dataset_id,
                     "lastClusteredAt": meta.last_clustered_at,
+                    "logFile": log_name,
+                    "logUrl": log_endpoint,
                     **payload,
                 },
             },
@@ -139,7 +176,12 @@ def _run_cluster_job(
             queue.put_nowait,
             {
                 "event": "error",
-                "data": {"datasetId": dataset_id, "message": str(exc)},
+                "data": {
+                    "datasetId": dataset_id,
+                    "message": str(exc),
+                    "logFile": log_name,
+                    "logUrl": log_endpoint,
+                },
             },
         )
     finally:
@@ -149,13 +191,14 @@ def _run_cluster_job(
 async def _cluster_stream(dataset_id: str, include_expressions: bool) -> AsyncIterator[str]:
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[Optional[dict[str, Any]]] = asyncio.Queue()
-    handler = _QueueLogHandler(dataset_id, queue, loop)
+    log_file = datasets.create_dataset_log_file(dataset_id, prefix="cluster")
+    handler = _QueueLogHandler(dataset_id, queue, loop, log_file)
     root_logger = logging.getLogger()
     previous_level = root_logger.level
     root_logger.addHandler(handler)
-    if previous_level > logging.INFO:
-        root_logger.setLevel(logging.INFO)
-    worker = asyncio.create_task(asyncio.to_thread(_run_cluster_job, dataset_id, include_expressions, loop, queue))
+    if previous_level > logging.DEBUG:
+        root_logger.setLevel(logging.DEBUG)
+    worker = asyncio.create_task(asyncio.to_thread(_run_cluster_job, dataset_id, include_expressions, loop, queue, log_file))
     try:
         while True:
             item = await queue.get()
@@ -283,6 +326,27 @@ async def trigger_cluster(dataset_id: str, payload: ClusterRequest) -> Streaming
         "X-Accel-Buffering": "no",
     }
     return StreamingResponse(stream, media_type="text/event-stream", headers=headers)
+
+
+@app.get("/api/datasets/{dataset_id}/cluster/logs/latest")
+def download_latest_cluster_log(dataset_id: str) -> FileResponse:
+    _ensure_dataset(dataset_id)
+    log_file = datasets.latest_dataset_log(dataset_id, prefix="cluster")
+    if not log_file:
+        raise HTTPException(status_code=404, detail="No cluster logs available for this dataset.")
+    return FileResponse(log_file, media_type="text/plain", filename=log_file.name)
+
+
+@app.get("/api/datasets/{dataset_id}/cluster/logs/{log_name}")
+def download_cluster_log(dataset_id: str, log_name: str) -> FileResponse:
+    _ensure_dataset(dataset_id)
+    if Path(log_name).name != log_name:
+        raise HTTPException(status_code=400, detail="Invalid log file name.")
+    logs_dir = datasets.dataset_logs_directory(dataset_id)
+    target = logs_dir / log_name
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="Requested log file not found.")
+    return FileResponse(target, media_type="text/plain", filename=target.name)
 
 
 @app.get("/api/datasets/{dataset_id}/records")

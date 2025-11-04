@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import io
 import json
 import logging
 import shutil
+import zipfile
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,7 +16,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from data_curation.api import db, datasets
@@ -23,6 +25,7 @@ from data_curation.curation.pipeline import (
     run_cluster_operation,
     run_cluster_with_expression_operation,
 )
+from data_curation.utils.log_bundle import LOG_TEXT_FORMAT, LogBundle, activate_log_bundle, reset_log_bundle
 
 
 LOGGER = logging.getLogger(__name__)
@@ -69,18 +72,16 @@ class _QueueLogHandler(logging.Handler):
         dataset_id: str,
         queue: asyncio.Queue[Optional[dict[str, Any]]],
         loop: asyncio.AbstractEventLoop,
-        log_file: Path,
+        bundle: LogBundle,
     ) -> None:
         super().__init__(level=logging.DEBUG)
         self.dataset_id = dataset_id
         self.queue = queue
         self.loop = loop
-        self.log_file = log_file
-        self._file_stream = log_file.open("a", encoding="utf-8")
-        self._file_formatter = logging.Formatter(
-            "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-            "%Y-%m-%d %H:%M:%S",
-        )
+        self.bundle = bundle
+        self.log_file = bundle.text_path
+        self._file_stream = bundle.open_text_stream()
+        self._file_formatter = logging.Formatter(LOG_TEXT_FORMAT, "%Y-%m-%d %H:%M:%S")
 
     def emit(self, record: logging.LogRecord) -> None:
         if not record.name.startswith("data_curation"):
@@ -100,6 +101,13 @@ class _QueueLogHandler(logging.Handler):
             exception_text = self._file_formatter.formatException(record.exc_info)
         elif record.exc_text:
             exception_text = record.exc_text
+        self.bundle.add_record(
+            timestamp=timestamp,
+            level=record.levelname,
+            logger_name=record.name,
+            message=message,
+            exception=exception_text,
+        )
         payload = {
             "event": "log",
             "data": {
@@ -108,7 +116,8 @@ class _QueueLogHandler(logging.Handler):
                 "logger": record.name,
                 "message": message,
                 "timestamp": timestamp,
-                "logFile": self.log_file.name,
+                "logFile": self.bundle.run_id,
+                "logUrl": f"/api/datasets/{self.dataset_id}/cluster/logs/{self.bundle.run_id}",
             },
         }
         if exception_text:
@@ -118,6 +127,7 @@ class _QueueLogHandler(logging.Handler):
     def close(self) -> None:  # pragma: no cover - defensive cleanup
         try:
             self._file_stream.close()
+            self.bundle.close_text_stream()
         finally:
             super().close()
 
@@ -131,9 +141,9 @@ def _run_cluster_job(
     include_expressions: bool,
     loop: asyncio.AbstractEventLoop,
     queue: asyncio.Queue[Optional[dict[str, Any]]],
-    log_file: Path,
+    bundle: LogBundle,
 ) -> None:
-    log_name = log_file.name
+    log_name = bundle.run_id
     log_endpoint = f"/api/datasets/{dataset_id}/cluster/logs/{log_name}"
     try:
         LOGGER.info("Starting clustering job for dataset %s (include_expressions=%s)", dataset_id, include_expressions)
@@ -191,14 +201,22 @@ def _run_cluster_job(
 async def _cluster_stream(dataset_id: str, include_expressions: bool) -> AsyncIterator[str]:
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[Optional[dict[str, Any]]] = asyncio.Queue()
-    log_file = datasets.create_dataset_log_file(dataset_id, prefix="cluster")
-    handler = _QueueLogHandler(dataset_id, queue, loop, log_file)
+    bundle_info = datasets.create_dataset_log_bundle(dataset_id, prefix="cluster")
+    bundle = LogBundle(
+        run_id=bundle_info.run_id,
+        directory=bundle_info.directory,
+        text_path=bundle_info.text_path,
+        html_path=bundle_info.html_path,
+        assets_path=bundle_info.assets_path,
+    )
+    token = activate_log_bundle(bundle)
+    handler = _QueueLogHandler(dataset_id, queue, loop, bundle)
     root_logger = logging.getLogger()
     previous_level = root_logger.level
     root_logger.addHandler(handler)
     if previous_level > logging.DEBUG:
         root_logger.setLevel(logging.DEBUG)
-    worker = asyncio.create_task(asyncio.to_thread(_run_cluster_job, dataset_id, include_expressions, loop, queue, log_file))
+    worker = asyncio.create_task(asyncio.to_thread(_run_cluster_job, dataset_id, include_expressions, loop, queue, bundle))
     try:
         while True:
             item = await queue.get()
@@ -210,10 +228,28 @@ async def _cluster_stream(dataset_id: str, include_expressions: bool) -> AsyncIt
     finally:
         root_logger.removeHandler(handler)
         root_logger.setLevel(previous_level)
+        handler.close()
         if not worker.done():
             worker.cancel()
         with contextlib.suppress(Exception):
             await worker
+        bundle.finalize()
+        reset_log_bundle(token)
+
+
+def _build_log_bundle_response(bundle: datasets.DatasetLogBundle) -> Response:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for file_path in bundle.directory.rglob("*"):
+            if file_path.is_file():
+                arcname = Path(bundle.run_id) / file_path.relative_to(bundle.directory)
+                archive.write(file_path, arcname)
+    buffer.seek(0)
+    headers = {
+        "Content-Disposition": f'attachment; filename="{bundle.run_id}.zip"',
+        "Cache-Control": "no-cache",
+    }
+    return Response(content=buffer.getvalue(), media_type="application/zip", headers=headers)
 @app.on_event("startup")
 def ensure_schema() -> None:
     db.initialize_storage()
@@ -329,24 +365,31 @@ async def trigger_cluster(dataset_id: str, payload: ClusterRequest) -> Streaming
 
 
 @app.get("/api/datasets/{dataset_id}/cluster/logs/latest")
-def download_latest_cluster_log(dataset_id: str) -> FileResponse:
+def download_latest_cluster_log(dataset_id: str) -> Response:
     _ensure_dataset(dataset_id)
-    log_file = datasets.latest_dataset_log(dataset_id, prefix="cluster")
-    if not log_file:
-        raise HTTPException(status_code=404, detail="No cluster logs available for this dataset.")
-    return FileResponse(log_file, media_type="text/plain", filename=log_file.name)
+    bundle = datasets.latest_dataset_log_bundle(dataset_id, prefix="cluster")
+    if bundle:
+        return _build_log_bundle_response(bundle)
+    legacy_file = datasets.latest_dataset_log(dataset_id, prefix="cluster")
+    if legacy_file and legacy_file.exists():
+        return FileResponse(legacy_file, media_type="text/plain", filename=legacy_file.name)
+    raise HTTPException(status_code=404, detail="No cluster logs available for this dataset.")
 
 
 @app.get("/api/datasets/{dataset_id}/cluster/logs/{log_name}")
-def download_cluster_log(dataset_id: str, log_name: str) -> FileResponse:
+def download_cluster_log(dataset_id: str, log_name: str) -> Response:
     _ensure_dataset(dataset_id)
     if Path(log_name).name != log_name:
-        raise HTTPException(status_code=400, detail="Invalid log file name.")
-    logs_dir = datasets.dataset_logs_directory(dataset_id)
-    target = logs_dir / log_name
-    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=400, detail="Invalid log identifier.")
+    try:
+        bundle = datasets.load_dataset_log_bundle(dataset_id, log_name)
+    except FileNotFoundError:
+        logs_dir = datasets.dataset_logs_directory(dataset_id)
+        legacy_target = logs_dir / log_name
+        if legacy_target.exists() and legacy_target.is_file():
+            return FileResponse(legacy_target, media_type="text/plain", filename=legacy_target.name)
         raise HTTPException(status_code=404, detail="Requested log file not found.")
-    return FileResponse(target, media_type="text/plain", filename=target.name)
+    return _build_log_bundle_response(bundle)
 
 
 @app.get("/api/datasets/{dataset_id}/records")

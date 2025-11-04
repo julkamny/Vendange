@@ -421,7 +421,10 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
         return
       }
       try {
-        const { blob, filename } = await fetchClusterLog(datasetId, state.logFile)
+        const { blob, filename } = await fetchClusterLog(datasetId, {
+          logFile: state.logFile,
+          logUrl: state.logUrl,
+        })
         const url = URL.createObjectURL(blob)
         const anchor = document.createElement('a')
         anchor.href = url
@@ -579,9 +582,9 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
                   onClick={() => handleDownloadLogs(dataset.id)}
                   disabled={state.logs.length === 0 && !state.logFile}
                 >
-                  Télécharger les logs
+                  Télécharger les logs (.zip)
                 </button>
-                {state.logFile ? <span className="dataset-card__log-footnote">Dernier fichier : {state.logFile}</span> : null}
+                {state.logFile ? <span className="dataset-card__log-footnote">Dernier bundle : {state.logFile}</span> : null}
               </div>
               {state.error && <p className="dataset-card__error">Erreur : {state.error}</p>}
             </section>

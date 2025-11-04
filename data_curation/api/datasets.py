@@ -28,6 +28,15 @@ class DatasetMetadata:
         return data
 
 
+@dataclass
+class DatasetLogBundle:
+    run_id: str
+    directory: Path
+    text_path: Path
+    html_path: Path
+    assets_path: Path
+
+
 def ensure_root() -> None:
     DATASETS_ROOT.mkdir(parents=True, exist_ok=True)
 
@@ -183,23 +192,89 @@ def dataset_logs_directory(dataset_id: str) -> Path:
     return directory
 
 
-def create_dataset_log_file(dataset_id: str, prefix: str = "cluster") -> Path:
+def create_dataset_log_bundle(dataset_id: str, prefix: str = "cluster") -> DatasetLogBundle:
     logs_dir = dataset_logs_directory(dataset_id)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
-    return logs_dir / f"{prefix}_{timestamp}.log"
+    run_id = f"{prefix}_{timestamp}"
+    run_dir = logs_dir / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    assets_dir = run_dir / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    text_path = run_dir / "run.log"
+    html_path = run_dir / "run.html"
+    return DatasetLogBundle(run_id=run_id, directory=run_dir, text_path=text_path, html_path=html_path, assets_path=assets_dir)
+
+
+def _bundle_from_directory(directory: Path) -> Optional[DatasetLogBundle]:
+    if not directory.exists() or not directory.is_dir():
+        return None
+    run_id = directory.name
+    text_path = directory / "run.log"
+    html_path = directory / "run.html"
+    assets_dir = directory / "assets"
+    if not text_path.exists() and not html_path.exists():
+        return None
+    if not assets_dir.exists():
+        assets_dir.mkdir(parents=True, exist_ok=True)
+    return DatasetLogBundle(run_id=run_id, directory=directory, text_path=text_path, html_path=html_path, assets_path=assets_dir)
+
+
+def create_dataset_log_file(dataset_id: str, prefix: str = "cluster") -> Path:
+    bundle = create_dataset_log_bundle(dataset_id, prefix=prefix)
+    return bundle.text_path
 
 
 def list_dataset_logs(dataset_id: str, prefix: Optional[str] = None) -> List[Path]:
-    logs_dir = dataset_directory(dataset_id) / "logs"
+    logs_dir = dataset_logs_directory(dataset_id)
     if not logs_dir.exists():
         return []
-    pattern = f"{prefix}_*.log" if prefix else "*.log"
-    return sorted(logs_dir.glob(pattern))
+    candidates: List[Path] = []
+    for entry in sorted(logs_dir.iterdir()):
+        if entry.is_dir():
+            if prefix and not entry.name.startswith(f"{prefix}_"):
+                continue
+            bundle = _bundle_from_directory(entry)
+            if bundle and bundle.html_path.exists():
+                candidates.append(bundle.html_path)
+        elif entry.is_file():
+            if prefix and not entry.name.startswith(f"{prefix}_"):
+                continue
+            candidates.append(entry)
+    return candidates
 
 
 def latest_dataset_log(dataset_id: str, prefix: Optional[str] = None) -> Optional[Path]:
     logs = list_dataset_logs(dataset_id, prefix=prefix)
     return logs[-1] if logs else None
+
+
+def list_dataset_log_bundles(dataset_id: str, prefix: Optional[str] = None) -> List[DatasetLogBundle]:
+    logs_dir = dataset_logs_directory(dataset_id)
+    if not logs_dir.exists():
+        return []
+    bundles: List[DatasetLogBundle] = []
+    for entry in sorted(logs_dir.iterdir()):
+        if not entry.is_dir():
+            continue
+        if prefix and not entry.name.startswith(f"{prefix}_"):
+            continue
+        bundle = _bundle_from_directory(entry)
+        if bundle:
+            bundles.append(bundle)
+    return bundles
+
+
+def latest_dataset_log_bundle(dataset_id: str, prefix: Optional[str] = None) -> Optional[DatasetLogBundle]:
+    bundles = list_dataset_log_bundles(dataset_id, prefix=prefix)
+    return bundles[-1] if bundles else None
+
+
+def load_dataset_log_bundle(dataset_id: str, run_id: str) -> DatasetLogBundle:
+    directory = dataset_logs_directory(dataset_id) / run_id
+    bundle = _bundle_from_directory(directory)
+    if not bundle:
+        raise FileNotFoundError(f"Log bundle not found: {run_id}")
+    return bundle
 
 
 def mark_clustered(dataset_id: str) -> None:

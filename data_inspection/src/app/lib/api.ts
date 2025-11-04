@@ -296,10 +296,25 @@ function parseFilenameFromContentDisposition(header: string | null): string | un
   }
 }
 
-export async function fetchClusterLog(datasetId: string, logFile?: string): Promise<{ blob: Blob; filename: string }> {
-  const endpoint = logFile
-    ? `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/cluster/logs/${encodeURIComponent(logFile)}`
-    : `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/cluster/logs/latest`
+type FetchClusterLogOptions = {
+  logFile?: string
+  logUrl?: string
+}
+
+export async function fetchClusterLog(
+  datasetId: string,
+  options?: FetchClusterLogOptions,
+): Promise<{ blob: Blob; filename: string }> {
+  const logFile = options?.logFile
+  const rawUrl = options?.logUrl
+  let endpoint: string
+  if (rawUrl && rawUrl.trim().length > 0) {
+    endpoint = rawUrl.startsWith('http') ? rawUrl : `${API_BASE_URL}${rawUrl}`
+  } else {
+    endpoint = logFile
+      ? `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/cluster/logs/${encodeURIComponent(logFile)}`
+      : `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/cluster/logs/latest`
+  }
   const response = await fetch(endpoint)
   if (!response.ok) {
     const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
@@ -308,6 +323,6 @@ export async function fetchClusterLog(datasetId: string, logFile?: string): Prom
   const blob = await response.blob()
   const filename =
     parseFilenameFromContentDisposition(response.headers.get('Content-Disposition')) ??
-    (logFile ? `${logFile}` : `${datasetId}-cluster.log`)
+    (logFile ? `${logFile}.zip` : `${datasetId}-cluster-log.zip`)
   return { blob, filename }
 }

@@ -263,8 +263,15 @@ def _reset_dataset_store(dataset_id: str) -> None:
     close_dataset(dataset_id)
     path = _dataset_store_path(dataset_id)
     if path.exists():
-        shutil.rmtree(path)
-    path.mkdir(parents=True, exist_ok=True)
+        for child in path.iterdir():
+            if child.name == "logs":
+                continue
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+    else:
+        path.mkdir(parents=True, exist_ok=True)
 
 
 def _directory_size(path: Path) -> int:

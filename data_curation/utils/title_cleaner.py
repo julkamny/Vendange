@@ -25,6 +25,7 @@ from rich.syntax import Syntax
 from rich.table import Table
 
 from data_curation.matching.triggers import RESP_TERMS_ADAPT, RESP_TERMS_ILL
+from data_curation.utils.log_bundle import get_current_log_bundle
 from data_curation.utils.text_norm import build_folded_with_map, normalize_for_match
 
 if TYPE_CHECKING:  # pragma: no cover - import only for static type checking
@@ -74,11 +75,16 @@ def render_dependency_graph(doc: Doc, context: str) -> Path | None:
     if not LOGGER.isEnabledFor(logging.DEBUG):
         return None
 
-    html = displacy.render(doc, style="dep", options={"compact": True, "add_lemma": False})
+    markup = displacy.render(doc, style="dep", options={"compact": True, "add_lemma": False})
+    bundle = get_current_log_bundle()
+    if bundle is not None:
+        relative_path = bundle.register_dependency_graph(context=context, svg_markup=markup)
+        return relative_path
+
     with tempfile.NamedTemporaryFile("w", delete=False, suffix=".html", encoding="utf-8") as tmp:
-        tmp.write("<html><head><meta charset='utf-8'></head><body>")
+        tmp.write("<!DOCTYPE html><html><head><meta charset='utf-8'></head><body>")
         tmp.write(f"<h2>{context}</h2>")
-        tmp.write(html)
+        tmp.write(markup)
         tmp.write("</body></html>")
         tmp_path = Path(tmp.name).resolve()
 

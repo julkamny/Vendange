@@ -8,6 +8,7 @@ import re
 import shutil
 import tempfile
 from pathlib import Path
+from datetime import datetime, timezone
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -15,6 +16,7 @@ from rich.theme import Theme
 
 from data_curation.api import db, datasets as dataset_registry
 from data_curation.curation.pipeline import run_cluster_operation, run_cluster_with_expression_operation
+from data_curation.utils.log_bundle import LOG_TEXT_FORMAT, LogBundle, activate_log_bundle, reset_log_bundle
 
 LOGGER = logging.getLogger("scripts.cli")
 RICH_THEME = Theme({
@@ -26,7 +28,7 @@ RICH_THEME = Theme({
 RICH_CONSOLE = Console(theme=RICH_THEME, highlight=True, soft_wrap=True)
 _TEMP_FIXTURES: list[Path] = []
 _MARKUP_TAG_RE = re.compile(r"\[[^\]]+\]")
-FILE_LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+FILE_LOG_FORMAT = LOG_TEXT_FORMAT
 
 
 def _cleanup_temp_fixtures() -> None:
@@ -58,6 +60,48 @@ class PlainLogFormatter(logging.Formatter):
         return _MARKUP_TAG_RE.sub("", rendered)
 
 
+class _BundledFileHandler(logging.Handler):
+    """Write logs to the bundle text file while capturing structured entries."""
+
+    def __init__(self, bundle: LogBundle, level: int) -> None:
+        super().__init__(level=level)
+        self.bundle = bundle
+        self._formatter = PlainLogFormatter(FILE_LOG_FORMAT, "%Y-%m-%d %H:%M:%S")
+        self._stream = bundle.open_text_stream()
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if not record.name.startswith("data_curation"):
+            return
+        try:
+            message = record.getMessage()
+        except Exception:  # pragma: no cover - defensive
+            message = str(record.msg)
+        timestamp = datetime.fromtimestamp(record.created, timezone.utc).isoformat()
+        line = self._formatter.format(record)
+        self._stream.write(f"{line}\n")
+        self._stream.flush()
+        exception_text: str | None = None
+        if record.exc_info:
+            exception_text = self._formatter.formatException(record.exc_info)
+        elif record.exc_text:
+            exception_text = record.exc_text
+        self.bundle.add_record(
+            timestamp=timestamp,
+            level=record.levelname,
+            logger_name=record.name,
+            message=message,
+            exception=exception_text,
+        )
+
+    def close(self) -> None:  # pragma: no cover - defensive cleanup
+        try:
+            if not self._stream.closed:
+                self._stream.close()
+            self.bundle.close_text_stream()
+        finally:
+            super().close()
+
+
 def _configure_logging(verbosity: int) -> None:
     """Configure logging once based on CLI verbosity."""
 
@@ -87,19 +131,15 @@ def _configure_logging(verbosity: int) -> None:
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
-def _install_file_logging(dataset_id: str, verbosity: int) -> Path:
-    """Attach a plain-text file handler mirroring the CLI verbosity."""
+def _install_file_logging(bundle: LogBundle, verbosity: int) -> logging.Handler:
+    """Attach a file-backed handler that also feeds the log bundle."""
 
-    log_path = dataset_registry.create_dataset_log_file(dataset_id, prefix="cli")
-    file_handler = logging.FileHandler(log_path, encoding="utf-8")
-    file_handler.setLevel(_verbosity_to_level(verbosity))
-    file_handler.setFormatter(PlainLogFormatter(FILE_LOG_FORMAT, "%Y-%m-%d %H:%M:%S"))
-
+    handler = _BundledFileHandler(bundle, level=_verbosity_to_level(verbosity))
     root_logger = logging.getLogger()
-    root_logger.addHandler(file_handler)
-    if root_logger.level > file_handler.level:
-        root_logger.setLevel(file_handler.level)
-    return log_path
+    root_logger.addHandler(handler)
+    if root_logger.level > handler.level:
+        root_logger.setLevel(handler.level)
+    return handler
 
 
 def _apply_input_fixture(input_path: str | Path, fixture: str | None) -> Path:
@@ -215,61 +255,92 @@ def main() -> None:
     dataset_input = getattr(args, "dataset")
     dataset_meta = dataset_registry.ensure_dataset(dataset_input, title=dataset_label or dataset_input)
     dataset_id = dataset_meta.id
+    bundle: LogBundle | None = None
+    bundle_token = None
+    file_handler: logging.Handler | None = None
     try:
-        log_path = _install_file_logging(dataset_id, args.verbose)
+        bundle_info = dataset_registry.create_dataset_log_bundle(dataset_id, prefix="cli")
     except OSError as exc:
-        RICH_CONSOLE.print(f"[bold red]Impossible d'activer la journalisation fichier[/]: {exc}")
-        log_path = None
+        RICH_CONSOLE.print(f"[bold red]Impossible de préparer le dossier de logs[/]: {exc}")
     else:
-        RICH_CONSOLE.print(f"[dim cyan]Journal CLI enregistré dans[/] [link=file://{log_path}]{log_path}[/link]")
+        bundle = LogBundle(
+            run_id=bundle_info.run_id,
+            directory=bundle_info.directory,
+            text_path=bundle_info.text_path,
+            html_path=bundle_info.html_path,
+            assets_path=bundle_info.assets_path,
+        )
+        bundle_token = activate_log_bundle(bundle)
+        try:
+            file_handler = _install_file_logging(bundle, args.verbose)
+        except OSError as exc:
+            RICH_CONSOLE.print(f"[bold red]Impossible d'activer la journalisation fichier[/]: {exc}")
+        else:
+            RICH_CONSOLE.print(f"[dim cyan]Journal CLI enregistré dans[/] [link=file://{bundle.text_path}]{bundle.text_path}[/link]")
     if dataset_id != dataset_input:
         LOGGER.info("[bold yellow]Dataset identifier normalised[/]: %s → %s", dataset_input, dataset_id)
 
-    if csv_source:
-        csv_path = Path(csv_source)
-        if getattr(args, "fixture", None):
-            csv_path = _apply_input_fixture(csv_source, args.fixture)
-        label = dataset_label or dataset_meta.title
-        _ingest_csv(csv_path, dataset_id, label)
+    try:
+        if csv_source:
+            csv_path = Path(csv_source)
+            if getattr(args, "fixture", None):
+                csv_path = _apply_input_fixture(csv_source, args.fixture)
+            label = dataset_label or dataset_meta.title
+            _ingest_csv(csv_path, dataset_id, label)
 
-    if args.cmd == "cluster":
-        clusters = run_cluster_operation(dataset_id=dataset_id, clusters_json=args.clusters_json)
-        LOGGER.info("[bold green]Clusters created:[/] %s", len(clusters))
-        for c in clusters:
-            LOGGER.info(
-                "  [dim]-[/] Anchor [cyan]%s[/] ← [bold]%s[/] work%s",
-                c.anchor_id,
-                len(c.clustered_ids),
-                "s" if len(c.clustered_ids) != 1 else "",
-            )
-        dataset_registry.mark_clustered(dataset_id)
+        if args.cmd == "cluster":
+            clusters = run_cluster_operation(dataset_id=dataset_id, clusters_json=args.clusters_json)
+            LOGGER.info("[bold green]Clusters created:[/] %s", len(clusters))
+            for c in clusters:
+                LOGGER.info(
+                    "  [dim]-[/] Anchor [cyan]%s[/] ← [bold]%s[/] work%s",
+                    c.anchor_id,
+                    len(c.clustered_ids),
+                    "s" if len(c.clustered_ids) != 1 else "",
+                )
+            dataset_registry.mark_clustered(dataset_id)
 
-    elif args.cmd == "cluster-with-expressions":
-        work_clusters, expression_clusters = run_cluster_with_expression_operation(
-            dataset_id=dataset_id,
-            works_json=args.work_clusters_json,
-            expressions_json=args.expression_clusters_json,
-        )
-        LOGGER.info("[bold green]Work clusters created:[/] %s", len(work_clusters))
-        for c in work_clusters:
-            LOGGER.info(
-                "  [dim]-[/] Anchor [cyan]%s[/] ← [bold]%s[/] work%s",
-                c.anchor_id,
-                len(c.clustered_ids),
-                "s" if len(c.clustered_ids) != 1 else "",
+        elif args.cmd == "cluster-with-expressions":
+            work_clusters, expression_clusters = run_cluster_with_expression_operation(
+                dataset_id=dataset_id,
+                works_json=args.work_clusters_json,
+                expressions_json=args.expression_clusters_json,
             )
-        LOGGER.info("[bold green]Expression clusters created:[/] %s", len(expression_clusters))
-        for ec in expression_clusters:
-            LOGGER.info(
-                "  [dim]-[/] Anchor expression [cyan]%s[/] ← [bold]%s[/] expression%s",
-                ec.anchor_expression_id,
-                len(ec.clustered_expression_ids),
-                "s" if len(ec.clustered_expression_ids) != 1 else "",
-            )
-        dataset_registry.mark_clustered(dataset_id)
+            LOGGER.info("[bold green]Work clusters created:[/] %s", len(work_clusters))
+            for c in work_clusters:
+                LOGGER.info(
+                    "  [dim]-[/] Anchor [cyan]%s[/] ← [bold]%s[/] work%s",
+                    c.anchor_id,
+                    len(c.clustered_ids),
+                    "s" if len(c.clustered_ids) != 1 else "",
+                )
+            LOGGER.info("[bold green]Expression clusters created:[/] %s", len(expression_clusters))
+            for ec in expression_clusters:
+                LOGGER.info(
+                    "  [dim]-[/] Anchor expression [cyan]%s[/] ← [bold]%s[/] expression%s",
+                    ec.anchor_expression_id,
+                    len(ec.clustered_expression_ids),
+                    "s" if len(ec.clustered_expression_ids) != 1 else "",
+                )
+            dataset_registry.mark_clustered(dataset_id)
 
-    if log_path:
-        LOGGER.info("Command logs archived at %s", log_path)
+        if bundle:
+            LOGGER.info("Command logs archived at %s", bundle.text_path)
+    finally:
+        root_logger = logging.getLogger()
+        if bundle:
+            LOGGER.info("HTML log bundle available at %s", bundle.html_path)
+        if file_handler:
+            root_logger.removeHandler(file_handler)
+            file_handler.close()
+        if bundle:
+            bundle.finalize()
+        if bundle_token:
+            reset_log_bundle(bundle_token)
+        if bundle:
+            RICH_CONSOLE.print(
+                f"[dim cyan]Journal HTML disponible[/] [link=file://{bundle.html_path}]{bundle.html_path}[/link]"
+            )
 
 if __name__ == "__main__":
     main()

@@ -282,6 +282,7 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
             [datasetId]: {
               ...current,
               hasRun: true,
+              running: false,
               logFile: event.logFile ?? current.logFile,
               logUrl: event.logUrl ?? current.logUrl,
             },
@@ -416,15 +417,15 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
   const handleDownloadLogs = useCallback(
     async (datasetId: string) => {
       const state = ensureClusterState(datasetId)
-      if (!state.logFile && state.logs.length === 0) {
-        showToast('Aucun log disponible pour cette base.', { tone: 'info' })
-        return
-      }
       try {
-        const { blob, filename } = await fetchClusterLog(datasetId, {
-          logFile: state.logFile,
-          logUrl: state.logUrl,
-        })
+        const options =
+          state.logFile || state.logUrl
+            ? {
+                logFile: state.logFile,
+                logUrl: state.logUrl,
+              }
+            : undefined
+        const { blob, filename } = await fetchClusterLog(datasetId, options)
         const url = URL.createObjectURL(blob)
         const anchor = document.createElement('a')
         anchor.href = url
@@ -580,7 +581,9 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
                 <button
                   type="button"
                   onClick={() => handleDownloadLogs(dataset.id)}
-                  disabled={state.logs.length === 0 && !state.logFile}
+                  disabled={
+                    state.running || (!state.hasRun && state.logs.length === 0 && !state.logFile && !state.logUrl)
+                  }
                 >
                   Télécharger les logs (.zip)
                 </button>

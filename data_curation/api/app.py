@@ -16,7 +16,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from data_curation.api import db, datasets
@@ -195,6 +195,12 @@ def _run_cluster_job(
             },
         )
     finally:
+        try:
+            bundle.finalize()
+        except Exception:  # pragma: no cover - defensive logging
+            LOGGER.exception("Failed to finalize log bundle for dataset %s", dataset_id)
+        else:
+            LOGGER.info("Log bundle archived at %s", bundle.html_path)
         loop.call_soon_threadsafe(queue.put_nowait, None)
 
 
@@ -233,7 +239,6 @@ async def _cluster_stream(dataset_id: str, include_expressions: bool) -> AsyncIt
             worker.cancel()
         with contextlib.suppress(Exception):
             await worker
-        bundle.finalize()
         reset_log_bundle(token)
 
 
@@ -368,12 +373,9 @@ async def trigger_cluster(dataset_id: str, payload: ClusterRequest) -> Streaming
 def download_latest_cluster_log(dataset_id: str) -> Response:
     _ensure_dataset(dataset_id)
     bundle = datasets.latest_dataset_log_bundle(dataset_id, prefix="cluster")
-    if bundle:
-        return _build_log_bundle_response(bundle)
-    legacy_file = datasets.latest_dataset_log(dataset_id, prefix="cluster")
-    if legacy_file and legacy_file.exists():
-        return FileResponse(legacy_file, media_type="text/plain", filename=legacy_file.name)
-    raise HTTPException(status_code=404, detail="No cluster logs available for this dataset.")
+    if not bundle:
+        raise HTTPException(status_code=404, detail="No cluster logs available for this dataset.")
+    return _build_log_bundle_response(bundle)
 
 
 @app.get("/api/datasets/{dataset_id}/cluster/logs/{log_name}")
@@ -384,10 +386,6 @@ def download_cluster_log(dataset_id: str, log_name: str) -> Response:
     try:
         bundle = datasets.load_dataset_log_bundle(dataset_id, log_name)
     except FileNotFoundError:
-        logs_dir = datasets.dataset_logs_directory(dataset_id)
-        legacy_target = logs_dir / log_name
-        if legacy_target.exists() and legacy_target.is_file():
-            return FileResponse(legacy_target, media_type="text/plain", filename=legacy_target.name)
         raise HTTPException(status_code=404, detail="Requested log file not found.")
     return _build_log_bundle_response(bundle)
 

@@ -258,6 +258,7 @@ def main() -> None:
     bundle: LogBundle | None = None
     bundle_token = None
     file_handler: logging.Handler | None = None
+    bundle_ready = False
     try:
         bundle_info = dataset_registry.create_dataset_log_bundle(dataset_id, prefix="cli")
     except OSError as exc:
@@ -329,15 +330,19 @@ def main() -> None:
     finally:
         root_logger = logging.getLogger()
         if bundle:
-            LOGGER.info("HTML log bundle available at %s", bundle.html_path)
+            try:
+                bundle.finalize()
+            except Exception:
+                LOGGER.exception("Failed to finalize CLI log bundle")
+            else:
+                bundle_ready = True
+                LOGGER.info("HTML log bundle available at %s", bundle.html_path)
         if file_handler:
             root_logger.removeHandler(file_handler)
             file_handler.close()
-        if bundle:
-            bundle.finalize()
         if bundle_token:
             reset_log_bundle(bundle_token)
-        if bundle:
+        if bundle and bundle_ready:
             RICH_CONSOLE.print(
                 f"[dim cyan]Journal HTML disponible[/] [link=file://{bundle.html_path}]{bundle.html_path}[/link]"
             )

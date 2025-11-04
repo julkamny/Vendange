@@ -219,35 +219,6 @@ def _bundle_from_directory(directory: Path) -> Optional[DatasetLogBundle]:
     return DatasetLogBundle(run_id=run_id, directory=directory, text_path=text_path, html_path=html_path, assets_path=assets_dir)
 
 
-def create_dataset_log_file(dataset_id: str, prefix: str = "cluster") -> Path:
-    bundle = create_dataset_log_bundle(dataset_id, prefix=prefix)
-    return bundle.text_path
-
-
-def list_dataset_logs(dataset_id: str, prefix: Optional[str] = None) -> List[Path]:
-    logs_dir = dataset_logs_directory(dataset_id)
-    if not logs_dir.exists():
-        return []
-    candidates: List[Path] = []
-    for entry in sorted(logs_dir.iterdir()):
-        if entry.is_dir():
-            if prefix and not entry.name.startswith(f"{prefix}_"):
-                continue
-            bundle = _bundle_from_directory(entry)
-            if bundle and bundle.html_path.exists():
-                candidates.append(bundle.html_path)
-        elif entry.is_file():
-            if prefix and not entry.name.startswith(f"{prefix}_"):
-                continue
-            candidates.append(entry)
-    return candidates
-
-
-def latest_dataset_log(dataset_id: str, prefix: Optional[str] = None) -> Optional[Path]:
-    logs = list_dataset_logs(dataset_id, prefix=prefix)
-    return logs[-1] if logs else None
-
-
 def list_dataset_log_bundles(dataset_id: str, prefix: Optional[str] = None) -> List[DatasetLogBundle]:
     logs_dir = dataset_logs_directory(dataset_id)
     if not logs_dir.exists():

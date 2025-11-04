@@ -279,7 +279,7 @@ def _directory_size(path: Path) -> int:
         return 0
     total = 0
     for child in path.rglob("*"):
-        if child.is_file():
+        if child.is_file() and "logs" not in child.parts:
             total += child.stat().st_size
     return total
 

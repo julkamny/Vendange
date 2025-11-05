@@ -165,7 +165,6 @@ def _(
     out_cost_total = (eff_out_cost * out_tokens) / 1_000_000.0
 
     # Apply discount as multiplicative factor (0.5 => 50% off),
-    # matching the behavior of the original notebook.
     grand_total = (in_cost_total + out_cost_total) * float(discount_factor.value or 0.0)
 
     # Provide a structured result for other cells

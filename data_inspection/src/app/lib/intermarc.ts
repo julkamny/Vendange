@@ -61,6 +61,14 @@ function getFirstSubZoneValue(im: Intermarc, zoneCode: string, subCode: string):
   return undefined
 }
 
+function getCachedArkLabel(ark: string | undefined | null): string | undefined {
+  if (!ark) return undefined
+  if (arkLabelByArkCache.has(ark)) return arkLabelByArkCache.get(ark) ?? undefined
+  const normalized = ark.toLowerCase()
+  if (arkLabelByArkCache.has(normalized)) return arkLabelByArkCache.get(normalized) ?? undefined
+  return undefined
+}
+
 function buildLabelFromIntermarc(im: Intermarc, type: string): string | undefined {
   const normalizedType = normalizeTypeName(type)
   switch (normalizedType) {
@@ -79,8 +87,23 @@ function buildLabelFromIntermarc(im: Intermarc, type: string): string | undefine
       return getFirstSubZoneValue(im, '110', '110$a')
     case 'manifestation':
       return getFirstSubZoneValue(im, '245', '245$a')
-    case 'expression':
+    case 'expression': {
+      const zone = findZones(im, '140')[0]
+      if (zone) {
+        const parts: string[] = []
+        zone.sousZones.forEach(sub => {
+          let value = typeof sub.valeur === 'string' ? sub.valeur.trim() : ''
+          if (!value) return
+          if (sub.code === '140$3') {
+            const resolved = getCachedArkLabel(value)
+            value = resolved ?? value
+          }
+          parts.push(value)
+        })
+        if (parts.length) return parts.join(' — ')
+      }
       return getFirstSubZoneValue(im, '150', '150$a') ?? getFirstSubZoneValue(im, '245', '245$a')
+    }
     case 'valeur controlee':
       return getFirstSubZoneValue(im, '169', '169$a')
     case 'marque':
@@ -316,13 +339,31 @@ export function registerArkLabelForRecord(record: RecordRow): void {
   if (!label) return
   arkLabelByIdCache.set(record.id, label)
   if (record.ark) {
-    arkLabelByArkCache.set(record.ark, label)
+    const ark = record.ark
+    arkLabelByArkCache.set(ark, label)
+    const normalized = ark.toLowerCase()
+    if (normalized !== ark) arkLabelByArkCache.set(normalized, label)
   } else {
     const ark = getFirstSubZoneValue(record.intermarc, '001', '001$a')
-    if (ark) arkLabelByArkCache.set(ark, label)
+    if (ark) {
+      arkLabelByArkCache.set(ark, label)
+      const normalized = ark.toLowerCase()
+      if (normalized !== ark) arkLabelByArkCache.set(normalized, label)
+    }
   }
 }
 
 export function primeArkLabelCache(records: RecordRow[]): void {
-  records.forEach(registerArkLabelForRecord)
+  records.forEach(record => {
+    const normalized = record.typeNorm?.toLowerCase()
+    if (normalized === 'oeuvre') registerArkLabelForRecord(record)
+  })
+  records.forEach(record => {
+    const normalized = record.typeNorm?.toLowerCase()
+    if (normalized === 'expression') registerArkLabelForRecord(record)
+  })
+  records.forEach(record => {
+    const normalized = record.typeNorm?.toLowerCase()
+    if (normalized !== 'oeuvre' && normalized !== 'expression') registerArkLabelForRecord(record)
+  })
 }

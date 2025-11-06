@@ -1,7 +1,15 @@
-## Tips & instructions
+## Codebase hygiene
 
-- When deriving the internal identifier from an ark, we need to remove the prefix up to `cb` and drop the final control character, e.g. `ark:/12148/cb359748158 -> 35974815`.
+- We're not in production yet, we haven't deployed to users, so no need to handle legacy patterns, datasets and the like, just remove all dead code and abandoned implementations cautiously.
+- Update the README once you're done working to make sure it reflects the current state of the app.
+- Strive to avoid introducing repetition in the codebase, reuse as much code as possible to implement what you've been asked.
+
+## Tips
+
 - If you need to run Python, know that the .venv at the root of the repo (where you've been summoned) is managed by uv.
+
+## Databases
+
 - The searchable datasets uploaded by users are now Oxigraph stores under `data_curation/api/datasets/`, created from user-provided CSVs of Intermarc records. A development sample lives in `sample_data/current_export.csv`.
 - The DB can be inspected with the Oxigraph CLI, see [sparql_store.md](documentation/sparql_store.md)
 

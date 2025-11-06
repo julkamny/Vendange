@@ -1,7 +1,7 @@
 import type { RecordRow } from '../types'
 import { findZones } from '../lib/intermarc'
 
-const GENERAL_RELATIONSHIP_CODES: Record<string, readonly string[]> = {
+export const GENERAL_RELATIONSHIP_CODES: Record<string, readonly string[]> = {
   oeuvre: [
     '500',
     '501',
@@ -31,6 +31,14 @@ const GENERAL_RELATIONSHIP_CODES: Record<string, readonly string[]> = {
   ],
   expression: ['501', '506', '509', '50N', '540', '541', '542', '543', '544', '547', '54C', '54P', '54T'],
   manifestation: ['501', '506', '509', '50N', '530', '531', '532', '533', '534', '535', '536', '537', '538', '53M'],
+}
+
+export function isGeneralRelationshipZone(typeNorm: string | undefined, zoneCode: string): boolean {
+  if (!typeNorm || !zoneCode) return false
+  const normalized = typeNorm.toLowerCase()
+  const codes = GENERAL_RELATIONSHIP_CODES[normalized]
+  if (!codes) return false
+  return codes.includes(zoneCode)
 }
 
 export function countGeneralRelationships(record: RecordRow): number {

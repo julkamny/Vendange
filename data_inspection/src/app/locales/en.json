@@ -227,6 +227,22 @@
     "manifestations_one": "{{count}} manifestation",
     "manifestations_other": "{{count}} manifestations",
     "relationships_one": "{{count}} general relationship",
-    "relationships_other": "{{count}} general relationships"
+    "relationships_other": "{{count}} general relationships",
+    "workLinks_one": "{{count}} link to a work",
+    "workLinks_other": "{{count}} links to works",
+    "expressionLinks_one": "{{count}} link to an expression",
+    "expressionLinks_other": "{{count}} links to expressions",
+    "relationshipsDetailed": "{{outgoing}} outgoing · {{incoming}} incoming"
+  },
+  "backlinks": {
+    "title": "Incoming links",
+    "empty": "No incoming links recorded.",
+    "count_one": "{{count}} record",
+    "count_other": "{{count}} records",
+    "columns": {
+      "source": "Linking record",
+      "ark": "ARK",
+      "fields": "Fields"
+    }
   }
 }

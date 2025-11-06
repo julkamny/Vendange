@@ -16,6 +16,7 @@ const INTERMARC_BASE_EXTENSIONS: Extension[] = [
 
 type IntermarcViewProps = {
   record: RecordRow
+  onArkClick?: (ark: string, context: { zone: string; subfield: string }) => void
 }
 
 type IntermarcRender = {
@@ -23,7 +24,7 @@ type IntermarcRender = {
   decorations: DecorationSet
 }
 
-export function IntermarcView({ record }: IntermarcViewProps) {
+export function IntermarcView({ record, onArkClick }: IntermarcViewProps) {
   const [result, setResult] = useState<PrettyIntermarcResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -94,6 +95,42 @@ export function IntermarcView({ record }: IntermarcViewProps) {
       scroller?.removeEventListener('scroll', handleScroll)
     }
   }, [result])
+
+  useEffect(() => {
+    if (!onArkClick) return undefined
+    const container = containerRef.current
+    if (!container) return undefined
+
+    const invoke = (target: HTMLElement) => {
+      const ark = target.getAttribute('data-ark')
+      if (!ark) return
+      const zone = target.getAttribute('data-zone') ?? ''
+      const subfield = target.getAttribute('data-subfield') ?? ''
+      onArkClick(ark, { zone, subfield })
+    }
+
+    const handleClick = (event: MouseEvent) => {
+      const root = (event.target as HTMLElement | null)?.closest<HTMLElement>('.ark-link')
+      if (!root) return
+      event.preventDefault()
+      invoke(root)
+    }
+
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      const target = event.target as HTMLElement | null
+      if (!target || !target.classList.contains('ark-link')) return
+      event.preventDefault()
+      invoke(target)
+    }
+
+    container.addEventListener('click', handleClick)
+    container.addEventListener('keydown', handleKeydown)
+    return () => {
+      container.removeEventListener('click', handleClick)
+      container.removeEventListener('keydown', handleKeydown)
+    }
+  }, [onArkClick, result])
 
   if (error) return <pre className="intermarc-view error">{error}</pre>
   if (!display) return <pre className="intermarc-view loading">…</pre>

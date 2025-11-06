@@ -1,9 +1,11 @@
-import { useMemo, type MouseEvent } from 'react'
+import { useMemo, useCallback, type MouseEvent } from 'react'
 import type { Cluster, ExpressionClusterItem, ExpressionItem, EntityBadgeSpec } from '../../types'
 import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
 import { EntityLabel, EntityPill, CountBadge, AgentBadge, RelationshipBadge } from '../../components/EntityLabel'
 import { useRecordLookup } from '../../hooks/useRecordLookup'
+import { countExpressionWorkLinks } from '../../core/entities'
+import { useBacklinks } from '../../hooks/useBacklinks'
 
 type ExpressionPanelProps = {
   cluster: Cluster | null
@@ -31,16 +33,18 @@ type ExpressionGroupLabelProps = {
   expression: ExpressionItem | ExpressionClusterItem
   isAnchor: boolean
   manifestationCount: number
+  workLinkCount: number
   agentNames: string[]
-  relationshipCount: number
+  relationships: { outgoing: number; incoming: number }
 }
 
 export function ExpressionGroupLabel({
   expression,
   isAnchor,
   manifestationCount,
+  workLinkCount,
   agentNames,
-  relationshipCount,
+  relationships,
 }: ExpressionGroupLabelProps) {
   const label = expression.title || expression.id
   const tooltip = label?.trim()
@@ -53,8 +57,11 @@ export function ExpressionGroupLabel({
       <span className="expression-marker">{isAnchor ? '⚓︎' : '🍇'}</span>
       <EntityPill type="expression" text={expression.id} tooltip={expression.ark} />
       {expression.workId ? <EntityPill type="work" text={expression.workId} tooltip={expression.workArk} /> : null}
-      <CountBadge kind="manifestations" count={manifestationCount} />
-      {relationshipCount > 0 ? <RelationshipBadge count={relationshipCount} /> : null}
+      {manifestationCount > 0 ? <CountBadge kind="manifestations" count={manifestationCount} /> : null}
+      {workLinkCount > 1 ? <CountBadge kind="workLinks" count={workLinkCount} /> : null}
+      {relationships.outgoing > 0 || relationships.incoming > 0 ? (
+        <RelationshipBadge outgoing={relationships.outgoing} incoming={relationships.incoming} />
+      ) : null}
       {agentNames.length ? <AgentBadge names={agentNames} /> : null}
     </span>
   )
@@ -84,12 +91,29 @@ export function ExpressionPanel({
   onOpenManifestations,
 }: ExpressionPanelProps) {
   const { t } = useTranslation()
-  const { getAgentNames, getGeneralRelationshipCount } = useRecordLookup()
+  const { getById, getByArk, getAgentNames, getGeneralRelationshipCount } = useRecordLookup()
+  const { countIncomingRelationships } = useBacklinks()
   if (!cluster) return <em>{t('messages.noClusters')}</em>
 
   const highlightedWorkArk = state.highlightedWorkArk ?? null
   const highlightedExpressionArk = state.highlightedExpressionArk ?? null
   const selectedEntity = state.selectedEntity
+
+  const resolveExpressionRecord = useCallback(
+    (id?: string | null, ark?: string | null) => getById(id) ?? getByArk(ark),
+    [getByArk, getById],
+  )
+
+  const computeExpressionMetrics = useCallback(
+    (id?: string | null, ark?: string | null) => {
+      const record = resolveExpressionRecord(id, ark)
+      const workLinkCount = record ? countExpressionWorkLinks(record) : 0
+      const outgoing = getGeneralRelationshipCount(id, ark)
+      const incoming = record ? countIncomingRelationships(record) : 0
+      return { workLinkCount, relationships: { outgoing, incoming }, record }
+    },
+    [countExpressionWorkLinks, countIncomingRelationships, getGeneralRelationshipCount, resolveExpressionRecord],
+  )
 
   const independentExpressions = useMemo(() => cluster.independentExpressions, [cluster.independentExpressions])
 
@@ -101,7 +125,10 @@ export function ExpressionPanel({
 
         const anchorClasses = ['expression-anchor', 'entity-row', 'entity-row--expression']
         const anchorAgentNames = getAgentNames(group.anchor.id, group.anchor.ark)
-        const anchorRelationships = getGeneralRelationshipCount(group.anchor.id, group.anchor.ark)
+        const {
+          workLinkCount: anchorWorkLinks,
+          relationships: anchorRelationships,
+        } = computeExpressionMetrics(group.anchor.id, group.anchor.ark)
 
         const anchorSelected =
           selectedEntity?.entityType === 'expression' && selectedEntity.expressionId === group.anchor.id
@@ -149,8 +176,9 @@ export function ExpressionPanel({
                 expression={group.anchor}
                 isAnchor
                 manifestationCount={group.anchor.manifestations.length}
+                workLinkCount={anchorWorkLinks}
                 agentNames={anchorAgentNames}
-                relationshipCount={anchorRelationships}
+                relationships={anchorRelationships}
               />
             </div>
             <div className="expression-items">
@@ -161,7 +189,7 @@ export function ExpressionPanel({
                   const rowClasses = ['expression-item', 'entity-row', 'entity-row--expression']
                   if (!expr.accepted) rowClasses.push('unchecked')
                   const exprAgentNames = getAgentNames(expr.id, expr.ark)
-                  const relationshipCount = getGeneralRelationshipCount(expr.id, expr.ark)
+                  const { workLinkCount, relationships } = computeExpressionMetrics(expr.id, expr.ark)
                   const isSelectedExpression =
                     (selectedEntity?.entityType === 'expression' && selectedEntity.expressionId === expr.id) ||
                     (selectedEntity?.entityType === 'manifestation' && selectedEntity.expressionId === expr.id)
@@ -218,7 +246,8 @@ export function ExpressionPanel({
                         isAnchor={false}
                         manifestationCount={expr.manifestations.length}
                         agentNames={exprAgentNames}
-                        relationshipCount={relationshipCount}
+                        workLinkCount={workLinkCount}
+                        relationships={relationships}
                       />
                     </div>
                   )
@@ -235,7 +264,7 @@ export function ExpressionPanel({
           {independentExpressions.map(expr => {
             const rowClasses = ['expression-item', 'entity-row', 'entity-row--expression', 'independent']
             const agentNames = getAgentNames(expr.id, expr.ark)
-            const relationships = getGeneralRelationshipCount(expr.id, expr.ark)
+            const { workLinkCount, relationships } = computeExpressionMetrics(expr.id, expr.ark)
             const matchesHighlight = matchesFilter(expr.workArk, highlightedWorkArk)
             const isSelectedExpression =
               (selectedEntity?.entityType === 'expression' && selectedEntity.expressionId === expr.id) ||
@@ -249,6 +278,7 @@ export function ExpressionPanel({
 
             const badges: EntityBadgeSpec[] = [{ type: 'expression', text: expr.id, tooltip: expr.ark }]
             if (expr.workId) badges.push({ type: 'work', text: expr.workId, tooltip: expr.workArk })
+            const agentBadgeNames = agentNames.length ? agentNames : undefined
 
             return (
               <div
@@ -274,11 +304,10 @@ export function ExpressionPanel({
               >
                 <EntityLabel
                   title={expr.title || expr.id}
-                  subtitle={t('entity.independentExpression')}
                   badges={badges}
-                  counts={{ manifestations: expr.manifestations.length }}
-                  agentNames={agentNames}
-                  relationshipsCount={relationships}
+                  counts={{ manifestations: expr.manifestations.length, workLinks: workLinkCount }}
+                  agentNames={agentBadgeNames}
+                  relationships={relationships}
                 />
               </div>
             )

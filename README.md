@@ -90,17 +90,20 @@ Review in the Web UI
 - From the dashboard, upload one or more dataset CSV snapshots. Each upload becomes its own Oxigraph store under `data_curation/api/datasets/`; use the dataset’s **Open** action to inspect or curate it.
 - The UI detects clusters by scanning for `90F$q = "Clusterisation script"` in works.
 - Key information about entities is displayed in badges:
-  - Yellow for children expressions.
-  - Green for descendent or children manifestations.
-  - Light blue for links in 5XX fields, including adaptation.
-  - Deeper blue for agents in 7XX fields.
+  - Expression counters (orange) only appear when at least one manifestation points to the entity.
+  - Manifestation counters (green) only render when a work has incoming manifestations.
+  - Expressions now display a red *750 links* badge whenever more than one work points to them; manifestations expose an orange *740 links* badge when multiple expressions reference them.
+  - Relationship badges show outgoing and incoming 5XX links as `outgoing|incoming`, and are hidden when both values are zero.
+  - Agent badges disappear for entities without 7XX contributors.
 - Central panel: list of anchors with merged works (checkbox to accept/reject, option to add ARKs).
-- Side panel: prettified Intermarc of selected record.
+- Side panel: prettified Intermarc of selected record. ARK labels now keep the human-readable title in the text and surface the identifier on hover, and 140/750/740 links are clickable to open the targeted entity in a new workspace tab.
+- Beneath the record viewer, a backlinks panel lists every work/expression/manifestation that references the selected entity, with segmented titles, a direct ARK shortcut, and the fields where the reference lives.
 - Use the toolbar’s **Export dataset CSV** button to download the current dataset with your curated changes applied.
 - UI quality-of-life:
   - Hierarchical selectors show anchors and clustered entries in clearly separated sections with 🍇 for clustered items.
   - Double-click or use user-defined shortcuts on cluster/expression banners to jump between works ⇄ expressions ⇄ manifestations, and the pane auto-scrolls to the linked card.
   - Unchecked expressions automatically move to the independent block; their manifestations are greyed out to signal that they will not change the exported CSV.
+  - Manifestation labels now mirror work title segmentation, displaying each 245 subfield with its code for faster inspection.
 
 Editing anchor or independent entities :
 - Click a work anchor, then "Modify record" to open a JSON editor (CodeMirror) for the anchor’s Intermarc.

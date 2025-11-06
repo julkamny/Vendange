@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import type {
   Cluster,
   ManifestationItem,
@@ -10,6 +11,8 @@ import { useTranslation } from '../../hooks/useTranslation'
 import { useRecordLookup } from '../../hooks/useRecordLookup'
 import { EntityLabel } from '../../components/EntityLabel'
 import { ExpressionGroupLabel } from './ExpressionPanel'
+import { countExpressionWorkLinks, countManifestationExpressionLinks, manifestationTitleSegments } from '../../core/entities'
+import { useBacklinks } from '../../hooks/useBacklinks'
 
 type ManifestationPanelProps = {
   cluster: Cluster | null
@@ -30,7 +33,37 @@ export function ManifestationPanel({
   onSelectManifestation,
 }: ManifestationPanelProps) {
   const { t } = useTranslation()
-  const { getAgentNames, getGeneralRelationshipCount } = useRecordLookup()
+  const { getById, getByArk, getAgentNames, getGeneralRelationshipCount } = useRecordLookup()
+  const { countIncomingRelationships } = useBacklinks()
+  const resolveExpressionRecord = useCallback(
+    (id?: string | null, ark?: string | null) => getById(id) ?? getByArk(ark),
+    [getByArk, getById],
+  )
+  const computeExpressionMetrics = useCallback(
+    (id?: string | null, ark?: string | null) => {
+      const record = resolveExpressionRecord(id, ark)
+      const workLinkCount = record ? countExpressionWorkLinks(record) : 0
+      const outgoing = getGeneralRelationshipCount(id, ark)
+      const incoming = record ? countIncomingRelationships(record) : 0
+      return { workLinkCount, relationships: { outgoing, incoming } }
+    },
+    [countExpressionWorkLinks, countIncomingRelationships, getGeneralRelationshipCount, resolveExpressionRecord],
+  )
+  const computeManifestationMetrics = useCallback(
+    (manifestationId: string, manifestationArk?: string | null) => {
+      const record = getById(manifestationId) ?? getByArk(manifestationArk)
+      const expressionLinks = record ? countManifestationExpressionLinks(record) : 0
+      const outgoing = getGeneralRelationshipCount(manifestationId, manifestationArk)
+      const incoming = record ? countIncomingRelationships(record) : 0
+      const segments = record ? manifestationTitleSegments(record) : undefined
+      return {
+        expressionLinks,
+        relationships: { outgoing, incoming },
+        segments,
+      }
+    },
+    [countIncomingRelationships, countManifestationExpressionLinks, getByArk, getById, getGeneralRelationshipCount],
+  )
   if (!cluster) return <em>{t('messages.noClusters')}</em>
   const highlightedExpressionArk = state.highlightedExpressionArk ?? null
   const selectedEntity = state.selectedEntity
@@ -63,7 +96,8 @@ export function ManifestationPanel({
       badges.push({ type: 'expression', text: expression.id, tooltip: expression.ark })
     }
     const agentNames = getAgentNames(manifestation.id, manifestation.ark)
-    const relationships = getGeneralRelationshipCount(manifestation.id, manifestation.ark)
+    const metrics = computeManifestationMetrics(manifestation.id, manifestation.ark)
+    const agentBadgeNames = agentNames.length ? agentNames : undefined
 
     return (
       <div
@@ -88,8 +122,10 @@ export function ManifestationPanel({
           <EntityLabel
             title={manifestation.title || manifestation.id}
             badges={badges}
-            agentNames={agentNames}
-            relationshipsCount={relationships}
+            counts={{ expressionLinks: metrics.expressionLinks }}
+            agentNames={agentBadgeNames}
+            relationships={metrics.relationships}
+            titleSegments={metrics.segments}
           />
         </button>
       </div>
@@ -131,6 +167,7 @@ export function ManifestationPanel({
       sectionClasses.push('inactive')
     }
     const agentNames = getAgentNames(expression.id, expression.ark)
+    const { workLinkCount, relationships } = computeExpressionMetrics(expression.id, expression.ark)
     const meta =
       kind === 'anchor'
         ? t('entity.anchorExpression')
@@ -151,7 +188,8 @@ export function ManifestationPanel({
             isAnchor={kind === 'anchor'}
             manifestationCount={expression.manifestations.length}
             agentNames={agentNames}
-            relationshipCount={getGeneralRelationshipCount(expression.id, expression.ark)}
+            workLinkCount={workLinkCount}
+            relationships={relationships}
           />
           <span className="manifestation-section__meta">{meta}</span>
         </div>

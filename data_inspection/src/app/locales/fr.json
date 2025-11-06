@@ -227,6 +227,22 @@
     "manifestations_one": "{{count}} manifestation",
     "manifestations_other": "{{count}} manifestations",
     "relationships_one": "{{count}} relation générale",
-    "relationships_other": "{{count}} relations générales"
+    "relationships_other": "{{count}} relations générales",
+    "workLinks_one": "{{count}} lien vers une œuvre",
+    "workLinks_other": "{{count}} liens vers des œuvres",
+    "expressionLinks_one": "{{count}} lien vers une expression",
+    "expressionLinks_other": "{{count}} liens vers des expressions",
+    "relationshipsDetailed": "{{outgoing}} sortants · {{incoming}} entrants"
+  },
+  "backlinks": {
+    "title": "Liens entrants",
+    "empty": "Aucun lien entrant enregistré.",
+    "count_one": "{{count}} notice",
+    "count_other": "{{count}} notices",
+    "columns": {
+      "source": "Notice liée",
+      "ark": "ARK",
+      "fields": "Zones"
+    }
   }
 }

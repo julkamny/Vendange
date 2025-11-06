@@ -19,9 +19,16 @@ export function EntityPill({ type, text, tooltip }: EntityPillProps) {
   )
 }
 
+const BADGE_LABEL_KEYS: Record<CountBadgeKind, string> = {
+  expressions: 'badges.expressions',
+  manifestations: 'badges.manifestations',
+  workLinks: 'badges.workLinks',
+  expressionLinks: 'badges.expressionLinks',
+}
+
 export function CountBadge({ kind, count }: { kind: CountBadgeKind; count: number }) {
   const { t } = useTranslation()
-  const tooltip = t(kind === 'expressions' ? 'badges.expressions' : 'badges.manifestations', { count })
+  const tooltip = t(BADGE_LABEL_KEYS[kind], { count })
   return (
     <span
       className={`entity-count-badge entity-count-badge--${kind} has-tooltip`}
@@ -43,27 +50,26 @@ export function AgentBadge({ names }: { names: string[] }) {
   )
 }
 
-export function RelationshipBadge({ count }: { count: number }) {
+export function RelationshipBadge({ outgoing, incoming }: { outgoing: number; incoming: number }) {
   const { t } = useTranslation()
-  const tooltip = t('badges.relationships', { count })
+  const tooltip = t('badges.relationshipsDetailed', { outgoing, incoming })
   return (
     <span
       className="entity-count-badge entity-count-badge--relationships has-tooltip"
       data-tooltip={tooltip}
       aria-label={tooltip}
     >
-      {count}
+      {`${outgoing}|${incoming}`}
     </span>
   )
 }
 
 export type EntityLabelProps = {
   title: string
-  subtitle?: string
   badges?: EntityBadgeSpec[]
   counts?: Partial<Record<CountBadgeKind, number>>
   agentNames?: string[]
-  relationshipsCount?: number
+  relationships?: { outgoing: number; incoming: number }
   className?: string
   onClick?: MouseEventHandler<HTMLSpanElement>
   titleSegments?: EntityTitleSegment[]
@@ -72,24 +78,35 @@ export type EntityLabelProps = {
 
 export function EntityLabel({
   title,
-  subtitle,
   badges,
   counts,
   agentNames,
-  relationshipsCount,
+  relationships,
   className,
   onClick,
   titleSegments,
   mediaKinds,
 }: EntityLabelProps) {
   const decoratedTitle = useArkDecoratedText(title)
+  const visibleCounts = useMemo(() => {
+    if (!counts) return []
+    const entries: Array<{ kind: CountBadgeKind; value: number }> = []
+    ;(['expressions', 'manifestations', 'workLinks', 'expressionLinks'] as CountBadgeKind[]).forEach(kind => {
+      const value = counts[kind]
+      if (typeof value !== 'number') return
+      const shouldDisplay =
+        kind === 'workLinks' || kind === 'expressionLinks' ? value > 1 : value > 0
+      if (shouldDisplay) entries.push({ kind, value })
+    })
+    return entries
+  }, [counts])
   const hasBadges = useMemo(() => {
     if (badges && badges.length) return true
-    if (counts && (typeof counts.expressions === 'number' || typeof counts.manifestations === 'number')) return true
-    if (agentNames) return true
-    if (typeof relationshipsCount === 'number' && relationshipsCount > 0) return true
+    if (visibleCounts.length) return true
+    if (agentNames && agentNames.length > 0) return true
+    if (relationships && (relationships.outgoing > 0 || relationships.incoming > 0)) return true
     return false
-  }, [badges, counts, agentNames, relationshipsCount])
+  }, [agentNames, badges, relationships, visibleCounts])
 
   const classes = useMemo(() => {
     const values = ['entity-label']
@@ -112,20 +129,18 @@ export function EntityLabel({
       ) : (
         <span className="entity-title">{decoratedTitle}</span>
       )}
-      {subtitle ? <span className="entity-subtitle">{subtitle}</span> : null}
       {hasBadges ? (
         <span className="entity-badges">
           {badges?.map((badge, index) => (
             <EntityPill key={`${badge.type}-${badge.text}-${index}`} {...badge} />
           ))}
-          {typeof counts?.expressions === 'number' ? <CountBadge kind="expressions" count={counts.expressions} /> : null}
-          {typeof counts?.manifestations === 'number' ? (
-            <CountBadge kind="manifestations" count={counts.manifestations} />
+          {visibleCounts.map(entry => (
+            <CountBadge key={entry.kind} kind={entry.kind} count={entry.value} />
+          ))}
+          {relationships && (relationships.outgoing > 0 || relationships.incoming > 0) ? (
+            <RelationshipBadge outgoing={relationships.outgoing} incoming={relationships.incoming} />
           ) : null}
-          {typeof relationshipsCount === 'number' && relationshipsCount > 0 ? (
-            <RelationshipBadge count={relationshipsCount} />
-          ) : null}
-          {agentNames ? <AgentBadge names={agentNames} /> : null}
+          {agentNames && agentNames.length ? <AgentBadge names={agentNames} /> : null}
         </span>
       ) : null}
       {media.length ? (

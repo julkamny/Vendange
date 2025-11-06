@@ -7,6 +7,7 @@ import { titleOf, workTitleSegments } from '../../core/entities'
 import { EntityLabel } from '../../components/EntityLabel'
 import { useAppData } from '../../providers/AppDataContext'
 import { useRecordLookup } from '../../hooks/useRecordLookup'
+import { useBacklinks } from '../../hooks/useBacklinks'
 
 type WorkListPanelProps = {
   clusters: Cluster[]
@@ -29,6 +30,7 @@ export function WorkListPanel({
   const { originalIndexes } = useAppData()
   const { getById, getByArk, getAgentNames, getGeneralRelationshipCount, getMediaKinds } =
     useRecordLookup()
+  const { countIncomingRelationships } = useBacklinks()
 
   const resolveWorkSegments = useCallback(
     (id?: string | null, ark?: string | null) => {
@@ -36,6 +38,16 @@ export function WorkListPanel({
       return record ? workTitleSegments(record) : undefined
     },
     [getByArk, getById],
+  )
+
+  const relationshipsFor = useCallback(
+    (id?: string | null, ark?: string | null) => {
+      const record = getById(id) ?? getByArk(ark)
+      const outgoing = getGeneralRelationshipCount(id, ark)
+      const incoming = record ? countIncomingRelationships(record) : 0
+      return { outgoing, incoming }
+    },
+    [countIncomingRelationships, getByArk, getById, getGeneralRelationshipCount],
   )
 
   const collator = useMemo(() => new Intl.Collator(language, { sensitivity: 'accent' }), [language])
@@ -102,6 +114,7 @@ export function WorkListPanel({
           const anchorAgentNames = getAgentNames(cluster.anchorId, cluster.anchorArk)
           const anchorSegments = resolveWorkSegments(cluster.anchorId, cluster.anchorArk)
           const anchorMediaKinds = getMediaKinds(cluster.anchorId, cluster.anchorArk)
+          const anchorRelationships = relationshipsFor(cluster.anchorId, cluster.anchorArk)
           return (
             <div key={cluster.anchorId} className={clusterClasses.join(' ')} data-cluster-anchor-id={cluster.anchorId}>
               <div
@@ -123,11 +136,10 @@ export function WorkListPanel({
                   <span className="cluster-anchor-marker">⚓︎</span>
                   <EntityLabel
                     title={entry.title}
-                    subtitle={t('banners.anchorSubtitle')}
                     badges={[{ type: 'work', text: cluster.anchorId, tooltip: cluster.anchorArk }]}
                     counts={anchorCounts}
                     agentNames={anchorAgentNames}
-                    relationshipsCount={getGeneralRelationshipCount(cluster.anchorId, cluster.anchorArk)}
+                    relationships={anchorRelationships}
                     titleSegments={anchorSegments}
                     mediaKinds={anchorMediaKinds}
                   />
@@ -154,6 +166,7 @@ export function WorkListPanel({
                   const agentNames = getAgentNames(item.id, item.ark)
                   const itemSegments = resolveWorkSegments(item.id, item.ark)
                   const mediaKinds = getMediaKinds(item.id, item.ark)
+                  const relationships = relationshipsFor(item.id, item.ark)
                   return (
                     <div
                       key={`${cluster.anchorId}-${item.ark || item.id}`}
@@ -182,11 +195,10 @@ export function WorkListPanel({
                       />
                       <EntityLabel
                         title={item.title || item.id || item.ark || t('labels.workFallback')}
-                        subtitle={item.accepted ? undefined : t('labels.uncheckedWork')}
                         badges={item.id ? [{ type: 'work', text: item.id, tooltip: item.ark }] : undefined}
                         counts={itemCounts}
                         agentNames={agentNames}
-                        relationshipsCount={getGeneralRelationshipCount(item.id, item.ark)}
+                        relationships={relationships}
                         titleSegments={itemSegments}
                         mediaKinds={mediaKinds}
                       />
@@ -207,7 +219,7 @@ export function WorkListPanel({
         if (highlight) headerClasses.push('highlight')
         const counts = computeUnclusteredWorkCounts(work, originalIndexes ?? null)
         const agentNames = getAgentNames(work.id, work.ark)
-        const relationships = getGeneralRelationshipCount(work.id, work.ark)
+        const relationships = relationshipsFor(work.id, work.ark)
         const segments = workTitleSegments(work)
         const mediaKinds = getMediaKinds(work.id, work.ark)
         return (
@@ -228,11 +240,10 @@ export function WorkListPanel({
               <div className="cluster-header">
                 <EntityLabel
                   title={title}
-                  subtitle={t('labels.unclusteredWork', { defaultValue: 'Unclustered work' })}
                   badges={[{ type: 'work', text: work.id, tooltip: work.ark }]}
                   counts={counts}
                   agentNames={agentNames}
-                  relationshipsCount={relationships}
+                  relationships={relationships}
                   titleSegments={segments}
                   mediaKinds={mediaKinds}
                 />

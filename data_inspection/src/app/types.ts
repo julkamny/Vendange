@@ -120,7 +120,7 @@ export type EntityTitleSegment = {
   value: string
 }
 
-export type CountBadgeKind = 'expressions' | 'manifestations'
+export type CountBadgeKind = 'expressions' | 'manifestations' | 'workLinks' | 'expressionLinks'
 
 export type InventoryEntityContext = {
   workArk?: string | null
@@ -138,7 +138,7 @@ export type InventoryRow =
       title: string
       subtitle?: string
       badges?: EntityBadgeSpec[]
-      counts?: { expressions?: number; manifestations?: number }
+      counts?: Partial<Record<CountBadgeKind, number>>
       context?: InventoryEntityContext
     }
 

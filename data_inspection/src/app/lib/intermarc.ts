@@ -65,11 +65,8 @@ function buildLabelFromIntermarc(im: Intermarc, type: string): string | undefine
   const normalizedType = normalizeTypeName(type)
   switch (normalizedType) {
     case 'œuvre': {
-      const parts = [
-        getFirstSubZoneValue(im, '001', '001$a'),
-        getFirstSubZoneValue(im, '150', '150$a'),
-      ].filter((part): part is string => !!part)
-      return parts.length ? parts.join(' → ') : undefined
+      const title = getFirstSubZoneValue(im, '150', '150$a')
+      return title ?? getFirstSubZoneValue(im, '001', '001$a')
     }
     case 'identite publique de personne': {
       const parts = [
@@ -233,6 +230,9 @@ export async function prettyPrintIntermarc(
               'aria-label': ark,
               'data-tooltip-placement': 'above',
               tabindex: '0',
+              'data-zone': z.code,
+              'data-subfield': sz.code,
+              role: 'button',
             },
           })
         }

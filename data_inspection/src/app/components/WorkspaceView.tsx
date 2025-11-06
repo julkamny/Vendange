@@ -15,6 +15,8 @@ import { useRecordLookup } from '../hooks/useRecordLookup'
 import { expressionWorkArks, manifestationTitle, titleOf } from '../core/entities'
 import { configureTabStateForRecord } from '../workspace/tabState'
 import { deriveInternalIdFromArk } from '../lib/ark'
+import { BacklinksPanel } from './BacklinksPanel'
+import { useBacklinks } from '../hooks/useBacklinks'
 
 type WorkspaceViewProps = {
   state: WorkspaceTabStateWorkspace
@@ -73,9 +75,14 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
   const workspace = useWorkspaceData(state)
   const { t } = useTranslation()
   const { getById, getByArk } = useRecordLookup()
+  const { getBacklinksForRecord } = useBacklinks()
   const record = state.selectedEntity
     ? findRecord(state.selectedEntity.id, curated?.records ?? [], original?.records ?? [])
     : null
+  const backlinks = useMemo(
+    () => (record ? getBacklinksForRecord(record) : []),
+    [getBacklinksForRecord, record],
+  )
   const recordInCurated = useMemo(() => {
     if (!record || !curated) return false
     return curated.records.some(r => r.id === record.id)
@@ -231,6 +238,20 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
   ])
 
   const handleCloseContextMenu = useCallback(() => setContextMenu(null), [])
+  const openRecordForArk = useCallback(
+    (ark: string) => {
+      const trimmed = ark.trim()
+      if (!trimmed) return
+      let targetRecord = getByArk(trimmed)
+      if (!targetRecord) {
+        const fallbackId = deriveInternalIdFromArk(trimmed)
+        if (fallbackId) targetRecord = getById(fallbackId)
+      }
+      if (!targetRecord) return
+      onOpenTab(base => configureTabStateForRecord(base, targetRecord, tabContext))
+    },
+    [getByArk, getById, onOpenTab, tabContext],
+  )
 
   useLayoutEffect(() => {
     const listNode = listPanelRef.current
@@ -345,12 +366,22 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
     [getByArk, getById],
   )
 
+  const handleArkClick = useCallback(
+    (ark: string, context: { zone: string; subfield: string }) => {
+      const zone = context.zone?.trim()
+      if (!zone) return
+      if (zone === '140' || zone === '750' || zone === '740' || zone === '540') {
+        openRecordForArk(ark)
+      }
+    },
+    [openRecordForArk],
+  )
+
   const handleOpenArkInNewTab = useCallback(() => {
     if (!contextMenu) return
-    const targetRecord = contextMenu.record
+    openRecordForArk(contextMenu.ark)
     setContextMenu(null)
-    onOpenTab(base => configureTabStateForRecord(base, targetRecord, tabContext))
-  }, [contextMenu, onOpenTab, tabContext])
+  }, [contextMenu, openRecordForArk])
 
   const handleSelectWork = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
     const hasCuratedRecord = !!findRecord(workId, curated?.records ?? [], [])
@@ -538,43 +569,46 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
           onScroll={handleDetailsScroll}
         >
           {record ? (
-            <div className="record-details" onContextMenu={handleRecordContextMenu}>
-              <header className="record-details__header">
-                <h3>{record.id}</h3>
-                <span>{record.type}</span>
-              </header>
-              {editingRecord && canEditRecord ? (
-                <IntermarcEditor
-                  record={record}
-                  baselineRecord={getCuratedBaselineRecord(record.id) ?? undefined}
-                  onSave={next => updateRecordIntermarc(record.id, next)}
-                  onCancel={() => setEditingRecord(false)}
-                />
-              ) : (
-                <>
-                  <IntermarcView record={record} />
-                  {readOnlyReason ? <p className="record-editor__note">{readOnlyReason}</p> : null}
-                  {canEditRecord ? (
-                    <div className="editor-actions">
-                      <button type="button" onClick={() => setEditingRecord(true)}>
-                        {t('buttons.modifyRecord')}
-                      </button>
-                    </div>
-                  ) : null}
-                </>
-              )}
-              {contextMenu ? (
-                <div
-                  className="workspace-context-menu"
-                  style={{ top: `${contextMenu.position.y}px`, left: `${contextMenu.position.x}px` }}
-                  role="menu"
-                >
-                  <button type="button" role="menuitem" onClick={handleOpenArkInNewTab}>
-                    {t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })}
-                  </button>
-                </div>
-              ) : null}
-            </div>
+            <>
+              <div className="record-details" onContextMenu={handleRecordContextMenu}>
+                <header className="record-details__header">
+                  <h3>{record.id}</h3>
+                  <span>{record.type}</span>
+                </header>
+                {editingRecord && canEditRecord ? (
+                  <IntermarcEditor
+                    record={record}
+                    baselineRecord={getCuratedBaselineRecord(record.id) ?? undefined}
+                    onSave={next => updateRecordIntermarc(record.id, next)}
+                    onCancel={() => setEditingRecord(false)}
+                  />
+                ) : (
+                  <>
+                    <IntermarcView record={record} onArkClick={handleArkClick} />
+                    {readOnlyReason ? <p className="record-editor__note">{readOnlyReason}</p> : null}
+                    {canEditRecord ? (
+                      <div className="editor-actions">
+                        <button type="button" onClick={() => setEditingRecord(true)}>
+                          {t('buttons.modifyRecord')}
+                        </button>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+                {contextMenu ? (
+                  <div
+                    className="workspace-context-menu"
+                    style={{ top: `${contextMenu.position.y}px`, left: `${contextMenu.position.x}px` }}
+                    role="menu"
+                  >
+                    <button type="button" role="menuitem" onClick={handleOpenArkInNewTab}>
+                      {t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              <BacklinksPanel backlinks={backlinks} onOpenArk={openRecordForArk} lookupWorkByArk={getByArk} />
+            </>
           ) : (
             <p>{t('layout.selectPrompt')}</p>
           )}

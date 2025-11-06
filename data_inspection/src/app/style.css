@@ -542,7 +542,7 @@ button:focus-visible {
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-decoration-style: dashed;
-  cursor: help;
+  cursor: pointer;
   font-weight: 600;
 }
 .intermarc-view .ark-link.has-tooltip::after {
@@ -583,6 +583,74 @@ button:focus-visible {
   border-color: color-mix(in srgb, #ff6b8a 65%, transparent);
   color: var(--color-text);
   box-shadow: 0 0 0 1px color-mix(in srgb, #ff6b8a 35%, transparent);
+}
+.backlinks-panel {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 65%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.backlinks-panel__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.backlinks-panel__header h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.backlinks-panel__count {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+.backlinks-panel__empty {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+.backlinks-panel__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.backlinks-panel__table th,
+.backlinks-panel__table td {
+  padding: 0.45rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+  vertical-align: top;
+}
+.backlinks-panel__table th {
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-soft);
+}
+.backlinks-panel__fields {
+  font-family: Menlo, Consolas, 'Roboto Mono', 'SFMono-Regular', monospace;
+  font-size: 0.82rem;
+}
+.backlinks-panel__no-ark {
+  color: var(--color-text-muted);
+}
+.backlinks-panel__ark-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--color-link);
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  cursor: pointer;
+}
+.backlinks-panel__ark-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-link) 60%, transparent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .workspace-context-menu {
@@ -1111,10 +1179,6 @@ button:focus-visible {
 .entity-row--work .entity-title-segment {
   border-color: color-mix(in srgb, var(--entity-work) 55%, transparent);
 }
-.entity-subtitle {
-  font-size: 0.78rem;
-  color: var(--color-text-muted);
-}
 .entity-badges {
   display: inline-flex;
   gap: 0.35rem;
@@ -1214,6 +1278,16 @@ button:focus-visible {
   background: var(--pill-manifestation-bg);
   color: var(--pill-manifestation-fg);
   border-color: color-mix(in srgb, var(--entity-manifestation) 45%, transparent);
+}
+.entity-count-badge--workLinks {
+  background: var(--pill-work-bg);
+  color: var(--pill-work-fg);
+  border-color: color-mix(in srgb, var(--entity-work) 45%, transparent);
+}
+.entity-count-badge--expressionLinks {
+  background: var(--pill-expression-bg);
+  color: var(--pill-expression-fg);
+  border-color: color-mix(in srgb, var(--entity-expression) 45%, transparent);
 }
 .entity-count-badge--relationships {
   background: color-mix(in srgb, var(--color-highlight) 65%, transparent);

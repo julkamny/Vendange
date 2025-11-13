@@ -35,7 +35,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
   
 4) Running data curation operations
 - To launch the FastAPI server in `data_curation/api`: `uv run fastapi dev data_curation/api/app.py`. See below for explanations.
-- The React UI now opens on a dashboard that lets you upload CSV snapshots, launch clustering (with or without expression propagation) while streaming script logs, jump into the legacy inspection workspace, or delete a dataset. Every upload becomes its own Oxigraph store—colleagues can curate multiple corpora in parallel.
+- The React UI opens on a dashboard that lets you upload CSV snapshots, launch clustering (with or without expression propagation) while streaming script logs, jump into the inspection workspace, or delete a dataset. Every upload becomes its own Oxigraph store—colleagues can curate multiple corpora in parallel.
 
 ### Curation API
 
@@ -118,6 +118,8 @@ SPARQL searches
 - Open a SPARQL tab to explore the dataset. You can traverse W–E–M links, filter on MARC subfields, and join on `$3` relationships; see [`documentation/sparql_store.md`](documentation/sparql_store.md) for a quick vocabulary reference and example queries.
 - Each entity links to blank-node fields via `<https://vendange.bnf.fr/hasField>`; fields expose their `fieldCode` and either a `fieldCompactValue` literal (for storage zones 990/907/90H/901/991) or nested `hasSubfield` blank nodes with sanitised codes (`$` → `s`) and values—filter on those nodes directly to reach any MARC subfield.
 - The SPARQL tab also exposes a Sparnatural visual builder. Use it to assemble work → expression → manifestation hops, constrain MARC zones/subfields, and pick controlled values from a label-based list—the corresponding ARK is injected automatically into the generated query. The builder keeps the CodeMirror editor synchronised so you can start visually then finish by hand if needed.
+- Sparnatural reads a SHACL profile. Update `data_inspection/src/app/sparql/sparnaturalConfig.ts` when you need to expose a new node/property.
+- Literal list widgets rely on the Select2 bootstrap in `data_inspection/src/app/vendor/select2.ts` to circumvent a typing issue.
 - Vendange stores each record in its own named graph. The builder (and manual execution) now auto-wraps queries in `GRAPH ?g { … }` when no graph clause is provided, so generated queries will run against the dataset without further edits. Add your own `GRAPH` clauses if you need more advanced targeting; auto-wrapping steps aside when it detects you already control the graph scope.
 
 Design Notes

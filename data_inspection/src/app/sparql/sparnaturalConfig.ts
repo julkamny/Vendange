@@ -16,105 +16,110 @@ export function buildSparnaturalConfig(): string {
 @prefix vend: <${BASE_NS}/> .
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix dash: <http://datashapes.org/dash#> .
 @prefix core: <http://data.sparna.fr/ontologies/sparnatural-config-core#> .
+@prefix volipi: <http://data.sparna.fr/ontologies/volipi#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-<${SPAR_NS}config> a owl:Ontology ;
-  owl:imports <http://data.sparna.fr/ontologies/sparnatural-config-core> .
+<${SPAR_NS}config> a owl:Ontology .
 
-:Work a owl:Class ;
-  rdfs:subClassOf core:SparnaturalClass ;
-  core:sparqlString "<${CLASS_NS}Work>" ;
-  core:faIcon "fa-regular fa-book" ;
-  rdfs:label "Work"@en , "Oeuvre"@fr .
+:Work a sh:NodeShape ;
+  sh:order "1"^^xsd:integer ;
+  sh:targetClass vendclass:Work ;
+  sh:nodeKind sh:IRI ;
+  volipi:iconName "fa-regular fa-book" ;
+  rdfs:label "Work"@en , "Oeuvre"@fr ;
+  sh:property :entityField , :entityArk .
 
-:Expression a owl:Class ;
-  rdfs:subClassOf core:SparnaturalClass ;
-  core:sparqlString "<${CLASS_NS}Expression>" ;
-  core:faIcon "fa-regular fa-scroll-old" ;
-  rdfs:label "Expression"@en , "Expression"@fr .
+:Expression a sh:NodeShape ;
+  sh:order "2"^^xsd:integer ;
+  sh:targetClass vendclass:Expression ;
+  sh:nodeKind sh:IRI ;
+  volipi:iconName "fa-regular fa-scroll-old" ;
+  rdfs:label "Expression"@en , "Expression"@fr ;
+  sh:property :entityField , :entityArk , :expressionWork .
 
-:Manifestation a owl:Class ;
-  rdfs:subClassOf core:SparnaturalClass ;
-  core:sparqlString "<${CLASS_NS}Manifestation>" ;
-  core:faIcon "fa-regular fa-layer-group" ;
-  rdfs:label "Manifestation"@en , "Manifestation"@fr .
+:Manifestation a sh:NodeShape ;
+  sh:order "3"^^xsd:integer ;
+  sh:targetClass vendclass:Manifestation ;
+  sh:nodeKind sh:IRI ;
+  volipi:iconName "fa-regular fa-layer-group" ;
+  rdfs:label "Manifestation"@en , "Manifestation"@fr ;
+  sh:property :entityField , :entityArk , :manifestationExpression .
 
-:Field a owl:Class ;
-  rdfs:subClassOf core:NotInstantiatedClass ;
-  core:faIcon "fa-regular fa-table" ;
-  rdfs:label "Field (zone)"@en , "Zone"@fr .
+:Field a sh:NodeShape ;
+  sh:order "10"^^xsd:integer ;
+  sh:nodeKind sh:IRI ;
+  volipi:iconName "fa-regular fa-table" ;
+  rdfs:label "Field (zone)"@en , "Zone"@fr ;
+  sh:property :fieldCode , :fieldSubfield .
 
-:Subfield a owl:Class ;
-  rdfs:subClassOf core:NotInstantiatedClass ;
-  core:faIcon "fa-regular fa-square-ellipsis-vertical" ;
-  rdfs:label "Subfield (sous-zone)"@en , "Sous-zone"@fr .
+:Subfield a sh:NodeShape ;
+  sh:order "11"^^xsd:integer ;
+  sh:nodeKind sh:IRI ;
+  volipi:iconName "fa-regular fa-square-ellipsis-vertical" ;
+  rdfs:label "Subfield (sous-zone)"@en , "Sous-zone"@fr ;
+  sh:property :subfieldCode , :subfieldValue , :subfieldControlledValue .
 
-:Text a owl:Class ;
-  rdfs:subClassOf rdfs:Literal ;
-  core:faIcon "fa-regular fa-font-case" ;
+:Text a sh:NodeShape ;
+  sh:order "50"^^xsd:integer ;
+  sh:nodeKind sh:Literal ;
+  volipi:iconName "fa-regular fa-font-case" ;
   rdfs:label "Text"@en , "Texte"@fr .
 
-:entityField a owl:ObjectProperty ;
-  rdfs:subPropertyOf core:NonSelectableProperty ;
-  rdfs:domain [ a owl:Class ; owl:unionOf ( :Work :Expression :Manifestation ) ] ;
-  rdfs:range :Field ;
-  core:sparqlString "<${BASE_NS}/hasField>" ;
-  rdfs:label "Field"@en , "Zone MARC"@fr .
+:entityField a sh:PropertyShape ;
+  sh:path <${BASE_NS}/hasField> ;
+  sh:name "Field"@en , "Zone MARC"@fr ;
+  sh:node :Field ;
+  dash:searchWidget core:NonSelectableProperty .
 
-:fieldSubfield a owl:ObjectProperty ;
-  rdfs:subPropertyOf core:NonSelectableProperty ;
-  rdfs:domain :Field ;
-  rdfs:range :Subfield ;
-  core:sparqlString "<${BASE_NS}/hasSubfield>" ;
-  rdfs:label "Subfield"@en , "Sous-zone"@fr .
+:fieldSubfield a sh:PropertyShape ;
+  sh:path <${BASE_NS}/hasSubfield> ;
+  sh:name "Subfield"@en , "Sous-zone"@fr ;
+  sh:node :Subfield ;
+  dash:searchWidget core:NonSelectableProperty .
 
-:fieldCode a owl:ObjectProperty ;
-  rdfs:subPropertyOf core:SearchProperty ;
-  rdfs:domain :Field ;
-  rdfs:range :Text ;
-  core:sparqlString "<${BASE_NS}/fieldCode>" ;
-  rdfs:label "Field code"@en , "Code de zone"@fr .
+:fieldCode a sh:PropertyShape ;
+  sh:path <${BASE_NS}/fieldCode> ;
+  sh:name "Field code"@en , "Code de zone"@fr ;
+  sh:node :Text ;
+  dash:searchWidget core:SearchProperty .
 
-:subfieldCode a owl:ObjectProperty ;
-  rdfs:subPropertyOf core:SearchProperty ;
-  rdfs:domain :Subfield ;
-  rdfs:range :Text ;
-  core:sparqlString "<${BASE_NS}/subfieldCode>" ;
-  rdfs:label "Subfield code"@en , "Code de sous-zone"@fr .
+:subfieldCode a sh:PropertyShape ;
+  sh:path <${BASE_NS}/subfieldCode> ;
+  sh:name "Subfield code"@en , "Code de sous-zone"@fr ;
+  sh:node :Text ;
+  dash:searchWidget core:SearchProperty .
 
-:subfieldValue a owl:ObjectProperty ;
-  rdfs:subPropertyOf core:SearchProperty ;
-  rdfs:domain :Subfield ;
-  rdfs:range :Text ;
-  core:sparqlString "<${BASE_NS}/subfieldValue>" ;
-  rdfs:label "Value contains"@en , "Valeur contient"@fr .
+:subfieldValue a sh:PropertyShape ;
+  sh:path <${BASE_NS}/subfieldValue> ;
+  sh:name "Value contains"@en , "Valeur contient"@fr ;
+  sh:node :Text ;
+  dash:searchWidget core:SearchProperty .
 
-:subfieldControlledValue a owl:ObjectProperty ;
-  rdfs:subPropertyOf core:LiteralListProperty ;
-  rdfs:domain :Subfield ;
-  rdfs:range :Text ;
-  core:sparqlString "<${BASE_NS}/subfieldValue>" ;
-  rdfs:label "Controlled value"@en , "Valeur contrôlée"@fr .
+:subfieldControlledValue a sh:PropertyShape ;
+  sh:path <${BASE_NS}/subfieldValue> ;
+  sh:name "Controlled value"@en , "Valeur contrôlée"@fr ;
+  sh:node :Text ;
+  dash:searchWidget core:LiteralListProperty .
 
-:manifestationExpression a owl:ObjectProperty ;
-  rdfs:subPropertyOf core:NonSelectableProperty ;
-  rdfs:domain :Manifestation ;
-  rdfs:range :Expression ;
-  core:sparqlString "<${REL_NS}740s3>" ;
-  rdfs:label "linked expression"@en , "Expression reliée"@fr .
+:manifestationExpression a sh:PropertyShape ;
+  sh:path <${REL_NS}740s3> ;
+  sh:name "Linked expression"@en , "Expression reliée"@fr ;
+  sh:node :Expression ;
+  dash:searchWidget core:NonSelectableProperty .
 
-:expressionWork a owl:ObjectProperty ;
-  rdfs:subPropertyOf core:NonSelectableProperty ;
-  rdfs:domain :Expression ;
-  rdfs:range :Work ;
-  core:sparqlString "<${REL_NS}750s3>" ;
-  rdfs:label "linked work"@en , "Oeuvre reliée"@fr .
+:expressionWork a sh:PropertyShape ;
+  sh:path <${REL_NS}750s3> ;
+  sh:name "Linked work"@en , "Oeuvre reliée"@fr ;
+  sh:node :Work ;
+  dash:searchWidget core:NonSelectableProperty .
 
-:entityArk a owl:ObjectProperty ;
-  rdfs:subPropertyOf core:SearchProperty ;
-  rdfs:domain [ a owl:Class ; owl:unionOf ( :Work :Expression :Manifestation ) ] ;
-  rdfs:range :Text ;
-  core:sparqlString "<${PROP_NS}ark>" ;
-  rdfs:label "ARK"@en , "ARK"@fr .
+:entityArk a sh:PropertyShape ;
+  sh:path <${PROP_NS}ark> ;
+  sh:name "ARK"@en , "ARK"@fr ;
+  sh:node :Text ;
+  dash:searchWidget core:SearchProperty .
 `.trim()
 }

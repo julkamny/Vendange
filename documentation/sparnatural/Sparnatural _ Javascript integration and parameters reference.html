@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+
+    
+    <meta charset="UTF-8">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Sparnatural | Sparnatural : visual knowledge graph explorer with SPARQL, in the browser, configurable with SHACL</title>
+<meta name="generator" content="Jekyll v3.10.0" />
+<meta property="og:title" content="Sparnatural" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Sparnatural : visual knowledge graph explorer with SPARQL, in the browser, configurable with SHACL" />
+<meta property="og:description" content="Sparnatural : visual knowledge graph explorer with SPARQL, in the browser, configurable with SHACL" />
+<link rel="canonical" href="http://docs.sparnatural.eu/Javascript-integration.html" />
+<meta property="og:url" content="http://docs.sparnatural.eu/Javascript-integration.html" />
+<meta property="og:site_name" content="Sparnatural" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Sparnatural" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","description":"Sparnatural : visual knowledge graph explorer with SPARQL, in the browser, configurable with SHACL","headline":"Sparnatural","url":"http://docs.sparnatural.eu/Javascript-integration.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link rel="preload" href="https://fonts.googleapis.com/css?family=Open+Sans:400,700&display=swap" as="style" type="text/css" crossorigin>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#157878">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,500,700|Open+Sans:300,300i,400,400i,700,700i" rel="stylesheet">
+
+    <!-- Vendor CSS Files -->
+    <link href="/assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- Font Awesome -->    
+    <link rel="stylesheet" href="/assets/fa/css/all.min.css" />
+
+    <link rel="stylesheet" href="/assets/css/style.css?v=09dbd2be6ce3340b38d394235c7f5cb0301ac36a">
+
+    <style>
+
+      #documentation-section {
+        padding-top: 115px;
+        height: auto;
+        overflow: visible;
+      }
+
+      .anchorjs-link {
+        transition: all .25s linear;
+      }
+      *:hover > .anchorjs-link {
+        margin-left: -1.125em !important;
+      }
+
+    </style>
+
+
+  </head>
+  <body>
+    <!-- <a id="skip-to-content" href="#content">Skip to the content.</a> -->
+
+  <!-- ======= Header ======= -->
+  <header id="header" class="fixed-top d-flex align-items-center">
+    <div class="container d-flex justify-content-between align-items-center">
+
+      <div id="logo">
+        <h1><a href="#">Sparnatural documentation</a></h1>
+      </div>
+
+      <nav id="navbar" class="navbar">
+        <ul>
+          <li class="dropdown"><a href="#"><i style="font-size:25px;" class="fad fa-globe-africa"></i>&nbsp;<span>Lang.</span> <i class="bi bi-chevron-down"></i></a>
+            <ul style="width:80%;">
+              <li><a href="/fr">fr</a></li>
+              <li><a href="/">en</a></li>
+            </ul>
+          </li>
+          <li><a class="nav-link" href="https://github.com/sparna-git/Sparnatural"><i style="font-size:25px;" class="fab fa-github"></i>&nbsp; Github</a></li>
+        </ul>
+        <i class="bi bi-list mobile-nav-toggle"></i>
+      </nav><!-- .navbar -->
+    </div>
+  </header><!-- End Header -->
+
+
+    <main id="content" class="main-content" role="main">
+      
+      <!-- ======= Documentation Section ======= -->
+      <section id="documentation-section">
+        <div class="container">
+
+        <p><em><a href="index.html">Home</a> &gt; Javascript integration</em></p>
+
+<h1 id="javascript-integration-and-parameters-reference">Javascript integration and parameters reference</h1>
+
+<h2 id="constructor">Constructor</h2>
+
+<p>Sparnatural is inserted as custom HTML element named <code class="language-plaintext highlighter-rouge">spar-natural</code> (note the dash), with specific attributes. It looks like so:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  <span class="nt">&lt;spar-natural</span> 
+    <span class="na">src=</span><span class="s">"sparnatural-config.ttl"</span>
+    <span class="na">endpoint=</span><span class="s">"https://dbpedia.org/sparql"</span>
+    <span class="na">lang=</span><span class="s">"en"</span>
+    <span class="na">defaultLang=</span><span class="s">"en"</span>
+    <span class="na">limit=</span><span class="s">"1000"</span>
+    <span class="na">debug=</span><span class="s">"true"</span>
+  <span class="nt">/&gt;</span>
+</code></pre></div></div>
+
+<h2 id="html-attributes-reference">HTML attributes reference</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Attribute</th>
+      <th>Description</th>
+      <th>Default</th>
+      <th>Mandatory/Optional</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">src</code></td>
+      <td>Provides the configuration that specifies the classes and properties to be displayed, and how they are mapped to SPARQL. This can be either the URL of a SHACL or OWL file, in Turtle or RDF/XML. Example : <code class="language-plaintext highlighter-rouge">sparnatural-config.ttl</code>. Another option is to provide a serialized JSON obj as a string. For example: <code class="language-plaintext highlighter-rouge">JSON.stringify(configAsJsonObj)</code>. It is possible to pass <strong>multiple</strong> URLs be separating them with a whitespace, e.g. <code class="language-plaintext highlighter-rouge">sparnatural-config.ttl statistics.ttl</code></td>
+      <td><code class="language-plaintext highlighter-rouge">undefined</code></td>
+      <td>Mandatory</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">endpoint</code></td>
+      <td>The URL of a SPARQL endpoint that will be used as the default service for the datasource queries provided in the configuration. If not specified, each datasource should indicate explicitely a SPARQL endpoint. Note that this URL can use the <code class="language-plaintext highlighter-rouge">default-graph-uri</code> parameter to restrict the query to a specified named graph, as per <a href="https://www.w3.org/TR/2013/REC-sparql11-protocol-20130321/#dataset">SPARQL protocol specification</a>, e.g. <code class="language-plaintext highlighter-rouge">http://ex.com/sparql?default-graph-uri=http%3A%2F%2Fencoded-named-graph-uri</code>. This can also contain <strong>multiple</strong> endpoint URLs in combination with the <code class="language-plaintext highlighter-rouge">catalog</code> attribute (see “<a href="/Querying-multiple-endpoints.html">querying multiple endpoints</a>”)</td>
+      <td><code class="language-plaintext highlighter-rouge">undefined</code></td>
+      <td>Mandatory except for advanced use-cases.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">catalog</code> (<em>unstable</em>)</td>
+      <td>The catalog of endpoints, if you pass multiple endpoints. This is advanced configuration. (see “<a href="/Querying-multiple-endpoints.html">querying multiple endpoints</a>”)</td>
+      <td>none</td>
+      <td>Optional</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">defaultLang</code></td>
+      <td>Dataset default language. A language in which the dataset always provides labels/titles that can be used as default if a label in the user language is not present.</td>
+      <td><code class="language-plaintext highlighter-rouge">en</code></td>
+      <td>Recommended</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">debug</code></td>
+      <td>If set to <code class="language-plaintext highlighter-rouge">true</code>, Sparnatural will log JSON and SPARQL queries on the console, as they are generated.</td>
+      <td><code class="language-plaintext highlighter-rouge">false</code></td>
+      <td>Optional</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">distinct</code></td>
+      <td>Whether the <code class="language-plaintext highlighter-rouge">DISTINCT</code> keyword should be inserted to the generated SPARQL query.</td>
+      <td><code class="language-plaintext highlighter-rouge">true</code></td>
+      <td>Optional</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">lang</code></td>
+      <td>User language preference. The language code to use to display labels of classes and properties from the configuration file, and to query for values in lists and search fields.</td>
+      <td><code class="language-plaintext highlighter-rouge">en</code></td>
+      <td>Recommended</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">limit</code></td>
+      <td>A number that will be used to add a <code class="language-plaintext highlighter-rouge">LIMIT</code> keyword in the generated SPARQL queries. If set to an empty string or a negative number, no <code class="language-plaintext highlighter-rouge">LIMIT</code> keyword is inserted.</td>
+      <td><code class="language-plaintext highlighter-rouge">-1</code></td>
+      <td>Optional</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">maxDepth</code></td>
+      <td>Maximum depth of the constructed query (number of inner ‘Where’ clauses).</td>
+      <td><code class="language-plaintext highlighter-rouge">4</code></td>
+      <td>Optional</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">localCacheDataTtl</code> (<em>beta</em>)</td>
+      <td>The time that the dropdown lists will be stored in cache on the client, if the server has allowed it in its response headers, that is if <code class="language-plaintext highlighter-rouge">Cache-Control: no-cache</code> header is returned in the response, no cache will happen, whatever the value of this field. The server can return <code class="language-plaintext highlighter-rouge">Cache-Control: public</code> for lists to be properly cached.</td>
+      <td><code class="language-plaintext highlighter-rouge">1000 * 60 * 60 * 24</code></td>
+      <td>Optional</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">maxOr</code></td>
+      <td>Maximum number of different values that can be selected for a given property criteria. For example how many country can be chosen on the list widget</td>
+      <td><code class="language-plaintext highlighter-rouge">3</code></td>
+      <td>Optional</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">prefixes</code> (<em>unstable</em>)</td>
+      <td>A set of prefixes in the form <code class="language-plaintext highlighter-rouge">foaf: http://xmlns.com/foaf/0.1/ skos:http://www.w3.org/2004/02/skos/core#</code> to be added to the output SPARQL query. This is applied in the <code class="language-plaintext highlighter-rouge">expand</code> method.</td>
+      <td><code class="language-plaintext highlighter-rouge">none</code></td>
+      <td> </td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queryLang</code></td>
+      <td>The language used as a parameters to datasources, to e.g. populate dropdown lists with labels of this language.</td>
+      <td>same value as <code class="language-plaintext highlighter-rouge">lang</code></td>
+      <td>Recommended</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">submitButton</code></td>
+      <td>Whether Sparnatural should display a submit button to allow the user to execute the query. A click on the submit button will trigger a <code class="language-plaintext highlighter-rouge">submit</code> event. In case it is not provided, it is the page responsibility to either execute the query automatically at each update in the <code class="language-plaintext highlighter-rouge">queryUpdated</code> event or provide its own way to submit the query.</td>
+      <td><code class="language-plaintext highlighter-rouge">true</code></td>
+      <td>Optional</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">typePredicate</code></td>
+      <td>The type predicate to use to generate the type criteria. Defaults to rdf:type, but could be changed to e.g. <code class="language-plaintext highlighter-rouge">&lt;http://www.wikidata.org/prop/direct/P31&gt;+</code> for Wikidata integration, or <code class="language-plaintext highlighter-rouge">&lt;http://www.w3.org/2000/01/rdf-schema#subClassOf&gt;+</code> to query OWL-style models.</td>
+      <td><code class="language-plaintext highlighter-rouge">rdf:type</code></td>
+      <td>Optional</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="sparnatural-events">Sparnatural events</h2>
+
+<p>Then the HTML page needs to listen to specific events triggered by Sparnatural, notably <code class="language-plaintext highlighter-rouge">queryUpdated</code> and <code class="language-plaintext highlighter-rouge">submit</code> :</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">const</span> <span class="nx">sparnatural</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="dl">"</span><span class="s2">spar-natural</span><span class="dl">"</span><span class="p">);</span>
+ 
+<span class="c1">// triggered as soon there is a modification in the query</span>
+<span class="nx">sparnatural</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">queryUpdated</span><span class="dl">"</span><span class="p">,</span> <span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="c1">// do something with the query</span>
+<span class="p">});</span>
+
+<span class="c1">// triggered when submit button is called</span>
+<span class="nx">sparnatural</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">submit</span><span class="dl">"</span><span class="p">,</span> <span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="c1">// so something</span>
+<span class="p">});</span>
+
+<span class="c1">// triggered when reset button is clicked</span>
+<span class="nx">sparnatural</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">reset</span><span class="dl">"</span><span class="p">,</span> <span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="c1">// do something</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>See below for the complete reference of the available events.</p>
+
+<p>A typical integration in a web page looks like this :</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">const</span> <span class="nx">sparnatural</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="dl">"</span><span class="s2">spar-natural</span><span class="dl">"</span><span class="p">);</span>
+
+<span class="nx">sparnatural</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">queryUpdated</span><span class="dl">"</span><span class="p">,</span> <span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="c1">// expand query to replace identifiers with content of sparqlScript annotation</span>
+  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">detail</span><span class="p">.</span><span class="nx">queryString</span><span class="p">);</span>
+  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">detail</span><span class="p">.</span><span class="nx">queryJson</span><span class="p">);</span>
+  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">detail</span><span class="p">.</span><span class="nx">querySparqlJs</span><span class="p">);</span>
+  <span class="nx">queryString</span> <span class="o">=</span> <span class="nx">sparnatural</span><span class="p">.</span><span class="nx">expandSparql</span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">detail</span><span class="p">.</span><span class="nx">queryString</span><span class="p">);</span>
+  <span class="c1">// set query on YasQE</span>
+  <span class="nx">yasqe</span><span class="p">.</span><span class="nx">setValue</span><span class="p">(</span><span class="nx">queryString</span><span class="p">);</span>
+
+  <span class="c1">// save JSON query</span>
+  <span class="nb">document</span><span class="p">.</span><span class="nx">getElementById</span><span class="p">(</span><span class="dl">'</span><span class="s1">query-json</span><span class="dl">'</span><span class="p">).</span><span class="nx">value</span> <span class="o">=</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">detail</span><span class="p">.</span><span class="nx">queryJson</span><span class="p">);</span>
+<span class="p">});</span>
+
+<span class="nx">sparnatural</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">submit</span><span class="dl">"</span><span class="p">,</span> <span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="c1">// enable loader on button</span>
+  <span class="nx">sparnatural</span><span class="p">.</span><span class="nx">disablePlayBtn</span><span class="p">()</span> <span class="p">;</span> 
+  <span class="c1">// trigger the query from YasQE</span>
+  <span class="nx">yasqe</span><span class="p">.</span><span class="nx">query</span><span class="p">();</span>
+<span class="p">});</span>
+
+<span class="nx">sparnatural</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">reset</span><span class="dl">"</span><span class="p">,</span> <span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="nx">yasqe</span><span class="p">.</span><span class="nx">setValue</span><span class="p">(</span><span class="dl">""</span><span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<h3 id="queryupdated-event">“queryUpdated” event</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">queryUpdated</code> event is triggered everytime the query is modified. The event detail contains :</p>
+<ul>
+  <li>The SPARQL string in <code class="language-plaintext highlighter-rouge">queryString</code></li>
+  <li>The JSON Sparnatural structure in <code class="language-plaintext highlighter-rouge">queryJson</code></li>
+  <li>The (SPARQL.js format)[https://github.com/RubenVerborgh/SPARQL.js/] structure in <code class="language-plaintext highlighter-rouge">querySparqlJs</code></li>
+</ul>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">sparnatural</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">queryUpdated</span><span class="dl">"</span><span class="p">,</span> <span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">detail</span><span class="p">.</span><span class="nx">queryString</span><span class="p">);</span>
+  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">detail</span><span class="p">.</span><span class="nx">queryJson</span><span class="p">);</span>
+  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">detail</span><span class="p">.</span><span class="nx">querySparqlJs</span><span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<h3 id="submit-event">“submit” event</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">submit</code> event is triggered when the submit button is clicked.</p>
+
+<p>In typical integrations, the state of the submit button can be updated upon submit. The submit button can be “not loading and active”, “loading” or “disabled”. The functions to update the state of the button are:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">sparnatural.disablePlayBtn()</code></li>
+  <li><code class="language-plaintext highlighter-rouge">sparnatural.enablePlayBtn()</code></li>
+</ul>
+
+<p><code class="language-plaintext highlighter-rouge">disablePlayBtn()</code> should be called on <code class="language-plaintext highlighter-rouge">submit</code> event and <code class="language-plaintext highlighter-rouge">enablePlayBtn()</code> when the query has returned. In a typical integration with YasGUI this looks like this:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">const</span> <span class="nx">sparnatural</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="dl">"</span><span class="s2">spar-natural</span><span class="dl">"</span><span class="p">);</span>
+
+<span class="nx">sparnatural</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">queryUpdated</span><span class="dl">"</span><span class="p">,</span> <span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="nx">queryString</span> <span class="o">=</span> <span class="nx">sparnatural</span><span class="p">.</span><span class="nx">expandSparql</span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">detail</span><span class="p">.</span><span class="nx">queryString</span><span class="p">);</span>
+  <span class="nx">yasqe</span><span class="p">.</span><span class="nx">setValue</span><span class="p">(</span><span class="nx">queryString</span><span class="p">);</span>
+<span class="p">});</span>
+
+<span class="nx">sparnatural</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">submit</span><span class="dl">"</span><span class="p">,</span> <span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="c1">// disable the button and show a spinning loader</span>
+  <span class="nx">sparnatural</span><span class="p">.</span><span class="nx">disablePlayBtn</span><span class="p">()</span> <span class="p">;</span> 
+  <span class="c1">// trigger the query from YasQE</span>
+  <span class="nx">yasqe</span><span class="p">.</span><span class="nx">query</span><span class="p">();</span>
+<span class="p">});</span>
+
+<span class="kd">const</span> <span class="nx">yasqe</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Yasqe</span><span class="p">(</span><span class="nb">document</span><span class="p">.</span><span class="nx">getElementById</span><span class="p">(</span><span class="dl">"</span><span class="s2">yasqe</span><span class="dl">"</span><span class="p">));</span>
+<span class="kd">const</span> <span class="nx">yasr</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Yasr</span><span class="p">(</span><span class="nb">document</span><span class="p">.</span><span class="nx">getElementById</span><span class="p">(</span><span class="dl">"</span><span class="s2">yasr</span><span class="dl">"</span><span class="p">));</span>
+
+<span class="nx">yasqe</span><span class="p">.</span><span class="nx">on</span><span class="p">(</span><span class="dl">"</span><span class="s2">queryResponse</span><span class="dl">"</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span><span class="nx">_yasqe</span><span class="p">,</span> <span class="nx">response</span><span class="p">,</span> <span class="nx">duration</span><span class="p">)</span> <span class="p">{</span>
+  <span class="c1">// print the responses in YASR</span>
+  <span class="nx">yasr</span><span class="p">.</span><span class="nx">setResponse</span><span class="p">(</span><span class="nx">response</span><span class="p">,</span> <span class="nx">duration</span><span class="p">);</span>
+  <span class="c1">// re-enable play button in Sparnatural</span>
+  <span class="nx">sparnatural</span><span class="p">.</span><span class="nx">enablePlayBtn</span><span class="p">()</span> <span class="p">;</span>
+<span class="p">});</span> 
+</code></pre></div></div>
+
+<h3 id="reset-event">“reset” event</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">submit</code> event is triggered when the reset button is clicked. It can be used to empty or reset other part of the page, typically YasQE. A typical integration is the following:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">sparnatural</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">reset</span><span class="dl">"</span><span class="p">,</span> <span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="nx">yasqe</span><span class="p">.</span><span class="nx">setValue</span><span class="p">(</span><span class="dl">""</span><span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<h3 id="init-event">“init” event</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">init</code> event is triggered when Sparnatural has finished reading its configuration. Listen to this event to pass additionnal JSON customization with <code class="language-plaintext highlighter-rouge">sparnatural.customization = { ... }</code> (see below).</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">init</code> event includes the Sparnatural configuration object in the <code class="language-plaintext highlighter-rouge">detail.config</code> variable, to be passed to other components that would need it.</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">sparnatural</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">init</span><span class="dl">"</span><span class="p">,</span> <span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="dl">"</span><span class="s2">Sparnatural is initialized</span><span class="dl">"</span><span class="p">);</span>
+  <span class="c1">// sparnatural.customization = { ... }</span>
+  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">detail</span><span class="p">.</span><span class="nx">config</span><span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<h2 id="sparnatural-element-api">Sparnatural element API</h2>
+
+<p>The table below summarizes the various functions that can be called on the Sparnatural element.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Function</th>
+      <th>Description</th>
+      <th>Parameters</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sparnatural.enablePlayBtn()</code></td>
+      <td>Removes the loading from the play button once a query has finished executing.</td>
+      <td>none</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sparnatural.disablePlayBtn()</code></td>
+      <td>Disables the play button once a query has started its execution.</td>
+      <td>none</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sparnatural.loadQuery(query)</code></td>
+      <td>Loads a query structure in Sparnatural.</td>
+      <td>Query structure as documented in <a href="Query-JSON-format">the query JSON format</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sparnatural.expandSparql(sparqlString)</code></td>
+      <td>Expands a SPARQL query string according to the configuration, in particular the <code class="language-plaintext highlighter-rouge">sparqlString</code> annotations, as documented in the <a href="OWL-based-configuration">OWL-based configuration</a> A SPARQL query string</td>
+      <td>string</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sparnatural.clear()</code></td>
+      <td>Clears the Sparnatural editor, as if the reset button was clicked.</td>
+      <td>none</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sparnatural.executeSparql(query:string, callback: (data: any) =&gt; void, errorCallback?:(error: any) =&gt; void)</code></td>
+      <td>Executes the provided SPARQL query, using configured endpoint or multiple endpoints from the catalog, and using the configured headers.</td>
+      <td>1/ The SPARQL query string 2/ the callback when execution succeeds 3/ the callback on error</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="sparnatural-bindings">Sparnatural bindings</h2>
+
+<p>Starting from 9.1, releases of Sparnatural include a <a href="https://github.com/sparna-git/Sparnatural/blob/master/src/sparnatural-bindings.js"><code class="language-plaintext highlighter-rouge">sparnatural-bindings.js</code></a> Javascript file that can be used to facilitate the integration of the events and functions of Sparnatural in typical integration scenarios.</p>
+
+<p>In particular for a scenario when Sparnatural is integrated with YasQE as a read-only query viewer and YasR, and where Sparnatural is responsible for executing the query, you can call the following functions:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// binds Sparnatural with the YasR plugins</span>
+<span class="nx">bindSparnaturalWithYasrPlugins</span><span class="p">(</span><span class="nx">sparnatural</span><span class="p">,</span> <span class="nx">yasr</span><span class="p">);</span>
+<span class="c1">// binds Sparnatural with itself for the query execution and integration with yasqe and yasr</span>
+<span class="nx">bindSparnaturalWithItself</span><span class="p">(</span><span class="nx">sparnatural</span><span class="p">,</span> <span class="nx">yasqe</span><span class="p">,</span> <span class="nx">yasr</span><span class="p">);</span>
+</code></pre></div></div>
+
+<h2 id="sparnatural-behavior-customization">Sparnatural behavior customization</h2>
+
+<p>The behavior of Sparnatural can be further adjusted with the <code class="language-plaintext highlighter-rouge">customization</code> object : <code class="language-plaintext highlighter-rouge">sparnatural.customization = { ... }</code>. That call must be done within the <code class="language-plaintext highlighter-rouge">init</code> event listener, after Sparnatural has finished reading its initial specification file.</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">sparnatural</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">init</span><span class="dl">"</span><span class="p">,</span> <span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="dl">"</span><span class="s2">Sparnatural is initialized</span><span class="dl">"</span><span class="p">);</span>
+  <span class="nx">sparnatural</span><span class="p">.</span><span class="nx">customization</span> <span class="o">=</span> <span class="p">{</span> <span class="p">...</span> <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>In particular this object allows to pass in functions to provide data to the different widgets. See the reference documentation below.</p>
+
+<h3 id="sparnatural-customization-object-reference">Sparnatural customization object reference</h3>
+
+<p>The customization object structure is outlined below. All items are optionnal.</p>
+
+<div class="language-typescript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span>
+  <span class="nl">autocomplete</span><span class="p">:</span> <span class="p">{</span>
+    <span class="na">dataProvider</span> <span class="p">:</span> <span class="p">{</span>
+      <span class="na">getAutocompleteSuggestions</span><span class="p">:</span> <span class="kd">function</span><span class="p">(</span>
+        <span class="na">domain</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">predicate</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">range</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">key</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">lang</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">defaultLang</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">typePredicate</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">callback</span><span class="p">:(</span><span class="na">items</span><span class="p">:{</span><span class="na">term</span><span class="p">:</span><span class="nx">RDFTerm</span><span class="p">;</span><span class="nl">label</span><span class="p">:</span><span class="kr">string</span><span class="p">;</span><span class="nl">group</span><span class="p">?:</span><span class="kr">string</span><span class="p">}[])</span> <span class="o">=&gt;</span> <span class="k">void</span><span class="p">,</span>
+        <span class="nx">errorCallback</span><span class="p">?:(</span><span class="na">payload</span><span class="p">:</span><span class="kr">any</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="k">void</span>
+      <span class="p">)</span>
+    <span class="p">},</span>
+    <span class="c1">// the maximum number of items to be proposed in the autocomplion list</span>
+    <span class="na">maxItems</span><span class="p">:</span> <span class="kr">number</span>
+  <span class="p">},</span>
+  <span class="nx">list</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nl">dataProvider</span> <span class="p">:</span> <span class="p">{</span>
+      <span class="na">getListContent</span><span class="p">:</span> <span class="kd">function</span><span class="p">(</span>
+        <span class="na">domain</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">predicate</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">range</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">lang</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">defaultLang</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">typePredicate</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">callback</span><span class="p">:(</span><span class="na">values</span><span class="p">:{</span><span class="na">literal</span><span class="p">:</span><span class="kr">string</span><span class="p">}[])</span> <span class="o">=&gt;</span> <span class="k">void</span>
+      <span class="p">):</span><span class="k">void</span>
+    <span class="p">}</span>
+  <span class="p">},</span>
+  <span class="nx">tree</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nl">dataProvider</span> <span class="p">:</span> <span class="p">{</span>
+      <span class="na">getRoots</span><span class="p">:</span> <span class="kd">function</span><span class="p">(</span>
+        <span class="na">domain</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">predicate</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">range</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">lang</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">defaultLang</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">typePredicate</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">callback</span><span class="p">:(</span><span class="na">items</span><span class="p">:{</span><span class="na">term</span><span class="p">:</span><span class="nx">RDFTerm</span><span class="p">;</span><span class="nl">label</span><span class="p">:</span><span class="kr">string</span><span class="p">;</span><span class="nl">hasChildren</span><span class="p">:</span><span class="nx">boolean</span><span class="p">;</span><span class="nl">disabled</span><span class="p">:</span><span class="nx">boolean</span><span class="p">}[])</span> <span class="o">=&gt;</span> <span class="k">void</span><span class="p">,</span>
+        <span class="nx">errorCallback</span><span class="p">?:(</span><span class="na">payload</span><span class="p">:</span><span class="kr">any</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="k">void</span>
+      <span class="p">):</span><span class="k">void</span><span class="p">,</span>
+
+      <span class="na">getChildren</span><span class="p">:</span> <span class="kd">function</span><span class="p">(</span>
+        <span class="na">node</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">domain</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">predicate</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">range</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">lang</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">defaultLang</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">typePredicate</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="na">callback</span><span class="p">:(</span><span class="na">items</span><span class="p">:{</span><span class="na">term</span><span class="p">:</span><span class="nx">RDFTerm</span><span class="p">;</span><span class="nl">label</span><span class="p">:</span><span class="kr">string</span><span class="p">;</span><span class="nl">hasChildren</span><span class="p">:</span><span class="nx">boolean</span><span class="p">;</span><span class="nl">disabled</span><span class="p">:</span><span class="nx">boolean</span><span class="p">}[])</span> <span class="o">=&gt;</span> <span class="k">void</span><span class="p">,</span>
+        <span class="nx">errorCallback</span><span class="p">?:(</span><span class="na">payload</span><span class="p">:</span><span class="kr">any</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="k">void</span>
+      <span class="p">):</span><span class="k">void</span>
+    <span class="p">}</span>
+  <span class="p">},</span>
+  <span class="nx">map</span><span class="p">:</span> <span class="p">{</span>
+    <span class="c1">// initial zoom level of the map, when opened</span>
+    <span class="c1">// see https://leafletjs.com/reference.html#map-setview</span>
+    <span class="c1">// typically, from 0 to ~ 12</span>
+    <span class="nl">zoom</span> <span class="p">:</span> <span class="kr">number</span><span class="p">,</span>
+    <span class="c1">// initial center of the map, when opened</span>
+    <span class="c1">// see https://leafletjs.com/reference.html#map-setview</span>
+    <span class="nx">center</span> <span class="p">:</span> <span class="p">{</span>
+      <span class="nl">lat</span><span class="p">:</span><span class="kr">number</span><span class="p">,</span>
+      <span class="nx">long</span><span class="p">:</span><span class="kr">number</span>
+    <span class="p">}</span>
+  <span class="p">},</span>
+  <span class="nx">headers</span><span class="p">:</span> <span class="p">{</span>
+    <span class="dl">"</span><span class="s2">header name</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">value</span><span class="dl">"</span>
+  <span class="p">},</span>
+  <span class="nx">sparqlHandler</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nx">executeSparql</span><span class="p">(</span>
+        <span class="nx">sparql</span><span class="p">:</span><span class="kr">string</span><span class="p">,</span>
+        <span class="nx">callback</span><span class="p">:</span> <span class="p">(</span><span class="nx">data</span><span class="p">:</span> <span class="kr">any</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="k">void</span><span class="p">,</span>
+        <span class="nx">errorCallback</span><span class="p">?:(</span><span class="nx">error</span><span class="p">:</span> <span class="kr">any</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="k">void</span>
+    <span class="p">):</span><span class="k">void</span><span class="p">;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Note that the <code class="language-plaintext highlighter-rouge">RDFTerm</code> data structure referenced above is the following:</p>
+
+<div class="language-typescript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">export</span> <span class="kd">class</span> <span class="nx">RDFTerm</span> <span class="p">{</span>
+  <span class="nl">type</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">value</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="dl">"</span><span class="s2">xml:lang</span><span class="dl">"</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">datatype</span><span class="p">?:</span><span class="kr">string</span> 
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h3 id="example-of-custom-data-provider-function">Example of custom data provider function</h3>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">sparnatural</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">init</span><span class="dl">"</span><span class="p">,</span> <span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>  
+  <span class="nx">sparnatural</span><span class="p">.</span><span class="nx">customization</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">autocomplete</span><span class="p">:</span> <span class="p">{</span>
+      <span class="na">dataProvider</span><span class="p">:</span> <span class="p">{</span>
+        <span class="na">getAutocompleteSuggestions</span><span class="p">:</span> <span class="kd">function</span><span class="p">(</span>
+        <span class="nx">domain</span><span class="p">,</span>
+        <span class="nx">predicate</span><span class="p">,</span>
+        <span class="nx">range</span><span class="p">,</span>
+        <span class="nx">key</span><span class="p">,</span>
+        <span class="nx">lang</span><span class="p">,</span>
+        <span class="nx">defaultLang</span><span class="p">,</span>
+        <span class="nx">typePredicate</span><span class="p">,</span>
+        <span class="nx">callback</span><span class="p">,</span>
+        <span class="nx">errorCallback</span>
+      <span class="p">)</span> <span class="p">{</span>
+        <span class="c1">// build the list of autocomplete items to show</span>
+        <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="dl">"</span><span class="s2">domain,predicate,range : </span><span class="dl">"</span><span class="o">+</span><span class="nx">domain</span><span class="o">+</span><span class="dl">"</span><span class="s2"> </span><span class="dl">"</span><span class="o">+</span><span class="nx">predicate</span><span class="o">+</span><span class="dl">"</span><span class="s2"> </span><span class="dl">"</span><span class="o">+</span><span class="nx">range</span><span class="p">);</span>
+        <span class="kd">let</span> <span class="nx">items</span> <span class="o">=</span> <span class="p">[</span>
+          <span class="p">{</span>
+            <span class="na">term</span><span class="p">:</span> <span class="p">{</span>
+              <span class="na">type</span><span class="p">:</span><span class="dl">"</span><span class="s2">IRI</span><span class="dl">"</span><span class="p">,</span>
+              <span class="na">value</span><span class="p">:</span><span class="dl">"</span><span class="s2">http://exemple.fr/1</span><span class="dl">"</span>
+            <span class="p">},</span>
+            <span class="na">label</span><span class="p">:</span> <span class="nx">key</span><span class="o">+</span><span class="dl">"</span><span class="s2"> : suggestion 1</span><span class="dl">"</span> 
+          <span class="p">},</span>
+          <span class="p">{</span>
+            <span class="na">term</span><span class="p">:</span> <span class="p">{</span>
+              <span class="na">type</span><span class="p">:</span><span class="dl">"</span><span class="s2">IRI</span><span class="dl">"</span><span class="p">,</span>
+              <span class="na">value</span><span class="p">:</span><span class="dl">"</span><span class="s2">http://exemple.fr/2</span><span class="dl">"</span>
+            <span class="p">},</span>
+            <span class="na">label</span><span class="p">:</span> <span class="nx">key</span><span class="o">+</span><span class="dl">"</span><span class="s2"> : suggestion 2</span><span class="dl">"</span> 
+          <span class="p">}</span>
+        <span class="p">];</span>
+        <span class="c1">// call the callback function with the list of items</span>
+        <span class="nx">callback</span><span class="p">(</span><span class="nx">items</span><span class="p">);</span>
+      <span class="p">}</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+  <span class="p">};</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<h3 id="http-headers-configuration">HTTP headers configuration</h3>
+
+<p>To set the headers of requests made by Sparnatural, use the customization objet above, with the <code class="language-plaintext highlighter-rouge">headers</code> key. See this example:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">sparnatural</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">init</span><span class="dl">"</span><span class="p">,</span> <span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="nx">sparnatural</span><span class="p">.</span><span class="nx">customization</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">headers</span><span class="p">:</span> <span class="p">{</span> 
+      <span class="dl">"</span><span class="s2">User-Agent</span><span class="dl">"</span> <span class="p">:</span> <span class="dl">"</span><span class="s2">This is Sparnatural calling</span><span class="dl">"</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<h3 id="example-of-custom-sparql-handler">Example of custom SPARQL handler</h3>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">sparnatural</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="dl">"</span><span class="s2">init</span><span class="dl">"</span><span class="p">,</span> <span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="nx">sparnatural</span><span class="p">.</span><span class="nx">customization</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">sparqlHandler</span><span class="p">:</span> <span class="p">{</span> 
+      <span class="nx">executeSparql</span><span class="p">(</span>
+        <span class="na">sparql</span><span class="p">:</span><span class="nx">string</span><span class="p">,</span>
+        <span class="na">callback</span><span class="p">:</span> <span class="p">(</span><span class="na">data</span><span class="p">:</span> <span class="p">{})</span> <span class="o">=&gt;</span> <span class="k">void</span><span class="p">,</span>
+        <span class="nx">errorCallback</span><span class="p">?:(</span><span class="na">error</span><span class="p">:</span> <span class="nx">any</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="k">void</span>
+      <span class="p">):</span><span class="k">void</span> <span class="p">{</span>
+          <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="dl">"</span><span class="s2">Received SPARQL </span><span class="dl">"</span><span class="o">+</span><span class="nx">sparql</span><span class="p">);</span>
+          <span class="c1">// ... execute SPARQL ...</span>
+          <span class="c1">// fire callback with SPARQL results</span>
+          <span class="nx">callback</span><span class="p">({});</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+
+        </div>
+      </section><!-- End Documentation Section -->
+
+
+    </main>
+
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js" crossorigin="anonymous"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/anchor-js/anchor.min.js"></script>
+    <script>
+      anchors.options.placement = 'left';
+      anchors.add();
+    </script>
+
+    <script>
+      $( document ).ready(function($) {          
+        // add bootstrap table class on all tables
+        $('table').addClass("table");
+      }) ;
+    </script>
+
+
+  </body>
+</html>

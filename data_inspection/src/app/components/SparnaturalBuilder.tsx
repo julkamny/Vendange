@@ -1,12 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import $ from 'jquery'
 import type { SparnaturalElement, SparnaturalQueryIfc, RDFTerm } from 'sparnatural'
-import 'select2'
+import '../vendor/jquery-global'
+import '../vendor/select2'
 import '../assets/sparnatural.css'
-
-const globalWithJQuery = globalThis as typeof globalThis & { $?: typeof $; jQuery?: typeof $ }
-globalWithJQuery.$ = globalWithJQuery.$ ?? $
-globalWithJQuery.jQuery = globalWithJQuery.jQuery ?? $
 
 import 'sparnatural'
 import { SPAR_CONTROLLED_VALUE_PREDICATE } from '../sparql/sparnaturalConfig'

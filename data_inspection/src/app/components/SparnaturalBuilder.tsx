@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
+import $ from 'jquery'
 import type { SparnaturalElement, SparnaturalQueryIfc, RDFTerm } from 'sparnatural'
 import '../assets/sparnatural.css'
+
+const globalWithJQuery = globalThis as typeof globalThis & { $?: typeof $; jQuery?: typeof $ }
+globalWithJQuery.$ = globalWithJQuery.$ ?? $
+globalWithJQuery.jQuery = globalWithJQuery.jQuery ?? $
+
 import 'sparnatural'
 import { SPAR_CONTROLLED_VALUE_PREDICATE } from '../sparql/sparnaturalConfig'
 
@@ -63,18 +69,6 @@ export function SparnaturalBuilder({
       lastQueryRef.current = ''
     }
   }, [datasetId])
-
-  useEffect(() => {
-    const el = elementRef.current
-    if (!el) return
-    el.setAttribute('src', config)
-    el.setAttribute('lang', language)
-    el.setAttribute('defaultLang', 'en')
-    el.setAttribute('endpoint', 'about:blank')
-    el.setAttribute('limit', '200')
-    el.setAttribute('distinct', 'true')
-    el.setAttribute('prefixes', `vend:${BASE_PREFIX} vendrel:${REL_PREFIX} vendprop:${PROP_PREFIX}`)
-  }, [config, language])
 
   useEffect(() => {
     const el = elementRef.current
@@ -146,7 +140,16 @@ export function SparnaturalBuilder({
 
   return (
     <div className={`sparql-builder__canvas${disabled ? ' sparql-builder__canvas--disabled' : ''}`}>
-      <spar-natural ref={handleRef} />
+      <spar-natural
+        ref={handleRef}
+        src={config}
+        lang={language}
+        defaultLang="en"
+        endpoint="about:blank"
+        limit="200"
+        distinct="true"
+        prefixes={`vend:${BASE_PREFIX} vendrel:${REL_PREFIX} vendprop:${PROP_PREFIX}`}
+      />
       {disabled ? <div className="sparql-builder__overlay" /> : null}
     </div>
   )

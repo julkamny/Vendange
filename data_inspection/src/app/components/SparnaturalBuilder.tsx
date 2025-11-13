@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import $ from 'jquery'
 import type { SparnaturalElement, SparnaturalQueryIfc, RDFTerm } from 'sparnatural'
+import 'select2'
 import '../assets/sparnatural.css'
 
 const globalWithJQuery = globalThis as typeof globalThis & { $?: typeof $; jQuery?: typeof $ }
@@ -9,6 +10,7 @@ globalWithJQuery.jQuery = globalWithJQuery.jQuery ?? $
 
 import 'sparnatural'
 import { SPAR_CONTROLLED_VALUE_PREDICATE } from '../sparql/sparnaturalConfig'
+import { ensureGraphWrapping } from '../sparql/queryUtils'
 
 const BASE_NS = 'https://vendange.bnf.fr'
 const REL_NS = `${BASE_NS}/relation/`
@@ -111,7 +113,7 @@ export function SparnaturalBuilder({
         lastQueryRef.current = ''
         return
       }
-      const expanded = el.expandSparql(detail.queryString)
+      const expanded = ensureGraphWrapping(el.expandSparql(detail.queryString))
       if (expanded === lastQueryRef.current) return
       lastQueryRef.current = expanded
       onQueryChange(expanded)

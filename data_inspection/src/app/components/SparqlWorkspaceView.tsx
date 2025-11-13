@@ -13,6 +13,7 @@ import { configureTabStateForRecord } from '../workspace/tabState'
 import { deriveInternalIdFromArk } from '../lib/ark'
 import { SparnaturalBuilder, type ControlledValueOption } from './SparnaturalBuilder'
 import { buildSparnaturalConfig } from '../sparql/sparnaturalConfig'
+import { ensureGraphWrapping } from '../sparql/queryUtils'
 import { findZones } from '../lib/intermarc'
 import type { RecordRow } from '../types'
 
@@ -129,9 +130,10 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
 
   const handleBuilderQuery = useCallback(
     (value: string) => {
+      const wrapped = ensureGraphWrapping(value)
       onStateChange(prev => {
-        if (prev.query === value) return prev
-        return { ...prev, query: value }
+        if (prev.query === wrapped) return prev
+        return { ...prev, query: wrapped }
       })
     },
     [onStateChange],
@@ -155,14 +157,15 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
     }
     onStateChange(prev => ({ ...prev, isExecuting: true, lastRunError: null }))
     try {
-      const result = await executeSparqlQuery(datasetId, state.query)
+      const executableQuery = ensureGraphWrapping(state.query)
+      const result = await executeSparqlQuery(datasetId, executableQuery)
       onStateChange(prev => {
         const preservedHidden = new Set([...prev.hiddenColumns].filter(column => result.columns.includes(column)))
         const nextSort = prev.sort && result.columns.includes(prev.sort.column) ? prev.sort : null
         return {
           ...prev,
           isExecuting: false,
-          lastRunQuery: state.query,
+          lastRunQuery: executableQuery,
           lastRunError: null,
           result,
           hiddenColumns: preservedHidden,

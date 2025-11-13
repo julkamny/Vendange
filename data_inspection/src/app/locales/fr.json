@@ -28,7 +28,11 @@
     "sparqlNoRecordForArk": "Aucune notice trouvée pour cet ARK.",
     "sparqlUploadOriginalError": "Impossible de préparer l'ensemble original pour la recherche SPARQL.",
     "sparqlUploadCuratedError": "Impossible de préparer l'ensemble curé pour la recherche SPARQL.",
-    "sparqlSyncError": "La mise à jour de l'index SPARQL a échoué."
+    "sparqlSyncError": "La mise à jour de l'index SPARQL a échoué.",
+    "sparqlBuilderTitle": "Constructeur visuel",
+    "sparqlBuilderHelp": "Composez des parcours Œuvre–Expression–Manifestation et filtrez les zones MARC, puis affinez la requête SPARQL ci-dessous.",
+    "sparqlBuilderDisabled": "Chargez une base pour activer le constructeur visuel.",
+    "sparqlBuilderSync": "Le constructeur met à jour l’éditeur automatiquement ; vous pouvez toujours ajuster le texte SPARQL avant exécution."
   },
   "toolbar": {
     "loadCsv": "Importer un CSV",

@@ -28,7 +28,11 @@
     "sparqlNoRecordForArk": "No record found for this ARK.",
     "sparqlUploadOriginalError": "Failed to prepare original dataset for SPARQL search.",
     "sparqlUploadCuratedError": "Failed to prepare curated dataset for SPARQL search.",
-    "sparqlSyncError": "Failed to update SPARQL index for the record."
+    "sparqlSyncError": "Failed to update SPARQL index for the record.",
+    "sparqlBuilderTitle": "Visual builder",
+    "sparqlBuilderHelp": "Assemble W–E–M joins, MARC fields, and controlled values, then refine the SPARQL below.",
+    "sparqlBuilderDisabled": "Load a dataset to enable the visual builder.",
+    "sparqlBuilderSync": "Builder updates the editor automatically; you can still edit the SPARQL text before running it."
   },
   "toolbar": {
     "loadCsv": "Upload CSV",

@@ -11,6 +11,10 @@ import { useRecordLookup } from '../hooks/useRecordLookup'
 import { useWorkspaceData } from '../workspace/useWorkspaceData'
 import { configureTabStateForRecord } from '../workspace/tabState'
 import { deriveInternalIdFromArk } from '../lib/ark'
+import { SparnaturalBuilder, type ControlledValueOption } from './SparnaturalBuilder'
+import { buildSparnaturalConfig } from '../sparql/sparnaturalConfig'
+import { findZones } from '../lib/intermarc'
+import type { RecordRow } from '../types'
 
 const ARK_REGEX = /ark:\/\S+/g
 
@@ -36,6 +40,7 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
   const { showToast } = useToast()
   const { clusters, curated, original, datasetId } = useAppData()
   const { getByArk, getById } = useRecordLookup()
+  const sparnaturalConfig = useMemo(() => buildSparnaturalConfig(), [])
   const stubWorkspaceState = useMemo<WorkspaceTabStateWorkspace>(
     () => ({ ...DEFAULT_WORKSPACE_STATE, id: '__sparql__', title: 'SPARQL' }),
     [],
@@ -52,6 +57,21 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
   )
   const collator = useMemo(() => new Intl.Collator(language, { sensitivity: 'accent' }), [language])
   const [contextMenu, setContextMenu] = useState<ArkContextMenuState | null>(null)
+  const controlledValueOptions = useMemo<ControlledValueOption[]>(() => {
+    const source = curated?.records ?? []
+    const entries = new Map<string, string>()
+    for (const record of source) {
+      if (record.typeNorm !== 'valeur controlee' || !record.ark) continue
+      const label = extractControlledValueLabel(record)
+      if (!label || entries.has(record.ark)) continue
+      entries.set(record.ark, label)
+    }
+    return Array.from(entries.entries())
+      .map(([ark, label]) => ({ ark, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, language, { sensitivity: 'accent' }))
+  }, [curated?.records, language])
+  const builderDisabled = !datasetId
+  const builderKey = `${datasetId ?? 'no-dataset'}-${language}`
 
   useEffect(() => {
     if (!contextMenu) return undefined
@@ -103,6 +123,16 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
   const handleQueryChange = useCallback(
     (value: string) => {
       onStateChange(prev => ({ ...prev, query: value }))
+    },
+    [onStateChange],
+  )
+
+  const handleBuilderQuery = useCallback(
+    (value: string) => {
+      onStateChange(prev => {
+        if (prev.query === value) return prev
+        return { ...prev, query: value }
+      })
     },
     [onStateChange],
   )
@@ -305,6 +335,40 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
             </button>
           </div>
         </header>
+        <div className="sparql-builder">
+          <div className="sparql-builder__header">
+            <strong>{t('workspace.sparqlBuilderTitle', { defaultValue: 'Visual builder' })}</strong>
+            <p>
+              {t('workspace.sparqlBuilderHelp', {
+                defaultValue:
+                  'Assemble W–E–M joins, MARC field filters, and controlled values, then fine-tune the SPARQL below.',
+              })}
+            </p>
+          </div>
+          <SparnaturalBuilder
+            key={builderKey}
+            datasetId={datasetId}
+            language={language}
+            config={sparnaturalConfig}
+            controlledValues={controlledValueOptions}
+            disabled={builderDisabled}
+            onQueryChange={handleBuilderQuery}
+            onSubmit={handleRunQuery}
+          />
+          {builderDisabled ? (
+            <p className="sparql-builder__status">
+              {t('workspace.sparqlBuilderDisabled', {
+                defaultValue: 'Load a dataset to enable the visual builder.',
+              })}
+            </p>
+          ) : (
+            <p className="sparql-builder__status">
+              {t('workspace.sparqlBuilderSync', {
+                defaultValue: 'Builder updates the editor automatically; run or edit the SPARQL at any time.',
+              })}
+            </p>
+          )}
+        </div>
         <CodeMirror
           value={state.query}
           onChange={handleQueryChange}
@@ -388,4 +452,11 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
       ) : null}
     </div>
   )
+}
+
+function extractControlledValueLabel(record: RecordRow): string | null {
+  const zone = findZones(record.intermarc, '169')[0]
+  if (!zone) return null
+  const label = zone.sousZones.find(sz => sz.code === '169$a')?.valeur?.trim()
+  return label?.length ? label : null
 }

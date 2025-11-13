@@ -120,7 +120,7 @@ SPARQL searches
 - The SPARQL tab also exposes a Sparnatural visual builder. Use it to assemble work → expression → manifestation hops, constrain MARC zones/subfields, and pick controlled values from a label-based list—the corresponding ARK is injected automatically into the generated query. The builder keeps the CodeMirror editor synchronised so you can start visually then finish by hand if needed.
 - Sparnatural reads a SHACL profile. Update `data_inspection/src/app/sparql/sparnaturalConfig.ts` when you need to expose a new node/property.
 - Literal list widgets rely on the Select2 bootstrap in `data_inspection/src/app/vendor/select2.ts` to circumvent a typing issue.
-- Vendange stores each record in its own named graph. The builder (and manual execution) now auto-wraps queries in `GRAPH ?g { … }` when no graph clause is provided, so generated queries will run against the dataset without further edits. Add your own `GRAPH` clauses if you need more advanced targeting; auto-wrapping steps aside when it detects you already control the graph scope.
+- Vendange stores each record in its own named graph. The builder (and manual execution) now rewrite Sparnatural output into one `GRAPH` block per entity (`GRAPH ?g_manifestation { … }`, `GRAPH ?g_expression { … }`, etc.) so W–E–M traversals span the right graphs out of the box. For custom logic you can still provide explicit `GRAPH` clauses—auto-wrapping steps aside as soon as it detects one.
 
 Design Notes
 - UI performs all actions client-side; no network dependencies, but relies on FastAPI for the SPARQL store and query endpoint.

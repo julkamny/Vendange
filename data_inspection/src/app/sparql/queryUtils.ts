@@ -1,10 +1,200 @@
+import { Generator, Parser, type BgpPattern, type Pattern, type Query, type Term, type Triple, type VariableTerm } from 'sparqljs'
+import type { Term as RdfTerm } from '@rdfjs/types'
+import { CLASS_NS, REL_NS } from './sparnaturalConfig'
+
 const GRAPH_REGEX = /\bGRAPH\b/i
+const RDF_TYPE_IRI = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
+
+const parser = new Parser({ skipUngroupedVariableCheck: true })
+const generator = new Generator({ allPrefixes: true })
+const graphVariableCache = new Map<string, VariableTerm>()
 
 export function ensureGraphWrapping(rawQuery: string): string {
   const query = rawQuery.trim()
   if (!query) return query
-  if (GRAPH_REGEX.test(stripComments(query))) return query
+  const stripped = stripComments(query)
+  if (GRAPH_REGEX.test(stripped)) return query
 
+  const entityScoped = tryScopeEntitiesByGraph(query)
+  if (entityScoped) return entityScoped
+
+  return wrapWholeQuery(query)
+}
+
+function tryScopeEntitiesByGraph(query: string): string | null {
+  let parsed: Query
+  try {
+    const result = parser.parse(query)
+    if (result.type !== 'query') return null
+    parsed = result
+  } catch {
+    return null
+  }
+
+  if (!parsed.where || parsed.where.length === 0) return null
+
+  let changed = false
+  const rewrittenWhere: Pattern[] = []
+
+  for (const pattern of parsed.where) {
+    if (pattern.type !== 'bgp') {
+      rewrittenWhere.push(pattern)
+      continue
+    }
+    const replacements = splitBgpByEntityGraphs(pattern)
+    if (!replacements) {
+      rewrittenWhere.push(pattern)
+      continue
+    }
+    changed = true
+    rewrittenWhere.push(...replacements)
+  }
+
+  if (!changed) return null
+
+  const nextQuery: Query = { ...parsed, where: rewrittenWhere }
+  return generator.stringify(nextQuery)
+}
+
+function splitBgpByEntityGraphs(pattern: BgpPattern): Pattern[] | null {
+  if (!pattern.triples.length) return null
+
+  const entityVariables = collectEntityVariables(pattern.triples)
+  if (!entityVariables.size) return null
+
+  const tracker = new ScopeTracker(entityVariables)
+  for (const triple of pattern.triples) {
+    const subject = getVariableName(triple.subject)
+    if (!subject) continue
+    const object = getVariableName(triple.object)
+    if (!object) continue
+    if (isRelationPredicate(triple.predicate)) continue
+    tracker.union(subject, object)
+  }
+
+  const grouped = new Map<string, { triples: Triple[]; index: number }>()
+  const leftovers: Triple[] = []
+
+  pattern.triples.forEach((triple, index) => {
+    const subject = getVariableName(triple.subject)
+    if (!subject) {
+      leftovers.push(triple)
+      return
+    }
+    const scope = tracker.find(subject)
+    if (!scope || !entityVariables.has(scope)) {
+      leftovers.push(triple)
+      return
+    }
+    let group = grouped.get(scope)
+    if (!group) {
+      group = { triples: [], index }
+      grouped.set(scope, group)
+    }
+    group.triples.push(triple)
+  })
+
+  if (!grouped.size) return null
+
+  const patterns: Pattern[] = Array.from(grouped.entries())
+    .sort((a, b) => a[1].index - b[1].index)
+    .map(([scope, { triples }]) => ({
+      type: 'graph',
+      name: getGraphVariable(scope),
+      patterns: [{ type: 'bgp', triples }],
+    }))
+
+  if (leftovers.length) {
+    patterns.push({ type: 'bgp', triples: leftovers })
+  }
+
+  return patterns
+}
+
+function collectEntityVariables(triples: Triple[]): Set<string> {
+  const entities = new Set<string>()
+  for (const triple of triples) {
+    if (!isEntityTypeTriple(triple)) continue
+    const subject = getVariableName(triple.subject)
+    if (subject) entities.add(subject)
+  }
+  return entities
+}
+
+function isEntityTypeTriple(triple: Triple): boolean {
+  if (!isNamedNode(triple.predicate) || triple.predicate.value !== RDF_TYPE_IRI) return false
+  return isNamedNode(triple.object) && triple.object.value.startsWith(CLASS_NS)
+}
+
+function getVariableName(term: Term | undefined): string | null {
+  if (!term) return null
+  if ('termType' in term && term.termType === 'Variable') {
+    return term.value
+  }
+  return null
+}
+
+function isNamedNode(value: Term): value is { termType: 'NamedNode'; value: string } {
+  return 'termType' in value && value.termType === 'NamedNode'
+}
+
+function isRelationPredicate(predicate: Triple['predicate']): boolean {
+  return typeof predicate === 'object' && predicate !== null && 'termType' in predicate && predicate.termType === 'NamedNode'
+    ? predicate.value.startsWith(REL_NS)
+    : false
+}
+
+class ScopeTracker {
+  private readonly parent = new Map<string, string>()
+
+  constructor(private readonly entityVariables: Set<string>) {}
+
+  find(name: string): string {
+    const current = this.parent.get(name)
+    if (!current) return name
+    const root = this.find(current)
+    if (root !== current) {
+      this.parent.set(name, root)
+    }
+    return root
+  }
+
+  union(a: string, b: string): void {
+    const rootA = this.find(a)
+    const rootB = this.find(b)
+    if (rootA === rootB) return
+
+    const preferred = this.pickPreferredRoot(rootA, rootB)
+    const other = preferred === rootA ? rootB : rootA
+    this.parent.set(other, preferred)
+  }
+
+  private pickPreferredRoot(a: string, b: string): string {
+    const aIsEntity = this.entityVariables.has(a)
+    const bIsEntity = this.entityVariables.has(b)
+    if (aIsEntity && !bIsEntity) return a
+    if (!aIsEntity && bIsEntity) return b
+    if (aIsEntity && bIsEntity) return a
+    return a.localeCompare(b) <= 0 ? a : b
+  }
+}
+
+function getGraphVariable(name: string): VariableTerm {
+  const key = `${name}_graph`
+  const cached = graphVariableCache.get(key)
+  if (cached) return cached
+  const variable: VariableTerm = {
+    termType: 'Variable',
+    value: key,
+    equals(other?: RdfTerm | null): boolean {
+      return Boolean(other && other.termType === 'Variable' && other.value === key)
+    },
+  }
+  graphVariableCache.set(key, variable)
+  return variable
+}
+
+function wrapWholeQuery(query: string): string {
   const whereMatch = /WHERE\s*\{/i.exec(query)
   if (!whereMatch) return query
   const braceStart = query.indexOf('{', whereMatch.index)
@@ -15,8 +205,7 @@ export function ensureGraphWrapping(rawQuery: string): string {
   const before = query.slice(0, braceStart + 1)
   const middle = query.slice(braceStart + 1, closingIndex)
   const after = query.slice(closingIndex)
-  const wrapped = `${before}\n  GRAPH ?g {\n${middle}\n  }\n${after}`
-  return wrapped
+  return `${before}\n  GRAPH ?g {\n${middle}\n  }\n${after}`
 }
 
 function stripComments(value: string): string {

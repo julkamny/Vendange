@@ -5,12 +5,9 @@ import '../vendor/select2'
 import '../assets/sparnatural.css'
 
 import 'sparnatural'
-import { SPAR_CONTROLLED_VALUE_PREDICATE } from '../sparql/sparnaturalConfig'
+import { BASE_NS, PROP_NS, REL_NS, SPAR_CONTROLLED_VALUE_PREDICATE } from '../sparql/sparnaturalConfig'
 import { ensureGraphWrapping } from '../sparql/queryUtils'
 
-const BASE_NS = 'https://vendange.bnf.fr'
-const REL_NS = `${BASE_NS}/relation/`
-const PROP_NS = `${BASE_NS}/property/`
 const BASE_PREFIX = `${BASE_NS}/`
 const REL_PREFIX = REL_NS
 const PROP_PREFIX = PROP_NS

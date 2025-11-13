@@ -1,7 +1,7 @@
-const BASE_NS = 'https://vendange.bnf.fr'
-const CLASS_NS = `${BASE_NS}/class/`
-const REL_NS = `${BASE_NS}/relation/`
-const PROP_NS = `${BASE_NS}/property/`
+export const BASE_NS = 'https://vendange.bnf.fr'
+export const CLASS_NS = `${BASE_NS}/class/`
+export const REL_NS = `${BASE_NS}/relation/`
+export const PROP_NS = `${BASE_NS}/property/`
 const SPAR_NS = `${BASE_NS}/sparnatural#`
 
 export const SPAR_CONTROLLED_VALUE_PREDICATE = `${SPAR_NS}subfieldControlledValue`

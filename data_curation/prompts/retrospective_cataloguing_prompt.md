@@ -52,7 +52,7 @@
       {zone:int,"nom": str,"codes_fonctions": [str,]}, 
     ],
     "est_adaptation": bool,
-    "est_abréviation":bool,
+    "est_choix": bool,
     "est_extrait": bool,
     "est_agrégat": bool,
   },

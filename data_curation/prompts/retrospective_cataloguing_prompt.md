@@ -28,17 +28,6 @@
 ```
 
 - Quand un livre contient plusieurs zones 245 (résultat d'une erreur humaine), gardes-en une, et distribue l'information contenue par les autres dans des sous-zones de l'unique zone 245.
-- Si en zone 245 des sous-zones `245$b` sont présentes avant ou après ton intervention, ajoute des zones 438, une par titre. Les zones 438 correspondent aux autres titres contenus dans le livre examiné, outre celui mentionné en `245$a`: 
-
-```csv
-438$a,Titre
-438$e,Complément du titre
-438$h,Numéro de partie
-438$i,Titre dépendant
-438$w,Commentaires
-438$z,Précisions
-```
-
 - Extrais du titre les agents impliqués dans l'œuvre et indique les codes fonctions (chaque agent peut en avoir un ou plusieurs) qui caractérisent le mieux la nature de leur contribution. Les codes-fonctions autorisés sont donnés ci-dessous.
 - Un même agent peut avoir plusieurs codes-fonctions, s'il est responsable et de l'illustration ET de l'adaptation par exemple.
 - Après avoir segmenté le titre et indiqué les agents avec leurs codes-fonctions respectifs, donne ta réponse aux questions suivantes dans le format JSON prescrit :

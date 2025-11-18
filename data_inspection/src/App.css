@@ -402,6 +402,26 @@ html {
   white-space: nowrap;
 }
 
+.workspace-tab .detach {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 0.9rem;
+  opacity: 0.6;
+  padding: 0;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.workspace-tab .detach:hover,
+.workspace-tab .detach:focus-visible {
+  opacity: 1;
+  transform: scale(1.08);
+}
+.workspace-tab .detach.is-active {
+  color: var(--color-link);
+  opacity: 1;
+}
+
 .workspace-tab .close {
   margin-left: 0.25rem;
   font-size: 0.9rem;

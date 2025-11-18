@@ -22,6 +22,9 @@ type WorkspaceViewProps = {
   state: WorkspaceTabStateWorkspace
   onStateChange: (updater: (prev: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
   onOpenTab: (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
+  mode?: 'inline' | 'detached'
+  onRequestDetach?: () => void
+  onRequestDock?: () => void
 }
 
 function findRecord(id: string, curated: RecordRow[], original: RecordRow[]): RecordRow | null {
@@ -62,7 +65,7 @@ function WorkspaceBreadcrumbs({ items, ariaLabel }: { items: string[]; ariaLabel
   )
 }
 
-export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceViewProps) {
+export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline', onRequestDetach, onRequestDock }: WorkspaceViewProps) {
   const {
     clusters,
     original,
@@ -151,13 +154,15 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
     return null
   }, [isAnchorSelection, isRecordClustered, record, recordInCurated, t])
   const [editingRecord, setEditingRecord] = useState(false)
+  const [intermarcFullView, setIntermarcFullView] = useState(false)
   const listPanelRef = useRef<HTMLElement | null>(null)
   const detailsPanelRef = useRef<HTMLElement | null>(null)
   const lastScrollKeyRef = useRef<string>('')
 
   useEffect(() => {
     setEditingRecord(false)
-  }, [record?.id])
+    setIntermarcFullView(false)
+  }, [record?.id, mode])
 
   const [contextMenu, setContextMenu] = useState<ArkContextMenuState | null>(null)
 
@@ -550,10 +555,34 @@ export function WorkspaceView({ state, onStateChange, onOpenTab }: WorkspaceView
     )
   }
 
+  const workspaceClassName = `workspace-view${intermarcFullView ? ' is-intermarc-full' : ''}`
+  const detachLabel = t('workspace.openInWindow', { defaultValue: 'Open Intermarc in new window' })
+  const dockLabel = t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })
+  const toggleFullLabel = intermarcFullView
+    ? t('workspace.collapseIntermarc', { defaultValue: 'Exit full Intermarc view' })
+    : t('workspace.expandIntermarc', { defaultValue: 'Expand Intermarc view' })
+
   return (
-    <div className="workspace-view">
+    <div className={workspaceClassName}>
       <header className="workspace-view__header">
         <WorkspaceBreadcrumbs items={breadcrumbs} ariaLabel={t('breadcrumbs.ariaLabel')} />
+        {record ? (
+          <div className="workspace-view__header-actions">
+            {mode === 'inline' && onRequestDetach ? (
+              <button type="button" onClick={onRequestDetach}>
+                {detachLabel}
+              </button>
+            ) : null}
+            {mode === 'detached' && onRequestDock ? (
+              <button type="button" onClick={onRequestDock}>
+                {dockLabel}
+              </button>
+            ) : null}
+            <button type="button" onClick={() => setIntermarcFullView(prev => !prev)}>
+              {toggleFullLabel}
+            </button>
+          </div>
+        ) : null}
       </header>
       <div className="workspace-view__body">
         <aside

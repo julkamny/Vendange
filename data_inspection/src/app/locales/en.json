@@ -32,7 +32,14 @@
     "sparqlBuilderTitle": "Visual builder",
     "sparqlBuilderHelp": "Assemble W–E–M joins, MARC fields, and controlled values, then refine the SPARQL below.",
     "sparqlBuilderDisabled": "Load a dataset to enable the visual builder.",
-    "sparqlBuilderSync": "Builder updates the editor automatically; you can still edit the SPARQL text before running it."
+    "sparqlBuilderSync": "Builder updates the editor automatically; you can still edit the SPARQL text before running it.",
+    "detachTab": "Open tab in new window",
+    "redockTab": "Bring tab back here",
+    "openInWindow": "Open Intermarc in new window",
+    "detachedPlaceholder": "This workspace is displayed in another window.",
+    "openWindowFailed": "Unable to open a new window. Please allow pop-ups for Vendange.",
+    "expandIntermarc": "Expand Intermarc view",
+    "collapseIntermarc": "Exit full Intermarc view"
   },
   "toolbar": {
     "loadCsv": "Upload CSV",

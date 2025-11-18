@@ -19,6 +19,7 @@ import { cloneIntermarc } from '../core/intermarc-utils'
 import { add90FEntries } from '../lib/intermarc'
 import { CLUSTER_NOTE } from '../core/constants'
 import { fetchDatasetRecords, syncRecordUpdate, type DatasetRecordPayload } from '../lib/api'
+import { postBroadcastEvent, subscribeToBroadcast, getBroadcastClientId } from '../lib/broadcast'
 
 // --- Types -----------------------------------------------------------------
 
@@ -89,6 +90,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const { showToast } = useToast()
   const [state, setState] = useState<AppDataState>(INITIAL_STATE)
   const datasetIdRef = useRef<string | null>(null)
+  const clientId = getBroadcastClientId()
 
   useEffect(() => {
     datasetIdRef.current = state.datasetId
@@ -133,6 +135,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     await loadDataset(state.datasetId, { title: state.datasetTitle ?? undefined })
   }, [loadDataset, state.datasetId, state.datasetTitle])
 
+  useEffect(() => {
+    if (!state.datasetId) return undefined
+    return subscribeToBroadcast(event => {
+      if (event.sourceId === clientId) return
+      if (event.type === 'dataset-update' && event.datasetId === state.datasetId) {
+        refreshDataset()
+      }
+    })
+  }, [clientId, refreshDataset, state.datasetId])
+
   const updateRecordIntermarc = useCallback(
     (recordId: string, intermarc: Intermarc) => {
       const updates: UpdatePayload[] = []
@@ -154,6 +166,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             console.error('Failed to synchronise record', err)
             showToast('Synchronisation avec la base impossible.', { tone: 'error' })
           })
+        })
+        postBroadcastEvent({
+          type: 'dataset-update',
+          datasetId,
+          recordIds: updates.map(update => update.id),
         })
       }
     },

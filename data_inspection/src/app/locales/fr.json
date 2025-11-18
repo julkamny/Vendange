@@ -32,7 +32,14 @@
     "sparqlBuilderTitle": "Constructeur visuel",
     "sparqlBuilderHelp": "Composez des parcours Œuvre–Expression–Manifestation et filtrez les zones MARC, puis affinez la requête SPARQL ci-dessous.",
     "sparqlBuilderDisabled": "Chargez une base pour activer le constructeur visuel.",
-    "sparqlBuilderSync": "Le constructeur met à jour l’éditeur automatiquement ; vous pouvez toujours ajuster le texte SPARQL avant exécution."
+    "sparqlBuilderSync": "Le constructeur met à jour l’éditeur automatiquement ; vous pouvez toujours ajuster le texte SPARQL avant exécution.",
+    "detachTab": "Ouvrir l’onglet dans une nouvelle fenêtre",
+    "redockTab": "Ramener l’onglet ici",
+    "openInWindow": "Ouvrir l’Intermarc dans une nouvelle fenêtre",
+    "detachedPlaceholder": "Cet espace de travail est affiché dans une autre fenêtre.",
+    "openWindowFailed": "Impossible d’ouvrir une nouvelle fenêtre. Autorisez les pop-ups pour Vendange.",
+    "expandIntermarc": "Agrandir l’Intermarc",
+    "collapseIntermarc": "Quitter le mode plein Intermarc"
   },
   "toolbar": {
     "loadCsv": "Importer un CSV",

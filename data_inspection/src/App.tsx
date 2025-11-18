@@ -11,15 +11,18 @@ import { ShortcutModal } from './app/components/ShortcutModal'
 import { ShortcutProvider } from './app/providers/ShortcutContext'
 import { DatasetDashboard } from './app/components/DatasetDashboard'
 import type { DatasetSummary } from './app/types'
+import { DetachedWindowProvider } from './app/providers/DetachedWindowContext'
 
 function App() {
   return (
     <ThemeProvider>
       <ShortcutProvider>
         <ToastProvider>
-          <AppDataProvider>
-            <AppRouter />
-          </AppDataProvider>
+          <DetachedWindowProvider>
+            <AppDataProvider>
+              <AppRouter />
+            </AppDataProvider>
+          </DetachedWindowProvider>
         </ToastProvider>
       </ShortcutProvider>
     </ThemeProvider>

@@ -16,6 +16,7 @@ import { buildSparnaturalConfig } from '../sparql/sparnaturalConfig'
 import { ensureGraphWrapping } from '../sparql/queryUtils'
 import { findZones } from '../lib/intermarc'
 import type { RecordRow } from '../types'
+import { extractControlledValueLabel } from '../core/controlledValues'
 
 const ARK_REGEX = /ark:\/\S+/g
 
@@ -455,11 +456,4 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
       ) : null}
     </div>
   )
-}
-
-function extractControlledValueLabel(record: RecordRow): string | null {
-  const zone = findZones(record.intermarc, '169')[0]
-  if (!zone) return null
-  const label = zone.sousZones.find(sz => sz.code === '169$a')?.valeur?.trim()
-  return label?.length ? label : null
 }

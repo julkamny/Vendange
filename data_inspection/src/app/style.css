@@ -576,6 +576,11 @@ button:focus-visible {
   position: relative;
   overflow: visible;
 }
+.record-details .intermarc-view--editing {
+  background: color-mix(in srgb, var(--color-highlight) 18%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-link) 45%, var(--color-border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-link) 25%, transparent);
+}
 .record-details .intermarc-view .cm-editor {
   background: transparent;
   border: none;

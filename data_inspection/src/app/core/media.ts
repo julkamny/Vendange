@@ -1,5 +1,6 @@
 import type { RecordRow } from '../types'
 import { findZones } from '../lib/intermarc'
+import { extractControlledValueLabel } from './controlledValues'
 
 export type MediaKind = { emoji: string; label: string }
 
@@ -30,19 +31,9 @@ function normalizeLabel(value: string): string {
 const AGGREGATE_CONTROLLED_LABEL = normalizeLabel('agrégat éditorial')
 const AGGREGATE_MEDIA_KIND: MediaDefinition = { emoji: '🧺', label: 'Agrégat éditorial' }
 
-function extractControlledLabel(record: RecordRow | undefined): string | undefined {
-  if (!record) return undefined
-  const zone169 = findZones(record.intermarc, '169')[0]
-  if (!zone169) return undefined
-  const label = zone169.sousZones.find(
-    sz => sz.code === '169$a' && typeof sz.valeur === 'string' && sz.valeur.trim().length > 0,
-  )?.valeur
-  return label?.trim()
-}
-
 function isEditorialAggregate(record: RecordRow | undefined): boolean {
   if (!record) return false
-  const label = extractControlledLabel(record)
+  const label = extractControlledValueLabel(record)
   if (!label) return false
   return normalizeLabel(label) === AGGREGATE_CONTROLLED_LABEL
 }
@@ -76,7 +67,7 @@ export function extractMediaKinds(
       if (sz.code !== '051$a' || typeof sz.valeur !== 'string') continue
       const ark = sz.valeur.trim()
       if (!ark) continue
-      const label = extractControlledLabel(options.lookupRecordByArk(ark))
+      const label = extractControlledValueLabel(options.lookupRecordByArk(ark))
       if (!label) continue
       const definition = MEDIA_MAP[normalizeLabel(label)]
       if (!definition) continue

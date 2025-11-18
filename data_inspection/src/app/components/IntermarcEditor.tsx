@@ -1,13 +1,348 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
-import { EditorState } from '@codemirror/state'
-import { EditorView } from '@codemirror/view'
+import type { Completion } from '@codemirror/autocomplete'
+import { autocompletion, CompletionContext } from '@codemirror/autocomplete'
+import { EditorState, RangeSetBuilder, StateEffect, StateField, type Extension, type Text } from '@codemirror/state'
+import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import type { Intermarc } from '../lib/intermarc'
 import { prettyPrintIntermarc, parsePrettyPrintedIntermarc } from '../lib/intermarc'
 import type { RecordRow } from '../types'
 import { INTERMARC_THEME } from './intermarcTheme'
 import { useTranslation } from '../hooks/useTranslation'
 import { useToast } from '../providers/ToastContext'
+import { useRecordLookup } from '../hooks/useRecordLookup'
+import { useAppData } from '../providers/AppDataContext'
+import { titleOf, manifestationTitle } from '../core/entities'
+import { extractControlledValueLabel } from '../core/controlledValues'
+
+const ARK_PREFIX = 'ark:/'
+const COMPLETION_LIMIT = 40
+const CONTROLLED_VALUE_RESTRICTIONS = new Set(
+  ['740$3', '552$3', '140$3', '750$3', '150$3', '700$3', '701$3', '702$3'].map(code => code.toUpperCase()),
+)
+const SkipCompletionEffect = StateEffect.define<boolean>()
+const skipCompletionField = StateField.define<boolean>({
+  create: () => false,
+  update(value, tr) {
+    if (tr.effects.some(effect => effect.is(SkipCompletionEffect))) return true
+    if (value) return false
+    return false
+  },
+})
+
+type ParsedSubfield = {
+  code: string
+  codeStart: number
+  codeEnd: number
+  valueStart: number
+  valueEnd: number
+  value: string
+}
+
+type ParsedLine = {
+  zone: string
+  zoneStart: number
+  zoneEnd: number
+  lineStart: number
+  lineEnd: number
+  subfields: ParsedSubfield[]
+}
+
+type SubfieldContext = {
+  zone: string
+  code?: string
+  inValue: boolean
+}
+
+type EntitySuggestion = {
+  ark: string
+  label: string
+  labelNormalized: string
+  type: string
+  isControlled: boolean
+}
+
+class ArkLabelWidget extends WidgetType {
+  constructor(
+    private readonly label: string,
+    private readonly ark: string,
+    private readonly zone: string,
+    private readonly subfield: string,
+  ) {
+    super()
+  }
+
+  eq(other: ArkLabelWidget): boolean {
+    return (
+      other.label === this.label &&
+      other.ark === this.ark &&
+      other.zone === this.zone &&
+      other.subfield === this.subfield
+    )
+  }
+
+  toDOM(): HTMLElement {
+    const span = document.createElement('span')
+    span.className = 'ark-link has-tooltip'
+    span.textContent = this.label
+    span.setAttribute('data-ark', this.ark)
+    span.setAttribute('data-tooltip', this.ark)
+    span.setAttribute('aria-label', this.ark)
+    span.setAttribute('data-tooltip-placement', 'above')
+    span.setAttribute('tabindex', '0')
+    span.setAttribute('role', 'button')
+    span.setAttribute('data-zone', this.zone)
+    span.setAttribute('data-subfield', this.subfield)
+    return span
+  }
+}
+
+function normalizeSubfieldCode(zone: string, rawCode: string): string {
+  if (!rawCode) return zone
+  if (rawCode.includes('$')) {
+    if (rawCode.startsWith('$')) return `${zone}${rawCode}`
+    return rawCode
+  }
+  return `${zone}$${rawCode}`
+}
+
+function parseLine(lineText: string, lineStart: number): ParsedLine | null {
+  if (!lineText.trim()) return null
+  const zoneMatch = lineText.match(/^(\S+)/)
+  if (!zoneMatch) return null
+  const zone = zoneMatch[1]
+  const zoneStart = lineStart
+  const zoneEnd = lineStart + zone.length
+  let cursor = zone.length
+  const subfields: ParsedSubfield[] = []
+  const length = lineText.length
+
+  while (cursor < length) {
+    while (cursor < length && lineText[cursor] === ' ') cursor++
+    if (cursor >= length) break
+    if (lineText[cursor] !== '$') break
+    const codeStartRel = cursor
+    cursor++
+    while (cursor < length && lineText[cursor] !== ' ' && lineText[cursor] !== '$') cursor++
+    const codeEndRel = cursor
+    while (cursor < length && lineText[cursor] === ' ') cursor++
+    const valueStartRel = cursor
+    let valueEndRel = length
+    let walker = cursor
+    while (walker < length) {
+      if (lineText[walker] === ' ' && walker + 1 < length && lineText[walker + 1] === '$') {
+        valueEndRel = walker
+        break
+      }
+      walker++
+    }
+    cursor = walker
+    const code = lineText.slice(codeStartRel, codeEndRel)
+    const normalizedCode = normalizeSubfieldCode(zone, code)
+    const value = lineText.slice(valueStartRel, valueEndRel)
+    subfields.push({
+      code: normalizedCode,
+      codeStart: lineStart + codeStartRel,
+      codeEnd: lineStart + codeEndRel,
+      valueStart: lineStart + valueStartRel,
+      valueEnd: lineStart + valueEndRel,
+      value,
+    })
+  }
+
+  return {
+    zone,
+    zoneStart,
+    zoneEnd,
+    lineStart,
+    lineEnd: lineStart + lineText.length,
+    subfields,
+  }
+}
+
+function parseIntermarcLines(doc: Text): ParsedLine[] {
+  const lines: ParsedLine[] = []
+  for (let i = 1; i <= doc.lines; i += 1) {
+    const line = doc.line(i)
+    const parsed = parseLine(line.text, line.from)
+    if (parsed) lines.push(parsed)
+  }
+  return lines
+}
+
+function getSubfieldContext(doc: Text, pos: number): SubfieldContext | null {
+  const line = doc.lineAt(pos)
+  const parsed = parseLine(line.text, line.from)
+  if (!parsed) return null
+  if (pos <= parsed.zoneEnd) {
+    return { zone: parsed.zone, inValue: false }
+  }
+  for (const subfield of parsed.subfields) {
+    if (pos >= subfield.valueStart && pos <= subfield.valueEnd) {
+      return { zone: parsed.zone, code: subfield.code.toUpperCase(), inValue: true }
+    }
+    if (pos >= subfield.codeStart && pos <= subfield.codeEnd) {
+      return { zone: parsed.zone, code: subfield.code.toUpperCase(), inValue: false }
+    }
+  }
+  return { zone: parsed.zone, inValue: false }
+}
+
+function looksLikeArk(value: string): boolean {
+  return !!value && value.trim().startsWith(ARK_PREFIX)
+}
+
+function recordDisplayLabel(record: RecordRow): string {
+  const normalized = record.typeNorm.toLowerCase()
+  if (normalized === 'manifestation') {
+    return manifestationTitle(record) || record.id
+  }
+  if (normalized === 'valeur controlee') {
+    return extractControlledValueLabel(record) || record.id
+  }
+  return titleOf(record) || record.id
+}
+
+function buildDecorations(doc: Text, options: { getLabelForArk: (ark: string) => string | undefined }): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>()
+  const lines = parseIntermarcLines(doc)
+  for (const line of lines) {
+    builder.add(line.lineStart, line.lineStart, Decoration.line({ class: 'intermarc-line' }))
+    builder.add(line.zoneStart, line.zoneEnd, Decoration.mark({ class: 'intermarc-zone' }))
+    for (const subfield of line.subfields) {
+      const subfieldClass = Decoration.mark({ class: 'intermarc-subfield' })
+      builder.add(subfield.codeStart, subfield.valueEnd, subfieldClass)
+      builder.add(
+        subfield.codeStart,
+        subfield.codeEnd,
+        Decoration.mark({ class: 'intermarc-subfield-code' }),
+      )
+      const rawValue = subfield.value.trim()
+      if (looksLikeArk(rawValue)) {
+        const label = options.getLabelForArk(rawValue)
+        if (label) {
+          const widget = Decoration.replace({
+            widget: new ArkLabelWidget(label, rawValue, line.zone, subfield.code),
+            inclusive: false,
+          })
+          builder.add(subfield.valueStart, subfield.valueEnd, widget)
+          continue
+        }
+        const fallback = Decoration.mark({
+          class: 'ark-link has-tooltip',
+          attributes: {
+            'data-ark': rawValue.trim(),
+            'data-tooltip': rawValue.trim(),
+            'aria-label': rawValue.trim(),
+            'data-tooltip-placement': 'above',
+            'data-zone': line.zone,
+            'data-subfield': subfield.code,
+          },
+        })
+        builder.add(subfield.valueStart, subfield.valueEnd, fallback)
+      }
+    }
+  }
+  return builder.finish()
+}
+
+function createIntermarcDecorationField(options: {
+  getLabelForArk: (ark: string) => string | undefined
+}): StateField<DecorationSet> {
+  return StateField.define<DecorationSet>({
+    create(state) {
+      return buildDecorations(state.doc, options)
+    },
+    update(value, tr) {
+      if (tr.docChanged) return buildDecorations(tr.state.doc, options)
+      return value
+    },
+    provide: field => EditorView.decorations.from(field),
+  })
+}
+
+function normalizeText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+function buildEntitySuggestions(records: RecordRow[], language: string): EntitySuggestion[] {
+  const seen = new Set<string>()
+  const entries: EntitySuggestion[] = []
+  for (const record of records) {
+    const ark = record.ark?.trim()
+    if (!ark || seen.has(ark)) continue
+    const label = recordDisplayLabel(record)
+    if (!label) continue
+    entries.push({
+      ark,
+      label,
+      labelNormalized: normalizeText(label),
+      type: record.type,
+      isControlled: record.typeNorm.toLowerCase() === 'valeur controlee',
+    })
+    seen.add(ark)
+  }
+  return entries.sort((a, b) => a.label.localeCompare(b.label, language, { sensitivity: 'accent' }))
+}
+
+function filterCompletions(
+  suggestions: EntitySuggestion[],
+  query: string,
+  includeControlled: boolean,
+): Completion[] {
+  const normalized = normalizeText(query)
+  const options: Completion[] = []
+  for (const suggestion of suggestions) {
+    if (!includeControlled && suggestion.isControlled) continue
+    if (normalized && !suggestion.labelNormalized.includes(normalized)) continue
+    options.push({
+      label: suggestion.label,
+      detail: suggestion.type,
+      apply: suggestion.ark,
+    })
+    if (options.length >= COMPLETION_LIMIT) break
+  }
+  return options
+}
+
+function createIntermarcCompletionSource(params: {
+  suggestions: EntitySuggestion[]
+  restrictedSubfields: Set<string>
+}) {
+  return (context: CompletionContext) => {
+    const match = context.matchBefore(/@[^\s@]*/u)
+    if (!match) return null
+    if (context.state.field(skipCompletionField, false)) return null
+    if (match.from === match.to && !context.explicit) return null
+    const info = getSubfieldContext(context.state.doc, match.from)
+    if (!info || !info.inValue) return null
+    const subfieldCode = info.code ?? ''
+    const includeControlled = !params.restrictedSubfields.has(subfieldCode)
+    const query = match.text.slice(1)
+    const options = filterCompletions(params.suggestions, query, includeControlled)
+    if (!options.length) return null
+    return {
+      from: match.from,
+      options,
+      validFor: /@[^\s@]*/u,
+    }
+  }
+}
+
+const literalAtHandler = EditorView.inputHandler.of((view, from, to, text) => {
+  if (text !== '@' || from !== to) return false
+  if (from === 0) return false
+  if (view.state.doc.sliceString(from - 1, from) !== '@') return false
+  view.dispatch({
+    changes: { from: from - 1, to, insert: '@' },
+    effects: SkipCompletionEffect.of(true),
+  })
+  return true
+})
 
 type IntermarcEditorProps = {
   record: RecordRow
@@ -17,14 +352,53 @@ type IntermarcEditorProps = {
 }
 
 export function IntermarcEditor({ record, baselineRecord, onCancel, onSave }: IntermarcEditorProps) {
-  const { t } = useTranslation()
+  const { t, language } = useTranslation()
   const { showToast } = useToast()
+  const { curated } = useAppData()
+  const { getByArk } = useRecordLookup()
   const [doc, setDoc] = useState('')
   const [recordDoc, setRecordDoc] = useState('')
   const [baselineDoc, setBaselineDoc] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const statusResetRef = useRef<number | null>(null)
+
+  const suggestions = useMemo(
+    () => buildEntitySuggestions(curated?.records ?? [], language),
+    [curated?.records, language],
+  )
+
+  const getLabelForArk = useCallback(
+    (ark: string) => {
+      const target = getByArk(ark)
+      if (!target) return undefined
+      return recordDisplayLabel(target)
+    },
+    [getByArk],
+  )
+
+  const decorationExtension = useMemo<Extension>(
+    () => createIntermarcDecorationField({ getLabelForArk }),
+    [getLabelForArk],
+  )
+
+  const completionSource = useMemo(
+    () =>
+      createIntermarcCompletionSource({
+        suggestions,
+        restrictedSubfields: CONTROLLED_VALUE_RESTRICTIONS,
+      }),
+    [suggestions],
+  )
+
+  const completionExtension = useMemo(
+    () =>
+      autocompletion({
+        override: [completionSource],
+        icons: false,
+      }),
+    [completionSource],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -76,9 +450,17 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave }: In
     }
   }, [])
 
-  const extensions = useMemo(
-    () => [EditorView.lineWrapping, EditorState.tabSize.of(2), INTERMARC_THEME],
-    [],
+  const extensions = useMemo<Extension[]>(
+    () => [
+      EditorView.lineWrapping,
+      EditorState.tabSize.of(2),
+      INTERMARC_THEME,
+      skipCompletionField,
+      decorationExtension,
+      completionExtension,
+      literalAtHandler,
+    ],
+    [completionExtension, decorationExtension],
   )
 
   const resetStatusTimer = () => {
@@ -135,7 +517,7 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave }: In
 
   return (
     <div className="intermarc-editor">
-      <div className="intermarc-view">
+      <div className="intermarc-view intermarc-view--editing">
         <CodeMirror
           value={doc}
           height="auto"
@@ -146,7 +528,7 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave }: In
             highlightActiveLine: true,
             highlightActiveLineGutter: false,
             foldGutter: false,
-            autocompletion: false,
+            autocompletion: true,
             bracketMatching: false,
             allowMultipleSelections: false,
           }}

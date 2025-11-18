@@ -124,6 +124,7 @@ SPARQL searches
 
 Design Notes
 - UI performs all actions client-side; no network dependencies, but relies on FastAPI for the SPARQL store and query endpoint.
+- Multi-window Intermarc exploration, including window lifecycle, synchronization, and library options, lives in [`documentation/multi_window_intermarc.md`](documentation/multi_window_intermarc.md).
 
 ### Installation
 

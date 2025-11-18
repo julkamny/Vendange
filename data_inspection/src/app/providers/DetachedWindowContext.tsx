@@ -50,9 +50,14 @@ export function DetachedWindowProvider({ children }: { children: ReactNode }) {
   const openWindow = useCallback(
     (options: OpenWindowOptions): string | null => {
       if (typeof window === 'undefined') return null
-      const features = options.features ?? 'noopener,width=1280,height=800'
+      const features = options.features ?? 'width=1280,height=800'
       const child = window.open('', '_blank', features)
       if (!child) return null
+      try {
+        child.opener = null
+      } catch {
+        // ignore if browser disallows
+      }
       const id = `detached-${++sequenceRef.current}`
       child.document.write('<!DOCTYPE html><html><head><title></title></head><body></body></html>')
       child.document.close()

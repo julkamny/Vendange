@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import type { Completion } from '@codemirror/autocomplete'
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete'
-import { EditorState, RangeSetBuilder, StateEffect, StateField, type Extension, type Text } from '@codemirror/state'
+import { EditorState, RangeSetBuilder, StateField, type Extension, type Text } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import type { Intermarc } from '../lib/intermarc'
 import { prettyPrintIntermarc, parsePrettyPrintedIntermarc } from '../lib/intermarc'
@@ -20,15 +20,6 @@ const COMPLETION_LIMIT = 40
 const CONTROLLED_VALUE_RESTRICTIONS = new Set(
   ['740$3', '552$3', '140$3', '750$3', '150$3', '700$3', '701$3', '702$3'].map(code => code.toUpperCase()),
 )
-const SkipCompletionEffect = StateEffect.define<boolean>()
-const skipCompletionField = StateField.define<boolean>({
-  create: () => false,
-  update(value, tr) {
-    if (tr.effects.some(effect => effect.is(SkipCompletionEffect))) return true
-    if (value) return false
-    return false
-  },
-})
 
 type ParsedSubfield = {
   code: string
@@ -289,16 +280,12 @@ function buildEntitySuggestions(records: RecordRow[], language: string): EntityS
   return entries.sort((a, b) => a.label.localeCompare(b.label, language, { sensitivity: 'accent' }))
 }
 
-function filterCompletions(
-  suggestions: EntitySuggestion[],
-  query: string,
-  includeControlled: boolean,
-): Completion[] {
+function filterCompletions(suggestions: EntitySuggestion[], query: string, includeControlled: boolean): Completion[] {
   const normalized = normalizeText(query)
   const options: Completion[] = []
   for (const suggestion of suggestions) {
     if (!includeControlled && suggestion.isControlled) continue
-    if (normalized && !suggestion.labelNormalized.includes(normalized)) continue
+    if (normalized && !suggestion.labelNormalized.startsWith(normalized)) continue
     options.push({
       label: suggestion.label,
       detail: suggestion.type,
@@ -309,40 +296,26 @@ function filterCompletions(
   return options
 }
 
-function createIntermarcCompletionSource(params: {
-  suggestions: EntitySuggestion[]
-  restrictedSubfields: Set<string>
-}) {
+function createIntermarcCompletionSource(params: { suggestions: EntitySuggestion[]; restrictedSubfields: Set<string> }) {
   return (context: CompletionContext) => {
-    const match = context.matchBefore(/@[^\s@]*/u)
+    const match = context.matchBefore(/[^\s$]*/u)
     if (!match) return null
-    if (context.state.field(skipCompletionField, false)) return null
     if (match.from === match.to && !context.explicit) return null
     const info = getSubfieldContext(context.state.doc, match.from)
     if (!info || !info.inValue) return null
     const subfieldCode = info.code ?? ''
     const includeControlled = !params.restrictedSubfields.has(subfieldCode)
-    const query = match.text.slice(1)
+    const query = match.text.trim()
+    if (!query && !context.explicit) return null
     const options = filterCompletions(params.suggestions, query, includeControlled)
     if (!options.length) return null
     return {
       from: match.from,
       options,
-      validFor: /@[^\s@]*/u,
+      validFor: /[^\s$]*/u,
     }
   }
 }
-
-const literalAtHandler = EditorView.inputHandler.of((view, from, to, text) => {
-  if (text !== '@' || from !== to) return false
-  if (from === 0) return false
-  if (view.state.doc.sliceString(from - 1, from) !== '@') return false
-  view.dispatch({
-    changes: { from: from - 1, to, insert: '@' },
-    effects: SkipCompletionEffect.of(true),
-  })
-  return true
-})
 
 type IntermarcEditorProps = {
   record: RecordRow
@@ -455,10 +428,8 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave }: In
       EditorView.lineWrapping,
       EditorState.tabSize.of(2),
       INTERMARC_THEME,
-      skipCompletionField,
       decorationExtension,
       completionExtension,
-      literalAtHandler,
     ],
     [completionExtension, decorationExtension],
   )

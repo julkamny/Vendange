@@ -33,7 +33,7 @@ export function ManifestationPanel({
   onSelectManifestation,
 }: ManifestationPanelProps) {
   const { t } = useTranslation()
-  const { getById, getByArk, getAgentNames, getGeneralRelationshipCount } = useRecordLookup()
+  const { getById, getByArk, getAgentNames, getGeneralRelationshipCount, getMediaKinds } = useRecordLookup()
   const { countIncomingRelationships } = useBacklinks()
   const resolveExpressionRecord = useCallback(
     (id?: string | null, ark?: string | null) => getById(id) ?? getByArk(ark),
@@ -97,6 +97,7 @@ export function ManifestationPanel({
     }
     const agentNames = getAgentNames(manifestation.id, manifestation.ark)
     const metrics = computeManifestationMetrics(manifestation.id, manifestation.ark)
+    const mediaKinds = getMediaKinds(manifestation.id, manifestation.ark)
     const agentBadgeNames = agentNames.length ? agentNames : undefined
 
     return (
@@ -126,6 +127,7 @@ export function ManifestationPanel({
             agentNames={agentBadgeNames}
             relationships={metrics.relationships}
             titleSegments={metrics.segments}
+            mediaKinds={mediaKinds}
           />
         </button>
       </div>
@@ -167,6 +169,7 @@ export function ManifestationPanel({
       sectionClasses.push('inactive')
     }
     const agentNames = getAgentNames(expression.id, expression.ark)
+    const mediaKinds = getMediaKinds(expression.id, expression.ark)
     const { workLinkCount, relationships } = computeExpressionMetrics(expression.id, expression.ark)
     const meta =
       kind === 'anchor'
@@ -190,6 +193,7 @@ export function ManifestationPanel({
             agentNames={agentNames}
             workLinkCount={workLinkCount}
             relationships={relationships}
+            mediaKinds={mediaKinds}
           />
           <span className="manifestation-section__meta">{meta}</span>
         </div>

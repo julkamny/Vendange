@@ -1020,10 +1020,6 @@ button:focus-visible {
 }
 .manifestation-item__main .entity-label {
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.25rem;
 }
 .manifestation-item.highlight:not(.selected) {
   background: color-mix(in srgb, var(--color-highlight) 45%, transparent);

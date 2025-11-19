@@ -4,10 +4,10 @@ const EMPTY: readonly string[] = []
 
 type LabelLookup = Record<string, readonly string[]>
 
-function createUppercaseMap(source: Record<string, readonly string[]>): Map<string, readonly string[]> {
+function createMap(source: Record<string, readonly string[]>): Map<string, readonly string[]> {
   const map = new Map<string, readonly string[]>()
   Object.entries(source).forEach(([key, lists]) => {
-    const normalized = key.trim().toUpperCase()
+    const normalized = key.trim()
     if (!normalized) return
     const unique = Array.from(new Set(lists.filter(Boolean)))
     map.set(normalized, unique)
@@ -38,8 +38,8 @@ function buildLabelLookup(): LabelLookup {
   return entries
 }
 
-const CONTROLLED_SUBFIELD_MAP = createUppercaseMap(CONTROLLED_SUBFIELD_LISTS)
-const CONTROLLED_SUBFIELD_WILDCARD_MAP = createUppercaseMap(CONTROLLED_SUBFIELD_WILDCARDS)
+const CONTROLLED_SUBFIELD_MAP = createMap(CONTROLLED_SUBFIELD_LISTS)
+const CONTROLLED_SUBFIELD_WILDCARD_MAP = createMap(CONTROLLED_SUBFIELD_WILDCARDS)
 const CONTROLLED_LABEL_LOOKUP = buildLabelLookup()
 
 export const CONTROLLED_LIST_NAMES = Object.keys(CONTROLLED_LIST_VALUES)
@@ -47,12 +47,12 @@ export const CONTROLLED_LIST_NAMES = Object.keys(CONTROLLED_LIST_VALUES)
 function wildcardKey(subfield: string): string | null {
   const idx = subfield.indexOf('$')
   if (idx === -1) return null
-  return subfield.slice(idx).toUpperCase()
+  return subfield.slice(idx)
 }
 
 export function getControlledListsForSubfield(subfield: string | undefined | null): readonly string[] {
   if (!subfield) return EMPTY
-  const normalized = subfield.trim().toUpperCase()
+  const normalized = subfield.trim()
   if (!normalized) return EMPTY
   const direct = CONTROLLED_SUBFIELD_MAP.get(normalized)
   if (direct && direct.length) return direct

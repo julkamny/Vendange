@@ -173,10 +173,10 @@ function getSubfieldContext(doc: Text, pos: number): SubfieldContext | null {
   }
   for (const subfield of parsed.subfields) {
     if (pos >= subfield.valueStart && pos <= subfield.valueEnd) {
-      return { zone: parsed.zone, code: subfield.code.toUpperCase(), inValue: true }
+      return { zone: parsed.zone, code: subfield.code, inValue: true }
     }
     if (pos >= subfield.codeStart && pos <= subfield.codeEnd) {
-      return { zone: parsed.zone, code: subfield.code.toUpperCase(), inValue: false }
+      return { zone: parsed.zone, code: subfield.code, inValue: false }
     }
   }
   return { zone: parsed.zone, inValue: false }
@@ -349,6 +349,7 @@ function createIntermarcCompletionSource(params: { suggestions: EntitySuggestion
     if (!query && !context.explicit) return null
     const allowedControlledLists = getControlledListsForSubfield(subfieldCode)
     const allowedKinds = getAllowedKindsForSubfield(subfieldCode)
+    console.log('Autocomplete context', { subfieldCode, query, allowedKinds, allowedControlledLists })  
     if ((!allowedKinds || allowedKinds.length === 0) && allowedControlledLists.length === 0) {
       return null
     }

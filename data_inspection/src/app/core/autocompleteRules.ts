@@ -53,7 +53,13 @@ export const ALL_AUTOCOMPLETE_ENTITY_KINDS: readonly AutocompleteEntityKind[] = 
 const SUBFIELD_KIND_RULES = new Map<string, Set<AutocompleteEntityKind>>()
 
 function normalizeCode(code: string): string {
-  return code.trim().toUpperCase()
+  const trimmed = code.trim()
+  if (!trimmed) return ''
+  const dollarIdx = trimmed.indexOf('$')
+  if (dollarIdx === -1) return trimmed.toUpperCase()
+  const zone = trimmed.slice(0, dollarIdx).toUpperCase()
+  const subfield = trimmed.slice(dollarIdx)
+  return `${zone}${subfield}`
 }
 
 function registerAllowedKinds(codes: readonly string[], kinds: readonly AutocompleteEntityKind[]) {

@@ -1,1218 +1,1218 @@
 // Auto-generated from documentation referential TSV exports. Do not edit manually.
 export const CONTROLLED_SUBFIELD_LISTS = {
-  "010$A": [
+  "010$a": [
     "Type d'entité"
   ],
-  "010$B": [
+  "010$b": [
     "Entité fictive"
   ],
-  "010$C": [
+  "010$c": [
     "Niveau de catalogage"
   ],
-  "010$E": [
+  "010$e": [
     "Écriture"
   ],
-  "010$F": [
+  "010$f": [
     "Fonction de la notice"
   ],
-  "010$G": [
+  "010$g": [
     "Type d'agrégat"
   ],
-  "010$H": [
+  "010$h": [
     "Statut de la ressource"
   ],
-  "010$I": [
+  "010$i": [
     "Mode d'intégration"
   ],
-  "010$J": [
+  "010$j": [
     "Étape de catalogage"
   ],
-  "010$L": [
+  "010$l": [
     "Code Langue - ISO 639-2"
   ],
-  "010$N": [
+  "010$n": [
     "Norme de catalogage"
   ],
-  "010$O": [
+  "010$o": [
     "Taggage de cas particulier de l'arbre OEMI"
   ],
-  "010$P": [
+  "010$p": [
     "Pré-notice"
   ],
-  "010$Q": [
+  "010$q": [
     "Type de ressource continue"
   ],
-  "010$R": [
+  "010$r": [
     "Critère de regroupement"
   ],
-  "010$S": [
+  "010$s": [
     "Statut d'identification"
   ],
-  "010$T": [
+  "010$t": [
     "Type de ressource"
   ],
-  "010$V": [
+  "010$v": [
     "Valeur du nom"
   ],
-  "012$D": [
+  "012$d": [
     "Disponibilité"
   ],
-  "012$M": [
+  "012$m": [
     "Item - Mode d'entrée"
   ],
-  "012$N": [
+  "012$n": [
     "Item - Mode d'entrée"
   ],
-  "012$O": [
+  "012$o": [
     "Code original"
   ],
-  "012$S": [
+  "012$s": [
     "Grande catégorie de support"
   ],
-  "013$A": [
+  "013$a": [
     "Niveau d'autonomie"
   ],
-  "013$B": [
+  "013$b": [
     "Type de description"
   ],
-  "013$C": [
+  "013$c": [
     "Modalité de parution"
   ],
-  "013$D": [
+  "013$d": [
     "Type de document ADCAT-02"
   ],
-  "013$I": [
+  "013$i": [
     "Présence d'illustrations, d'index, de tables, de texte"
   ],
-  "013$M": [
+  "013$m": [
     "Mode de production du document"
   ],
-  "013$N": [
+  "013$n": [
     "Nature du manuscrit"
   ],
-  "013$O": [
+  "013$o": [
     "Type de publication officielle"
   ],
-  "013$P": [
+  "013$p": [
     "Présentation musicale"
   ],
-  "013$R": [
+  "013$r": [
     "Reproduction"
   ],
-  "013$S": [
+  "013$s": [
     "Contenu secondaire"
   ],
-  "013$T": [
+  "013$t": [
     "Caractéristique typographique"
   ],
-  "014$E": [
+  "014$e": [
     "Qualification de l'expression représentative"
   ],
-  "014$G": [
+  "014$g": [
     "Expression globale"
   ],
-  "014$I": [
+  "014$i": [
     "Qualification de l'expression générique"
   ],
-  "014$M": [
+  "014$m": [
     "Modalité d'adaptation de l'expression"
   ],
-  "014$O": [
+  "014$o": [
     "Statut de l'objet numismatique"
   ],
-  "014$R": [
+  "014$r": [
     "Qualification de l'expression de regroupement"
   ],
-  "014$T": [
+  "014$t": [
     "Type de mention"
   ],
-  "015$A": [
+  "015$a": [
     "Œuvre académique"
   ],
-  "015$C": [
+  "015$c": [
     "Catégorie d'œuvre"
   ],
-  "015$E": [
+  "015$e": [
     "Édition principale d'un périodique"
   ],
-  "015$G": [
+  "015$g": [
     "Œuvre globale"
   ],
-  "015$N": [
+  "015$n": [
     "Projet non réalisé"
   ],
-  "015$O": [
+  "015$o": [
     "Type de publication officielle"
   ],
-  "015$P": [
+  "015$p": [
     "Type de plan d'extension"
   ],
-  "015$R": [
+  "015$r": [
     "Type de recueil"
   ],
-  "016$A": [
+  "016$a": [
     "Grande catégorie de la forme de l'Œuvre audiovisuelle"
   ],
-  "016$B": [
+  "016$b": [
     "Grande catégorie de la forme de l'œuvre plastique"
   ],
-  "016$C": [
+  "016$c": [
     "Grande catégorie de la forme de l'œuvre cartographique"
   ],
-  "016$I": [
+  "016$i": [
     "Forme de l'œuvre iconographique (grande catégorie)"
   ],
-  "016$L": [
+  "016$l": [
     "Grande catégorie de la forme de l'œuvre logicielle et multimédia"
   ],
-  "016$M": [
+  "016$m": [
     "Grande catégorie de la forme de l'œuvre monétiforme"
   ],
-  "016$P": [
+  "016$p": [
     "Grande catégorie de la forme de l'œuvre performative"
   ],
-  "016$R": [
+  "016$r": [
     "Grande catégorie de la forme de l'œuvre de contenu parlé"
   ],
-  "01C$B": [
+  "01C$b": [
     "Caractère officiel de la Collectivité"
   ],
-  "01C$C": [
+  "01C$c": [
     "Groupe occasionnel"
   ],
-  "01C$D": [
+  "01C$d": [
     "Domaine administratif de la collectivité officielle"
   ],
-  "01C$P": [
+  "01C$p": [
     "Catégorie d'organisation publique ou intergouvernementale"
   ],
-  "01C$R": [
+  "01C$r": [
     "Échelon territorial d'action"
   ],
-  "01C$T": [
+  "01C$t": [
     "Type de collectivité"
   ],
-  "01F$T": [
+  "01F$t": [
     "Type de famille"
   ],
-  "01L$A": [
+  "01L$a": [
     "Grande catégorie du lieu"
   ],
-  "01L$B": [
+  "01L$b": [
     "Catégorie du lieu"
   ],
-  "01L$C": [
+  "01L$c": [
     "Typologie du lieu"
   ],
-  "01L$D": [
+  "01L$d": [
     "Lieu disparu"
   ],
-  "01P$C": [
+  "01P$c": [
     "Catégorie de l'Identité publique"
   ],
-  "01P$G": [
+  "01P$g": [
     "Genre de la personne"
   ],
-  "01P$M": [
+  "01P$m": [
     "Personne morte pour la France"
   ],
-  "01Q$C": [
+  "01Q$c": [
     "Catégorie des produits de la marque"
   ],
-  "01S$C": [
+  "01S$c": [
     "Création"
   ],
-  "01S$F": [
+  "01S$f": [
     "Festival"
   ],
-  "01S$R": [
+  "01S$r": [
     "Reprise"
   ],
-  "01S$T": [
+  "01S$t": [
     "Tournée"
   ],
-  "01T$A": [
+  "01T$a": [
     "Catégorie du Laps de temps"
   ],
-  "01T$B": [
+  "01T$b": [
     "Avant Jésus-Christ"
   ],
-  "022$C": [
+  "022$c": [
     "Code du centre ISSN"
   ],
-  "022$P": [
+  "022$p": [
     "Périmètre d'intérêt de la ressource continue"
   ],
-  "023$Q": [
+  "023$q": [
     "Type de numéro"
   ],
-  "02Z$Q": [
+  "02Z$q": [
     "Type d'identifiant"
   ],
-  "034$Q": [
+  "034$q": [
     "Type de numéro d'entrée"
   ],
-  "037$Q": [
+  "037$q": [
     "Type d'identifiant - Item"
   ],
-  "040$C": [
+  "040$c": [
     "Circonstances de la captation"
   ],
-  "040$G": [
+  "040$g": [
     "Date privilégiée"
   ],
-  "040$P": [
+  "040$p": [
     "Code Pays"
   ],
-  "040$Q": [
+  "040$q": [
     "Nature de la date et/ou du lieu"
   ],
-  "040$R": [
+  "040$r": [
     "Code Pays non actuel"
   ],
-  "040$X": [
+  "040$x": [
     "Couverture de l'agrégat"
   ],
-  "041$A": [
+  "041$a": [
     "Code Langue - ISO 639-2"
   ],
-  "041$AA": [
+  "041$aa": [
     "Code Langue - ISO 639-3"
   ],
-  "041$B": [
+  "041$b": [
     "Code Langue - ISO 639-2"
   ],
-  "041$BB": [
+  "041$bb": [
     "Code Langue - ISO 639-3"
   ],
-  "041$C": [
+  "041$c": [
     "Code Langue - ISO 639-2"
   ],
-  "041$CC": [
+  "041$cc": [
     "Code Langue - ISO 639-3"
   ],
-  "041$F": [
+  "041$f": [
     "Aspect de traduction"
   ],
-  "041$Q": [
+  "041$q": [
     "Périmètre d'application de la langue"
   ],
-  "041$T": [
+  "041$t": [
     "Code Langue - ISO 639-2"
   ],
-  "041$TT": [
+  "041$tt": [
     "Code Langue - ISO 639-3"
   ],
-  "041$V": [
+  "041$v": [
     "Code Langue - ISO 639-2"
   ],
-  "041$VV": [
+  "041$vv": [
     "Code Langue - ISO 639-3"
   ],
-  "041$X": [
+  "041$x": [
     "Couverture de l'agrégat"
   ],
-  "042$A": [
+  "042$a": [
     "Écriture"
   ],
-  "042$M": [
+  "042$m": [
     "Forme de la notation musicale"
   ],
-  "042$N": [
+  "042$n": [
     "Forme de la notation du mouvement"
   ],
-  "042$O": [
+  "042$o": [
     "Forme de la notation tactile"
   ],
-  "042$T": [
+  "042$t": [
     "Système de translittération ou transcription"
   ],
-  "042$X": [
+  "042$x": [
     "Couverture de l'agrégat"
   ],
-  "043$C": [
+  "043$c": [
     "Classification CNC"
   ],
-  "043$D": [
+  "043$d": [
     "Classification PEGI"
   ],
-  "043$E": [
+  "043$e": [
     "Précision PEGI"
   ],
-  "043$H": [
+  "043$h": [
     "Public en situation de handicap"
   ],
-  "043$N": [
+  "043$n": [
     "Niveau d'enseignement"
   ],
-  "043$P": [
+  "043$p": [
     "Public"
   ],
-  "043$X": [
+  "043$x": [
     "Couverture de l'agrégat"
   ],
-  "044$D": [
+  "044$d": [
     "Grande classe Dewey"
   ],
-  "044$P": [
+  "044$p": [
     "Profession"
   ],
-  "045$A": [
+  "045$a": [
     "Périodicité"
   ],
-  "046$M": [
+  "046$m": [
     "Métal nominal"
   ],
-  "047$A": [
+  "047$a": [
     "Tonalité"
   ],
-  "047$M": [
+  "047$m": [
     "Modalité"
   ],
-  "048$A": [
+  "048$a": [
     "Distribution musicale – Instrument/voix"
   ],
-  "048$B": [
+  "048$b": [
     "Distribution musicale – Tessiture, instrument préparé"
   ],
-  "048$C": [
+  "048$c": [
     "Distribution musicale – Nombre de mains, d'exécutants, tonalité des instruments transpositeurs"
   ],
-  "048$D": [
+  "048$d": [
     "Distribution musicale – Amplifié, ethnique, etc."
   ],
-  "048$E": [
+  "048$e": [
     "Distribution musicale – Ad libitum"
   ],
-  "048$H": [
+  "048$h": [
     "Distribution musicale – Instrument/voix"
   ],
-  "048$I": [
+  "048$i": [
     "Distribution musicale – Tessiture, instrument préparé"
   ],
-  "048$J": [
+  "048$j": [
     "Distribution musicale – Nombre de mains, d'exécutants, tonalité des instruments transpositeurs"
   ],
-  "048$L": [
+  "048$l": [
     "Distribution musicale – Amplifié, ethnique, etc."
   ],
-  "048$M": [
+  "048$m": [
     "Distribution musicale – Ad libitum"
   ],
-  "048$P": [
+  "048$p": [
     "Distribution musicale – Instrument/voix"
   ],
-  "048$R": [
+  "048$r": [
     "Distribution musicale – Tessiture, instrument préparé"
   ],
-  "048$S": [
+  "048$s": [
     "Distribution musicale – Nombre de mains, d'exécutants, tonalité des instruments transpositeurs"
   ],
-  "048$T": [
+  "048$t": [
     "Distribution musicale – Amplifié, ethnique, etc."
   ],
-  "048$U": [
+  "048$u": [
     "Distribution musicale – Ad libitum"
   ],
-  "048$V": [
+  "048$v": [
     "Type de distribution musicale"
   ],
-  "048$X": [
+  "048$x": [
     "Couverture de l'agrégat"
   ],
-  "051$A": [
+  "051$a": [
     "Type de contenu"
   ],
-  "051$B": [
+  "051$b": [
     "Type de médiation"
   ],
-  "051$M": [
+  "051$m": [
     "Type de contenu"
   ],
-  "051$O": [
+  "051$o": [
     "Objet monétiforme"
   ],
-  "051$S": [
+  "051$s": [
     "Type de contenu"
   ],
-  "051$X": [
+  "051$x": [
     "Couverture de l'agrégat"
   ],
-  "052$A": [
+  "052$a": [
     "Type de support"
   ],
-  "052$B": [
+  "052$b": [
     "Format audiovisuel (chargement)"
   ],
-  "052$F": [
+  "052$f": [
     "Famille de support"
   ],
-  "052$S": [
+  "052$s": [
     "Type de sillon"
   ],
-  "052$X": [
+  "052$x": [
     "Couverture de l'agrégat"
   ],
-  "053$K": [
+  "053$k": [
     "Technique précise (ressources iconographiques)"
   ],
-  "053$M": [
+  "053$m": [
     "Matériau de la matrice"
   ],
-  "053$P": [
+  "053$p": [
     "Polarité de la photographie"
   ],
-  "054$A": [
+  "054$a": [
     "Caractéristique de couleur"
   ],
-  "054$X": [
+  "054$x": [
     "Couverture de l'agrégat"
   ],
-  "055$E": [
+  "055$e": [
     "Mode d'enregistrement"
   ],
-  "055$P": [
+  "055$p": [
     "Technique de spatialisation du son"
   ],
-  "055$S": [
+  "055$s": [
     "Caractéristique sonore"
   ],
-  "055$X": [
+  "055$x": [
     "Couverture de l'agrégat"
   ],
-  "057$M": [
+  "057$m": [
     "Circuit de la ressource"
   ],
-  "057$O": [
+  "057$o": [
     "Circuit d'origine"
   ],
-  "072$D": [
+  "072$d": [
     "Degrés Longitude"
   ],
-  "072$DM": [
+  "072$dm": [
     "MinutesSecondes"
   ],
-  "072$DP": [
+  "072$dp": [
     "Position Est/Ouest"
   ],
-  "072$DS": [
+  "072$ds": [
     "MinutesSecondes"
   ],
-  "072$E": [
+  "072$e": [
     "Degrés Longitude"
   ],
-  "072$EM": [
+  "072$em": [
     "MinutesSecondes"
   ],
-  "072$EP": [
+  "072$ep": [
     "Position Est/Ouest"
   ],
-  "072$ES": [
+  "072$es": [
     "MinutesSecondes"
   ],
-  "072$F": [
+  "072$f": [
     "Degrés Latitude"
   ],
-  "072$FM": [
+  "072$fm": [
     "MinutesSecondes"
   ],
-  "072$FP": [
+  "072$fp": [
     "Position Nord /Sud"
   ],
-  "072$FS": [
+  "072$fs": [
     "MinutesSecondes"
   ],
-  "072$G": [
+  "072$g": [
     "Degrés Latitude"
   ],
-  "072$GM": [
+  "072$gm": [
     "MinutesSecondes"
   ],
-  "072$GP": [
+  "072$gp": [
     "Position Nord /Sud"
   ],
-  "072$GS": [
+  "072$gs": [
     "MinutesSecondes"
   ],
-  "072$H": [
+  "072$h": [
     "Tranche d'échelle"
   ],
-  "072$O": [
+  "072$o": [
     "Ellipsoïde"
   ],
-  "072$P": [
+  "072$p": [
     "Projection"
   ],
-  "072$Q": [
+  "072$q": [
     "Source des coordonnées"
   ],
-  "072$R": [
+  "072$r": [
     "Méridien"
   ],
-  "072$S": [
+  "072$s": [
     "Système géodésique"
   ],
-  "072$T": [
+  "072$t": [
     "Type d'échelle"
   ],
-  "072$U": [
+  "072$u": [
     "Tranche d'échelle"
   ],
-  "073$A": [
+  "073$a": [
     "Cadre de classement géographique actuel"
   ],
-  "073$H": [
+  "073$h": [
     "Cadre de classement géographique historique"
   ],
-  "074$M": [
+  "074$m": [
     "Mode de représentation des géométries"
   ],
-  "074$R": [
+  "074$r": [
     "Expression du relief"
   ],
-  "074$S": [
+  "074$s": [
     "Nom du satellite"
   ],
-  "076$A": [
+  "076$a": [
     "Forme de la zone utile des feuilles"
   ],
-  "076$B": [
+  "076$b": [
     "Type de recouvrement entre les feuilles"
   ],
-  "076$C": [
+  "076$c": [
     "Caractéristiques des limites des feuilles"
   ],
-  "076$E": [
+  "076$e": [
     "Mode de désignation des feuilles"
   ],
-  "080$R": [
+  "080$r": [
     "Relecture"
   ],
-  "096$J": [
+  "096$j": [
     "Genre, forme"
   ],
-  "100$Q": [
+  "100$q": [
     "Type du nom"
   ],
-  "150$Q": [
+  "150$q": [
     "Nature du titre de l'œuvre"
   ],
-  "152$C": [
+  "152$c": [
     "Comparaison avec le titre propre"
   ],
-  "152$Q": [
+  "152$q": [
     "Nature du titre de l'œuvre (ressource continue)"
   ],
-  "170$H": [
+  "170$h": [
     "Qualification linguistique"
   ],
-  "170$R": [
+  "170$r": [
     "Grande division océanique"
   ],
-  "182$R": [
+  "182$r": [
     "Grande division océanique"
   ],
-  "184$R": [
+  "184$r": [
     "Nature de la représentation"
   ],
-  "200$A": [
+  "200$a": [
     "Item - Établissement"
   ],
-  "200$B": [
+  "200$b": [
     "Item - Destination"
   ],
-  "200$C": [
+  "200$c": [
     "Item - Usage"
   ],
-  "201$A": [
+  "201$a": [
     "Item - Préfixe cote"
   ],
-  "203$A": [
+  "203$a": [
     "Item - Code salle"
   ],
-  "203F": [
+  "203f": [
     "Item - Nature Œuvre"
   ],
-  "206$A": [
+  "206$a": [
     "Item - Destination"
   ],
-  "207$A": [
+  "207$a": [
     "Item - Destination"
   ],
-  "211$A": [
+  "211$a": [
     "Item - Code support physique"
   ],
-  "211$B": [
+  "211$b": [
     "Item - Code support physique"
   ],
-  "212$A": [
+  "212$a": [
     "Item - Type papier"
   ],
-  "225$B": [
+  "225$b": [
     "Item - Complétude publication en série"
   ],
-  "225$C": [
+  "225$c": [
     "Item - Conservation"
   ],
-  "245$N": [
+  "245$n": [
     "Titre non indexé"
   ],
-  "256$S": [
+  "256$s": [
     "Système géodésique"
   ],
-  "261$NA": [
+  "261$na": [
     "Lieu de publication inconnu ou non disponible"
   ],
-  "261$NC": [
+  "261$nc": [
     "Nom de l'éditeur inconnu ou non disponible"
   ],
-  "261$ND": [
+  "261$nd": [
     "Date de publication inconnue ou non disponible"
   ],
-  "263$Q": [
+  "263$q": [
     "Périmètre de la zone 263"
   ],
-  "280$B": [
+  "280$b": [
     "Format bibliographique"
   ],
-  "280$F": [
+  "280$f": [
     "Forme d'une monnaie"
   ],
-  "281$C": [
+  "281$c": [
     "Contenu d'une ressource cartographique"
   ],
-  "281$I": [
+  "281$i": [
     "Contenu d'une ressource constituée d'image(s) fixe(s)"
   ],
-  "281$M": [
+  "281$m": [
     "Contenu d'une ressource constituée de musique notée"
   ],
-  "281$T": [
+  "281$t": [
     "Contenu d'une ressource constituée de texte"
   ],
-  "282$B": [
+  "282$b": [
     "Type de sous-unités (sans médiation)"
   ],
-  "282$EI": [
+  "282$ei": [
     "Type de fichier électronique"
   ],
-  "282$F": [
+  "282$f": [
     "Format d'un support électronique ou vidéo"
   ],
-  "282$G": [
+  "282$g": [
     "Méthode de gravure du sillon"
   ],
-  "282$H": [
+  "282$h": [
     "Disposition"
   ],
-  "282$I": [
+  "282$i": [
     "Format d'image animée"
   ],
-  "282$J": [
+  "282$j": [
     "Format bibliographique"
   ],
-  "282$S": [
+  "282$s": [
     "Technique de spatialisation du son"
   ],
-  "282$T": [
+  "282$t": [
     "Technique de réduction du bruit de fond"
   ],
-  "282$U": [
+  "282$u": [
     "Norme de diffusion"
   ],
-  "282$V": [
+  "282$v": [
     "Vitesse de lecture"
   ],
-  "283$F": [
+  "283$f": [
     "Format de fichier"
   ],
-  "283$I": [
+  "283$i": [
     "Type de fichier électronique"
   ],
-  "283$J": [
+  "283$j": [
     "Données d'accessibilité ONIX"
   ],
-  "284$A": [
+  "284$a": [
     "Matériau appliqué"
   ],
-  "284$G": [
+  "284$g": [
     "Matériau primaire ou secondaire"
   ],
-  "284$H": [
+  "284$h": [
     "Matériau primaire ou secondaire"
   ],
-  "284$J": [
+  "284$j": [
     "Technique de fabrication de la monnaie"
   ],
-  "284$L": [
+  "284$l": [
     "Précision sur la technique de fabrication de la monnaie"
   ],
-  "285$F": [
+  "285$f": [
     "Facteur de réduction"
   ],
-  "285$G": [
+  "285$g": [
     "Génération"
   ],
-  "285$H": [
+  "285$h": [
     "Taille des caractères"
   ],
-  "285$M": [
+  "285$m": [
     "Méthode de production"
   ],
-  "285$P": [
+  "285$p": [
     "Polarité"
   ],
-  "285$T": [
+  "285$t": [
     "Type de police de caractères"
   ],
-  "286$A": [
+  "286$a": [
     "Reliure"
   ],
-  "287$A": [
+  "287$a": [
     "Type de conteneur"
   ],
-  "287$E": [
+  "287$e": [
     "Écriture"
   ],
-  "287$L": [
+  "287$l": [
     "Code Langue - ISO 639-2"
   ],
-  "287$LL": [
+  "287$ll": [
     "Code Langue - ISO 639-3"
   ],
-  "288$CE": [
+  "288$ce": [
     "Écriture"
   ],
-  "288$CL": [
+  "288$cl": [
     "Code Langue - ISO 639-2"
   ],
-  "288$EI": [
+  "288$ei": [
     "Type de fichier électronique"
   ],
-  "288$F": [
+  "288$f": [
     "Format d'un support électronique ou vidéo"
   ],
-  "288$G": [
+  "288$g": [
     "Méthode de gravure du sillon"
   ],
-  "288$H": [
+  "288$h": [
     "Disposition"
   ],
-  "288$I": [
+  "288$i": [
     "Format d'image animée"
   ],
-  "288$LL": [
+  "288$ll": [
     "Code Langue - ISO 639-3"
   ],
-  "288$S": [
+  "288$s": [
     "Technique de spatialisation du son"
   ],
-  "288$T": [
+  "288$t": [
     "Technique de réduction du bruit de fond"
   ],
-  "288$U": [
+  "288$u": [
     "Norme de diffusion"
   ],
-  "288$V": [
+  "288$v": [
     "Vitesse de lecture"
   ],
-  "288$X": [
+  "288$x": [
     "Type de matériel d'accompagnement"
   ],
-  "304$P": [
+  "304$p": [
     "Code Pays"
   ],
-  "308$O": [
+  "308$o": [
     "Origine du travail universitaire"
   ],
-  "30A$N": [
+  "30A$n": [
     "Titre non indexé"
   ],
-  "30A$Q": [
+  "30A$q": [
     "Formule introductive (30Aq)"
   ],
-  "30P$N": [
+  "30P$n": [
     "Titre non indexé"
   ],
-  "30Z$N": [
+  "30Z$n": [
     "Titre non indexé"
   ],
-  "30Z$Q": [
+  "30Z$q": [
     "Formule introductive (30Zq)"
   ],
-  "310$Q": [
+  "310$q": [
     "Périmètre d'application de la note biographique et/ou historique"
   ],
-  "312$A": [
+  "312$a": [
     "Domaine d'expression artistique"
   ],
-  "315$Q": [
+  "315$q": [
     "Périmètre de la zone 315"
   ],
-  "320$B": [
+  "320$b": [
     "Organisation des collections"
   ],
-  "320$F": [
+  "320$f": [
     "Item - Ajouts"
   ],
-  "320$T": [
+  "320$t": [
     "Item - Type provenance"
   ],
-  "332$C": [
+  "332$c": [
     "Couleur du contenu supplémentaire illustratif"
   ],
-  "332$E": [
+  "332$e": [
     "Écriture"
   ],
-  "332$L": [
+  "332$l": [
     "Code Langue - ISO 639-2"
   ],
-  "332$LL": [
+  "332$ll": [
     "Code Langue - ISO 639-3"
   ],
-  "332$N": [
+  "332$n": [
     "Nature du contenu supplémentaire"
   ],
-  "332$R": [
+  "332$r": [
     "Nature du contenu supplémentaire illustratif"
   ],
-  "333$F": [
+  "333$f": [
     "Format de fichier"
   ],
-  "333$I": [
+  "333$i": [
     "Type de fichier électronique"
   ],
-  "33E$L": [
+  "33E$l": [
     "Environnement logiciel"
   ],
-  "33E$M": [
+  "33E$m": [
     "Environnement matériel"
   ],
-  "33F$Q": [
+  "33F$q": [
     "Partie de la monnaie"
   ],
-  "340$R": [
+  "340$r": [
     "Réalisation du spectacle"
   ],
-  "342$G": [
+  "342$g": [
     "Tonalité"
   ],
-  "342$H": [
+  "342$h": [
     "Modalité"
   ],
-  "342$M": [
+  "342$m": [
     "Clef"
   ],
-  "350$X": [
+  "350$x": [
     "Couverture de l'agrégat"
   ],
-  "355$A": [
+  "355$a": [
     "Périodicité"
   ],
-  "355$P": [
+  "355$p": [
     "Type de périodicité"
   ],
-  "35S$H": [
+  "35S$h": [
     "Présence d'armoiries"
   ],
-  "362$Q": [
+  "362$q": [
     "Type de correspondance"
   ],
-  "362$R": [
+  "362$r": [
     "Alignement - Référentiel"
   ],
-  "362$T": [
+  "362$t": [
     "Alignement - Type de référentiel"
   ],
-  "384$Q": [
+  "384$q": [
     "Réalisation de la représentation"
   ],
-  "39A$Q": [
+  "39A$q": [
     "Domaine agent en relation"
   ],
-  "39S$E": [
+  "39S$e": [
     "Indicateur de complétude de la reproduction"
   ],
-  "39S$M": [
+  "39S$m": [
     "Conditions d'accès aux données"
   ],
-  "39S$Q": [
+  "39S$q": [
     "Type de relation (ressources continues)"
   ],
-  "39T$N": [
+  "39T$n": [
     "Titre non indexé"
   ],
-  "39T$Q": [
+  "39T$q": [
     "Formule introductive (39Tq)"
   ],
-  "400$Q": [
+  "400$q": [
     "Type du nom"
   ],
-  "430$Q": [
+  "430$q": [
     "Nature de la variante du titre de la manifestation"
   ],
-  "450$Q": [
+  "450$q": [
     "Nature de la variante du titre de l'œuvre"
   ],
-  "452$Q": [
+  "452$q": [
     "Nature de la variante du point d'accès ressources continues"
   ],
-  "470$R": [
+  "470$r": [
     "Grande division océanique"
   ],
-  "482$R": [
+  "482$r": [
     "Grande division océanique"
   ],
-  "484$R": [
+  "484$r": [
     "Nature de la représentation"
   ],
-  "609$Q": [
+  "609$q": [
     "Nature de la vedette (indexation non contrôlée)"
   ],
-  "628$A": [
+  "628$a": [
     "Genre précis son, vidéo, multimédia"
   ],
-  "628$B": [
+  "628$b": [
     "Genre général son, vidéo, multimédia"
   ],
-  "629$C": [
+  "629$c": [
     "Fonction (typologie audiovisuelle)"
   ],
-  "629$D": [
+  "629$d": [
     "Forme du document audiovisuel"
   ],
-  "629$E": [
+  "629$e": [
     "Condition de fixation de l'enregistrement"
   ],
-  "629$F": [
+  "629$f": [
     "Filiation avec une œuvre préexistante"
   ],
-  "629$G": [
+  "629$g": [
     "Forme de l'œuvre préexistante"
   ],
-  "629$S": [
+  "629$s": [
     "Fonction de l'enregistrement sonore"
   ],
-  "629$T": [
+  "629$t": [
     "Forme de l'œuvre textuelle"
   ],
-  "62A$B": [
+  "62A$b": [
     "Genre général du film ou téléfilm"
   ],
-  "62A$C": [
+  "62A$c": [
     "Genre précis du film ou téléfilm"
   ],
-  "62A$D": [
+  "62A$d": [
     "Genre général de l'émission de télévision"
   ],
-  "62A$E": [
+  "62A$e": [
     "Genre précis de l'émission de télévision"
   ],
-  "62A$F": [
+  "62A$f": [
     "Genre général de la série télévisée"
   ],
-  "62A$G": [
+  "62A$g": [
     "Genre précis de la série télévisée"
   ],
-  "62A$K": [
+  "62A$k": [
     "Métrage"
   ],
-  "62A$L": [
+  "62A$l": [
     "Catégorie technique de l'œuvre audiovisuelle"
   ],
-  "62A$X": [
+  "62A$x": [
     "Couverture de l'agrégat"
   ],
-  "62B$B": [
+  "62B$b": [
     "Genre iconographique"
   ],
-  "62B$X": [
+  "62B$x": [
     "Couverture de l'agrégat"
   ],
-  "62C$F": [
+  "62C$f": [
     "Fonction de l'œuvre cartographique"
   ],
-  "62C$G": [
+  "62C$g": [
     "Genre de l'œuvre cartographique"
   ],
-  "62C$T": [
+  "62C$t": [
     "Thématique de l'œuvre cartographique"
   ],
-  "62C$X": [
+  "62C$x": [
     "Couverture de l'agrégat"
   ],
-  "62D$X": [
+  "62D$x": [
     "Couverture de l'agrégat"
   ],
-  "62G$A": [
+  "62G$a": [
     "Forme ou genre général de l'œuvre de captation sonore"
   ],
-  "62G$B": [
+  "62G$b": [
     "Forme ou genre précis de l'œuvre de captation sonore"
   ],
-  "62G$X": [
+  "62G$x": [
     "Couverture de l'agrégat"
   ],
-  "62I$A": [
+  "62I$a": [
     "Genre iconographique"
   ],
-  "62I$C": [
+  "62I$c": [
     "Fonction de l'œuvre iconographique"
   ],
-  "62I$D": [
+  "62I$d": [
     "Couverture chronologique de l'Œuvre iconographique"
   ],
-  "62I$E": [
+  "62I$e": [
     "Esthétique de l'image"
   ],
-  "62I$X": [
+  "62I$x": [
     "Couverture de l'agrégat"
   ],
-  "62J$T": [
+  "62J$t": [
     "Typologie de l'objet"
   ],
-  "62L$B": [
+  "62L$b": [
     "Genre précis de jeu vidéo"
   ],
-  "62L$C": [
+  "62L$c": [
     "Genre précis de logiciel"
   ],
-  "62L$X": [
+  "62L$x": [
     "Couverture de l'agrégat"
   ],
-  "62M$A": [
+  "62M$a": [
     "Forme AIBM"
   ],
-  "62M$B": [
+  "62M$b": [
     "Forme de l'œuvre agrégative RDA-FR Musique"
   ],
-  "62M$C": [
+  "62M$c": [
     "Répertoire musical RDA-FR - Niveau 1"
   ],
-  "62M$D": [
+  "62M$d": [
     "Répertoire musical RDA-FR - Niveau 2"
   ],
-  "62M$E": [
+  "62M$e": [
     "Fonction musicale RDA-FR"
   ],
-  "62M$X": [
+  "62M$x": [
     "Couverture de l'agrégat"
   ],
-  "62N$X": [
+  "62N$x": [
     "Couverture de l'agrégat"
   ],
-  "62R$H": [
+  "62R$h": [
     "Genre précis de l'émission radiophonique"
   ],
-  "62R$I": [
+  "62R$i": [
     "Genre précis de la série radiophonique"
   ],
-  "62R$X": [
+  "62R$x": [
     "Couverture de l'agrégat"
   ],
-  "62S$X": [
+  "62S$x": [
     "Couverture de l'agrégat"
   ],
-  "62T$A": [
+  "62T$a": [
     "Domaine de l'œuvre textuelle"
   ],
-  "62T$B": [
+  "62T$b": [
     "Fonction de l'œuvre textuelle ou mixte"
   ],
-  "62T$C": [
+  "62T$c": [
     "Genre littéraire"
   ],
-  "62T$E": [
+  "62T$e": [
     "Forme de l'œuvre juridique"
   ],
-  "62T$F": [
+  "62T$f": [
     "Forme ou genre de l'œuvre religieuse"
   ],
-  "62T$G": [
+  "62T$g": [
     "Contexte religieux"
   ],
-  "62T$X": [
+  "62T$x": [
     "Couverture de l'agrégat"
   ],
-  "62X$A": [
+  "62X$a": [
     "Genre général de l'œuvre mixte"
   ],
-  "62X$B": [
+  "62X$b": [
     "Domaine de l'œuvre mixte"
   ],
-  "62X$C": [
+  "62X$c": [
     "Fonction de l'œuvre textuelle ou mixte"
   ],
-  "62X$D": [
+  "62X$d": [
     "Genre littéraire"
   ],
-  "62X$X": [
+  "62X$x": [
     "Couverture de l'agrégat"
   ],
-  "682$A": [
+  "682$a": [
     "Grande classe Dewey"
   ],
-  "682$B": [
+  "682$b": [
     "Indice Dewey non lié à une entité Dewey"
   ],
-  "683$B": [
+  "683$b": [
     "Nomenclature du budget"
   ],
-  "683$C": [
+  "683$c": [
     "Domaine concerné par les catalogues de vente et les collections"
   ],
-  "683$N": [
+  "683$n": [
     "Nomenclature des activités françaises (NAF)"
   ],
-  "683$P": [
+  "683$p": [
     "Domaine concerné par le produit présenté (promotion/publicité)"
   ],
-  "689$B": [
+  "689$b": [
     "Cadre de classement Livres"
   ],
-  "689$C": [
+  "689$c": [
     "Cadre de classement Publications en série"
   ],
-  "689$D": [
+  "689$d": [
     "Cadre de classement Imprimés numérisés BnF"
   ],
-  "689$E": [
+  "689$e": [
     "Cadre de classement Musique"
   ],
-  "689$F": [
+  "689$f": [
     "Cadre de classement Cartographie"
   ],
-  "689$G": [
+  "689$g": [
     "Cadre de classement Documents audiovisuels"
   ],
-  "689$H": [
+  "689$h": [
     "Cadre de classement Publications en série"
   ],
-  "689$I": [
+  "689$i": [
     "Cadre de classement Livres 1970-1984"
   ],
-  "689$J": [
+  "689$j": [
     "Cadre de classement Livres 1985-2001"
   ],
-  "689$K": [
+  "689$k": [
     "Cadre de classement Publications en série 2012-2019"
   ],
-  "689$L": [
+  "689$l": [
     "Cadre de classement Documents audiovisuels jusqu'en 2019"
   ],
-  "689$Q": [
+  "689$q": [
     "Produit bibliographique"
   ],
-  "690$A": [
+  "690$a": [
     "Code projet"
   ],
-  "690$D": [
+  "690$d": [
     "Département responsable de la sélection dans le projet"
   ],
-  "690$F": [
+  "690$f": [
     "Projet Québec : typologie"
   ],
-  "690$G": [
+  "690$g": [
     "Projet Québec : cadre de classement"
   ],
   "700$4": [
@@ -1242,253 +1242,253 @@ export const CONTROLLED_SUBFIELD_LISTS = {
   "714$4": [
     "Code Fonction associé à l'Item"
   ],
-  "715$A": [
+  "715$a": [
     "Code Fonction Interprète"
   ],
-  "730$Q": [
+  "730$q": [
     "Relation partielle"
   ],
-  "740$Q": [
+  "740$q": [
     "Relation partielle"
   ],
-  "750$Q": [
+  "750$q": [
     "Relation partielle"
   ],
-  "800$O": [
+  "800$o": [
     "Source de référence"
   ],
-  "800$Q": [
+  "800$q": [
     "Nature de la source"
   ],
-  "802$O": [
+  "802$o": [
     "Source de référence"
   ],
-  "802$Q": [
+  "802$q": [
     "Nature de la source"
   ],
   "804$4": [
     "Code Fonction Créateur ou Associé à l'Œuvre"
   ],
-  "810$A": [
+  "810$a": [
     "Item - Destination"
   ],
-  "817$L": [
+  "817$l": [
     "Code Langue - ISO 639-2"
   ],
-  "820$B": [
+  "820$b": [
     "PEX ValeurValuation Droit"
   ],
-  "820$C": [
+  "820$c": [
     "PEX ValeurValuation Permission"
   ],
-  "820$P": [
+  "820$p": [
     "PEX ValeurValuation Paramètres"
   ],
-  "821$L": [
+  "821$l": [
     "PEX Qualité epub"
   ],
-  "821$P": [
+  "821$p": [
     "PEX Présence epub"
   ],
-  "821$S": [
+  "821$s": [
     "PEX Signalement epub"
   ],
-  "821$Y": [
+  "821$y": [
     "PEX Type epub"
   ],
-  "822$N": [
+  "822$n": [
     "PEX Numérisation directe"
   ],
-  "822$P": [
+  "822$p": [
     "PEX Numérisation partielle"
   ],
-  "823$C": [
+  "823$c": [
     "PEX Consultation adaptatif"
   ],
-  "823$P": [
+  "823$p": [
     "PEX Présence adaptatif"
   ],
-  "823$S": [
+  "823$s": [
     "PEX Signalement adaptatif"
   ],
-  "824$D": [
+  "824$d": [
     "PEX Document né numérique"
   ],
-  "825$D": [
+  "825$d": [
     "PEX Présence table des matières"
   ],
-  "825$E": [
+  "825$e": [
     "PEX Présence texte"
   ],
-  "825$M": [
+  "825$m": [
     "PEX Type table des matières"
   ],
-  "825$X": [
+  "825$x": [
     "PEX Type texte"
   ],
-  "856$C": [
+  "856$c": [
     "Conditions d'accès aux données"
   ],
-  "856$F": [
+  "856$f": [
     "Format de fichier"
   ],
-  "856$I": [
+  "856$i": [
     "Codage ROAD"
   ],
-  "856$M": [
+  "856$m": [
     "Mode d'accès"
   ],
-  "856$Q": [
+  "856$q": [
     "Qualificatif (856q)"
   ],
-  "858$Q": [
+  "858$q": [
     "Base BnF"
   ],
-  "858$V": [
+  "858$v": [
     "Qualificatif de l'URL"
   ],
-  "862$F": [
+  "862$f": [
     "Auteur de la notice critique"
   ],
-  "862$L": [
+  "862$l": [
     "Catégorie du produit critiqué"
   ],
-  "862$M": [
+  "862$m": [
     "Tranche d'âge - Public destinataire"
   ],
-  "862$N": [
+  "862$n": [
     "Avis critique"
   ],
-  "862$T": [
+  "862$t": [
     "Publication dans laquelle la notice a paru"
   ],
-  "864$B": [
+  "864$b": [
     "Type d'image de couverture"
   ],
-  "869$Q": [
+  "869$q": [
     "Nature du dépouillement de la table des matières"
   ],
-  "869$S": [
+  "869$s": [
     "Structuration de la zone 869"
   ],
-  "901$A": [
+  "901$a": [
     "Type de notice d'autorité"
   ],
-  "901$B": [
+  "901$b": [
     "Type de notice bibliographique"
   ],
-  "901$D": [
+  "901$d": [
     "Type de document ADCAT-02"
   ],
-  "901$O": [
+  "901$o": [
     "Source du numéro"
   ],
-  "909$P": [
+  "909$p": [
     "Pays de la notice"
   ],
-  "90F$O": [
+  "90F$o": [
     "Source du numéro"
   ],
-  "90F$Q": [
+  "90F$q": [
     "Base dans laquelle a eu lieu la fusion"
   ],
-  "914$C": [
+  "914$c": [
     "Circonstances de la captation"
   ],
-  "914$P": [
+  "914$p": [
     "Code Pays"
   ],
-  "914$Q": [
+  "914$q": [
     "Nature de la date et/ou du lieu"
   ],
-  "914$R": [
+  "914$r": [
     "Code Pays non actuel"
   ],
-  "914$X": [
+  "914$x": [
     "Couverture de l'agrégat"
   ],
-  "916$D": [
+  "916$d": [
     "Nature de la demande"
   ],
-  "918$B": [
+  "918$b": [
     "Caractéristiques du publipostage"
   ],
-  "91A$Q": [
+  "91A$q": [
     "Type d'information"
   ],
-  "920$F": [
+  "920$f": [
     "Famille"
   ],
-  "923$D": [
+  "923$d": [
     "Titre propre d'anonyme - Domaine de l'œuvre"
   ],
-  "92D$D": [
+  "92D$d": [
     "Titre propre d'anonyme - Domaine de l'œuvre"
   ],
-  "92P$F": [
+  "92P$f": [
     "Famille"
   ],
-  "930$P": [
+  "930$p": [
     "Particularités d'exemplaire sous forme codée"
   ],
-  "933$C": [
+  "933$c": [
     "Établissement de la cote à afficher"
   ],
-  "934$C": [
+  "934$c": [
     "Bibliothèque extérieure"
   ],
-  "975$Q": [
+  "975$q": [
     "Nature de la vedette (indexation sujet étrangère)"
   ],
-  "981$C": [
+  "981$c": [
     "Règle de clusterisation"
   ],
-  "982$A": [
+  "982$a": [
     "Type de traitement de la notice (métadonnées fournies par l'éditeur)"
   ],
-  "982$D": [
+  "982$d": [
     "Degré validation - Manifestation"
   ],
-  "982$E": [
+  "982$e": [
     "Degré validation - Toutes entités hors Manifestation et Item"
   ],
-  "982$M": [
+  "982$m": [
     "Modification du type de traitement source"
   ],
-  "982$N": [
+  "982$n": [
     "Traitement par un service spécialisé de la BnF"
   ],
-  "982$O": [
+  "982$o": [
     "Origine précise - Hors Manifestation et Item"
   ],
-  "982$T": [
+  "982$t": [
     "Type de traitement source"
   ],
-  "982$V": [
+  "982$v": [
     "Étape de validation"
   ],
-  "983$C": [
+  "983$c": [
     "Conformité au format Intermarc-NG"
   ],
-  "987$A": [
+  "987$a": [
     "Code du motif de non attribution d'ISSN"
   ],
-  "990$AA": [
+  "990$aa": [
     "Format A ou B"
   ],
-  "991$AA": [
+  "991$aa": [
     "Format A ou B"
   ],
-  "993$AA": [
+  "993$aa": [
     "Format A ou B"
   ],
-  "999$AA": [
+  "999$aa": [
     "Format A ou B"
   ],
-  "99D$A": [
+  "99D$a": [
     "Degré de validation ADCAT-02 - Format Intermarc A"
   ],
-  "99D$B": [
+  "99D$b": [
     "Degré de validation ADCAT-02 - Format Intermarc B"
   ]
 } as const;

@@ -22,7 +22,7 @@ function normalizeArkForLookup(ark?: string | null): string | undefined {
   return ark.toLowerCase()
 }
 
-function labelForAgentRecord(rec: RecordRow): string {
+export function labelForAgentRecord(rec: RecordRow): string {
   if (rec.typeNorm === 'identite publique de personne') {
     const zone = findZones(rec.intermarc, '100')[0]
     if (zone) {

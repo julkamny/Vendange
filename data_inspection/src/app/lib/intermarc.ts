@@ -69,7 +69,7 @@ function getCachedArkLabel(ark: string | undefined | null): string | undefined {
   return undefined
 }
 
-function buildLabelFromIntermarc(im: Intermarc, type: string): string | undefined {
+export function buildLabelFromIntermarc(im: Intermarc, type: string): string | undefined {
   const normalizedType = normalizeTypeName(type)
   switch (normalizedType) {
     case 'œuvre': {

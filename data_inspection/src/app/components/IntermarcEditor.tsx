@@ -5,7 +5,7 @@ import { autocompletion, CompletionContext } from '@codemirror/autocomplete'
 import { EditorState, RangeSetBuilder, StateField, type Extension, type Text } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import type { Intermarc } from '../lib/intermarc'
-import { prettyPrintIntermarc, parsePrettyPrintedIntermarc } from '../lib/intermarc'
+import { prettyPrintIntermarc, parsePrettyPrintedIntermarc, buildLabelFromIntermarc } from '../lib/intermarc'
 import type { RecordRow } from '../types'
 import { INTERMARC_THEME } from './intermarcTheme'
 import { useTranslation } from '../hooks/useTranslation'
@@ -14,11 +14,13 @@ import { useRecordLookup } from '../hooks/useRecordLookup'
 import { useAppData } from '../providers/AppDataContext'
 import { titleOf, manifestationTitle } from '../core/entities'
 import { extractControlledValueLabel } from '../core/controlledValues'
+import { labelForAgentRecord } from '../core/agents'
 import { getControlledListsForLabel, getControlledListsForSubfield } from '../core/controlledLists'
 import { getAllowedKindsForSubfield, inferEntityKind, type AutocompleteEntityKind } from '../core/autocompleteRules'
 
 const ARK_PREFIX = 'ark:/'
 const COMPLETION_LIMIT = 40
+const EXCLUDED_AUTOCOMPLETE_TYPES = new Set(['oeuvre', 'expression', 'manifestation'])
 
 type ParsedSubfield = {
   code: string
@@ -186,6 +188,12 @@ function looksLikeArk(value: string): boolean {
 
 function recordDisplayLabel(record: RecordRow): string {
   const normalized = record.typeNorm.toLowerCase()
+  if (normalized === 'identite publique de personne' || normalized === 'collectivite') {
+    const agentLabel = labelForAgentRecord(record)
+    if (agentLabel) return agentLabel
+  }
+  const intermarcLabel = buildLabelFromIntermarc(record.intermarc, record.type)
+  if (intermarcLabel) return intermarcLabel
   if (normalized === 'manifestation') {
     return manifestationTitle(record) || record.id
   }
@@ -274,6 +282,8 @@ function buildEntitySuggestions(records: RecordRow[], language: string): EntityS
   for (const record of records) {
     const ark = record.ark?.trim()
     if (!ark || seen.has(ark)) continue
+    const normalizedType = record.typeNorm?.toLowerCase()
+    if (!normalizedType || EXCLUDED_AUTOCOMPLETE_TYPES.has(normalizedType)) continue
     const label = recordDisplayLabel(record)
     if (!label) continue
     const kind = inferEntityKind(record.typeNorm)
@@ -298,14 +308,19 @@ function filterCompletions(
   options: { allowedKinds: readonly AutocompleteEntityKind[] | null; allowedControlledLists: readonly string[] },
 ): Completion[] {
   const normalized = normalizeText(query)
-  const allowedKindSet = options.allowedKinds ? new Set(options.allowedKinds) : null
+  const allowedKinds = options.allowedKinds && options.allowedKinds.length ? options.allowedKinds : null
+  const allowedKindSet = allowedKinds ? new Set(allowedKinds) : null
   const allowedControlledSet =
     options.allowedControlledLists && options.allowedControlledLists.length
       ? new Set(options.allowedControlledLists)
       : null
   const completions: Completion[] = []
   for (const suggestion of suggestions) {
-    if (allowedKindSet && !allowedKindSet.has(suggestion.kind)) continue
+    if (allowedKindSet) {
+      if (!allowedKindSet.has(suggestion.kind)) continue
+    } else if (!suggestion.isControlled) {
+      continue
+    }
     if (suggestion.isControlled) {
       if (!allowedControlledSet) continue
       const matchesList = suggestion.controlledLists.some(list => allowedControlledSet.has(list))
@@ -334,6 +349,9 @@ function createIntermarcCompletionSource(params: { suggestions: EntitySuggestion
     if (!query && !context.explicit) return null
     const allowedControlledLists = getControlledListsForSubfield(subfieldCode)
     const allowedKinds = getAllowedKindsForSubfield(subfieldCode)
+    if ((!allowedKinds || allowedKinds.length === 0) && allowedControlledLists.length === 0) {
+      return null
+    }
     const options = filterCompletions(params.suggestions, query, {
       allowedKinds,
       allowedControlledLists,

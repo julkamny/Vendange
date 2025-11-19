@@ -14,12 +14,11 @@ import { useRecordLookup } from '../hooks/useRecordLookup'
 import { useAppData } from '../providers/AppDataContext'
 import { titleOf, manifestationTitle } from '../core/entities'
 import { extractControlledValueLabel } from '../core/controlledValues'
+import { getControlledListsForLabel, getControlledListsForSubfield } from '../core/controlledLists'
+import { getAllowedKindsForSubfield, inferEntityKind, type AutocompleteEntityKind } from '../core/autocompleteRules'
 
 const ARK_PREFIX = 'ark:/'
 const COMPLETION_LIMIT = 40
-const CONTROLLED_VALUE_RESTRICTIONS = new Set(
-  ['740$3', '552$3', '140$3', '750$3', '150$3', '700$3', '701$3', '702$3'].map(code => code.toUpperCase()),
-)
 
 type ParsedSubfield = {
   code: string
@@ -51,6 +50,8 @@ type EntitySuggestion = {
   labelNormalized: string
   type: string
   isControlled: boolean
+  kind: AutocompleteEntityKind
+  controlledLists: readonly string[]
 }
 
 class ArkLabelWidget extends WidgetType {
@@ -260,6 +261,13 @@ function normalizeText(value: string): string {
     .trim()
 }
 
+function controlledListsForRecord(record: RecordRow): readonly string[] {
+  if (record.typeNorm !== 'valeur controlee') return []
+  const label = extractControlledValueLabel(record)
+  if (!label) return []
+  return getControlledListsForLabel(label)
+}
+
 function buildEntitySuggestions(records: RecordRow[], language: string): EntitySuggestion[] {
   const seen = new Set<string>()
   const entries: EntitySuggestion[] = []
@@ -268,35 +276,53 @@ function buildEntitySuggestions(records: RecordRow[], language: string): EntityS
     if (!ark || seen.has(ark)) continue
     const label = recordDisplayLabel(record)
     if (!label) continue
+    const kind = inferEntityKind(record.typeNorm)
+    const controlledLists = controlledListsForRecord(record)
     entries.push({
       ark,
       label,
       labelNormalized: normalizeText(label),
       type: record.type,
-      isControlled: record.typeNorm.toLowerCase() === 'valeur controlee',
+      isControlled: kind === 'controlledValue',
+      kind,
+      controlledLists,
     })
     seen.add(ark)
   }
   return entries.sort((a, b) => a.label.localeCompare(b.label, language, { sensitivity: 'accent' }))
 }
 
-function filterCompletions(suggestions: EntitySuggestion[], query: string, includeControlled: boolean): Completion[] {
+function filterCompletions(
+  suggestions: EntitySuggestion[],
+  query: string,
+  options: { allowedKinds: readonly AutocompleteEntityKind[] | null; allowedControlledLists: readonly string[] },
+): Completion[] {
   const normalized = normalizeText(query)
-  const options: Completion[] = []
+  const allowedKindSet = options.allowedKinds ? new Set(options.allowedKinds) : null
+  const allowedControlledSet =
+    options.allowedControlledLists && options.allowedControlledLists.length
+      ? new Set(options.allowedControlledLists)
+      : null
+  const completions: Completion[] = []
   for (const suggestion of suggestions) {
-    if (!includeControlled && suggestion.isControlled) continue
+    if (allowedKindSet && !allowedKindSet.has(suggestion.kind)) continue
+    if (suggestion.isControlled) {
+      if (!allowedControlledSet) continue
+      const matchesList = suggestion.controlledLists.some(list => allowedControlledSet.has(list))
+      if (!matchesList) continue
+    }
     if (normalized && !suggestion.labelNormalized.startsWith(normalized)) continue
-    options.push({
+    completions.push({
       label: suggestion.label,
       detail: suggestion.type,
       apply: suggestion.ark,
     })
-    if (options.length >= COMPLETION_LIMIT) break
+    if (completions.length >= COMPLETION_LIMIT) break
   }
-  return options
+  return completions
 }
 
-function createIntermarcCompletionSource(params: { suggestions: EntitySuggestion[]; restrictedSubfields: Set<string> }) {
+function createIntermarcCompletionSource(params: { suggestions: EntitySuggestion[] }) {
   return (context: CompletionContext) => {
     const match = context.matchBefore(/[^\s$]*/u)
     if (!match) return null
@@ -304,10 +330,14 @@ function createIntermarcCompletionSource(params: { suggestions: EntitySuggestion
     const info = getSubfieldContext(context.state.doc, match.from)
     if (!info || !info.inValue) return null
     const subfieldCode = info.code ?? ''
-    const includeControlled = !params.restrictedSubfields.has(subfieldCode)
     const query = match.text.trim()
     if (!query && !context.explicit) return null
-    const options = filterCompletions(params.suggestions, query, includeControlled)
+    const allowedControlledLists = getControlledListsForSubfield(subfieldCode)
+    const allowedKinds = getAllowedKindsForSubfield(subfieldCode)
+    const options = filterCompletions(params.suggestions, query, {
+      allowedKinds,
+      allowedControlledLists,
+    })
     if (!options.length) return null
     return {
       from: match.from,
@@ -355,14 +385,7 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave }: In
     [getLabelForArk],
   )
 
-  const completionSource = useMemo(
-    () =>
-      createIntermarcCompletionSource({
-        suggestions,
-        restrictedSubfields: CONTROLLED_VALUE_RESTRICTIONS,
-      }),
-    [suggestions],
-  )
+  const completionSource = useMemo(() => createIntermarcCompletionSource({ suggestions }), [suggestions])
 
   const completionExtension = useMemo(
     () =>

@@ -78,6 +78,11 @@ TYPE_CLASS_MAP = {
     "collectivite": NamedNode(f"{CLASS_NS}Collective"),
     "valeur controlee": NamedNode(f"{CLASS_NS}ControlledValue"),
     "concept dewey": NamedNode(f"{CLASS_NS}DeweyConcept"),
+    "concept": NamedNode(f"{CLASS_NS}Concept"),
+    "evenement": NamedNode(f"{CLASS_NS}Event"),
+    "genre / forme": NamedNode(f"{CLASS_NS}GenreForm"),
+    "laps de temps": NamedNode(f"{CLASS_NS}TimeLapse"),
+    "lieu": NamedNode(f"{CLASS_NS}Place"),
     "marque": NamedNode(f"{CLASS_NS}Brand"),
     "famille": NamedNode(f"{CLASS_NS}Family"),
 }

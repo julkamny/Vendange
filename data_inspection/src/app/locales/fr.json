@@ -221,7 +221,8 @@
       "persons": "Identités publiques ({{count}})",
       "collectives": "Collectivités ({{count}})",
       "brands": "Marques ({{count}})",
-      "concepts": "Concepts Dewey ({{count}})",
+      "deweyConcepts": "Concepts Dewey ({{count}})",
+      "concepts": "Concepts ({{count}})",
       "controlled": "Valeurs contrôlées ({{count}})"
     },
     "headers": {

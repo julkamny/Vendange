@@ -12,8 +12,9 @@
   --entity-concept: #4ac18b;
   --entity-controlled: #1eb7be;
   --entity-brand: #c084fc;
-  --entity-concept: #6dd3a5;
+  --entity-dewey-concept: #6dd3a5;
   --entity-controlled: #4cced6;
+  --entity-concept: #4ac18b;
 
   color-scheme: dark;
   --color-bg: #05080f;
@@ -51,6 +52,8 @@
   --pill-collective-fg: #e3f4ff;
   --pill-brand-bg: rgba(192, 132, 252, 0.25);
   --pill-brand-fg: #f4e9ff;
+  --pill-dewey-concept-bg: rgba(109, 211, 165, 0.25);
+  --pill-dewey-concept-fg: #ebfff5;
   --pill-concept-bg: rgba(109, 211, 165, 0.25);
   --pill-concept-fg: #ebfff5;
   --pill-controlled-bg: rgba(76, 206, 214, 0.25);
@@ -104,6 +107,8 @@
   --pill-collective-fg: #1d4963;
   --pill-brand-bg: rgba(155, 93, 229, 0.14);
   --pill-brand-fg: #3d1a6b;
+  --pill-dewey-concept-bg: rgba(74, 193, 139, 0.14);
+  --pill-dewey-concept-fg: #10492f;
   --pill-concept-bg: rgba(74, 193, 139, 0.14);
   --pill-concept-fg: #10492f;
   --pill-controlled-bg: rgba(30, 183, 190, 0.16);
@@ -1132,6 +1137,10 @@ button:focus-visible {
   border-left: 3px solid color-mix(in srgb, var(--entity-brand) 55%, transparent);
 }
 
+.entity-row--deweyConcept {
+  border-left: 3px solid color-mix(in srgb, var(--entity-dewey-concept) 55%, transparent);
+}
+
 .entity-row--concept {
   border-left: 3px solid color-mix(in srgb, var(--entity-concept) 55%, transparent);
 }
@@ -1311,6 +1320,12 @@ button:focus-visible {
   color: var(--pill-brand-fg);
   border-color: color-mix(in srgb, var(--entity-brand) 45%, transparent);
 }
+.entity-pill-deweyConcept {
+  background: var(--pill-dewey-concept-bg);
+  color: var(--pill-dewey-concept-fg);
+  border-color: color-mix(in srgb, var(--entity-dewey-concept) 45%, transparent);
+}
+
 .entity-pill-concept {
   background: var(--pill-concept-bg);
   color: var(--pill-concept-fg);

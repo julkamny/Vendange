@@ -108,6 +108,14 @@ function buildLabelFromIntermarc(im: Intermarc, type: string): string | undefine
       return getFirstSubZoneValue(im, '169', '169$a')
     case 'marque':
       return getFirstSubZoneValue(im, '163', '163$a')
+    case 'famille': {
+      const parts = [
+        getFirstSubZoneValue(im, '120', '120$a'),
+        getFirstSubZoneValue(im, '120', '120$m'),
+        getFirstSubZoneValue(im, '120', '120$e'),
+      ].filter((value): value is string => !!value && value.trim().length > 0)
+      return parts.length ? parts.join(' ') : undefined
+    }
     case 'concept dewey': {
       const main = getFirstSubZoneValue(im, '186', '186$i')
       const subtitle = getFirstSubZoneValue(im, '186', '186$a')

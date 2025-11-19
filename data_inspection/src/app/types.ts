@@ -64,7 +64,16 @@ export type ManifestationDragPayload = {
 export type SelectedEntity = {
   id: string
   source: 'curated' | 'original'
-  entityType?: 'work' | 'expression' | 'manifestation' | 'person' | 'collective' | 'brand' | 'concept' | 'controlled'
+  entityType?:
+    | 'work'
+    | 'expression'
+    | 'manifestation'
+    | 'person'
+    | 'collective'
+    | 'brand'
+    | 'deweyConcept'
+    | 'concept'
+    | 'controlled'
   clusterAnchorId?: string
   isAnchor?: boolean
   workArk?: string
@@ -93,6 +102,7 @@ export type InventoryEntityType =
   | 'person'
   | 'collective'
   | 'brand'
+  | 'deweyConcept'
   | 'concept'
   | 'controlled'
 
@@ -105,6 +115,7 @@ export type EntityPillKind =
   | 'person'
   | 'collective'
   | 'brand'
+  | 'deweyConcept'
   | 'concept'
   | 'controlled'
 

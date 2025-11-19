@@ -109,7 +109,7 @@ Review in the Web UI
 Editing anchor or independent entities :
 - Click a work anchor, then "Modify record" to open a JSON editor (CodeMirror) for the anchor’s Intermarc.
 - Edit existing zones/subzones or add new ones; click "Save" to apply. Changes are reflected in export and cluster view (e.g., title updates).
-- The editing surface now mirrors the pretty-printed view (colors, ARK label hover tooltips, highlighted background) and offers instant autocomplete for controlled values and entities—type the start of a label (e.g., `tex`) to pick the matching ARK.
+- The editing surface now mirrors the pretty-printed view (colors, ARK label hover tooltips, highlighted background) and offers instant autocomplete for controlled values and entities—type the start of a label (e.g., `tex`) to pick the matching ARK, with suggestions restricted to the controlled lists and entity natures allowed in the current subfield.
 
 Exploring W–E–M links
 - Click an Expression or Manifestation to view its details in the right panel.

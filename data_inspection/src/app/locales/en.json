@@ -221,7 +221,8 @@
       "persons": "People ({{count}})",
       "collectives": "Collective identities ({{count}})",
       "brands": "Brands ({{count}})",
-      "concepts": "Dewey concepts ({{count}})",
+      "deweyConcepts": "Dewey concepts ({{count}})",
+      "concepts": "Concepts ({{count}})",
       "controlled": "Controlled values ({{count}})"
     },
     "headers": {

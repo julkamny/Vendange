@@ -508,28 +508,30 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
 
   return (
     <div className="workspace-tabs">
-      <div className="workspace-tab-bar" role="tablist">
-        {tabs.map(tab => (
-          <WorkspaceTabButton
-            key={tab.id}
-            label={getWorkspaceLabel(tab)}
-            isActive={tab.id === activeTab?.id}
-            onActivate={() => activate(tab.id)}
-            onClose={() => closeTab(tab.id)}
-            closable={tabs.length > 1}
-            closeLabel={t('workspace.closeTab', { defaultValue: 'Close tab' })}
-            detachStatus={isWorkspaceTab(tab) || isAgentTab(tab) ? tab.mode : undefined}
-            onToggleDetach={
-              isWorkspaceTab(tab)
-                ? () => (tab.mode === 'detached' ? dockWorkspaceTab(tab) : detachWorkspaceTab(tab))
-                : isAgentTab(tab)
-                  ? () => (tab.mode === 'detached' ? dockAgentTab(tab) : detachAgentTab(tab))
-                  : undefined
-            }
-            detachLabel={t('workspace.detachTab', { defaultValue: 'Open tab in new window' })}
-            dockLabel={t('workspace.redockTab', { defaultValue: 'Bring tab back here' })}
-          />
-        ))}
+      <div className="workspace-tab-row">
+        <div className="workspace-tab-bar" role="tablist">
+          {tabs.map(tab => (
+            <WorkspaceTabButton
+              key={tab.id}
+              label={getWorkspaceLabel(tab)}
+              isActive={tab.id === activeTab?.id}
+              onActivate={() => activate(tab.id)}
+              onClose={() => closeTab(tab.id)}
+              closable={tabs.length > 1}
+              closeLabel={t('workspace.closeTab', { defaultValue: 'Close tab' })}
+              detachStatus={isWorkspaceTab(tab) || isAgentTab(tab) ? tab.mode : undefined}
+              onToggleDetach={
+                isWorkspaceTab(tab)
+                  ? () => (tab.mode === 'detached' ? dockWorkspaceTab(tab) : detachWorkspaceTab(tab))
+                  : isAgentTab(tab)
+                    ? () => (tab.mode === 'detached' ? dockAgentTab(tab) : detachAgentTab(tab))
+                    : undefined
+              }
+              detachLabel={t('workspace.detachTab', { defaultValue: 'Open tab in new window' })}
+              dockLabel={t('workspace.redockTab', { defaultValue: 'Bring tab back here' })}
+            />
+          ))}
+        </div>
         <AddTabMenu
           onAddWorkspace={addTab}
           onAddAgent={addAgentTab}
@@ -973,7 +975,6 @@ function AddTabMenu({ onAddWorkspace, onAddAgent, onAddSparql, label, workspaceL
         ref={toggleRef}
       >
         <span aria-hidden className="workspace-add-toggle__icon">+</span>
-        <span className="workspace-add-toggle__label">{label}</span>
       </button>
       {open ? (
         <div className="workspace-add-menu" role="menu" id="workspace-add-menu">

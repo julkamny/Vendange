@@ -109,6 +109,15 @@ html {
   gap: 0.75rem;
 }
 
+.workspace-tab-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.55rem;
+  position: sticky;
+  top: var(--app-sticky-offset);
+  z-index: 20;
+}
+
 .workspace-tab-content {
   padding-top: 0.25rem;
 }
@@ -124,9 +133,6 @@ html {
   box-shadow: 0 10px 24px color-mix(in srgb, var(--color-shadow) 55%, transparent);
   overflow-x: auto;
   overflow-y: visible;
-  position: sticky;
-  top: var(--app-sticky-offset);
-  z-index: 20;
   backdrop-filter: blur(14px);
   margin-top: 0.35rem;
 }
@@ -442,6 +448,8 @@ html {
   border: none;
   background: none;
   box-shadow: none;
+  margin-top: 0.35rem;
+  margin-left: -0.2rem;
 }
 
 .workspace-add-toggle.workspace-tab.add {
@@ -491,9 +499,6 @@ html {
   .workspace-add-toggle {
     padding: 0.55rem;
     min-width: 2.1rem;
-  }
-  .workspace-add-toggle__label {
-    display: none;
   }
 }
 

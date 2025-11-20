@@ -154,6 +154,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
   }, [isAnchorSelection, isRecordClustered, record, recordInCurated, t])
   const [editingRecord, setEditingRecord] = useState(false)
   const [intermarcFullView, setIntermarcFullView] = useState(false)
+  const [backlinksExpanded, setBacklinksExpanded] = useState(false)
   const listPanelRef = useRef<HTMLElement | null>(null)
   const detailsPanelRef = useRef<HTMLElement | null>(null)
   const lastScrollKeyRef = useRef<string>('')
@@ -161,6 +162,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
   useEffect(() => {
     setEditingRecord(false)
     setIntermarcFullView(false)
+    setBacklinksExpanded(false)
   }, [record?.id, mode])
 
   const [contextMenu, setContextMenu] = useState<ArkContextMenuState | null>(null)
@@ -553,10 +555,12 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
     )
   }
 
-  const workspaceClassName = `workspace-view${intermarcFullView ? ' is-intermarc-full' : ''}`
-  const detachLabel = t('workspace.openInWindow', { defaultValue: 'Open Intermarc in new window' })
-  const dockLabel = t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })
-  const toggleFullLabel = intermarcFullView
+  const workspaceClassName = `workspace-view${intermarcFullView ? ' is-intermarc-full' : ''}${
+    backlinksExpanded && record ? ' has-backlinks-expanded' : ''
+  }`
+  const detachLabelFull = t('workspace.openInWindow', { defaultValue: 'Open Intermarc in new window' })
+  const dockLabelFull = t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })
+  const toggleFullLabelFull = intermarcFullView
     ? t('workspace.collapseIntermarc', { defaultValue: 'Exit full Intermarc view' })
     : t('workspace.expandIntermarc', { defaultValue: 'Expand Intermarc view' })
 
@@ -564,23 +568,6 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
     <div className={workspaceClassName}>
       <header className="workspace-view__header">
         <WorkspaceBreadcrumbs items={breadcrumbs} ariaLabel={t('breadcrumbs.ariaLabel')} />
-        {record ? (
-          <div className="workspace-view__header-actions">
-            {mode === 'inline' && onRequestDetach ? (
-              <button type="button" onClick={onRequestDetach}>
-                {detachLabel}
-              </button>
-            ) : null}
-            {mode === 'detached' && onRequestDock ? (
-              <button type="button" onClick={onRequestDock}>
-                {dockLabel}
-              </button>
-            ) : null}
-            <button type="button" onClick={() => setIntermarcFullView(prev => !prev)}>
-              {toggleFullLabel}
-            </button>
-          </div>
-        ) : null}
       </header>
       <div className="workspace-view__body">
         <aside
@@ -634,13 +621,85 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
                   </div>
                 ) : null}
               </div>
-              <BacklinksPanel backlinks={backlinks} onOpenArk={openRecordForArk} lookupWorkByArk={getByArk} />
+              {!backlinksExpanded ? (
+                <BacklinksPanel backlinks={backlinks} onOpenArk={openRecordForArk} lookupWorkByArk={getByArk} />
+              ) : null}
             </>
           ) : (
             <p>{t('layout.selectPrompt')}</p>
           )}
         </section>
+        {record && backlinksExpanded ? (
+          <section
+            className="workspace-panel workspace-panel--backlinks"
+            aria-label={t('backlinks.title', { defaultValue: 'Backlinks' })}
+          >
+            <BacklinksPanel backlinks={backlinks} onOpenArk={openRecordForArk} lookupWorkByArk={getByArk} />
+          </section>
+        ) : null}
       </div>
+      {record ? (
+        <div
+          className="workspace-side-toolbar"
+          aria-label={t('workspace.sidebarActions', { defaultValue: 'Workspace actions' })}
+        >
+          {mode === 'inline' && onRequestDetach ? (
+            <button
+              type="button"
+              className="workspace-side-toolbar__button"
+              onClick={onRequestDetach}
+              aria-label={detachLabelFull}
+            >
+              <span aria-hidden="true" className="workspace-side-toolbar__icon">
+                🪟
+              </span>
+              <span className="workspace-side-toolbar__label">Pop</span>
+            </button>
+          ) : null}
+          {mode === 'detached' && onRequestDock ? (
+            <button
+              type="button"
+              className="workspace-side-toolbar__button"
+              onClick={onRequestDock}
+              aria-label={dockLabelFull}
+            >
+              <span aria-hidden="true" className="workspace-side-toolbar__icon">
+                ↩️
+              </span>
+              <span className="workspace-side-toolbar__label">Dock</span>
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="workspace-side-toolbar__button"
+            onClick={() => setIntermarcFullView(prev => !prev)}
+            aria-label={toggleFullLabelFull}
+          >
+            <span aria-hidden="true" className="workspace-side-toolbar__icon">
+              🖥️
+            </span>
+            <span className="workspace-side-toolbar__label">{intermarcFullView ? 'Split' : 'Full'}</span>
+          </button>
+          <button
+            type="button"
+            className="workspace-side-toolbar__button workspace-side-toolbar__button--primary"
+            onClick={() => setBacklinksExpanded(prev => !prev)}
+            aria-pressed={backlinksExpanded}
+            aria-label={
+              backlinksExpanded
+                ? t('backlinks.hide', { defaultValue: 'Fold backlinks' })
+                : t('backlinks.show', { defaultValue: 'Expand backlinks' })
+            }
+          >
+            <span aria-hidden="true" className="workspace-side-toolbar__icon">
+              {backlinksExpanded ? '⬇️' : '🔗'}
+            </span>
+            <span className="workspace-side-toolbar__label">
+              {backlinksExpanded ? t('backlinks.hide', { defaultValue: 'Fold links' }) : 'Backlinks'}
+            </span>
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

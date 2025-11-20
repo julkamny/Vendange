@@ -98,7 +98,8 @@ Review in the Web UI
   - Agent badges disappear for entities without 7XX contributors.
 - Central panel: list of anchors with merged works (checkbox to accept/reject, option to add ARKs).
 - Side panel: prettified Intermarc of selected record. ARK labels now keep the human-readable title in the text and surface the identifier on hover, and 140/750/740 links are clickable to open the targeted entity in a new workspace tab.
-- Beneath the record viewer, a backlinks panel lists every work/expression/manifestation that references the selected entity, with segmented titles, a direct ARK shortcut, and the fields where the reference lives.
+- Beneath the record viewer, a backlinks panel lists every work/expression/manifestation that references the selected entity, with segmented titles, a direct ARK shortcut, and the fields where the reference lives; expand it into its own third column when you want the entity list, Intermarc, and backlinks side by side.
+- Bottom-right hover toolbar: unfold it to access the pop-out/dock/full-width Intermarc controls and a backlinks toggle. Expanded backlinks reshape the workspace into three equal columns; folding tucks the backlinks panel back under the record.
 - Use the toolbar’s **Export dataset CSV** button to download the current dataset with your curated changes applied.
 - UI quality-of-life:
   - Hierarchical selectors show anchors and clustered entries in clearly separated sections with 🍇 for clustered items.

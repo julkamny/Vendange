@@ -47,7 +47,7 @@ export function ManifestationPanel({
       const incoming = record ? countIncomingRelationships(record) : 0
       return { workLinkCount, relationships: { outgoing, incoming } }
     },
-    [countExpressionWorkLinks, countIncomingRelationships, getGeneralRelationshipCount, resolveExpressionRecord],
+    [countIncomingRelationships, getGeneralRelationshipCount, resolveExpressionRecord],
   )
   const computeManifestationMetrics = useCallback(
     (manifestationId: string, manifestationArk?: string | null) => {
@@ -62,7 +62,7 @@ export function ManifestationPanel({
         segments,
       }
     },
-    [countIncomingRelationships, countManifestationExpressionLinks, getByArk, getById, getGeneralRelationshipCount],
+    [countIncomingRelationships, getByArk, getById, getGeneralRelationshipCount],
   )
   if (!cluster) return <em>{t('messages.noClusters')}</em>
   const highlightedExpressionArk = state.highlightedExpressionArk ?? null

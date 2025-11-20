@@ -394,6 +394,7 @@ export function WorkspaceView({
     state.highlightedExpressionArk,
     state.highlightedWorkArk,
     state.listScope,
+    state.selectedEntity,
     state.selectedEntity?.entityType,
     state.selectedEntity?.id,
     state.viewMode,

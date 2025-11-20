@@ -17,7 +17,7 @@ async function parseJson<T>(response: Response): Promise<T> {
   const text = await response.text()
   try {
     return JSON.parse(text) as T
-  } catch (error) {
+  } catch {
     throw new Error(`Unexpected response from server: ${text || response.statusText}`)
   }
 }
@@ -286,7 +286,7 @@ export function startClusterStream(
 function parseFilenameFromContentDisposition(header: string | null): string | undefined {
   if (!header) return undefined
   const filenameMatch =
-    header.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i) ?? header.match(/filename="?([^\";]+)"?/i)
+    header.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i) ?? header.match(/filename="?([^";]+)"?/i)
   if (!filenameMatch || filenameMatch.length < 2) return undefined
   const raw = filenameMatch[1].trim()
   try {

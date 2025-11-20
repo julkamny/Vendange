@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useMemo, useState, useEffect, useRef, type ReactNode } from 'react'
 import type { ThemeMode } from '../types'
 import { applyTheme, detectPreferredTheme, readStoredTheme } from '../core/theme'

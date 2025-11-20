@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react'
+import { useEffect, useRef } from 'react'
 import { useAppData } from '../providers/AppDataContext'
 import type { RecordRow } from '../types'
 import { extractAgentNames } from '../core/agents'
@@ -15,6 +16,10 @@ type RecordLookup = {
 
 export function useRecordLookup(): RecordLookup {
   const { curated } = useAppData()
+  const records = useMemo(() => curated?.records ?? [], [curated])
+  const agentCache = useRef(new Map<string, string[]>())
+  const relationshipCache = useRef(new Map<string, number>())
+  const mediaCache = useRef(new Map<string, MediaKind[]>())
 
   const index = useMemo(() => {
     const byId = new Map<string, RecordRow>()
@@ -23,13 +28,15 @@ export function useRecordLookup(): RecordLookup {
       if (!byId.has(record.id)) byId.set(record.id, record)
       if (record.ark) byArk.set(record.ark.toLowerCase(), record)
     }
-    curated?.records.forEach(ingest)
+    records.forEach(ingest)
     return { byId, byArk }
-  }, [curated?.records])
+  }, [records])
 
-  const agentCache = useMemo(() => new Map<string, string[]>(), [index])
-  const relationshipCache = useMemo(() => new Map<string, number>(), [index])
-  const mediaCache = useMemo(() => new Map<string, MediaKind[]>(), [index])
+  useEffect(() => {
+    agentCache.current.clear()
+    relationshipCache.current.clear()
+    mediaCache.current.clear()
+  }, [records])
 
   const getById = useCallback(
     (id?: string | null) => {
@@ -53,15 +60,15 @@ export function useRecordLookup(): RecordLookup {
         (id && index.byId.get(id)) ||
         (typeof ark === 'string' ? index.byArk.get(ark.toLowerCase()) : undefined)
       if (!record) return []
-      if (agentCache.has(record.id)) return agentCache.get(record.id)!
+      if (agentCache.current.has(record.id)) return agentCache.current.get(record.id)!
       const names = extractAgentNames(record, {
         lookupRecordByArk: value =>
           typeof value === 'string' ? index.byArk.get(value.toLowerCase()) : undefined,
       })
-      agentCache.set(record.id, names)
+      agentCache.current.set(record.id, names)
       return names
     },
-    [agentCache, index],
+    [index],
   )
 
   const getGeneralRelationshipCount = useCallback(
@@ -70,12 +77,12 @@ export function useRecordLookup(): RecordLookup {
         (id && index.byId.get(id)) ||
         (typeof ark === 'string' ? index.byArk.get(ark.toLowerCase()) : undefined)
       if (!record) return 0
-      if (relationshipCache.has(record.id)) return relationshipCache.get(record.id)!
+      if (relationshipCache.current.has(record.id)) return relationshipCache.current.get(record.id)!
       const count = countGeneralRelationships(record)
-      relationshipCache.set(record.id, count)
+      relationshipCache.current.set(record.id, count)
       return count
     },
-    [index, relationshipCache],
+    [index],
   )
 
   const getMediaKinds = useCallback(
@@ -84,15 +91,15 @@ export function useRecordLookup(): RecordLookup {
         (id && index.byId.get(id)) ||
         (typeof ark === 'string' ? index.byArk.get(ark.toLowerCase()) : undefined)
       if (!record) return []
-      if (mediaCache.has(record.id)) return mediaCache.get(record.id)!
+      if (mediaCache.current.has(record.id)) return mediaCache.current.get(record.id)!
       const kinds = extractMediaKinds(record, {
         lookupRecordByArk: value =>
           typeof value === 'string' ? index.byArk.get(value.toLowerCase()) : undefined,
       })
-      mediaCache.set(record.id, kinds)
+      mediaCache.current.set(record.id, kinds)
       return kinds
     },
-    [index, mediaCache],
+    [index],
   )
 
   return { getById, getByArk, getAgentNames, getGeneralRelationshipCount, getMediaKinds }

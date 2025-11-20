@@ -41,7 +41,7 @@ function AppRouter() {
       await loadDataset(dataset.id, { title: dataset.title })
       setActiveDataset(dataset)
       setView('inspection')
-    } catch (error) {
+    } catch {
       // loadDataset already reports the error
     } finally {
       setOpeningDatasetId(null)

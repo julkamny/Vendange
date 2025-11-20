@@ -190,12 +190,15 @@ export function parseIntermarc(s: string): Intermarc {
     const cleaned = stripBom(String(s)).trim()
     const obj = JSON.parse(cleaned)
     if (!obj || !Array.isArray(obj.zones)) throw new Error('Invalid intermarc')
+    type RawSubZone = { code?: unknown; valeur?: unknown; affectedByCuration?: unknown }
+    type RawZone = { code?: unknown; sousZones?: RawSubZone[]; affectedByCuration?: unknown }
+    const rawZones = obj.zones as RawZone[]
     return {
-      zones: obj.zones.map((z: any) => ({
-        code: String(z.code),
+      zones: rawZones.map(z => ({
+        code: String(z.code ?? ''),
         affectedByCuration: typeof z.affectedByCuration === 'string' ? z.affectedByCuration : undefined,
-        sousZones: (z.sousZones || []).map((sz: any) => ({
-          code: String(sz.code),
+        sousZones: (Array.isArray(z.sousZones) ? z.sousZones : []).map(sz => ({
+          code: String(sz.code ?? ''),
           valeur: sz.valeur != null ? String(sz.valeur) : '',
           affectedByCuration: typeof sz.affectedByCuration === 'string' ? sz.affectedByCuration : undefined,
         })),

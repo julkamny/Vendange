@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import {
   createContext,
   useCallback,
@@ -61,9 +62,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => {
+    const map = timeouts.current
     return () => {
-      timeouts.current.forEach(timeoutId => window.clearTimeout(timeoutId))
-      timeouts.current.clear()
+      map.forEach(timeoutId => window.clearTimeout(timeoutId))
+      map.clear()
     }
   }, [])
 

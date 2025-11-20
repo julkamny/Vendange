@@ -133,15 +133,16 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
 
   useEffect(() => {
     refreshDatasets().catch(error => console.error(error))
+    const controllers = clusterControllers.current
     return () => {
-      clusterControllers.current.forEach(stream => stream.cancel())
-      clusterControllers.current.clear()
+      controllers.forEach(stream => stream.cancel())
+      controllers.clear()
     }
   }, [refreshDatasets])
 
   const handleFileButtonClick = useCallback(() => {
     fileInputRef.current?.click()
-  }, [datasets])
+  }, [])
 
   const handleFileChange = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
@@ -197,7 +198,7 @@ export function DatasetDashboard({ onOpenInspection, openingDatasetId }: Dataset
 
   const handleDeleteDataset = useCallback(
     async (dataset: DatasetSummary) => {
-      const confirmed = window.confirm(`Supprimer la base « ${dataset.title} » ? Cette action est définitive.`)
+      const confirmed = window.confirm(`Supprimer la base "${dataset.title}" ? Cette action est définitive.`)
       if (!confirmed) return
       const controller = clusterControllers.current.get(dataset.id)
       if (controller) {

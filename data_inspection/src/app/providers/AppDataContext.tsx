@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useMemo, useState, useCallback, useRef, useEffect, type ReactNode } from 'react'
 import type {
   CsvTable,
@@ -267,7 +268,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         snapshotRecord(prev.curated, anchorExpressionId, pristineRecords)
         snapshotRecord(prev.curated, expression.id, pristineRecords)
 
-        let curated = updateExpressionClusterIntermarc(targetCluster, anchorExpressionId, prev.curated)
+        const curated = updateExpressionClusterIntermarc(targetCluster, anchorExpressionId, prev.curated)
         const anchorRecord = curated.records.find(r => r.id === anchorExpressionId)
         if (anchorRecord) {
           updates.push({ id: anchorRecord.id, type: anchorRecord.type, intermarc: anchorRecord.intermarcStr })
@@ -625,7 +626,7 @@ function updateManifestationParentInDataset(
     updated = true
   }
   if (!updated) return dataset
-  let next = updateRecordIntermarcInDataset(dataset, manifestationId, cloned)
+  const next = updateRecordIntermarcInDataset(dataset, manifestationId, cloned)
   if (newExpressionId) {
     const updatedRecord = next.records.find(r => r.id === manifestationId)
     if (updatedRecord) {

@@ -62,7 +62,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   const { clusters, curated } = useAppData()
   const { openWindow, closeWindow, getContainer, isOpen } = useDetachedWindows()
   const { showToast } = useToast()
-  const curatedRecords = curated?.records ?? []
+  const curatedRecords = useMemo(() => curated?.records ?? [], [curated])
   const defaultWorkspaceTitle = useMemo(
     () => t('workspace.tabDefault', { defaultValue: 'Workspace' }),
     [t],
@@ -233,7 +233,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       if (label) return label
       return fallbackLabel
     },
-    [recordIndexes, defaultWorkspaceTitle, defaultSparqlTitle, labelFromRecord],
+    [recordIndexes, defaultWorkspaceTitle, defaultSparqlTitle, labelFromRecord, defaultAgentTitle],
   )
 
   const openDetachedTabWithState = useCallback(

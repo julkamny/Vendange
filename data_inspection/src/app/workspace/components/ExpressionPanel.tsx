@@ -111,12 +111,6 @@ export function ExpressionPanel({
   const { t } = useTranslation()
   const { getById, getByArk, getAgentNames, getGeneralRelationshipCount, getMediaKinds } = useRecordLookup()
   const { countIncomingRelationships } = useBacklinks()
-  if (!cluster) return <em>{t('messages.noClusters')}</em>
-
-  const highlightedWorkArk = state.highlightedWorkArk ?? null
-  const highlightedExpressionArk = state.highlightedExpressionArk ?? null
-  const selectedEntity = state.selectedEntity
-
   const resolveExpressionRecord = useCallback(
     (id?: string | null, ark?: string | null) => getById(id) ?? getByArk(ark),
     [getByArk, getById],
@@ -130,10 +124,19 @@ export function ExpressionPanel({
       const incoming = record ? countIncomingRelationships(record) : 0
       return { workLinkCount, relationships: { outgoing, incoming }, record }
     },
-    [countExpressionWorkLinks, countIncomingRelationships, getGeneralRelationshipCount, resolveExpressionRecord],
+    [countIncomingRelationships, getGeneralRelationshipCount, resolveExpressionRecord],
   )
 
-  const independentExpressions = useMemo(() => cluster.independentExpressions, [cluster.independentExpressions])
+  const independentExpressions = useMemo(
+    () => cluster?.independentExpressions ?? [],
+    [cluster?.independentExpressions],
+  )
+
+  if (!cluster) return <em>{t('messages.noClusters')}</em>
+
+  const highlightedWorkArk = state.highlightedWorkArk ?? null
+  const highlightedExpressionArk = state.highlightedExpressionArk ?? null
+  const selectedEntity = state.selectedEntity
 
   return (
     <div className="expression-groups">

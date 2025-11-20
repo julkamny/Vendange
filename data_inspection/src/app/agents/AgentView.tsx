@@ -220,10 +220,15 @@ export function AgentView({
     if (record.typeNorm === 'famille') classes.push('entity-row--person')
     if (state.selectedAgentId === record.id) classes.push('selected')
     const label = buildLabelFromIntermarc(record.intermarc, record.type) || record.id
-    const clusterZones = (record.intermarc as any)?.['90F'] as any[] | undefined
-    const clustered = Array.isArray(clusterZones)
-      ? clusterZones.some(zone => zone?.subfields?.some((s: any) => s.code === 'q' && s.value === 'Clusterisation script'))
-      : false
+
+    type SubField = { code?: string; value?: string }
+    type Zone = { subfields?: SubField[] }
+    const raw90F = (record.intermarc as Record<string, unknown>)?.['90F'] ?? null
+    const clusterZones: Zone[] = Array.isArray(raw90F) ? raw90F.filter((z): z is Zone => typeof z === 'object' && !!z) : []
+    const clustered = clusterZones.some(zone =>
+      Array.isArray(zone.subfields) &&
+      zone.subfields.some(sf => sf?.code === 'q' && sf?.value === 'Clusterisation script'),
+    )
     return (
       <div
         key={record.id}

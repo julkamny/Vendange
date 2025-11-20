@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
 
 type DetachedWindowRecord = {
@@ -217,7 +218,7 @@ function copyStyles(source: Document, target: Document) {
       const style = target.createElement('style')
       style.textContent = rules
       target.head.appendChild(style)
-    } catch (error) {
+    } catch {
       if (!styleSheet.href) continue
       const link = target.createElement('link')
       link.rel = 'stylesheet'

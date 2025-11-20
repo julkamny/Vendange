@@ -24,7 +24,9 @@ function detectInitialLanguage(): string {
   try {
     const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY)
     if (stored && stored in resources) return stored
-  } catch {}
+  } catch {
+    // ignore storage access issues (private / blocked storage)
+  }
   const browser = navigator.language?.slice(0, 2).toLowerCase()
   if (browser && browser in resources) return browser
   return 'en'
@@ -56,7 +58,9 @@ export function changeLanguage(language: string) {
     })
   try {
     localStorage.setItem(LANGUAGE_STORAGE_KEY, language)
-  } catch {}
+  } catch {
+    // ignore storage write issues
+  }
 }
 
 export function getCurrentLanguage(): string {

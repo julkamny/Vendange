@@ -176,6 +176,7 @@ export function WorkspaceView({
   const listPanelRef = useRef<HTMLElement | null>(null)
   const detailsPanelRef = useRef<HTMLElement | null>(null)
   const lastScrollKeyRef = useRef<string>('')
+  const autoFullRef = useRef<boolean>(false)
 
   useEffect(() => {
     setEditingRecord(false)
@@ -183,8 +184,12 @@ export function WorkspaceView({
   }, [record?.id, mode])
 
   useEffect(() => {
-    if (mode === 'detached' && !state.intermarcFullView) {
+    if (mode === 'detached' && !state.intermarcFullView && !autoFullRef.current) {
+      autoFullRef.current = true
       onStateChange(prev => (prev.intermarcFullView ? prev : { ...prev, intermarcFullView: true }))
+    }
+    if (mode === 'inline') {
+      autoFullRef.current = false
     }
   }, [mode, state.intermarcFullView, onStateChange])
 
@@ -743,7 +748,13 @@ export function WorkspaceView({
           <button
             type="button"
             className="workspace-side-toolbar__button"
-            onClick={() => setIntermarcFullView(prev => !prev)}
+            onClick={() => {
+              setIntermarcFullView(prev => {
+                const next = !prev
+                if (next) setBacklinksExpanded(false)
+                return next
+              })
+            }}
             aria-label={toggleFullLabelFull}
           >
             <span aria-hidden="true" className="workspace-side-toolbar__icon">
@@ -754,7 +765,13 @@ export function WorkspaceView({
           <button
             type="button"
             className="workspace-side-toolbar__button workspace-side-toolbar__button--primary"
-            onClick={() => setBacklinksExpanded(prev => !prev)}
+            onClick={() =>
+              setBacklinksExpanded(prev => {
+                const next = !prev
+                if (next && intermarcFullView) setIntermarcFullView(false)
+                return next
+              })
+            }
             aria-pressed={backlinksExpanded}
             aria-label={
               backlinksExpanded

@@ -20,6 +20,7 @@ import { manifestationTitle, titleOf, expressionWorkArks } from '../core/entitie
 import { useArkDecoratedText } from '../hooks/useArkDecoratedText'
 import { useDetachedWindows } from '../providers'
 import { useToast } from '../providers'
+import { buildLabelFromIntermarc } from '../lib/intermarc'
 
 let tabSequence = 0
 
@@ -87,6 +88,10 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
 
   const closeTab = useCallback(
     (id: string) => {
+      const tabToClose = tabs.find(tab => tab.id === id)
+      if (tabToClose && isWorkspaceTab(tabToClose) && tabToClose.detachedWindowId) {
+        closeWindow(tabToClose.detachedWindowId)
+      }
       setTabs(prev => {
         if (prev.length <= 1) return prev
         const next = prev.filter(tab => tab.id !== id)
@@ -105,7 +110,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         return next
       })
     },
-    [activeId, defaultWorkspaceTitle],
+    [activeId, closeWindow, defaultWorkspaceTitle, tabs],
   )
 
   const activate = useCallback((id: string) => setActiveId(id), [])
@@ -125,6 +130,15 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   )
   const workspaceSource = isWorkspaceTab(activeTab) ? activeTab : firstWorkspaceTab
   const workspace = useWorkspaceData(workspaceSource)
+  const labelFromRecord = useCallback(
+    (record: RecordRow | null) => {
+      if (!record) return null
+      const intermarcLabel = buildLabelFromIntermarc(record.intermarc, record.type)
+      return intermarcLabel || titleOf(record) || manifestationTitle(record) || record.id
+    },
+    [],
+  )
+
   const getWorkspaceLabel = useCallback(
     (tab: WorkspaceTabState) => {
       if (isSparqlTab(tab)) {
@@ -145,19 +159,15 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
 
       if (entity.entityType === 'manifestation') {
         const record = findById(entity.id)
-        if (record) {
-          const label = manifestationTitle(record) || titleOf(record)
-          return label || record.id
-        }
+        const label = labelFromRecord(record)
+        if (label) return label
         return entity.id
       }
 
       if (entity.entityType === 'work') {
         const record = findById(entity.id)
-        if (record) {
-          const label = titleOf(record)
-          return label || record.id
-        }
+        const label = labelFromRecord(record)
+        if (label) return label
         return entity.id
       }
 
@@ -166,28 +176,20 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         let workArk = entity.workArk ?? null
         if (!workArk && expressionRecord) {
           const candidates = expressionWorkArks(expressionRecord)
-          if (candidates.length) workArk = candidates[0]
+        if (candidates.length) workArk = candidates[0]
         }
         const workRecord = findByArk(workArk)
-        if (workRecord) {
-          const label = titleOf(workRecord)
-          return label || workRecord.id
-        }
-        if (expressionRecord) {
-          const label = titleOf(expressionRecord)
-          return label || expressionRecord.id
-        }
+        const label = labelFromRecord(workRecord) ?? labelFromRecord(expressionRecord)
+        if (label) return label
         return entity.expressionId ?? entity.id
       }
 
       const record = findById(entity.id)
-      if (record) {
-        const label = titleOf(record) || manifestationTitle(record)
-        return label || record.id
-      }
+      const label = labelFromRecord(record)
+      if (label) return label
       return fallbackLabel
     },
-    [recordIndexes, defaultWorkspaceTitle, defaultSparqlTitle],
+    [recordIndexes, defaultWorkspaceTitle, defaultSparqlTitle, labelFromRecord],
   )
 
   const openDetachedTabWithState = useCallback(

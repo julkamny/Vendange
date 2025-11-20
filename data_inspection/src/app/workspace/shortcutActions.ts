@@ -11,7 +11,6 @@ type ShortcutContext = {
   inventoryWork: RecordRow | null
   indexes: WorkspaceDataIndexes
   curatedRecords: RecordRow[]
-  originalRecords: RecordRow[]
 }
 
 export function focusTreeUp(state: WorkspaceTabStateWorkspace, ctx: ShortcutContext): WorkspaceTabStateWorkspace {
@@ -73,7 +72,7 @@ function focusClusterTreeUp(
       inventoryFocusExpressionId: null,
       selectedEntity: {
         id: expressionId,
-        source: inferRecordSource(expressionId, ctx.curatedRecords, ctx.originalRecords),
+        source: inferRecordSource(expressionId, ctx.curatedRecords),
         entityType: 'expression',
         workArk: workArk ?? undefined,
         expressionId,
@@ -106,7 +105,7 @@ function focusClusterTreeUp(
       inventoryFocusExpressionId: null,
       selectedEntity: {
         id: workId,
-        source: inferRecordSource(workId, ctx.curatedRecords, ctx.originalRecords),
+        source: inferRecordSource(workId, ctx.curatedRecords),
         entityType: 'work',
         workArk: workArk ?? undefined,
         clusterAnchorId: cluster.anchorId,
@@ -155,7 +154,7 @@ function focusClusterTreeDown(
       highlightedExpressionArk: expressionArk,
       selectedEntity: {
         id: expression.id,
-        source: inferRecordSource(expression.id, ctx.curatedRecords, ctx.originalRecords),
+        source: inferRecordSource(expression.id, ctx.curatedRecords),
         entityType: 'expression',
         workArk: expression.workArk ?? targetWorkArk ?? undefined,
         expressionId: expression.id,
@@ -196,7 +195,7 @@ function focusClusterTreeDown(
       ...baseState,
       selectedEntity: {
         id: nextManifest.id,
-        source: inferRecordSource(nextManifest.id, ctx.curatedRecords, ctx.originalRecords),
+        source: inferRecordSource(nextManifest.id, ctx.curatedRecords),
         entityType: 'manifestation',
         workArk: expression.workArk ?? undefined,
         expressionId: expression.id,
@@ -234,7 +233,7 @@ function focusInventoryTreeUp(
       inventoryFocusExpressionId: expressionRecord.id,
       selectedEntity: {
         id: expressionRecord.id,
-        source: inferRecordSource(expressionRecord.id, ctx.curatedRecords, ctx.originalRecords),
+        source: inferRecordSource(expressionRecord.id, ctx.curatedRecords),
         entityType: 'expression',
         workArk: workArk ?? undefined,
         expressionId: expressionRecord.id,
@@ -261,7 +260,7 @@ function focusInventoryTreeUp(
       inventoryFocusExpressionId: null,
       selectedEntity: {
         id: workRecord?.id ?? entity.id,
-        source: inferRecordSource(workRecord?.id ?? entity.id, ctx.curatedRecords, ctx.originalRecords),
+        source: inferRecordSource(workRecord?.id ?? entity.id, ctx.curatedRecords),
         entityType: 'work',
         workArk: workArk ?? undefined,
         clusterAnchorId: cluster?.anchorId,
@@ -286,7 +285,7 @@ function focusInventoryTreeUp(
       inventoryFocusExpressionId: null,
       selectedEntity: {
         id: workRecord?.id ?? entity.id,
-        source: inferRecordSource(workRecord?.id ?? entity.id, ctx.curatedRecords, ctx.originalRecords),
+        source: inferRecordSource(workRecord?.id ?? entity.id, ctx.curatedRecords),
         entityType: 'work',
         workArk: workRecord?.ark ?? entity.workArk ?? undefined,
         clusterAnchorId: cluster?.anchorId,
@@ -321,7 +320,7 @@ function focusInventoryTreeDown(
         inventoryFocusExpressionId: null,
         selectedEntity: {
           id: entity.id,
-          source: inferRecordSource(entity.id, ctx.curatedRecords, ctx.originalRecords),
+          source: inferRecordSource(entity.id, ctx.curatedRecords),
           entityType: 'work',
           workArk: workArk ?? undefined,
         },
@@ -345,7 +344,7 @@ function focusInventoryTreeDown(
       inventoryFocusExpressionId: first.id,
       selectedEntity: {
         id: first.id,
-        source: inferRecordSource(first.id, ctx.curatedRecords, ctx.originalRecords),
+        source: inferRecordSource(first.id, ctx.curatedRecords),
         entityType: 'expression',
         workArk: workArk ?? undefined,
         expressionId: first.id,
@@ -396,7 +395,7 @@ function focusInventoryTreeDown(
       inventoryFocusWorkId: state.inventoryFocusWorkId ?? null,
       selectedEntity: {
         id: first.id,
-        source: inferRecordSource(first.id, ctx.curatedRecords, ctx.originalRecords),
+        source: inferRecordSource(first.id, ctx.curatedRecords),
         entityType: 'manifestation',
         expressionId: expressionRecord?.id,
         expressionArk: expressionArk ?? undefined,
@@ -470,9 +469,8 @@ export function resolveAnchorExpressionId(cluster: Cluster, expression: ReturnTy
   return null
 }
 
-export function inferRecordSource(id: string | undefined, curated: RecordRow[], original: RecordRow[]): 'curated' | 'original' {
+export function inferRecordSource(id: string | undefined, curated: RecordRow[]): 'curated' {
   if (id && curated.some(record => record.id === id)) return 'curated'
-  if (id && original.some(record => record.id === id)) return 'original'
   return 'curated'
 }
 

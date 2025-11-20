@@ -40,7 +40,7 @@ function normalizeArk(value: string): string {
 export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }: SparqlWorkspaceViewProps) {
   const { t, language } = useTranslation()
   const { showToast } = useToast()
-  const { clusters, curated, original, datasetId } = useAppData()
+  const { clusters, curated, datasetId } = useAppData()
   const { getByArk, getById } = useRecordLookup()
   const sparnaturalConfig = useMemo(() => buildSparnaturalConfig(), [])
   const stubWorkspaceState = useMemo<WorkspaceTabStateWorkspace>(
@@ -53,9 +53,8 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
       clusters,
       indexes: workspaceData.indexes,
       curatedRecords: curated?.records ?? [],
-      originalRecords: original?.records ?? [],
     }),
-    [clusters, workspaceData.indexes, curated?.records, original?.records],
+    [clusters, workspaceData.indexes, curated?.records],
   )
   const collator = useMemo(() => new Intl.Collator(language, { sensitivity: 'accent' }), [language])
   const [contextMenu, setContextMenu] = useState<ArkContextMenuState | null>(null)

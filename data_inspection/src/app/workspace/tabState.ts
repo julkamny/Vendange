@@ -14,7 +14,6 @@ type WorkspaceTabBuildContext = {
   clusters: Cluster[]
   indexes: WorkspaceDataIndexes
   curatedRecords: RecordRow[]
-  originalRecords: RecordRow[]
 }
 
 export function configureTabStateForRecord(
@@ -41,7 +40,7 @@ function configureForWork(
 ): WorkspaceTabStateWorkspace {
   const workArk = record.ark ?? null
   const cluster = findClusterForWork(ctx.clusters, record.id, workArk)
-  const source = inferRecordSource(record.id, ctx.curatedRecords, ctx.originalRecords)
+  const source = inferRecordSource(record.id, ctx.curatedRecords)
   const highlightedWorkArk = workArk ?? cluster?.anchorArk ?? null
   const workArkForEntity = workArk ?? cluster?.anchorArk ?? undefined
 
@@ -101,7 +100,7 @@ function configureForExpression(
     ? findExpressionInCluster(cluster, record.id, expressionArk ?? undefined)
     : undefined
   const anchorId = cluster ? resolveAnchorExpressionId(cluster, expressionInCluster) : null
-  const source = inferRecordSource(record.id, ctx.curatedRecords, ctx.originalRecords)
+  const source = inferRecordSource(record.id, ctx.curatedRecords)
   const highlightedWorkArk = workArk ?? cluster?.anchorArk ?? null
   const expressionArkForState = expressionArk ?? expressionInCluster?.ark ?? null
   const selectedEntity = {
@@ -162,7 +161,7 @@ function configureForManifestation(
     ? findExpressionInCluster(cluster, expressionId ?? undefined, expressionArk ?? undefined)
     : undefined
   const anchorId = cluster ? resolveAnchorExpressionId(cluster, expressionInCluster) : null
-  const source = inferRecordSource(record.id, ctx.curatedRecords, ctx.originalRecords)
+  const source = inferRecordSource(record.id, ctx.curatedRecords)
   const highlightedWorkArk = workArk ?? cluster?.anchorArk ?? null
   const expressionArkForState =
     expressionArk ??

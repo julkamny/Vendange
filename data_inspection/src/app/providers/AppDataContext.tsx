@@ -38,9 +38,8 @@ type UpdatePayload = {
 export type AppDataState = {
   datasetId: string | null
   datasetTitle: string | null
-  original: DataSet | null
   curated: DataSet | null
-  curatedBaseline: DataSet | null
+  pristineRecords: Map<string, RecordRow>
   clusters: Cluster[]
   loadingDataset: boolean
   originalIndexes: OriginalIndexes | null
@@ -70,9 +69,8 @@ type AppDataContextValue = AppDataState & {
 const INITIAL_STATE: AppDataState = {
   datasetId: null,
   datasetTitle: null,
-  original: null,
   curated: null,
-  curatedBaseline: null,
+  pristineRecords: new Map(),
   clusters: [],
   loadingDataset: false,
   originalIndexes: null,
@@ -102,20 +100,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       try {
         const { dataset, records } = await fetchDatasetRecords(datasetId)
         const built = buildDataSetFromRecords(records)
-        const original = cloneDataSet(built)
-        const curated = cloneDataSet(built)
-        const baseline = cloneDataSet(built)
         const language = getCurrentLanguage()
-        const originalIndexes = buildOriginalIndexes(original.records, language)
-        const clusters = detectClusters(curated.records, buildArkIndex(original.records))
+        const originalIndexes = buildOriginalIndexes(built.records, language)
+        const clusters = detectClusters(built.records, buildArkIndex(built.records))
         resetArkLabelCache()
-        primeArkLabelCache(curated.records)
+        primeArkLabelCache(built.records)
         setState({
           datasetId,
           datasetTitle: options?.title ?? dataset.title,
-          original,
-          curated,
-          curatedBaseline: baseline,
+          curated: built,
+          pristineRecords: new Map(),
           clusters,
           loadingDataset: false,
           originalIndexes,
@@ -150,14 +144,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const updates: UpdatePayload[] = []
       setState(prev => {
         if (!prev.curated) return prev
+        const pristineRecords = new Map(prev.pristineRecords)
+        snapshotRecord(prev.curated, recordId, pristineRecords)
+
         const curated = updateRecordIntermarcInDataset(prev.curated, recordId, intermarc)
         const updatedRecord = curated.records.find(r => r.id === recordId)
         if (updatedRecord) {
           updates.push({ id: updatedRecord.id, type: updatedRecord.type, intermarc: updatedRecord.intermarcStr })
           registerArkLabelForRecord(updatedRecord)
         }
-        const clusters = detectClusters(curated.records, buildArkIndex(prev.original?.records ?? []))
-        return { ...prev, curated, clusters }
+        const clusters = detectClusters(curated.records, buildArkIndex(curated.records))
+        return { ...prev, curated, clusters, pristineRecords }
       })
       const datasetId = datasetIdRef.current
       if (datasetId && updates.length) {
@@ -179,10 +176,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const getCuratedBaselineRecord = useCallback(
     (recordId: string) => {
-      if (!state.curatedBaseline) return null
-      return state.curatedBaseline.records.find(r => r.id === recordId) ?? null
+      return state.pristineRecords.get(recordId) ?? null
     },
-    [state.curatedBaseline],
+    [state.pristineRecords],
   )
 
   const setWorkAccepted = useCallback(
@@ -213,6 +209,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           }
         }
 
+        const pristineRecords = new Map(prev.pristineRecords)
+        snapshotRecord(prev.curated, targetCluster.anchorId, pristineRecords)
+
         let curated = updateWorkClusterIntermarc(targetCluster, prev.curated)
         const anchorRecord = curated.records.find(r => r.id === targetCluster.anchorId)
         if (anchorRecord) {
@@ -221,6 +220,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         }
 
         for (const anchorId of affectedAnchors) {
+          snapshotRecord(prev.curated, anchorId, pristineRecords)
           curated = updateExpressionClusterIntermarc(targetCluster, anchorId, curated)
           const expressionRecord = curated.records.find(r => r.id === anchorId)
           if (expressionRecord) {
@@ -231,7 +231,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
         const clusters = prev.clusters.slice()
         clusters[clusterIndex] = targetCluster
-        return { ...prev, clusters, curated }
+        return { ...prev, clusters, curated, pristineRecords }
       })
       const datasetId = datasetIdRef.current
       if (datasetId && updates.length) {
@@ -263,6 +263,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         expression.accepted = accepted
         expression.date = accepted ? expression.date ?? today : undefined
 
+        const pristineRecords = new Map(prev.pristineRecords)
+        snapshotRecord(prev.curated, anchorExpressionId, pristineRecords)
+        snapshotRecord(prev.curated, expression.id, pristineRecords)
+
         let curated = updateExpressionClusterIntermarc(targetCluster, anchorExpressionId, prev.curated)
         const anchorRecord = curated.records.find(r => r.id === anchorExpressionId)
         if (anchorRecord) {
@@ -272,7 +276,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
         const clusters = prev.clusters.slice()
         clusters[clusterIndex] = targetCluster
-        return { ...prev, clusters, curated }
+        return { ...prev, clusters, curated, pristineRecords }
       })
       const datasetId = datasetIdRef.current
       if (datasetId && updates.length) {
@@ -305,6 +309,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         const attached = attachManifestationToCluster(targetCluster, target, detachResult.item)
         if (!attached) return prev
 
+        const pristineRecords = new Map(prev.pristineRecords)
+        snapshotRecord(prev.curated, manifestationId, pristineRecords)
+        if (detachResult.anchorExpressionId) snapshotRecord(prev.curated, detachResult.anchorExpressionId, pristineRecords)
+        snapshotRecord(prev.curated, target.anchorExpressionId, pristineRecords)
+
         let curated = updateManifestationParentInDataset(
           prev.curated,
           manifestationId,
@@ -336,7 +345,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
         const clusters = prev.clusters.slice()
         clusters[clusterIndex] = targetCluster
-        return { ...prev, clusters, curated }
+        return { ...prev, clusters, curated, pristineRecords }
       })
       const datasetId = datasetIdRef.current
       if (datasetId && updates.length) {
@@ -377,7 +386,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const clearData = useCallback(() => {
     resetArkLabelCache()
-    setState(INITIAL_STATE)
+    setState(() => ({ ...INITIAL_STATE, pristineRecords: new Map() }))
   }, [])
 
   const value = useMemo<AppDataContextValue>(
@@ -483,19 +492,20 @@ function updateRecordIntermarcInDataset(dataset: DataSet, recordId: string, inte
   }
 }
 
-function cloneDataSet(dataset: DataSet): DataSet {
+function cloneRecordRow(record: RecordRow): RecordRow {
   return {
-    csv: {
-      headers: dataset.csv.headers.slice(),
-      rows: dataset.csv.rows.map(row => row.slice()),
-    },
-    records: dataset.records.map(record => ({
-      ...record,
-      raw: record.raw.slice(),
-      intermarc: cloneIntermarc(record.intermarc),
-      intermarcStr: record.intermarcStr,
-    })),
-    intermarcIndex: dataset.intermarcIndex,
+    ...record,
+    raw: record.raw.slice(),
+    intermarc: cloneIntermarc(record.intermarc),
+  }
+}
+
+function snapshotRecord(dataset: DataSet | null, recordId: string | undefined | null, target: Map<string, RecordRow>) {
+  if (!dataset || !recordId) return
+  if (target.has(recordId)) return
+  const record = dataset.records.find(r => r.id === recordId)
+  if (record) {
+    target.set(recordId, cloneRecordRow(record))
   }
 }
 

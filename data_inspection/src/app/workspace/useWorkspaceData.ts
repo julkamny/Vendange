@@ -18,14 +18,14 @@ export type WorkspaceDataIndexes = {
 }
 
 export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
-  const { clusters, original, curated } = useAppData()
+  const { clusters, curated } = useAppData()
   const { language } = useTranslation()
 
   const coverage = useMemo(() => computeClusterCoverage(clusters), [clusters])
   const unclusteredWorks = useMemo(() => {
-    if (!original) return []
-    return getUnclusteredWorks(original.records, coverage, language)
-  }, [original, coverage, language])
+    if (!curated) return []
+    return getUnclusteredWorks(curated.records, coverage, language)
+  }, [curated, coverage, language])
 
   const dataIndexes = useMemo<WorkspaceDataIndexes>(() => {
     const worksById = new Map<string, RecordRow>()
@@ -70,7 +70,6 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
       }
     }
 
-    addRecords(original?.records ?? null)
     addRecords(curated?.records ?? null)
 
     return {
@@ -82,7 +81,7 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
       manifestationsById,
       manifestationsByExpressionArk,
     }
-  }, [original?.records, curated?.records])
+  }, [curated?.records])
 
   const activeContext = useMemo(() => {
     if (state.listScope === 'inventory') {

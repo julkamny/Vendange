@@ -88,6 +88,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 Review in the Web UI
 - Start the UI: `npm run dev`
 - From the dashboard, upload one or more dataset CSV snapshots. Each upload becomes its own Oxigraph store under `data_curation/api/datasets/`; use the dataset’s **Open** action to inspect or curate it.
+- The inspection view now keeps a single in-memory copy of the dataset; pristine snapshots are captured per record only when you edit it, keeping load time and memory footprint low while still allowing per-record reset.
 - The UI detects clusters by scanning for `90F$q = "Clusterisation script"` in works.
 - Key information about entities is displayed in badges:
   - Expression counters (orange) only appear when at least one manifestation points to the entity.

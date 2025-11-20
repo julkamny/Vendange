@@ -100,18 +100,9 @@ function sortBacklinks(entries: BacklinkInfo[]): BacklinkInfo[] {
 }
 
 export function useBacklinks() {
-  const { original, curated } = useAppData()
+  const { curated } = useAppData()
 
-  const records = useMemo(() => {
-    const map = new Map<string, RecordRow>()
-    original?.records.forEach(rec => {
-      map.set(rec.id, rec)
-    })
-    curated?.records.forEach(rec => {
-      map.set(rec.id, rec)
-    })
-    return Array.from(map.values())
-  }, [curated?.records, original?.records])
+  const records = useMemo(() => curated?.records ?? [], [curated?.records])
 
   const index = useMemo(() => buildBacklinkIndex(records), [records])
 

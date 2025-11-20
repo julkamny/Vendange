@@ -27,8 +27,8 @@ type WorkspaceViewProps = {
   onRequestDock?: () => void
 }
 
-function findRecord(id: string, curated: RecordRow[], original: RecordRow[]): RecordRow | null {
-  return curated.find(rec => rec.id === id) || original.find(rec => rec.id === id) || null
+function findRecord(id: string, curated: RecordRow[]): RecordRow | null {
+  return curated.find(rec => rec.id === id) || null
 }
 
 function isWorkspaceEntityRecord(record: RecordRow | undefined): record is RecordRow {
@@ -68,7 +68,6 @@ function WorkspaceBreadcrumbs({ items, ariaLabel }: { items: string[]; ariaLabel
 export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline', onRequestDetach, onRequestDock }: WorkspaceViewProps) {
   const {
     clusters,
-    original,
     curated,
     setWorkAccepted,
     setExpressionAccepted,
@@ -80,7 +79,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
   const { getById, getByArk } = useRecordLookup()
   const { getBacklinksForRecord } = useBacklinks()
   const record = state.selectedEntity
-    ? findRecord(state.selectedEntity.id, curated?.records ?? [], original?.records ?? [])
+    ? findRecord(state.selectedEntity.id, curated?.records ?? [])
     : null
   const backlinks = useMemo(
     () => (record ? getBacklinksForRecord(record) : []),
@@ -171,9 +170,8 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
       clusters,
       indexes: workspace.indexes,
       curatedRecords: curated?.records ?? [],
-      originalRecords: original?.records ?? [],
     }),
-    [clusters, workspace.indexes, curated?.records, original?.records],
+    [clusters, workspace.indexes, curated?.records],
   )
 
   const breadcrumbs = useMemo(() => {
@@ -400,7 +398,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
       inventoryFocusExpressionId: null,
       selectedEntity: {
         id: workId,
-        source: hasCuratedRecord ? 'curated' : 'original',
+        source: 'curated',
         entityType: 'work',
         workArk: workArk ?? undefined,
       },
@@ -421,7 +419,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
         inventoryFocusExpressionId: null,
         selectedEntity: {
           id: workId,
-          source: hasCuratedRecord ? 'curated' : 'original',
+          source: 'curated',
           entityType: 'work',
           workArk: workArk ?? undefined,
         },
@@ -442,7 +440,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
       inventoryFocusExpressionId: null,
       selectedEntity: {
         id: workId,
-        source: hasCuratedRecord ? 'curated' : 'original',
+        source: 'curated',
         entityType: 'work',
         workArk: workArk ?? undefined,
       },
@@ -489,7 +487,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
                 inventoryFocusExpressionId: isClusterContext ? null : expressionId,
                 selectedEntity: {
                   id: expressionId,
-                  source: isClusterContext ? 'curated' : 'original',
+                  source: 'curated',
                   entityType: 'expression',
                   workArk: workArk ?? undefined,
                   expressionId,
@@ -514,7 +512,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
                 inventoryFocusExpressionId: isClusterContext ? null : expressionId,
                 selectedEntity: {
                   id: expressionId,
-                  source: isClusterContext ? 'curated' : 'original',
+                  source: 'curated',
                   entityType: 'expression',
                   workArk: workArk ?? undefined,
                   expressionId,
@@ -544,7 +542,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
             viewMode: 'manifestations',
             selectedEntity: {
               id: manifestationId,
-              source: workspace.activeClusterSource === 'cluster' ? 'curated' : 'original',
+              source: 'curated',
               entityType: 'manifestation',
               expressionId,
               expressionArk,

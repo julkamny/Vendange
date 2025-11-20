@@ -39,10 +39,9 @@ type WorkspaceTabsProps = {
 export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   const { t } = useTranslation()
   const { bindings } = useShortcuts()
-  const { clusters, original, curated } = useAppData()
+  const { clusters, curated } = useAppData()
   const { openWindow, closeWindow, getContainer, isOpen } = useDetachedWindows()
   const { showToast } = useToast()
-  const originalRecords = original?.records ?? []
   const curatedRecords = curated?.records ?? []
   const defaultWorkspaceTitle = useMemo(
     () => t('workspace.tabDefault', { defaultValue: 'Workspace' }),
@@ -58,10 +57,9 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         if (rec.ark) byArk.set(rec.ark, rec)
       }
     }
-    addRecords(originalRecords)
     addRecords(curatedRecords)
     return { byId, byArk }
-  }, [originalRecords, curatedRecords])
+  }, [curatedRecords])
   const [tabs, setTabs] = useState<WorkspaceTabState[]>(() => [createWorkspaceTab(defaultWorkspaceTitle)])
   const [activeId, setActiveId] = useState(() => tabs[0]?.id ?? '')
 
@@ -264,7 +262,6 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
               inventoryWork: workspace.inventoryWork,
               indexes: workspace.indexes,
               curatedRecords,
-              originalRecords,
             })
             : prev,
         )
@@ -280,7 +277,6 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
               inventoryWork: workspace.inventoryWork,
               indexes: workspace.indexes,
               curatedRecords,
-              originalRecords,
             })
             : prev,
         )
@@ -308,7 +304,6 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       workspace.inventoryWork,
       workspace.indexes,
       curatedRecords,
-      originalRecords,
       tabs,
       setActiveId,
     ],

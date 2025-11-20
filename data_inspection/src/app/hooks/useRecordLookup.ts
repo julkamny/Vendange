@@ -14,7 +14,7 @@ type RecordLookup = {
 }
 
 export function useRecordLookup(): RecordLookup {
-  const { original, curated } = useAppData()
+  const { curated } = useAppData()
 
   const index = useMemo(() => {
     const byId = new Map<string, RecordRow>()
@@ -24,9 +24,8 @@ export function useRecordLookup(): RecordLookup {
       if (record.ark) byArk.set(record.ark.toLowerCase(), record)
     }
     curated?.records.forEach(ingest)
-    original?.records.forEach(ingest)
     return { byId, byArk }
-  }, [original?.records, curated?.records])
+  }, [curated?.records])
 
   const agentCache = useMemo(() => new Map<string, string[]>(), [index])
   const relationshipCache = useMemo(() => new Map<string, number>(), [index])

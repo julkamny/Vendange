@@ -1,4 +1,13 @@
-import { Generator, Parser, type BgpPattern, type Pattern, type Query, type Term, type Triple, type VariableTerm } from 'sparqljs'
+import {
+  Generator,
+  Parser,
+  type BgpPattern,
+  type Pattern,
+  type Query,
+  type Term,
+  type Triple,
+  type VariableTerm,
+} from 'sparqljs'
 import type { Term as RdfTerm } from '@rdfjs/types'
 import { CLASS_NS, REL_NS } from './sparnaturalConfig'
 
@@ -13,10 +22,11 @@ export function ensureGraphWrapping(rawQuery: string): string {
   const query = rawQuery.trim()
   if (!query) return query
   const stripped = stripComments(query)
-  if (GRAPH_REGEX.test(stripped)) return query
 
   const entityScoped = tryScopeEntitiesByGraph(query)
   if (entityScoped) return entityScoped
+
+  if (GRAPH_REGEX.test(stripped)) return query
 
   return wrapWholeQuery(query)
 }
@@ -77,11 +87,15 @@ function splitBgpByEntityGraphs(pattern: BgpPattern): Pattern[] | null {
 
   pattern.triples.forEach((triple, index) => {
     const subject = getVariableName(triple.subject)
-    if (!subject) {
+    const object = getVariableName(triple.object)
+    const targetVariable = isRelationPredicate(triple.predicate)
+      ? pickRelationTargetVariable(triple, subject, object)
+      : subject
+    if (!targetVariable) {
       leftovers.push(triple)
       return
     }
-    const scope = tracker.find(subject)
+    const scope = tracker.find(targetVariable)
     if (!scope || !entityVariables.has(scope)) {
       leftovers.push(triple)
       return
@@ -134,14 +148,36 @@ function getVariableName(term: Term | undefined): string | null {
   return null
 }
 
-function isNamedNode(value: Term): value is { termType: 'NamedNode'; value: string } {
-  return 'termType' in value && value.termType === 'NamedNode'
+function isNamedNode(value: Term | unknown): value is { termType: 'NamedNode'; value: string } {
+  return typeof value === 'object' && value !== null && 'termType' in value && (value as Term).termType === 'NamedNode'
 }
 
 function isRelationPredicate(predicate: Triple['predicate']): boolean {
-  return typeof predicate === 'object' && predicate !== null && 'termType' in predicate && predicate.termType === 'NamedNode'
-    ? predicate.value.startsWith(REL_NS)
-    : false
+  if (isNamedNode(predicate)) return predicate.value.startsWith(REL_NS)
+  if (!predicate || typeof predicate !== 'object') return false
+  return pathContainsRelation(predicate)
+}
+
+function isInverseRelationPredicate(predicate: Triple['predicate']): boolean {
+  if (!predicate || typeof predicate !== 'object') return false
+  return 'pathType' in predicate && (predicate as { pathType?: string }).pathType === '^'
+}
+
+function pickRelationTargetVariable(triple: Triple, subject: string | null, object: string | null): string | null {
+  if (isInverseRelationPredicate(triple.predicate)) {
+    return object ?? subject
+  }
+  return subject ?? object
+}
+
+function pathContainsRelation(value: unknown): boolean {
+  if (!value) return false
+  if (isNamedNode(value as Term)) return (value as { value: string }).value.startsWith(REL_NS)
+  if (Array.isArray(value)) return value.some(pathContainsRelation)
+  if (typeof value === 'object') {
+    return Object.values(value as Record<string, unknown>).some(pathContainsRelation)
+  }
+  return false
 }
 
 class ScopeTracker {

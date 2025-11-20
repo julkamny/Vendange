@@ -9,7 +9,7 @@ import {
   type VariableTerm,
 } from 'sparqljs'
 import type { Term as RdfTerm } from '@rdfjs/types'
-import { CLASS_NS, REL_NS } from './sparnaturalConfig'
+import { BASE_NS, CLASS_NS, REL_NS } from './sparnaturalConfig'
 
 const GRAPH_REGEX = /\bGRAPH\b/i
 const RDF_TYPE_IRI = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
@@ -43,6 +43,29 @@ function tryScopeEntitiesByGraph(query: string): string | null {
 
   if (!parsed.where || parsed.where.length === 0) return null
 
+  const allTriples: Triple[] = []
+  parsed.where.forEach(pattern => {
+    if (pattern.type === 'bgp') {
+      allTriples.push(...pattern.triples)
+    }
+  })
+
+  const entityVariables = collectEntityVariables(allTriples)
+  if (!entityVariables.size) return null
+
+  const tracker = new ScopeTracker(entityVariables)
+  for (const triple of allTriples) {
+    const subject = getVariableName(triple.subject)
+    const object = getVariableName(triple.object)
+    if (!subject || !object) continue
+    if (isRelationPredicate(triple.predicate)) continue
+    if (isStructuralPredicate(triple.predicate)) {
+      tracker.union(subject, object)
+      continue
+    }
+    tracker.union(subject, object)
+  }
+
   let changed = false
   const rewrittenWhere: Pattern[] = []
 
@@ -51,7 +74,7 @@ function tryScopeEntitiesByGraph(query: string): string | null {
       rewrittenWhere.push(pattern)
       continue
     }
-    const replacements = splitBgpByEntityGraphs(pattern)
+    const replacements = splitBgpByEntityGraphs(pattern, entityVariables, tracker)
     if (!replacements) {
       rewrittenWhere.push(pattern)
       continue
@@ -66,21 +89,12 @@ function tryScopeEntitiesByGraph(query: string): string | null {
   return generator.stringify(nextQuery)
 }
 
-function splitBgpByEntityGraphs(pattern: BgpPattern): Pattern[] | null {
+function splitBgpByEntityGraphs(
+  pattern: BgpPattern,
+  entityVariables: Set<string>,
+  tracker: ScopeTracker,
+): Pattern[] | null {
   if (!pattern.triples.length) return null
-
-  const entityVariables = collectEntityVariables(pattern.triples)
-  if (!entityVariables.size) return null
-
-  const tracker = new ScopeTracker(entityVariables)
-  for (const triple of pattern.triples) {
-    const subject = getVariableName(triple.subject)
-    if (!subject) continue
-    const object = getVariableName(triple.object)
-    if (!object) continue
-    if (isRelationPredicate(triple.predicate)) continue
-    tracker.union(subject, object)
-  }
 
   const grouped = new Map<string, { triples: Triple[]; index: number }>()
   const leftovers: Triple[] = []
@@ -158,6 +172,14 @@ function isRelationPredicate(predicate: Triple['predicate']): boolean {
   return pathContainsRelation(predicate)
 }
 
+function isStructuralPredicate(predicate: Triple['predicate']): boolean {
+  if (!predicate || typeof predicate !== 'object') return false
+  if (isNamedNode(predicate)) {
+    return predicate.value === `${BASE_NS}/hasField` || predicate.value === `${BASE_NS}/hasSubfield`
+  }
+  return false
+}
+
 function isInverseRelationPredicate(predicate: Triple['predicate']): boolean {
   if (!predicate || typeof predicate !== 'object') return false
   return 'pathType' in predicate && (predicate as { pathType?: string }).pathType === '^'
@@ -174,7 +196,7 @@ function pathContainsRelation(value: unknown): boolean {
   if (!value) return false
   if (isNamedNode(value as Term)) return (value as { value: string }).value.startsWith(REL_NS)
   if (Array.isArray(value)) return value.some(pathContainsRelation)
-  if (typeof value === 'object') {
+  if (typeof value === 'object' && value !== null) {
     return Object.values(value as Record<string, unknown>).some(pathContainsRelation)
   }
   return false

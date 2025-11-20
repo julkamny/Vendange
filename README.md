@@ -125,6 +125,7 @@ SPARQL searches
 - The builder now also surfaces agent entities (person / collective / famille) with the 700/701/702/710/711/712 links, lets you pick relator codes from the controlled lists, and hides ARKs for agents in favour of their Intermarc label.
 - Literal list widgets rely on the Select2 bootstrap in `data_inspection/src/app/vendor/select2.ts` to circumvent a typing issue.
 - Vendange stores each record in its own named graph. The builder (and manual execution) now rewrite Sparnatural output into one `GRAPH` block per entity (`GRAPH ?g_manifestation { … }`, `GRAPH ?g_expression { … }`, etc.) so W–E–M traversals span the right graphs out of the box. For custom logic you can still provide explicit `GRAPH` clauses—auto-wrapping steps aside as soon as it detects one.
+- Graph wrapping also keeps MARC field/subfield filters with their parent entity graph, even when Sparnatural emits them in multiple BGP blocks (e.g., subfield code and value filters added in separate steps).
 
 Design Notes
 - UI performs all actions client-side; no network dependencies, but relies on FastAPI for the SPARQL store and query endpoint.

@@ -67,3 +67,53 @@ LIMIT 200
   assert.ok(personBinding)
   assert.equal(personBinding?.value, `${BASE}/entity/person1`)
 })
+
+test('subfield value stays inside manifestation graph when filters are split', () => {
+  const store = new Store()
+  const work = namedNode(`${BASE}/entity/work1`)
+  const expr = namedNode(`${BASE}/entity/expr1`)
+  const mani = namedNode(`${BASE}/entity/mani1`)
+
+  const gWork = namedNode(`${BASE}/graph/work1`)
+  const gExpr = namedNode(`${BASE}/graph/expr1`)
+  const gMani = namedNode(`${BASE}/graph/mani1`)
+
+  store.add(quad(work, namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), namedNode(`${CLASS}Work`), gWork))
+  store.add(quad(expr, namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), namedNode(`${CLASS}Expression`), gExpr))
+  store.add(quad(mani, namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), namedNode(`${CLASS}Manifestation`), gMani))
+  store.add(quad(expr, namedNode(`${REL}750s3`), work, gExpr))
+  store.add(quad(mani, namedNode(`${REL}740s3`), expr, gMani))
+
+  const field = blankNode('b-mani-f-0')
+  const subfield = blankNode('b-mani-f-0-s-0')
+  store.add(quad(mani, namedNode(HAS_FIELD), field, gMani))
+  store.add(quad(field, namedNode(HAS_SUBFIELD), subfield, gMani))
+  store.add(quad(subfield, namedNode(`${BASE}/subfieldCode`), literal('245sa'), gMani))
+  store.add(quad(subfield, namedNode(SUBFIELD_VALUE), literal('filles'), gMani))
+
+  const raw = `
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX vend: <https://vendange.bnf.fr/>
+SELECT DISTINCT ?Work_1 WHERE {
+  ?Work_1 rdf:type <https://vendange.bnf.fr/class/Work> .
+  ?Work_1 ^<https://vendange.bnf.fr/relation/750s3> ?Expression_2 .
+  ?Expression_2 rdf:type <https://vendange.bnf.fr/class/Expression> .
+  ?Expression_2 ^<https://vendange.bnf.fr/relation/740s3> ?Manifestation_4 .
+  ?Manifestation_4 rdf:type <https://vendange.bnf.fr/class/Manifestation> ;
+    vend:hasField ?Field_6 .
+  ?Field_6 vend:hasSubfield ?Subfield_8 .
+  ?Subfield_8 vend:subfieldCode ?Text_10 .
+  FILTER(REGEX(STR(?Text_10), "245", "i"))
+  ?Subfield_8 vend:subfieldValue ?Text_12 .
+  FILTER(REGEX(STR(?Text_12), "filles", "i"))
+}
+LIMIT 200
+`
+
+  const rewritten = ensureGraphWrapping(raw)
+  const results = Array.from(store.query(rewritten))
+  assert.equal(results.length, 1)
+  const workBinding = results[0].get('Work_1')
+  assert.ok(workBinding)
+  assert.equal(workBinding?.value, `${BASE}/entity/work1`)
+})

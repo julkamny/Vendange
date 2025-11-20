@@ -6,6 +6,7 @@ const SPAR_NS = `${BASE_NS}/sparnatural#`
 
 export const SPAR_CONTROLLED_VALUE_PREDICATE = `${SPAR_NS}subfieldControlledValue`
 export const SPAR_SUBFIELD_VALUE_PREDICATE = `${SPAR_NS}subfieldValue`
+export const SUBFIELD_VALUE_PREDICATE = `${BASE_NS}/subfieldValue`
 
 export function buildSparnaturalConfig(): string {
   return `
@@ -30,7 +31,7 @@ export function buildSparnaturalConfig(): string {
   sh:nodeKind sh:IRI ;
   volipi:iconName "fa-regular fa-book" ;
   rdfs:label "Work"@en , "Oeuvre"@fr ;
-  sh:property :entityField , :entityArk .
+  sh:property :entityField , :entityArk , :workExpression , :workPerson , :workCollective , :workFamily .
 
 :Expression a sh:NodeShape ;
   sh:order "2"^^xsd:integer ;
@@ -38,7 +39,7 @@ export function buildSparnaturalConfig(): string {
   sh:nodeKind sh:IRI ;
   volipi:iconName "fa-regular fa-scroll-old" ;
   rdfs:label "Expression"@en , "Expression"@fr ;
-  sh:property :entityField , :entityArk , :expressionWork .
+  sh:property :entityField , :entityArk , :expressionWork , :expressionManifestation , :expressionPerson , :expressionCollective , :expressionFamily .
 
 :Manifestation a sh:NodeShape ;
   sh:order "3"^^xsd:integer ;
@@ -46,21 +47,47 @@ export function buildSparnaturalConfig(): string {
   sh:nodeKind sh:IRI ;
   volipi:iconName "fa-regular fa-layer-group" ;
   rdfs:label "Manifestation"@en , "Manifestation"@fr ;
-  sh:property :entityField , :entityArk , :manifestationExpression .
+  sh:property :entityField , :entityArk , :manifestationExpression , :manifestationPerson , :manifestationCollective , :manifestationFamily .
+
+:Person a sh:NodeShape ;
+  sh:order "4"^^xsd:integer ;
+  sh:targetClass vendclass:PublicIdentity ;
+  sh:nodeKind sh:IRI ;
+  volipi:iconName "fa-regular fa-user" ;
+  rdfs:label "Person"@en , "Personne"@fr ;
+  sh:property :entityField , :entityArk , :personWork , :personExpression , :personManifestation .
+
+:Collective a sh:NodeShape ;
+  sh:order "5"^^xsd:integer ;
+  sh:targetClass vendclass:Collective ;
+  sh:nodeKind sh:IRI ;
+  volipi:iconName "fa-regular fa-users" ;
+  rdfs:label "Collective"@en , "Collectivité"@fr ;
+  sh:property :entityField , :entityArk , :collectiveWork , :collectiveExpression , :collectiveManifestation .
+
+:Family a sh:NodeShape ;
+  sh:order "6"^^xsd:integer ;
+  sh:targetClass vendclass:Family ;
+  sh:nodeKind sh:IRI ;
+  volipi:iconName "fa-regular fa-people-roof" ;
+  rdfs:label "Family"@en , "Famille"@fr ;
+  sh:property :entityField , :entityArk , :familyWork , :familyExpression , :familyManifestation .
 
 :Field a sh:NodeShape ;
   sh:order "10"^^xsd:integer ;
   sh:nodeKind sh:IRI ;
   volipi:iconName "fa-regular fa-table" ;
   rdfs:label "Field (zone)"@en , "Zone"@fr ;
-  sh:property :fieldCode , :fieldSubfield .
+  sh:property :fieldCode , :fieldSubfield ;
+  sh:deactivated true .
 
 :Subfield a sh:NodeShape ;
   sh:order "11"^^xsd:integer ;
   sh:nodeKind sh:IRI ;
   volipi:iconName "fa-regular fa-square-ellipsis-vertical" ;
   rdfs:label "Subfield (sous-zone)"@en , "Sous-zone"@fr ;
-  sh:property :subfieldCode , :subfieldValue , :subfieldControlledValue .
+  sh:property :subfieldCode , :subfieldValue , :subfieldControlledValue ;
+  sh:deactivated true .
 
 :Text a sh:NodeShape ;
   sh:order "50"^^xsd:integer ;
@@ -104,6 +131,12 @@ export function buildSparnaturalConfig(): string {
   sh:node :Text ;
   dash:searchWidget core:LiteralListProperty .
 
+:fieldRelatorCode a sh:PropertyShape ;
+  sh:path <${BASE_NS}/subfieldValue> ;
+  sh:name "Relator code"@en , "Code de fonction"@fr ;
+  sh:node :Text ;
+  dash:searchWidget core:LiteralListProperty .
+
 :manifestationExpression a sh:PropertyShape ;
   sh:path <${REL_NS}740s3> ;
   sh:name "Linked expression"@en , "Expression reliée"@fr ;
@@ -114,6 +147,126 @@ export function buildSparnaturalConfig(): string {
   sh:path <${REL_NS}750s3> ;
   sh:name "Linked work"@en , "Oeuvre reliée"@fr ;
   sh:node :Work ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:expressionManifestation a sh:PropertyShape ;
+  sh:path [ sh:inversePath <${REL_NS}740s3> ] ;
+  sh:name "Linked manifestation"@en , "Manifestation reliée"@fr ;
+  sh:node :Manifestation ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:workExpression a sh:PropertyShape ;
+  sh:path [ sh:inversePath <${REL_NS}750s3> ] ;
+  sh:name "Linked expression"@en , "Expression reliée"@fr ;
+  sh:node :Expression ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:workPerson a sh:PropertyShape ;
+  sh:path [ sh:alternativePath ( <${REL_NS}700s3> <${REL_NS}701s3> <${REL_NS}702s3> ) ] ;
+  sh:name "Linked person"@en , "Personne liée"@fr ;
+  sh:node :Person ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:workCollective a sh:PropertyShape ;
+  sh:path [ sh:alternativePath ( <${REL_NS}710s3> <${REL_NS}711s3> ) ] ;
+  sh:name "Linked collective"@en , "Collectivité liée"@fr ;
+  sh:node :Collective ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:workFamily a sh:PropertyShape ;
+  sh:path <${REL_NS}712s3> ;
+  sh:name "Linked family"@en , "Famille liée"@fr ;
+  sh:node :Family ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:expressionPerson a sh:PropertyShape ;
+  sh:path [ sh:alternativePath ( <${REL_NS}700s3> <${REL_NS}701s3> <${REL_NS}702s3> ) ] ;
+  sh:name "Linked person"@en , "Personne liée"@fr ;
+  sh:node :Person ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:expressionCollective a sh:PropertyShape ;
+  sh:path [ sh:alternativePath ( <${REL_NS}710s3> <${REL_NS}711s3> ) ] ;
+  sh:name "Linked collective"@en , "Collectivité liée"@fr ;
+  sh:node :Collective ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:expressionFamily a sh:PropertyShape ;
+  sh:path <${REL_NS}712s3> ;
+  sh:name "Linked family"@en , "Famille liée"@fr ;
+  sh:node :Family ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:manifestationPerson a sh:PropertyShape ;
+  sh:path [ sh:alternativePath ( <${REL_NS}700s3> <${REL_NS}701s3> <${REL_NS}702s3> ) ] ;
+  sh:name "Linked person"@en , "Personne liée"@fr ;
+  sh:node :Person ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:manifestationCollective a sh:PropertyShape ;
+  sh:path [ sh:alternativePath ( <${REL_NS}710s3> <${REL_NS}711s3> ) ] ;
+  sh:name "Linked collective"@en , "Collectivité liée"@fr ;
+  sh:node :Collective ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:manifestationFamily a sh:PropertyShape ;
+  sh:path <${REL_NS}712s3> ;
+  sh:name "Linked family"@en , "Famille liée"@fr ;
+  sh:node :Family ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:personWork a sh:PropertyShape ;
+  sh:path [ sh:inversePath [ sh:alternativePath ( <${REL_NS}700s3> <${REL_NS}701s3> <${REL_NS}702s3> ) ] ] ;
+  sh:name "Linked work"@en , "Oeuvre liée"@fr ;
+  sh:node :Work ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:personExpression a sh:PropertyShape ;
+  sh:path [ sh:inversePath [ sh:alternativePath ( <${REL_NS}700s3> <${REL_NS}701s3> <${REL_NS}702s3> ) ] ] ;
+  sh:name "Linked expression"@en , "Expression liée"@fr ;
+  sh:node :Expression ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:personManifestation a sh:PropertyShape ;
+  sh:path [ sh:inversePath [ sh:alternativePath ( <${REL_NS}700s3> <${REL_NS}701s3> <${REL_NS}702s3> ) ] ] ;
+  sh:name "Linked manifestation"@en , "Manifestation liée"@fr ;
+  sh:node :Manifestation ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:collectiveWork a sh:PropertyShape ;
+  sh:path [ sh:inversePath [ sh:alternativePath ( <${REL_NS}710s3> <${REL_NS}711s3> ) ] ] ;
+  sh:name "Linked work"@en , "Oeuvre liée"@fr ;
+  sh:node :Work ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:collectiveExpression a sh:PropertyShape ;
+  sh:path [ sh:inversePath [ sh:alternativePath ( <${REL_NS}710s3> <${REL_NS}711s3> ) ] ] ;
+  sh:name "Linked expression"@en , "Expression liée"@fr ;
+  sh:node :Expression ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:collectiveManifestation a sh:PropertyShape ;
+  sh:path [ sh:inversePath [ sh:alternativePath ( <${REL_NS}710s3> <${REL_NS}711s3> ) ] ] ;
+  sh:name "Linked manifestation"@en , "Manifestation liée"@fr ;
+  sh:node :Manifestation ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:familyWork a sh:PropertyShape ;
+  sh:path [ sh:inversePath <${REL_NS}712s3> ] ;
+  sh:name "Linked work"@en , "Oeuvre liée"@fr ;
+  sh:node :Work ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:familyExpression a sh:PropertyShape ;
+  sh:path [ sh:inversePath <${REL_NS}712s3> ] ;
+  sh:name "Linked expression"@en , "Expression liée"@fr ;
+  sh:node :Expression ;
+  dash:searchWidget core:NonSelectableProperty .
+
+:familyManifestation a sh:PropertyShape ;
+  sh:path [ sh:inversePath <${REL_NS}712s3> ] ;
+  sh:name "Linked manifestation"@en , "Manifestation liée"@fr ;
+  sh:node :Manifestation ;
   dash:searchWidget core:NonSelectableProperty .
 
 :entityArk a sh:PropertyShape ;

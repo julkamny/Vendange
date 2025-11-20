@@ -5,8 +5,15 @@ import '../vendor/select2'
 import '../assets/sparnatural.css'
 
 import 'sparnatural'
-import { BASE_NS, PROP_NS, REL_NS, SPAR_CONTROLLED_VALUE_PREDICATE } from '../sparql/sparnaturalConfig'
+import {
+  BASE_NS,
+  PROP_NS,
+  REL_NS,
+  SPAR_CONTROLLED_VALUE_PREDICATE,
+  SUBFIELD_VALUE_PREDICATE,
+} from '../sparql/sparnaturalConfig'
 import { ensureGraphWrapping } from '../sparql/queryUtils'
+import { CONTROLLED_SUBFIELD_LISTS } from '../data/controlledListsData'
 
 const BASE_PREFIX = `${BASE_NS}/`
 const REL_PREFIX = REL_NS
@@ -59,6 +66,43 @@ export function SparnaturalBuilder({
     [controlledValues],
   )
 
+  const relatorItems = useMemo(() => {
+    const collator = new Intl.Collator(language, { sensitivity: 'accent' })
+    const lists = [
+      "Code Fonction associé à l'Item",
+      "Code Fonction Créateur ou Associé à l'Œuvre",
+      "Code Fonction Créateur de la Manifestation ou Associé à la Manifestation",
+    ] as const
+    const seen = new Set<string>()
+    const values: string[] = []
+    lists.forEach(key => {
+      const options = CONTROLLED_SUBFIELD_LISTS[key] as string[] | undefined
+      if (!options) return
+      options.forEach(option => {
+        if (seen.has(option)) return
+        seen.add(option)
+        values.push(option)
+      })
+    })
+    values.sort((a, b) => collator.compare(a, b))
+    return values.map(value => ({
+      term: { type: 'literal', value } satisfies RDFTerm,
+      label: value,
+    }))
+  }, [language])
+
+  const listItems = useMemo(() => {
+    const union: Array<{ term: RDFTerm; label: string }> = []
+    const seen = new Set<string>()
+    for (const entry of [...controlledItems, ...relatorItems]) {
+      const key = `${entry.term.type}:${entry.term.value}`
+      if (seen.has(key)) continue
+      union.push(entry)
+      seen.add(key)
+    }
+    return union
+  }, [controlledItems, relatorItems])
+
   useEffect(() => {
     if (!datasetId) {
       lastQueryRef.current = ''
@@ -74,18 +118,18 @@ export function SparnaturalBuilder({
           dataProvider: {
             init() {},
             getListContent(
-              _domain: string,
-              predicate: string,
-              _range: string,
-              callback: (items: Array<{ term: RDFTerm; label: string }>) => void,
-            ) {
-              if (predicate === SPAR_CONTROLLED_VALUE_PREDICATE) {
-                callback(controlledItems)
-              } else {
-                callback([])
-              }
-            },
-          },
+          _domain: string,
+          predicate: string,
+          _range: string,
+          callback: (items: Array<{ term: RDFTerm; label: string }>) => void,
+        ) {
+          if (predicate === SPAR_CONTROLLED_VALUE_PREDICATE || predicate === SUBFIELD_VALUE_PREDICATE) {
+            callback(listItems)
+          } else {
+            callback([])
+          }
+        },
+      },
         },
       }
     }
@@ -93,7 +137,7 @@ export function SparnaturalBuilder({
     return () => {
       el.removeEventListener('init', handleInit as EventListener)
     }
-  }, [controlledItems])
+  }, [listItems])
 
   useEffect(() => {
     const el = elementRef.current

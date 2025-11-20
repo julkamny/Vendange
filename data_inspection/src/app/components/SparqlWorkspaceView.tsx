@@ -14,8 +14,7 @@ import { deriveInternalIdFromArk } from '../lib/ark'
 import { SparnaturalBuilder, type ControlledValueOption } from './SparnaturalBuilder'
 import { buildSparnaturalConfig } from '../sparql/sparnaturalConfig'
 import { ensureGraphWrapping } from '../sparql/queryUtils'
-import { findZones } from '../lib/intermarc'
-import type { RecordRow } from '../types'
+import { buildLabelFromIntermarc } from '../lib/intermarc'
 import { extractControlledValueLabel } from '../core/controlledValues'
 
 const ARK_REGEX = /ark:\/\S+/g
@@ -73,6 +72,21 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
   }, [curated?.records, language])
   const builderDisabled = !datasetId
   const builderKey = `${datasetId ?? 'no-dataset'}-${language}`
+
+  const agentLabelForArk = useCallback(
+    (ark: string): string | null => {
+      const normalized = normalizeArk(ark)
+      let record = getByArk(normalized)
+      if (!record) {
+        const fallbackId = deriveInternalIdFromArk(normalized)
+        if (fallbackId) record = getById(fallbackId)
+      }
+      if (!record) return null
+      if (!['identite publique de personne', 'collectivite', 'famille'].includes(record.typeNorm)) return null
+      return buildLabelFromIntermarc(record.intermarc, record.type) ?? null
+    },
+    [getByArk, getById],
+  )
 
   useEffect(() => {
     if (!contextMenu) return undefined
@@ -278,12 +292,12 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
             data-ark={arkValue}
             onClick={() => openRecordForArk(arkValue)}
           >
-            {arkValue}
+            {agentLabelForArk(arkValue) ?? arkValue}
           </button>
         )
       })
     },
-    [openRecordForArk],
+    [agentLabelForArk, openRecordForArk],
   )
 
   const renderCell = useCallback(
@@ -298,6 +312,7 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
         const trimmed = value.trim()
         if (trimmed.length === 0) return ''
         if (trimmed.match(ARK_REGEX)?.length === 1 && trimmed === trimmed.match(ARK_REGEX)?.[0]) {
+          const display = agentLabelForArk(trimmed) ?? trimmed
           return (
             <button
               type="button"
@@ -305,7 +320,7 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
               data-ark={trimmed}
               onClick={() => openRecordForArk(trimmed)}
             >
-              {trimmed}
+              {display}
             </button>
           )
         }
@@ -316,7 +331,7 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
       }
       return JSON.stringify(value)
     },
-    [openRecordForArk, renderArkFragments],
+    [agentLabelForArk, openRecordForArk, renderArkFragments],
   )
 
   return (

@@ -107,7 +107,7 @@ Review in the Web UI
   - Unchecked expressions automatically move to the independent block; their manifestations are greyed out to signal that they will not change the exported CSV.
   - Manifestation labels mirror work title segmentation, displaying each 245 subfield with its code for faster inspection.
   - Workspace tabs can be “unmoored” into their own windows; Intermarc panes in those windows remain synced and offer a full-window toggle for multi-monitor comparisons.
-  - Three tab kinds are available from the “+” dropdown: WEM workspace, Agents workspace (people/collectives/families with clustering indicator if you add a 90F$q `Clusterisation script`), and SPARQL query tabs.
+  - Three tab kinds are available from the “+” dropdown: WEM workspace, Agents workspace (people/collectives/families with clustering indicator if you add a 90F$q `Clusterisation script`), and SPARQL query tabs; the dropdown now supports keyboard navigation (Enter/Space to open, arrows to move, Escape to close) and closes reliably on outside clicks.
   - Right-click any ARK (work/expression/manifestation or agent) to open it in a new tab or directly in a detached window; agent ARKs route to the Agents workspace automatically.
   - Right-click a workspace entity row (work/expression/manifestation) or an Intermarc ARK link to open it in a new workspace tab or launch it directly in a detached workspace window; detached windows start with the Intermarc view expanded by default.
 

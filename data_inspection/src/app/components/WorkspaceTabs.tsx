@@ -528,6 +528,9 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
           onAddAgent={addAgentTab}
           onAddSparql={addSparqlTab}
           label={t('workspace.addTab', { defaultValue: 'Add tab' })}
+          workspaceLabel={t('workspace.tabDefault', { defaultValue: 'Workspace' })}
+          agentLabel={t('workspace.agentsTabDefault', { defaultValue: 'Agents' })}
+          sparqlLabel={t('workspace.sparqlTabDefault', { defaultValue: 'SPARQL' })}
         />
       </div>
       <div className="workspace-tab-content" role="tabpanel">
@@ -844,9 +847,12 @@ type AddTabMenuProps = {
   onAddAgent: () => void
   onAddSparql: () => void
   label: string
+  workspaceLabel: string
+  agentLabel: string
+  sparqlLabel: string
 }
 
-function AddTabMenu({ onAddWorkspace, onAddAgent, onAddSparql, label }: AddTabMenuProps) {
+function AddTabMenu({ onAddWorkspace, onAddAgent, onAddSparql, label, workspaceLabel, agentLabel, sparqlLabel }: AddTabMenuProps) {
   const [open, setOpen] = useState(false)
   useEffect(() => {
     if (!open) return
@@ -856,14 +862,14 @@ function AddTabMenu({ onAddWorkspace, onAddAgent, onAddSparql, label }: AddTabMe
   }, [open])
   return (
     <div className="workspace-tab add menu">
-      <button type="button" className="workspace-tab add" onClick={() => setOpen(prev => !prev)} aria-label={label}>
+      <button type="button" className="workspace-tab add add-toggle" onClick={() => setOpen(prev => !prev)} aria-label={label}>
         +
       </button>
       {open ? (
         <div className="workspace-add-menu">
-          <button type="button" onClick={() => { setOpen(false); onAddWorkspace() }}>Workspace</button>
-          <button type="button" onClick={() => { setOpen(false); onAddAgent() }}>Agents</button>
-          <button type="button" onClick={() => { setOpen(false); onAddSparql() }}>SPARQL</button>
+          <button type="button" onClick={() => { setOpen(false); onAddWorkspace() }}>{workspaceLabel}</button>
+          <button type="button" onClick={() => { setOpen(false); onAddAgent() }}>{agentLabel}</button>
+          <button type="button" onClick={() => { setOpen(false); onAddSparql() }}>{sparqlLabel}</button>
         </div>
       ) : null}
     </div>

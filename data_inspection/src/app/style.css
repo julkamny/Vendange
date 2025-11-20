@@ -1780,6 +1780,22 @@ body.modal-open {
   margin-right: 0.45rem;
 }
 
+.workspace-tab.add,
+.workspace-tab.add.add-toggle {
+  align-self: stretch;
+  min-height: 32px;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--color-border) 65%, transparent);
+  background: color-mix(in srgb, var(--color-surface-alt) 75%, transparent);
+  color: var(--color-text-soft);
+  font-weight: 700;
+  padding: 0 0.75rem;
+}
+
+.workspace-tab.add.menu {
+  position: relative;
+}
+
 .workspace-tab.add.menu {
   position: relative;
 }

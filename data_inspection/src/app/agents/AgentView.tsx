@@ -268,10 +268,9 @@ export function AgentView({
             className="workspace-panel workspace-panel--details"
             ref={detailsRef}
             onScroll={handleDetailsScroll}
-            onContextMenu={handleContextMenu}
           >
             {selectedRecord ? (
-              <>
+              <div className="record-details" onContextMenu={handleContextMenu}>
                 <header className="record-details__header">
                   <h3>{buildLabelFromIntermarc(selectedRecord.intermarc, selectedRecord.type) || selectedRecord.id}</h3>
                   <span>{selectedRecord.type}</span>
@@ -285,7 +284,7 @@ export function AgentView({
                   />
                 ) : (
                   <>
-                    <IntermarcView record={selectedRecord} onArkClick={(ark) => openArk(ark)} />
+                    <IntermarcView record={selectedRecord} onArkClick={ark => openArk(ark)} />
                     <div className="editor-actions">
                       <button type="button" onClick={() => setEditing(true)}>
                         {t('buttons.modifyRecord')}
@@ -296,7 +295,7 @@ export function AgentView({
                 {!backlinksExpanded ? (
                   <BacklinksPanel backlinks={backlinks} onOpenArk={ark => openArk(ark)} lookupWorkByArk={getByArk} />
                 ) : null}
-              </>
+              </div>
             ) : (
               <p>{t('layout.selectPrompt')}</p>
             )}

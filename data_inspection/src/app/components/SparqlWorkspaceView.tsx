@@ -2,7 +2,7 @@ import CodeMirror from '@uiw/react-codemirror'
 import { useCallback, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { sql } from '@codemirror/lang-sql'
 import { executeSparqlQuery, getApiBaseUrl } from '../lib/api'
-import type { WorkspaceTabStateSparql, WorkspaceTabStateWorkspace } from '../workspace/types'
+import type { WorkspaceTabStateSparql, WorkspaceTabStateWorkspace, AgentTabState } from '../workspace/types'
 import type { RecordRow } from '../types'
 import { DEFAULT_WORKSPACE_STATE } from '../workspace/types'
 import { useTranslation } from '../hooks/useTranslation'
@@ -18,6 +18,7 @@ import { ensureGraphWrapping } from '../sparql/queryUtils'
 import { buildLabelFromIntermarc } from '../lib/intermarc'
 import { extractControlledValueLabel } from '../core/controlledValues'
 import { WorkspaceContextMenu } from './WorkspaceContextMenu'
+import { isAgentRecord } from '../agents/useAgentData'
 
 const ARK_REGEX = /ark:\/\S+/g
 
@@ -30,6 +31,8 @@ type SparqlWorkspaceViewProps = {
   onOpenWorkspaceTabDetached: (
     initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace,
   ) => void
+  onOpenAgentTab: (initializer: (base: AgentTabState) => AgentTabState) => void
+  onOpenAgentTabDetached: (initializer: (base: AgentTabState) => AgentTabState) => void
 }
 
 type ArkContextMenuState = {
@@ -51,6 +54,8 @@ export function SparqlWorkspaceView({
   onStateChange,
   onOpenWorkspaceTab,
   onOpenWorkspaceTabDetached,
+  onOpenAgentTab,
+  onOpenAgentTabDetached,
 }: SparqlWorkspaceViewProps) {
   const { t, language } = useTranslation()
   const { showToast } = useToast()
@@ -249,19 +254,26 @@ export function SparqlWorkspaceView({
         const fallbackId = deriveInternalIdFromArk(trimmed)
         if (fallbackId) record = getById(fallbackId)
       }
-      if (!isWorkspaceEntityRecord(record)) return null
-      return record
+      if (!record) return null
+      if (isWorkspaceEntityRecord(record) || isAgentRecord(record)) return record
+      return null
     },
     [getByArk, getById],
   )
 
   const openRecordInWorkspace = useCallback(
     (record: RecordRow, options?: { detach?: boolean }) => {
+      if (isAgentRecord(record)) {
+        const initAgent = (base: AgentTabState) => ({ ...base, selectedAgentId: record.id })
+        if (options?.detach) onOpenAgentTabDetached(initAgent)
+        else onOpenAgentTab(initAgent)
+        return
+      }
       const initializer = (base: WorkspaceTabStateWorkspace) => configureTabStateForRecord(base, record, tabContext)
       if (options?.detach) onOpenWorkspaceTabDetached(initializer)
       else onOpenWorkspaceTab(initializer)
     },
-    [onOpenWorkspaceTab, onOpenWorkspaceTabDetached, tabContext],
+    [onOpenAgentTab, onOpenAgentTabDetached, onOpenWorkspaceTab, onOpenWorkspaceTabDetached, tabContext],
   )
 
   const openRecordForArk = useCallback(

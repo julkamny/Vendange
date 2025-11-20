@@ -2,7 +2,7 @@ import type { InventoryScope, SelectedEntity } from '../types'
 
 export type ViewMode = 'works' | 'expressions' | 'manifestations'
 
-export type WorkspaceTabKind = 'workspace' | 'sparql'
+export type WorkspaceTabKind = 'workspace' | 'sparql' | 'agent'
 
 export type SparqlQueryRow = Record<string, unknown>
 
@@ -30,6 +30,18 @@ export type WorkspaceTabStateWorkspace = {
   detailsScrollTop: number
 }
 
+export type AgentTabState = {
+  kind: 'agent'
+  id: string
+  title: string
+  mode: 'inline' | 'detached'
+  detachedWindowId: string | null
+  intermarcFullView: boolean
+  selectedAgentId: string | null
+  listScrollTop: number
+  detailsScrollTop: number
+}
+
 export type WorkspaceTabStateSparql = {
   kind: 'sparql'
   id: string
@@ -44,6 +56,7 @@ export type WorkspaceTabStateSparql = {
 }
 
 export type WorkspaceTabState = WorkspaceTabStateWorkspace | WorkspaceTabStateSparql
+  | AgentTabState
 
 export const DEFAULT_WORKSPACE_STATE: Omit<WorkspaceTabStateWorkspace, 'id' | 'title'> = {
   kind: 'workspace',
@@ -61,6 +74,16 @@ export const DEFAULT_WORKSPACE_STATE: Omit<WorkspaceTabStateWorkspace, 'id' | 't
   inventoryExpressionFilterArk: null,
   inventoryFocusWorkId: null,
   inventoryFocusExpressionId: null,
+  listScrollTop: 0,
+  detailsScrollTop: 0,
+}
+
+export const DEFAULT_AGENT_STATE: Omit<AgentTabState, 'id' | 'title'> = {
+  kind: 'agent',
+  mode: 'inline',
+  detachedWindowId: null,
+  intermarcFullView: false,
+  selectedAgentId: null,
   listScrollTop: 0,
   detailsScrollTop: 0,
 }
@@ -86,4 +109,8 @@ export function isWorkspaceTab(tab: WorkspaceTabState): tab is WorkspaceTabState
 
 export function isSparqlTab(tab: WorkspaceTabState): tab is WorkspaceTabStateSparql {
   return tab.kind === 'sparql'
+}
+
+export function isAgentTab(tab: WorkspaceTabState): tab is AgentTabState {
+  return tab.kind === 'agent'
 }

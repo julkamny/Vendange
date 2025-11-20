@@ -2,13 +2,15 @@ import { useState, useCallback, useEffect, useMemo, type KeyboardEvent as ReactK
 import { createPortal } from 'react-dom'
 import { WorkspaceView } from './WorkspaceView'
 import { SparqlWorkspaceView } from './SparqlWorkspaceView'
-import type { WorkspaceTabState, WorkspaceTabStateWorkspace } from '../workspace/types'
+import type { WorkspaceTabState, WorkspaceTabStateWorkspace, AgentTabState } from '../workspace/types'
 import type { RecordRow } from '../types'
 import {
   DEFAULT_WORKSPACE_STATE,
+  DEFAULT_AGENT_STATE,
   createDefaultSparqlState,
   isSparqlTab,
   isWorkspaceTab,
+  isAgentTab,
 } from '../workspace/types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useShortcuts } from '../providers'
@@ -21,6 +23,7 @@ import { useArkDecoratedText } from '../hooks/useArkDecoratedText'
 import { useDetachedWindows } from '../providers'
 import { useToast } from '../providers'
 import { buildLabelFromIntermarc } from '../lib/intermarc'
+import { AgentView } from '../agents/AgentView'
 
 let tabSequence = 0
 
@@ -28,6 +31,15 @@ function createWorkspaceTab(title: string, explicitId?: string): WorkspaceTabSta
   const id = explicitId ?? `tab-${++tabSequence}`
   return {
     ...DEFAULT_WORKSPACE_STATE,
+    id,
+    title,
+  }
+}
+
+function createAgentTab(title: string, explicitId?: string): AgentTabState {
+  const id = explicitId ?? `agent-${++tabSequence}`
+  return {
+    ...DEFAULT_AGENT_STATE,
     id,
     title,
   }
@@ -49,6 +61,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     [t],
   )
   const defaultSparqlTitle = useMemo(() => t('workspace.sparqlTabDefault', { defaultValue: 'SPARQL' }), [t])
+  const defaultAgentTitle = useMemo(() => t('workspace.agentsTabDefault', { defaultValue: 'Agents' }), [t])
   const recordIndexes = useMemo(() => {
     const byId = new Map<string, RecordRow>()
     const byArk = new Map<string, RecordRow>()
@@ -76,6 +89,12 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     setActiveId(newTab.id)
   }, [defaultSparqlTitle])
 
+  const addAgentTab = useCallback(() => {
+    const newTab = createAgentTab(defaultAgentTitle)
+    setTabs(prev => [...prev, newTab])
+    setActiveId(newTab.id)
+  }, [defaultAgentTitle])
+
   const openTabWithState = useCallback(
     (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => {
       const base = createWorkspaceTab(defaultWorkspaceTitle)
@@ -86,10 +105,20 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     [defaultWorkspaceTitle],
   )
 
+  const openAgentTabWithState = useCallback(
+    (initializer: (base: AgentTabState) => AgentTabState) => {
+      const base = createAgentTab(defaultAgentTitle)
+      const configured = initializer ? initializer(base) : base
+      setTabs(prev => [...prev, configured])
+      setActiveId(configured.id)
+    },
+    [defaultAgentTitle],
+  )
+
   const closeTab = useCallback(
     (id: string) => {
       const tabToClose = tabs.find(tab => tab.id === id)
-      if (tabToClose && isWorkspaceTab(tabToClose) && tabToClose.detachedWindowId) {
+      if (tabToClose && (isWorkspaceTab(tabToClose) || isAgentTab(tabToClose)) && tabToClose.detachedWindowId) {
         closeWindow(tabToClose.detachedWindowId)
       }
       setTabs(prev => {
@@ -148,6 +177,14 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
           return firstLine.length > 80 ? `${firstLine.slice(0, 77)}…` : firstLine
         }
         return tab.title || defaultSparqlTitle
+      }
+
+      if (isAgentTab(tab)) {
+        const entityId = tab.selectedAgentId
+        const record = entityId ? recordIndexes.byId.get(entityId) ?? null : null
+        const label = labelFromRecord(record)
+        if (label) return label
+        return tab.title || defaultAgentTitle
       }
 
       const fallbackLabel = tab.title || defaultWorkspaceTitle
@@ -229,6 +266,43 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     [defaultWorkspaceTitle, getWorkspaceLabel, openWindow, setTabs, setActiveId, showToast, t],
   )
 
+  const openAgentDetachedTabWithState = useCallback(
+    (initializer: (base: AgentTabState) => AgentTabState) => {
+      const base = createAgentTab(defaultAgentTitle)
+      const configured = initializer ? initializer(base) : base
+      const windowId = openWindow({
+        title: getWorkspaceLabel(configured),
+        classNames: ['vendange-detached-window'],
+        onClose: () => {
+          setTabs(prev =>
+            prev.map(entry =>
+              entry.id === configured.id && isAgentTab(entry)
+                ? { ...entry, mode: 'inline', detachedWindowId: null }
+                : entry,
+            ),
+          )
+        },
+      })
+      if (!windowId) {
+        showToast(t('workspace.openWindowFailed', { defaultValue: 'Impossible d’ouvrir une nouvelle fenêtre.' }), {
+          tone: 'error',
+        })
+        setTabs(prev => [...prev, configured])
+        setActiveId(configured.id)
+        return
+      }
+      const detachedState: AgentTabState = {
+        ...configured,
+        mode: 'detached',
+        detachedWindowId: windowId,
+        intermarcFullView: true,
+      }
+      setTabs(prev => [...prev, detachedState])
+      setActiveId(detachedState.id)
+    },
+    [defaultAgentTitle, getWorkspaceLabel, openWindow, setTabs, setActiveId, showToast, t],
+  )
+
   const detachWorkspaceTab = useCallback(
     (tab: WorkspaceTabStateWorkspace) => {
       if (tab.mode === 'detached') return
@@ -272,6 +346,58 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         setTabs(prev =>
           prev.map(entry =>
             entry.id === tab.id && isWorkspaceTab(entry)
+              ? { ...entry, mode: 'inline', detachedWindowId: null }
+              : entry,
+          ),
+        )
+      }
+    },
+    [closeWindow, isOpen, setTabs],
+  )
+
+  const detachAgentTab = useCallback(
+    (tab: AgentTabState) => {
+      if (tab.mode === 'detached') return
+      const windowId = openWindow({
+        title: getWorkspaceLabel(tab),
+        classNames: ['vendange-detached-window'],
+        onClose: () => {
+          setTabs(prev =>
+            prev.map(entry =>
+              entry.id === tab.id && isAgentTab(entry)
+                ? { ...entry, mode: 'inline', detachedWindowId: null }
+                : entry,
+            ),
+          )
+        },
+      })
+      if (!windowId) {
+        showToast(t('workspace.openWindowFailed', { defaultValue: 'Impossible d’ouvrir une nouvelle fenêtre.' }), {
+          tone: 'error',
+        })
+        return
+      }
+      setTabs(prev =>
+        prev.map(entry =>
+          entry.id === tab.id && isAgentTab(entry)
+            ? { ...entry, mode: 'detached', detachedWindowId: windowId, intermarcFullView: true }
+            : entry,
+        ),
+      )
+      setActiveId(tab.id)
+    },
+    [getWorkspaceLabel, openWindow, setTabs, showToast, t],
+  )
+
+  const dockAgentTab = useCallback(
+    (tab: AgentTabState) => {
+      if (tab.mode !== 'detached' || !tab.detachedWindowId) return
+      if (isOpen(tab.detachedWindowId)) {
+        closeWindow(tab.detachedWindowId)
+      } else {
+        setTabs(prev =>
+          prev.map(entry =>
+            entry.id === tab.id && isAgentTab(entry)
               ? { ...entry, mode: 'inline', detachedWindowId: null }
               : entry,
           ),
@@ -385,32 +511,24 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
             onClose={() => closeTab(tab.id)}
             closable={tabs.length > 1}
             closeLabel={t('workspace.closeTab', { defaultValue: 'Close tab' })}
-            detachStatus={isWorkspaceTab(tab) ? tab.mode : undefined}
+            detachStatus={isWorkspaceTab(tab) || isAgentTab(tab) ? tab.mode : undefined}
             onToggleDetach={
               isWorkspaceTab(tab)
                 ? () => (tab.mode === 'detached' ? dockWorkspaceTab(tab) : detachWorkspaceTab(tab))
-                : undefined
+                : isAgentTab(tab)
+                  ? () => (tab.mode === 'detached' ? dockAgentTab(tab) : detachAgentTab(tab))
+                  : undefined
             }
             detachLabel={t('workspace.detachTab', { defaultValue: 'Open tab in new window' })}
             dockLabel={t('workspace.redockTab', { defaultValue: 'Bring tab back here' })}
           />
         ))}
-        <button
-          type="button"
-          className="workspace-tab add sparql"
-          onClick={addSparqlTab}
-          aria-label={t('workspace.addSparqlTab', { defaultValue: 'Add SPARQL tab' })}
-        >
-          SPARQL
-        </button>
-        <button
-          type="button"
-          className="workspace-tab add"
-          onClick={addTab}
-          aria-label={t('workspace.addTab', { defaultValue: 'Add tab' })}
-        >
-          +
-        </button>
+        <AddTabMenu
+          onAddWorkspace={addTab}
+          onAddAgent={addAgentTab}
+          onAddSparql={addSparqlTab}
+          label={t('workspace.addTab', { defaultValue: 'Add tab' })}
+        />
       </div>
       <div className="workspace-tab-content" role="tabpanel">
         {activeTab ? (
@@ -436,6 +554,8 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
                 }
                 onOpenTab={openTabWithState}
                 onOpenDetachedTab={openDetachedTabWithState}
+                onOpenAgentTab={openAgentTabWithState}
+                onOpenAgentDetachedTab={openAgentDetachedTabWithState}
               />
             )
           ) : isSparqlTab(activeTab) ? (
@@ -448,7 +568,32 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
               }
               onOpenWorkspaceTab={openTabWithState}
               onOpenWorkspaceTabDetached={openDetachedTabWithState}
+              onOpenAgentTab={openAgentTabWithState}
+              onOpenAgentTabDetached={openAgentDetachedTabWithState}
             />
+          ) : isAgentTab(activeTab) ? (
+            activeTab.mode === 'detached' ? (
+              <DetachedTabPlaceholder
+                label={getWorkspaceLabel(activeTab)}
+                message={t('workspace.detachedPlaceholder', {
+                  defaultValue: 'Cet onglet est affiché dans une autre fenêtre.',
+                })}
+                actionLabel={t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })}
+                onDock={() => dockAgentTab(activeTab)}
+              />
+            ) : (
+              <AgentView
+                state={activeTab}
+                mode="inline"
+                onRequestDetach={() => detachAgentTab(activeTab)}
+                onStateChange={updater =>
+                  updateTabState(activeTab.id, prev => (isAgentTab(prev) ? updater(prev) : prev))
+                }
+                onOpenTab={openTabWithState}
+                onOpenAgentTab={openAgentTabWithState}
+                onOpenAgentTabDetached={openAgentDetachedTabWithState}
+              />
+            )
           ) : null
         ) : null}
       </div>
@@ -471,6 +616,30 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
                 }
                 onOpenTab={openTabWithState}
                 onOpenDetachedTab={openDetachedTabWithState}
+                onOpenAgentTab={openAgentTabWithState}
+                onOpenAgentDetachedTab={openAgentDetachedTabWithState}
+              />
+            )
+            : null,
+        )}
+      {tabs
+        .filter(isAgentTab)
+        .map(tab =>
+          tab.mode === 'detached' && tab.detachedWindowId
+            ? (
+              <DetachedAgentPortal
+                key={tab.detachedWindowId}
+                tab={tab}
+                container={getContainer(tab.detachedWindowId)}
+                onDock={() => dockAgentTab(tab)}
+                dockLabel={t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })}
+                label={getWorkspaceLabel(tab)}
+                onStateChange={updater =>
+                  updateTabState(tab.id, prev => (isAgentTab(prev) ? updater(prev) : prev))
+                }
+                onOpenTab={openTabWithState}
+                onOpenAgentTab={openAgentTabWithState}
+                onOpenAgentTabDetached={openAgentDetachedTabWithState}
               />
             )
             : null,
@@ -584,6 +753,8 @@ type DetachedWorkspacePortalProps = {
   onStateChange: (updater: (prev: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
   onOpenTab: (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
   onOpenDetachedTab: (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
+  onOpenAgentTab: (initializer: (base: AgentTabState) => AgentTabState) => void
+  onOpenAgentDetachedTab: (initializer: (base: AgentTabState) => AgentTabState) => void
 }
 
 function DetachedWorkspacePortal({
@@ -595,6 +766,8 @@ function DetachedWorkspacePortal({
   onStateChange,
   onOpenTab,
   onOpenDetachedTab,
+  onOpenAgentTab,
+  onOpenAgentDetachedTab,
 }: DetachedWorkspacePortalProps) {
   if (!container) return null
   return createPortal(
@@ -612,9 +785,88 @@ function DetachedWorkspacePortal({
         onStateChange={onStateChange}
         onOpenTab={onOpenTab}
         onOpenDetachedTab={onOpenDetachedTab}
+        onOpenAgentTab={onOpenAgentTab}
+        onOpenAgentDetachedTab={onOpenAgentDetachedTab}
       />
     </div>,
     container,
+  )
+}
+
+type DetachedAgentPortalProps = {
+  tab: AgentTabState
+  container: HTMLDivElement | null
+  label: string
+  dockLabel: string
+  onDock: () => void
+  onStateChange: (updater: (prev: AgentTabState) => AgentTabState) => void
+  onOpenTab: (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
+  onOpenAgentTab: (initializer: (base: AgentTabState) => AgentTabState) => void
+  onOpenAgentTabDetached: (initializer: (base: AgentTabState) => AgentTabState) => void
+}
+
+function DetachedAgentPortal({
+  tab,
+  container,
+  label,
+  dockLabel,
+  onDock,
+  onStateChange,
+  onOpenTab,
+  onOpenAgentTab,
+  onOpenAgentTabDetached,
+}: DetachedAgentPortalProps) {
+  if (!container) return null
+  return createPortal(
+    <div className="detached-workspace-shell">
+      <header className="detached-workspace-shell__header">
+        <span>{label}</span>
+        <button type="button" onClick={onDock}>
+          {dockLabel}
+        </button>
+      </header>
+      <AgentView
+        state={tab}
+        mode="detached"
+        onRequestDock={onDock}
+        onStateChange={onStateChange}
+        onOpenTab={onOpenTab}
+        onOpenAgentTab={onOpenAgentTab}
+        onOpenAgentTabDetached={onOpenAgentTabDetached}
+      />
+    </div>,
+    container,
+  )
+}
+
+type AddTabMenuProps = {
+  onAddWorkspace: () => void
+  onAddAgent: () => void
+  onAddSparql: () => void
+  label: string
+}
+
+function AddTabMenu({ onAddWorkspace, onAddAgent, onAddSparql, label }: AddTabMenuProps) {
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    const handle = () => setOpen(false)
+    window.addEventListener('click', handle)
+    return () => window.removeEventListener('click', handle)
+  }, [open])
+  return (
+    <div className="workspace-tab add menu">
+      <button type="button" className="workspace-tab add" onClick={() => setOpen(prev => !prev)} aria-label={label}>
+        +
+      </button>
+      {open ? (
+        <div className="workspace-add-menu">
+          <button type="button" onClick={() => { setOpen(false); onAddWorkspace() }}>Workspace</button>
+          <button type="button" onClick={() => { setOpen(false); onAddAgent() }}>Agents</button>
+          <button type="button" onClick={() => { setOpen(false); onAddSparql() }}>SPARQL</button>
+        </div>
+      ) : null}
+    </div>
   )
 }
 

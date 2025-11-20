@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from 'react'
 import type { RecordRow } from '../types'
-import type { WorkspaceTabStateWorkspace } from '../workspace/types'
+import type { WorkspaceTabStateWorkspace, AgentTabState } from '../workspace/types'
 import { useAppData } from '../providers/AppDataContext'
 import { useTranslation } from '../hooks/useTranslation'
 import { useWorkspaceData } from '../workspace/useWorkspaceData'
@@ -18,12 +18,15 @@ import { deriveInternalIdFromArk } from '../lib/ark'
 import { BacklinksPanel } from './BacklinksPanel'
 import { useBacklinks } from '../hooks/useBacklinks'
 import { WorkspaceContextMenu } from './WorkspaceContextMenu'
+import { isAgentRecord } from '../agents/useAgentData'
 
 type WorkspaceViewProps = {
   state: WorkspaceTabStateWorkspace
   onStateChange: (updater: (prev: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
   onOpenTab: (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
   onOpenDetachedTab: (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
+  onOpenAgentTab: (initializer: (base: AgentTabState) => AgentTabState) => void
+  onOpenAgentDetachedTab: (initializer: (base: AgentTabState) => AgentTabState) => void
   mode?: 'inline' | 'detached'
   onRequestDetach?: () => void
   onRequestDock?: () => void
@@ -33,9 +36,10 @@ function findRecord(id: string, curated: RecordRow[]): RecordRow | null {
   return curated.find(rec => rec.id === id) || null
 }
 
-function isWorkspaceEntityRecord(record: RecordRow | undefined): record is RecordRow {
+function isNavigableRecord(record: RecordRow | undefined): record is RecordRow {
   if (!record) return false
-  return record.typeNorm === 'oeuvre' || record.typeNorm === 'expression' || record.typeNorm === 'manifestation'
+  if (record.typeNorm === 'oeuvre' || record.typeNorm === 'expression' || record.typeNorm === 'manifestation') return true
+  return isAgentRecord(record)
 }
 
 type WorkspaceContextMenuState = {
@@ -71,6 +75,8 @@ export function WorkspaceView({
   onStateChange,
   onOpenTab,
   onOpenDetachedTab,
+  onOpenAgentTab,
+  onOpenAgentDetachedTab,
   mode = 'inline',
   onRequestDetach,
   onRequestDock,
@@ -274,12 +280,21 @@ export function WorkspaceView({
 
   const openRecordInWorkspace = useCallback(
     (targetRecord: RecordRow, options?: { detach?: boolean }) => {
+      if (isAgentRecord(targetRecord)) {
+        const initializer = (base: import('../workspace/types').AgentTabState) => ({
+          ...base,
+          selectedAgentId: targetRecord.id,
+        })
+        if (options?.detach) onOpenAgentDetachedTab(initializer)
+        else onOpenAgentTab(initializer)
+        return
+      }
       const initializer = (base: WorkspaceTabStateWorkspace) =>
         configureTabStateForRecord(base, targetRecord, tabContext)
       if (options?.detach) onOpenDetachedTab(initializer)
       else onOpenTab(initializer)
     },
-    [onOpenDetachedTab, onOpenTab, tabContext],
+    [onOpenAgentDetachedTab, onOpenAgentTab, onOpenDetachedTab, onOpenTab, tabContext],
   )
 
   const openRecordForArk = useCallback(
@@ -390,7 +405,7 @@ export function WorkspaceView({
         const workId = row.dataset.workId
         const workArk = row.dataset.workArk
         const record = (workId ? getById(workId) : undefined) ?? (workArk ? getByArk(workArk) : undefined)
-        return isWorkspaceEntityRecord(record) ? record : null
+        return isNavigableRecord(record) ? record : null
       }
       if (row.classList.contains('entity-row--expression')) {
         const expressionId = row.dataset.expressionId
@@ -398,12 +413,12 @@ export function WorkspaceView({
         const record =
           (expressionId ? getById(expressionId) : undefined) ??
           (expressionArk ? getByArk(expressionArk) : undefined)
-        return isWorkspaceEntityRecord(record) ? record : null
+        return isNavigableRecord(record) ? record : null
       }
       if (row.classList.contains('entity-row--manifestation')) {
         const manifestationId = row.dataset.manifestationId
         const record = manifestationId ? getById(manifestationId) ?? getByArk(manifestationId) : undefined
-        return isWorkspaceEntityRecord(record) ? record : null
+        return isNavigableRecord(record) ? record : null
       }
       return null
     },
@@ -424,7 +439,7 @@ export function WorkspaceView({
         const fallbackId = deriveInternalIdFromArk(trimmedArk)
         if (fallbackId) targetRecord = getById(fallbackId)
       }
-      if (!isWorkspaceEntityRecord(targetRecord)) return
+      if (!isNavigableRecord(targetRecord)) return
       event.preventDefault()
       setContextMenu({
         position: { x: event.clientX, y: event.clientY },

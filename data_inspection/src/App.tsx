@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import './App.css'
 import './app/style.css'
-import { AppDataProvider, useAppData } from './app/providers/AppDataContext'
-import { ToastProvider } from './app/providers/ToastContext'
+import { AppDataProvider, useAppData } from './app/providers'
+import { ToastProvider } from './app/providers'
 import { WorkspaceTabs } from './app/components/WorkspaceTabs'
 import { useTranslation } from './app/hooks/useTranslation'
-import { ThemeProvider } from './app/providers/ThemeContext'
+import { ThemeProvider } from './app/providers'
 import { Toolbar } from './app/components/Toolbar'
 import { ShortcutModal } from './app/components/ShortcutModal'
-import { ShortcutProvider } from './app/providers/ShortcutContext'
+import { ShortcutProvider } from './app/providers'
 import { DatasetDashboard } from './app/components/DatasetDashboard'
 import type { DatasetSummary } from './app/types'
-import { DetachedWindowProvider } from './app/providers/DetachedWindowContext'
+import { DetachedWindowProvider } from './app/providers'
 
 function App() {
   return (

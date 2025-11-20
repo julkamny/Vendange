@@ -11,15 +11,15 @@ import {
   isWorkspaceTab,
 } from '../workspace/types'
 import { useTranslation } from '../hooks/useTranslation'
-import { useShortcuts } from '../providers/ShortcutContext'
+import { useShortcuts } from '../providers'
 import { shortcutMatchesEvent, type ShortcutAction } from '../core/shortcuts'
 import { useWorkspaceData } from '../workspace/useWorkspaceData'
-import { useAppData } from '../providers/AppDataContext'
+import { useAppData } from '../providers'
 import { focusTreeUp, focusTreeDown } from '../workspace/shortcutActions'
 import { manifestationTitle, titleOf, expressionWorkArks } from '../core/entities'
 import { useArkDecoratedText } from '../hooks/useArkDecoratedText'
-import { useDetachedWindows } from '../providers/DetachedWindowContext'
-import { useToast } from '../providers/ToastContext'
+import { useDetachedWindows } from '../providers'
+import { useToast } from '../providers'
 
 let tabSequence = 0
 
@@ -258,14 +258,14 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         updateTabState(activeTab.id, prev =>
           isWorkspaceTab(prev)
             ? focusTreeUp(prev, {
-                clusters,
-                activeCluster: workspace.activeCluster,
-                activeClusterSource: workspace.activeClusterSource,
-                inventoryWork: workspace.inventoryWork,
-                indexes: workspace.indexes,
-                curatedRecords,
-                originalRecords,
-              })
+              clusters,
+              activeCluster: workspace.activeCluster,
+              activeClusterSource: workspace.activeClusterSource,
+              inventoryWork: workspace.inventoryWork,
+              indexes: workspace.indexes,
+              curatedRecords,
+              originalRecords,
+            })
             : prev,
         )
         return
@@ -274,14 +274,14 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         updateTabState(activeTab.id, prev =>
           isWorkspaceTab(prev)
             ? focusTreeDown(prev, {
-                clusters,
-                activeCluster: workspace.activeCluster,
-                activeClusterSource: workspace.activeClusterSource,
-                inventoryWork: workspace.inventoryWork,
-                indexes: workspace.indexes,
-                curatedRecords,
-                originalRecords,
-              })
+              clusters,
+              activeCluster: workspace.activeCluster,
+              activeClusterSource: workspace.activeClusterSource,
+              inventoryWork: workspace.inventoryWork,
+              indexes: workspace.indexes,
+              curatedRecords,
+              originalRecords,
+            })
             : prev,
         )
         return

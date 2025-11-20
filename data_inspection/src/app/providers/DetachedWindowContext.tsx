@@ -21,6 +21,7 @@ type DetachedWindowContextValue = {
   closeWindow: (id: string) => void
   getContainer: (id: string) => HTMLDivElement | null
   isOpen: (id: string) => boolean
+  arrangeWindows: (strategy: 'tile' | 'cascade' | 'stack') => void
 }
 
 const DetachedWindowContext = createContext<DetachedWindowContextValue | null>(null)
@@ -47,6 +48,80 @@ export function DetachedWindowProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const arrangeWindows = useCallback(
+    (strategy: 'tile' | 'cascade' | 'stack') => {
+      // Include the main window in the arrangement
+      const allWindows = [
+        { id: 'main', windowRef: window },
+        ...windows,
+      ]
+
+      const screenWidth = window.screen.availWidth
+      const screenHeight = window.screen.availHeight
+      const count = allWindows.length
+
+      if (count === 0) return
+
+      if (strategy === 'tile') {
+        const cols = Math.ceil(Math.sqrt(count))
+        const rows = Math.ceil(count / cols)
+        const width = Math.floor(screenWidth / cols)
+        const height = Math.floor(screenHeight / rows)
+
+        allWindows.forEach((win, index) => {
+          const col = index % cols
+          const row = Math.floor(index / cols)
+          try {
+            if (win.windowRef.closed) return
+            win.windowRef.resizeTo(width, height)
+            win.windowRef.moveTo(col * width, row * height)
+            win.windowRef.focus()
+          } catch (e) {
+            console.warn('Failed to move/resize window:', e)
+          }
+        })
+      } else if (strategy === 'cascade') {
+        const width = Math.floor(screenWidth * 0.6)
+        const height = Math.floor(screenHeight * 0.6)
+        const offset = 30
+
+        allWindows.forEach((win, index) => {
+          try {
+            if (win.windowRef.closed) return
+            win.windowRef.resizeTo(width, height)
+            win.windowRef.moveTo(index * offset, index * offset)
+            win.windowRef.focus()
+          } catch (e) {
+            console.warn('Failed to move/resize window:', e)
+          }
+        })
+      }
+    },
+    [windows]
+  )
+
+  // Handle global shortcuts
+  const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
+    // Alt+T for Tile (KeyT works regardless of modifiers)
+    if (e.altKey && e.code === 'KeyT') {
+      e.preventDefault()
+      arrangeWindows('tile')
+    }
+    // Alt+C for Cascade (KeyC works regardless of modifiers)
+    if (e.altKey && e.code === 'KeyC') {
+      e.preventDefault()
+      arrangeWindows('cascade')
+    }
+  }, [arrangeWindows])
+
+  // Attach listener to main window
+  useMemo(() => {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('keydown', handleGlobalKeyDown)
+      return () => window.removeEventListener('keydown', handleGlobalKeyDown)
+    }
+  }, [handleGlobalKeyDown])
+
   const openWindow = useCallback(
     (options: OpenWindowOptions): string | null => {
       if (typeof window === 'undefined') return null
@@ -69,6 +144,9 @@ export function DetachedWindowProvider({ children }: { children: ReactNode }) {
         container.classList.add(...options.classNames)
       }
       child.document.body.appendChild(container)
+
+      // Inject shortcut listener into child window
+      child.addEventListener('keydown', handleGlobalKeyDown)
 
       const handleBeforeUnload = () => {
         setWindows(prev => {
@@ -93,7 +171,7 @@ export function DetachedWindowProvider({ children }: { children: ReactNode }) {
       ])
       return id
     },
-    [],
+    [handleGlobalKeyDown],
   )
 
   const value = useMemo(
@@ -102,8 +180,9 @@ export function DetachedWindowProvider({ children }: { children: ReactNode }) {
       closeWindow,
       getContainer,
       isOpen: (id: string) => windows.some(win => win.id === id),
+      arrangeWindows,
     }),
-    [closeWindow, getContainer, openWindow, windows],
+    [closeWindow, getContainer, openWindow, windows, arrangeWindows],
   )
 
   return <DetachedWindowContext.Provider value={value}>{children}</DetachedWindowContext.Provider>
@@ -111,7 +190,10 @@ export function DetachedWindowProvider({ children }: { children: ReactNode }) {
 
 export function useDetachedWindows() {
   const ctx = useContext(DetachedWindowContext)
-  if (!ctx) throw new Error('useDetachedWindows must be used within DetachedWindowProvider')
+  if (!ctx) {
+    console.error('useDetachedWindows called outside provider!')
+    throw new Error('useDetachedWindows must be used within DetachedWindowProvider')
+  }
   return ctx
 }
 

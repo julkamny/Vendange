@@ -14,6 +14,7 @@ export type WorkspaceTabStateWorkspace = {
   title: string
   mode: 'inline' | 'detached'
   detachedWindowId: string | null
+  intermarcFullView: boolean
   listScope: InventoryScope
   viewMode: ViewMode
   activeWorkAnchorId: string | null
@@ -48,6 +49,7 @@ export const DEFAULT_WORKSPACE_STATE: Omit<WorkspaceTabStateWorkspace, 'id' | 't
   kind: 'workspace',
   mode: 'inline',
   detachedWindowId: null,
+  intermarcFullView: false,
   listScope: 'clusters',
   viewMode: 'works',
   activeWorkAnchorId: null,

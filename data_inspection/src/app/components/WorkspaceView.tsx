@@ -17,11 +17,13 @@ import { configureTabStateForRecord } from '../workspace/tabState'
 import { deriveInternalIdFromArk } from '../lib/ark'
 import { BacklinksPanel } from './BacklinksPanel'
 import { useBacklinks } from '../hooks/useBacklinks'
+import { WorkspaceContextMenu } from './WorkspaceContextMenu'
 
 type WorkspaceViewProps = {
   state: WorkspaceTabStateWorkspace
   onStateChange: (updater: (prev: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
   onOpenTab: (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
+  onOpenDetachedTab: (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
   mode?: 'inline' | 'detached'
   onRequestDetach?: () => void
   onRequestDock?: () => void
@@ -36,10 +38,9 @@ function isWorkspaceEntityRecord(record: RecordRow | undefined): record is Recor
   return record.typeNorm === 'oeuvre' || record.typeNorm === 'expression' || record.typeNorm === 'manifestation'
 }
 
-type ArkContextMenuState = {
+type WorkspaceContextMenuState = {
   position: { x: number; y: number }
   record: RecordRow
-  ark: string
 }
 
 function BreadcrumbItem({ value, isLast }: { value: string; isLast: boolean }) {
@@ -65,7 +66,15 @@ function WorkspaceBreadcrumbs({ items, ariaLabel }: { items: string[]; ariaLabel
   )
 }
 
-export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline', onRequestDetach, onRequestDock }: WorkspaceViewProps) {
+export function WorkspaceView({
+  state,
+  onStateChange,
+  onOpenTab,
+  onOpenDetachedTab,
+  mode = 'inline',
+  onRequestDetach,
+  onRequestDock,
+}: WorkspaceViewProps) {
   const {
     clusters,
     curated,
@@ -153,7 +162,16 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
     return null
   }, [isAnchorSelection, isRecordClustered, record, recordInCurated, t])
   const [editingRecord, setEditingRecord] = useState(false)
-  const [intermarcFullView, setIntermarcFullView] = useState(false)
+  const intermarcFullView = state.intermarcFullView
+  const setIntermarcFullView = useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) =>
+      onStateChange(prev => {
+        const resolved = typeof next === 'function' ? next(prev.intermarcFullView) : next
+        if (resolved === prev.intermarcFullView) return prev
+        return { ...prev, intermarcFullView: resolved }
+      }),
+    [onStateChange],
+  )
   const [backlinksExpanded, setBacklinksExpanded] = useState(false)
   const listPanelRef = useRef<HTMLElement | null>(null)
   const detailsPanelRef = useRef<HTMLElement | null>(null)
@@ -161,11 +179,16 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
 
   useEffect(() => {
     setEditingRecord(false)
-    setIntermarcFullView(false)
     setBacklinksExpanded(false)
   }, [record?.id, mode])
 
-  const [contextMenu, setContextMenu] = useState<ArkContextMenuState | null>(null)
+  useEffect(() => {
+    if (mode === 'detached' && !state.intermarcFullView) {
+      onStateChange(prev => (prev.intermarcFullView ? prev : { ...prev, intermarcFullView: true }))
+    }
+  }, [mode, state.intermarcFullView, onStateChange])
+
+  const [contextMenu, setContextMenu] = useState<WorkspaceContextMenuState | null>(null)
 
   const tabContext = useMemo(
     () => ({
@@ -243,8 +266,19 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
   ])
 
   const handleCloseContextMenu = useCallback(() => setContextMenu(null), [])
+
+  const openRecordInWorkspace = useCallback(
+    (targetRecord: RecordRow, options?: { detach?: boolean }) => {
+      const initializer = (base: WorkspaceTabStateWorkspace) =>
+        configureTabStateForRecord(base, targetRecord, tabContext)
+      if (options?.detach) onOpenDetachedTab(initializer)
+      else onOpenTab(initializer)
+    },
+    [onOpenDetachedTab, onOpenTab, tabContext],
+  )
+
   const openRecordForArk = useCallback(
-    (ark: string) => {
+    (ark: string, options?: { detach?: boolean }) => {
       const trimmed = ark.trim()
       if (!trimmed) return
       let targetRecord = getByArk(trimmed)
@@ -253,9 +287,9 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
         if (fallbackId) targetRecord = getById(fallbackId)
       }
       if (!targetRecord) return
-      onOpenTab(base => configureTabStateForRecord(base, targetRecord, tabContext))
+      openRecordInWorkspace(targetRecord, options)
     },
-    [getByArk, getById, onOpenTab, tabContext],
+    [getByArk, getById, openRecordInWorkspace],
   )
 
   useLayoutEffect(() => {
@@ -313,6 +347,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
       if (!target) return
       if (target.closest('.workspace-context-menu')) return
       if (target.closest('.ark-link')) return
+      if (target.closest('.entity-row')) return
       handleCloseContextMenu()
     }
     const handleKeydown = (event: KeyboardEvent) => {
@@ -321,11 +356,9 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
       }
     }
     window.addEventListener('click', handleClick)
-    window.addEventListener('contextmenu', handleClick)
     window.addEventListener('keydown', handleKeydown)
     return () => {
       window.removeEventListener('click', handleClick)
-      window.removeEventListener('contextmenu', handleClick)
       window.removeEventListener('keydown', handleKeydown)
     }
   }, [contextMenu, handleCloseContextMenu])
@@ -346,6 +379,32 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
     state.viewMode,
   ])
 
+  const resolveRecordFromRow = useCallback(
+    (row: HTMLElement): RecordRow | null => {
+      if (row.classList.contains('entity-row--work')) {
+        const workId = row.dataset.workId
+        const workArk = row.dataset.workArk
+        const record = (workId ? getById(workId) : undefined) ?? (workArk ? getByArk(workArk) : undefined)
+        return isWorkspaceEntityRecord(record) ? record : null
+      }
+      if (row.classList.contains('entity-row--expression')) {
+        const expressionId = row.dataset.expressionId
+        const expressionArk = row.dataset.expressionArk
+        const record =
+          (expressionId ? getById(expressionId) : undefined) ??
+          (expressionArk ? getByArk(expressionArk) : undefined)
+        return isWorkspaceEntityRecord(record) ? record : null
+      }
+      if (row.classList.contains('entity-row--manifestation')) {
+        const manifestationId = row.dataset.manifestationId
+        const record = manifestationId ? getById(manifestationId) ?? getByArk(manifestationId) : undefined
+        return isWorkspaceEntityRecord(record) ? record : null
+      }
+      return null
+    },
+    [getByArk, getById],
+  )
+
   const handleRecordContextMenu = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       const target = event.target as HTMLElement | null
@@ -365,11 +424,30 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
       setContextMenu({
         position: { x: event.clientX, y: event.clientY },
         record: targetRecord,
-        ark: trimmedArk,
       })
     },
     [getByArk, getById],
   )
+
+  useEffect(() => {
+    const listNode = listPanelRef.current
+    if (!listNode) return undefined
+    const handleContextMenu = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null
+      const row = target?.closest<HTMLElement>('.entity-row')
+      if (!row) return
+      const record = resolveRecordFromRow(row)
+      if (!record) return
+      event.preventDefault()
+      event.stopPropagation()
+      setContextMenu({
+        position: { x: event.clientX, y: event.clientY },
+        record,
+      })
+    }
+    listNode.addEventListener('contextmenu', handleContextMenu)
+    return () => listNode.removeEventListener('contextmenu', handleContextMenu)
+  }, [resolveRecordFromRow])
 
   const handleArkClick = useCallback(
     (ark: string, context: { zone: string; subfield: string }) => {
@@ -382,14 +460,19 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
     [openRecordForArk],
   )
 
-  const handleOpenArkInNewTab = useCallback(() => {
+  const handleOpenRecordInNewTab = useCallback(() => {
     if (!contextMenu) return
-    openRecordForArk(contextMenu.ark)
+    openRecordInWorkspace(contextMenu.record)
     setContextMenu(null)
-  }, [contextMenu, openRecordForArk])
+  }, [contextMenu, openRecordInWorkspace])
+
+  const handleOpenRecordInDetachedWindow = useCallback(() => {
+    if (!contextMenu) return
+    openRecordInWorkspace(contextMenu.record, { detach: true })
+    setContextMenu(null)
+  }, [contextMenu, openRecordInWorkspace])
 
   const handleSelectWork = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
-    const hasCuratedRecord = !!findRecord(workId, curated?.records ?? [], [])
     onStateChange(prev => ({
       ...prev,
       activeWorkAnchorId: workId,
@@ -410,7 +493,6 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
   const handleOpenExpressions = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
     const cluster = workspace.clusters.find(entry => entry.anchorId === workId) ?? null
     if (cluster) {
-      const hasCuratedRecord = !!findRecord(workId, curated?.records ?? [], [])
       onStateChange(prev => ({
         ...prev,
         activeWorkAnchorId: cluster.anchorId,
@@ -429,7 +511,6 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
       return
     }
 
-    const hasCuratedRecord = !!findRecord(workId, curated?.records ?? [], [])
     onStateChange(prev => ({
       ...prev,
       viewMode: 'expressions',
@@ -565,6 +646,7 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
     : t('workspace.expandIntermarc', { defaultValue: 'Expand Intermarc view' })
 
   return (
+    <>
     <div className={workspaceClassName}>
       <header className="workspace-view__header">
         <WorkspaceBreadcrumbs items={breadcrumbs} ariaLabel={t('breadcrumbs.ariaLabel')} />
@@ -609,17 +691,6 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
                     ) : null}
                   </>
                 )}
-                {contextMenu ? (
-                  <div
-                    className="workspace-context-menu"
-                    style={{ top: `${contextMenu.position.y}px`, left: `${contextMenu.position.x}px` }}
-                    role="menu"
-                  >
-                    <button type="button" role="menuitem" onClick={handleOpenArkInNewTab}>
-                      {t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })}
-                    </button>
-                  </div>
-                ) : null}
               </div>
               {!backlinksExpanded ? (
                 <BacklinksPanel backlinks={backlinks} onOpenArk={openRecordForArk} lookupWorkByArk={getByArk} />
@@ -701,5 +772,17 @@ export function WorkspaceView({ state, onStateChange, onOpenTab, mode = 'inline'
         </div>
       ) : null}
     </div>
+    {contextMenu ? (
+      <WorkspaceContextMenu
+        position={contextMenu.position}
+        openLabel={t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })}
+        openDetachedLabel={t('workspace.openInDetachedWindow', {
+          defaultValue: 'Open in detached workspace window',
+        })}
+        onOpen={handleOpenRecordInNewTab}
+        onOpenDetached={handleOpenRecordInDetachedWindow}
+      />
+    ) : null}
+    </>
   )
 }

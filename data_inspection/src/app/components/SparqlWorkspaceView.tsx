@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type MouseEvent as ReactMous
 import { sql } from '@codemirror/lang-sql'
 import { executeSparqlQuery, getApiBaseUrl } from '../lib/api'
 import type { WorkspaceTabStateSparql, WorkspaceTabStateWorkspace } from '../workspace/types'
+import type { RecordRow } from '../types'
 import { DEFAULT_WORKSPACE_STATE } from '../workspace/types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useToast } from '../providers/ToastContext'
@@ -16,6 +17,7 @@ import { buildSparnaturalConfig } from '../sparql/sparnaturalConfig'
 import { ensureGraphWrapping } from '../sparql/queryUtils'
 import { buildLabelFromIntermarc } from '../lib/intermarc'
 import { extractControlledValueLabel } from '../core/controlledValues'
+import { WorkspaceContextMenu } from './WorkspaceContextMenu'
 
 const ARK_REGEX = /ark:\/\S+/g
 
@@ -25,18 +27,31 @@ type SparqlWorkspaceViewProps = {
   onOpenWorkspaceTab: (
     initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace,
   ) => void
+  onOpenWorkspaceTabDetached: (
+    initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace,
+  ) => void
 }
 
 type ArkContextMenuState = {
   position: { x: number; y: number }
-  ark: string
+  record: RecordRow
 }
 
 function normalizeArk(value: string): string {
   return value.trim()
 }
 
-export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }: SparqlWorkspaceViewProps) {
+function isWorkspaceEntityRecord(record?: RecordRow | null): record is RecordRow {
+  if (!record) return false
+  return record.typeNorm === 'oeuvre' || record.typeNorm === 'expression' || record.typeNorm === 'manifestation'
+}
+
+export function SparqlWorkspaceView({
+  state,
+  onStateChange,
+  onOpenWorkspaceTab,
+  onOpenWorkspaceTabDetached,
+}: SparqlWorkspaceViewProps) {
   const { t, language } = useTranslation()
   const { showToast } = useToast()
   const { clusters, curated, datasetId } = useAppData()
@@ -95,11 +110,9 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
       if (event.key === 'Escape') setContextMenu(null)
     }
     window.addEventListener('click', handleClose)
-    window.addEventListener('contextmenu', handleClose)
     window.addEventListener('keydown', handleKeydown)
     return () => {
       window.removeEventListener('click', handleClose)
-      window.removeEventListener('contextmenu', handleClose)
       window.removeEventListener('keydown', handleKeydown)
     }
   }, [contextMenu])
@@ -227,15 +240,33 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
     [onStateChange],
   )
 
-  const openRecordForArk = useCallback(
-    (ark: string) => {
+  const resolveRecordForArk = useCallback(
+    (ark: string): RecordRow | null => {
       const trimmed = normalizeArk(ark)
-      if (!trimmed) return
+      if (!trimmed) return null
       let record = getByArk(trimmed)
       if (!record) {
         const fallbackId = deriveInternalIdFromArk(trimmed)
         if (fallbackId) record = getById(fallbackId)
       }
+      if (!isWorkspaceEntityRecord(record)) return null
+      return record
+    },
+    [getByArk, getById],
+  )
+
+  const openRecordInWorkspace = useCallback(
+    (record: RecordRow, options?: { detach?: boolean }) => {
+      const initializer = (base: WorkspaceTabStateWorkspace) => configureTabStateForRecord(base, record, tabContext)
+      if (options?.detach) onOpenWorkspaceTabDetached(initializer)
+      else onOpenWorkspaceTab(initializer)
+    },
+    [onOpenWorkspaceTab, onOpenWorkspaceTabDetached, tabContext],
+  )
+
+  const openRecordForArk = useCallback(
+    (ark: string, options?: { detach?: boolean }) => {
+      const record = resolveRecordForArk(ark)
       if (!record) {
         showToast(t('workspace.sparqlNoRecordForArk', { defaultValue: 'No record found for this ARK.' }), {
           tone: 'error',
@@ -243,9 +274,9 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
         return
       }
       setContextMenu(null)
-      onOpenWorkspaceTab(base => configureTabStateForRecord(base, record, tabContext))
+      openRecordInWorkspace(record, options)
     },
-    [getByArk, getById, onOpenWorkspaceTab, tabContext, showToast, t],
+    [openRecordInWorkspace, resolveRecordForArk, showToast, t],
   )
 
   const handleContextMenu = useCallback(
@@ -256,10 +287,24 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
       const rawArk = arkLink.getAttribute('data-ark')
       if (!rawArk) return
       event.preventDefault()
-      setContextMenu({ position: { x: event.clientX, y: event.clientY }, ark: rawArk })
+      const record = resolveRecordForArk(rawArk)
+      if (!record) return
+      setContextMenu({ position: { x: event.clientX, y: event.clientY }, record })
     },
-    [],
+    [resolveRecordForArk],
   )
+
+  const handleOpenContextRecord = useCallback(() => {
+    if (!contextMenu) return
+    openRecordInWorkspace(contextMenu.record)
+    setContextMenu(null)
+  }, [contextMenu, openRecordInWorkspace])
+
+  const handleOpenContextRecordDetached = useCallback(() => {
+    if (!contextMenu) return
+    openRecordInWorkspace(contextMenu.record, { detach: true })
+    setContextMenu(null)
+  }, [contextMenu, openRecordInWorkspace])
 
   const renderArkFragments = useCallback(
     (value: string) => {
@@ -458,15 +503,15 @@ export function SparqlWorkspaceView({ state, onStateChange, onOpenWorkspaceTab }
         )}
       </section>
       {contextMenu ? (
-        <div
-          className="workspace-context-menu"
-          style={{ top: `${contextMenu.position.y}px`, left: `${contextMenu.position.x}px` }}
-          role="menu"
-        >
-          <button type="button" role="menuitem" onClick={() => openRecordForArk(contextMenu.ark)}>
-            {t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })}
-          </button>
-        </div>
+        <WorkspaceContextMenu
+          position={contextMenu.position}
+          openLabel={t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })}
+          openDetachedLabel={t('workspace.openInDetachedWindow', {
+            defaultValue: 'Open in detached workspace window',
+          })}
+          onOpen={handleOpenContextRecord}
+          onOpenDetached={handleOpenContextRecordDetached}
+        />
       ) : null}
     </div>
   )

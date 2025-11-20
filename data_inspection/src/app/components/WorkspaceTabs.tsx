@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, type KeyboardEvent } from 'react'
+import { useState, useCallback, useEffect, useMemo, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { WorkspaceView } from './WorkspaceView'
 import { SparqlWorkspaceView } from './SparqlWorkspaceView'
@@ -190,6 +190,43 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     [recordIndexes, defaultWorkspaceTitle, defaultSparqlTitle],
   )
 
+  const openDetachedTabWithState = useCallback(
+    (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => {
+      const base = createWorkspaceTab(defaultWorkspaceTitle)
+      const configured = initializer ? initializer(base) : base
+      const windowId = openWindow({
+        title: getWorkspaceLabel(configured),
+        classNames: ['vendange-detached-window'],
+        onClose: () => {
+          setTabs(prev =>
+            prev.map(entry =>
+              entry.id === configured.id && isWorkspaceTab(entry)
+                ? { ...entry, mode: 'inline', detachedWindowId: null }
+                : entry,
+            ),
+          )
+        },
+      })
+      if (!windowId) {
+        showToast(t('workspace.openWindowFailed', { defaultValue: 'Impossible d’ouvrir une nouvelle fenêtre.' }), {
+          tone: 'error',
+        })
+        setTabs(prev => [...prev, configured])
+        setActiveId(configured.id)
+        return
+      }
+      const detachedState: WorkspaceTabStateWorkspace = {
+        ...configured,
+        mode: 'detached',
+        detachedWindowId: windowId,
+        intermarcFullView: true,
+      }
+      setTabs(prev => [...prev, detachedState])
+      setActiveId(detachedState.id)
+    },
+    [defaultWorkspaceTitle, getWorkspaceLabel, openWindow, setTabs, setActiveId, showToast, t],
+  )
+
   const detachWorkspaceTab = useCallback(
     (tab: WorkspaceTabStateWorkspace) => {
       if (tab.mode === 'detached') return
@@ -214,7 +251,9 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       }
       setTabs(prev =>
         prev.map(entry =>
-          entry.id === tab.id && isWorkspaceTab(entry) ? { ...entry, mode: 'detached', detachedWindowId: windowId } : entry,
+          entry.id === tab.id && isWorkspaceTab(entry)
+            ? { ...entry, mode: 'detached', detachedWindowId: windowId, intermarcFullView: true }
+            : entry,
         ),
       )
       setActiveId(tab.id)
@@ -394,6 +433,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
                   )
                 }
                 onOpenTab={openTabWithState}
+                onOpenDetachedTab={openDetachedTabWithState}
               />
             )
           ) : isSparqlTab(activeTab) ? (
@@ -405,6 +445,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
                 )
               }
               onOpenWorkspaceTab={openTabWithState}
+              onOpenWorkspaceTabDetached={openDetachedTabWithState}
             />
           ) : null
         ) : null}
@@ -427,6 +468,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
                   )
                 }
                 onOpenTab={openTabWithState}
+                onOpenDetachedTab={openDetachedTabWithState}
               />
             )
             : null,
@@ -463,7 +505,7 @@ function WorkspaceTabButton({
   const decoratedLabel = useArkDecoratedText(label)
   const toggleLabel = detachStatus === 'detached' ? dockLabel ?? detachLabel : detachLabel
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
       onActivate()
@@ -539,6 +581,7 @@ type DetachedWorkspacePortalProps = {
   onDock: () => void
   onStateChange: (updater: (prev: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
   onOpenTab: (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
+  onOpenDetachedTab: (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
 }
 
 function DetachedWorkspacePortal({
@@ -549,6 +592,7 @@ function DetachedWorkspacePortal({
   onDock,
   onStateChange,
   onOpenTab,
+  onOpenDetachedTab,
 }: DetachedWorkspacePortalProps) {
   if (!container) return null
   return createPortal(
@@ -565,6 +609,7 @@ function DetachedWorkspacePortal({
         onRequestDock={onDock}
         onStateChange={onStateChange}
         onOpenTab={onOpenTab}
+        onOpenDetachedTab={onOpenDetachedTab}
       />
     </div>,
     container,

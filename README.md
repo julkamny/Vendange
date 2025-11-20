@@ -88,16 +88,16 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 Review in the Web UI
 - Start the UI: `npm run dev`
 - From the dashboard, upload one or more dataset CSV snapshots. Each upload becomes its own Oxigraph store under `data_curation/api/datasets/`; use the dataset’s **Open** action to inspect or curate it.
-- The inspection view now keeps a single in-memory copy of the dataset; pristine snapshots are captured per record only when you edit it, keeping load time and memory footprint low while still allowing per-record reset.
+- The inspection view keeps a single in-memory copy of the dataset; pristine snapshots are captured per record only when you edit it, keeping load time and memory footprint low while still allowing per-record reset.
 - The UI detects clusters by scanning for `90F$q = "Clusterisation script"` in works.
 - Key information about entities is displayed in badges:
   - Expression counters (orange) only appear when at least one manifestation points to the entity.
   - Manifestation counters (green) only render when a work has incoming manifestations.
-  - Expressions now display a red *750 links* badge whenever more than one work points to them; manifestations expose an orange *740 links* badge when multiple expressions reference them.
+  - Expressions display a red *750 links* badge whenever more than one work points to them; manifestations expose an orange *740 links* badge when multiple expressions reference them.
   - Relationship badges show outgoing and incoming 5XX links as `outgoing|incoming`, and are hidden when both values are zero.
   - Agent badges disappear for entities without 7XX contributors.
 - Central panel: list of anchors with merged works (checkbox to accept/reject, option to add ARKs).
-- Side panel: prettified Intermarc of selected record. ARK labels now keep the human-readable title in the text and surface the identifier on hover, and 140/750/740 links are clickable to open the targeted entity in a new workspace tab.
+- Side panel: prettified Intermarc of selected record. ARK labels keep the human-readable title in the text and surface the identifier on hover, and 140/750/740 links are clickable to open the targeted entity in a new workspace tab.
 - Beneath the record viewer, a backlinks panel lists every work/expression/manifestation that references the selected entity, with segmented titles, a direct ARK shortcut, and the fields where the reference lives; expand it into its own third column when you want the entity list, Intermarc, and backlinks side by side.
 - Bottom-right hover toolbar: unfold it to access the pop-out/dock/full-width Intermarc controls and a backlinks toggle. Expanded backlinks reshape the workspace into three equal columns; folding tucks the backlinks panel back under the record.
 - Use the toolbar’s **Export dataset CSV** button to download the current dataset with your curated changes applied.
@@ -105,13 +105,14 @@ Review in the Web UI
   - Hierarchical selectors show anchors and clustered entries in clearly separated sections with 🍇 for clustered items.
   - Double-click or use user-defined shortcuts on cluster/expression banners to jump between works ⇄ expressions ⇄ manifestations, and the pane auto-scrolls to the linked card.
   - Unchecked expressions automatically move to the independent block; their manifestations are greyed out to signal that they will not change the exported CSV.
-  - Manifestation labels now mirror work title segmentation, displaying each 245 subfield with its code for faster inspection.
+  - Manifestation labels mirror work title segmentation, displaying each 245 subfield with its code for faster inspection.
   - Workspace tabs can be “unmoored” into their own windows; Intermarc panes in those windows remain synced and offer a full-window toggle for multi-monitor comparisons.
+  - Right-click a workspace entity row (work/expression/manifestation) or an Intermarc ARK link to open it in a new workspace tab or launch it directly in a detached workspace window; detached windows start with the Intermarc view expanded by default.
 
 Editing anchor or independent entities :
 - Click a work anchor, then "Modify record" to open a JSON editor (CodeMirror) for the anchor’s Intermarc.
 - Edit existing zones/subzones or add new ones; click "Save" to apply. Changes are reflected in export and cluster view (e.g., title updates).
-- The editing surface now mirrors the pretty-printed view (colors, ARK label hover tooltips, highlighted background) and offers instant autocomplete for controlled values and entities—type the start of a label (e.g., `tex`) to pick the matching ARK, with suggestions restricted to the controlled lists and entity natures allowed in the current subfield.
+- The editing surface mirrors the pretty-printed view (colors, ARK label hover tooltips, highlighted background) and offers instant autocomplete for controlled values and entities—type the start of a label (e.g., `tex`) to pick the matching ARK, with suggestions restricted to the controlled lists and entity natures allowed in the current subfield.
 
 Exploring W–E–M links
 - Click an Expression or Manifestation to view its details in the right panel.
@@ -123,9 +124,9 @@ SPARQL searches
 - Each entity links to blank-node fields via `<https://vendange.bnf.fr/hasField>`; fields expose their `fieldCode` and either a `fieldCompactValue` literal (for storage zones 990/907/90H/901/991) or nested `hasSubfield` blank nodes with sanitised codes (`$` → `s`) and values—filter on those nodes directly to reach any MARC subfield.
 - The SPARQL tab also exposes a Sparnatural visual builder. Use it to assemble work → expression → manifestation hops, constrain MARC zones/subfields, and pick controlled values from a label-based list—the corresponding ARK is injected automatically into the generated query. The builder keeps the CodeMirror editor synchronised so you can start visually then finish by hand if needed.
 - Sparnatural reads a SHACL profile. Update `data_inspection/src/app/sparql/sparnaturalConfig.ts` when you need to expose a new node/property.
-- The builder now also surfaces agent entities (person / collective / famille) with the 700/701/702/710/711/712 links, lets you pick relator codes from the controlled lists, and hides ARKs for agents in favour of their Intermarc label.
+- The builder also surfaces agent entities (person / collective / famille) with the 700/701/702/710/711/712 links, lets you pick relator codes from the controlled lists, and hides ARKs for agents in favour of their Intermarc label.
 - Literal list widgets rely on the Select2 bootstrap in `data_inspection/src/app/vendor/select2.ts` to circumvent a typing issue.
-- Vendange stores each record in its own named graph. The builder (and manual execution) now rewrite Sparnatural output into one `GRAPH` block per entity (`GRAPH ?g_manifestation { … }`, `GRAPH ?g_expression { … }`, etc.) so W–E–M traversals span the right graphs out of the box. For custom logic you can still provide explicit `GRAPH` clauses—auto-wrapping steps aside as soon as it detects one.
+- Vendange stores each record in its own named graph. The builder (and manual execution) rewrite Sparnatural output into one `GRAPH` block per entity (`GRAPH ?g_manifestation { … }`, `GRAPH ?g_expression { … }`, etc.) so W–E–M traversals span the right graphs out of the box. For custom logic you can still provide explicit `GRAPH` clauses—auto-wrapping steps aside as soon as it detects one.
 - Graph wrapping also keeps MARC field/subfield filters with their parent entity graph, even when Sparnatural emits them in multiple BGP blocks (e.g., subfield code and value filters added in separate steps).
 
 Design Notes

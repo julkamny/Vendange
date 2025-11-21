@@ -110,7 +110,7 @@ Review in the Web UI
   - Workspace tabs can be “unmoored” into their own windows; Intermarc panes in those windows remain synced and offer a full-window toggle for multi-monitor comparisons.
   - Right-click any ARK (work/expression/manifestation or agent) to open it in a new tab or directly in a detached window; agent ARKs route to the Agents workspace automatically.
   - Right-click a workspace entity row (work/expression/manifestation) or an Intermarc ARK link to open it in a new workspace tab or launch it directly in a detached workspace window; detached windows start with the Intermarc view expanded by default.
-  - Keyboard shortcuts work across WEM, Agents, and SPARQL tabs (inline or detached) and stay scoped to the window that currently has focus: arrows move through WEM/Agents lists without syncing other windows, tab cycling works left/right, tiling/cascading again resizes detached windows, and the side-toolbar actions (detach tab, toggle backlinks, list, Intermarc width) are consistent everywhere; configure them in the shortcuts modal.
+- Keyboard shortcuts work across WEM, Agents, and SPARQL tabs (inline or detached) and stay scoped to the window that currently has focus: arrows/listUp/listDown move through WEM/Agents lists without syncing other windows (detached agent lists remain independent from inline tabs), tab cycling works left/right, tiling/cascading again resizes detached windows, and the side-toolbar actions (detach tab, toggle backlinks, list, Intermarc width) are consistent everywhere; configure them in the shortcuts modal.
 
 Editing anchor or independent entities :
 - Click a work anchor, then "Modify record" to open a JSON editor (CodeMirror) for the anchor’s Intermarc.

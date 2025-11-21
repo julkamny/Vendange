@@ -428,7 +428,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   )
 
   const handleShortcutAction = useCallback(
-    (action: ShortcutAction) => {
+    (action: ShortcutAction, sourceDocument: Document = document) => {
       const activeIsWorkspace = isWorkspaceTab(activeTab)
       const targetTab = shortcutTab
       const targetIsWorkspace = isWorkspaceTab(targetTab)
@@ -485,9 +485,9 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
 
       if (action === 'listUp' || action === 'listDown') {
         if (targetIsWorkspace) {
-          navigateList(action === 'listUp' ? 'up' : 'down', targetTab)
+          navigateList(action === 'listUp' ? 'up' : 'down', targetTab, sourceDocument)
         } else if (targetIsAgent) {
-          navigateAgentList(action === 'listUp' ? 'up' : 'down', targetTab, setTabs)
+          navigateAgentList(action === 'listUp' ? 'up' : 'down', targetTab, setTabs, sourceDocument)
         }
         return
       }
@@ -594,7 +594,8 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       })
       if (!action) return
       event.preventDefault()
-      handleShortcutAction(action)
+      const eventDocument = (event.target as Node | null)?.ownerDocument ?? event.view?.document ?? document
+      handleShortcutAction(action, eventDocument)
     }
 
     const targets = new Set<Window>()
@@ -1143,19 +1144,24 @@ type AgentListEntry = {
   agentId: string
 }
 
-function navigateList(direction: NavigationDirection, state: WorkspaceTabStateWorkspace) {
+function navigateList(direction: NavigationDirection, state: WorkspaceTabStateWorkspace, rootDocument: Document) {
   if (state.viewMode === 'works') {
-    navigateWorkList(direction, state)
+    navigateWorkList(direction, state, rootDocument)
   } else if (state.viewMode === 'expressions') {
-    navigateExpressionList(direction, state)
+    navigateExpressionList(direction, state, rootDocument)
   } else if (state.viewMode === 'manifestations') {
-    navigateManifestationList(direction, state)
+    navigateManifestationList(direction, state, rootDocument)
   }
 }
 
-function navigateAgentList(direction: NavigationDirection, state: AgentTabState, setTabs: (updater: (prev: WorkspaceTabState[]) => WorkspaceTabState[]) => void) {
+function navigateAgentList(
+  direction: NavigationDirection,
+  state: AgentTabState,
+  setTabs: (updater: (prev: WorkspaceTabState[]) => WorkspaceTabState[]) => void,
+  rootDocument: Document,
+) {
   if (typeof document === 'undefined') return
-  const panel = document.querySelector('.work-list-panel')
+  const panel = rootDocument.querySelector('.work-list-panel')
   if (!panel) return
   const rows = Array.from(panel.querySelectorAll<HTMLElement>('.entity-row'))
   if (!rows.length) return
@@ -1182,9 +1188,9 @@ function navigateAgentList(direction: NavigationDirection, state: AgentTabState,
   )
 }
 
-function navigateWorkList(direction: NavigationDirection, state: WorkspaceTabStateWorkspace) {
+function navigateWorkList(direction: NavigationDirection, state: WorkspaceTabStateWorkspace, rootDocument: Document) {
   if (typeof document === 'undefined') return
-  const panel = document.querySelector('.work-list-panel')
+  const panel = rootDocument.querySelector('.work-list-panel')
   if (!panel) return
   const rows = Array.from(panel.querySelectorAll<HTMLElement>('.entity-row--work'))
   if (!rows.length) return
@@ -1222,9 +1228,13 @@ function navigateWorkList(direction: NavigationDirection, state: WorkspaceTabSta
   activateEntry(entries[nextIndex])
 }
 
-function navigateExpressionList(direction: NavigationDirection, state: WorkspaceTabStateWorkspace) {
+function navigateExpressionList(
+  direction: NavigationDirection,
+  state: WorkspaceTabStateWorkspace,
+  rootDocument: Document,
+) {
   if (typeof document === 'undefined') return
-  const panel = document.querySelector('.expression-groups')
+  const panel = rootDocument.querySelector('.expression-groups')
   if (!panel) return
   const rows = Array.from(panel.querySelectorAll<HTMLElement>('.entity-row--expression'))
   if (!rows.length) return
@@ -1264,9 +1274,13 @@ function navigateExpressionList(direction: NavigationDirection, state: Workspace
   activateEntry(entries[nextIndex])
 }
 
-function navigateManifestationList(direction: NavigationDirection, state: WorkspaceTabStateWorkspace) {
+function navigateManifestationList(
+  direction: NavigationDirection,
+  state: WorkspaceTabStateWorkspace,
+  rootDocument: Document,
+) {
   if (typeof document === 'undefined') return
-  const panel = document.querySelector('.manifestation-panel')
+  const panel = rootDocument.querySelector('.manifestation-panel')
   if (!panel) return
   const rows = Array.from(panel.querySelectorAll<HTMLElement>('.entity-row--manifestation'))
   if (!rows.length) return

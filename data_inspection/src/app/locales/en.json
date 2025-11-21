@@ -119,35 +119,35 @@
     },
     "listUp": {
       "label": "Move selection up",
-      "description": "Move to the previous item in the active list."
+      "description": "Move to the previous item in the active WEM or Agents list (works in detached windows too)."
     },
     "listDown": {
       "label": "Move selection down",
-      "description": "Move to the next item in the active list."
+      "description": "Move to the next item in the active WEM or Agents list (works in detached windows too)."
     },
     "nextWorkspace": {
       "label": "Switch workspace (right)",
-      "description": "Activate the next workspace tab (wraps to first)."
+      "description": "Activate the next tab of any type (WEM, Agents, SPARQL); wraps to first."
     },
     "previousWorkspace": {
       "label": "Switch workspace (left)",
-      "description": "Activate the previous workspace tab (wraps to last)."
+      "description": "Activate the previous tab of any type (WEM, Agents, SPARQL); wraps to last."
     },
     "toggleBacklinks": {
       "label": "Toggle backlinks panel",
-      "description": "Expand or fold backlinks in the current workspace."
+      "description": "Expand or fold backlinks in the current WEM or Agents workspace."
     },
     "toggleList": {
       "label": "Toggle entity list",
-      "description": "Hide or show the entity list on the left."
+      "description": "Hide or show the entity/agent list on the left (main or detached window)."
     },
     "toggleIntermarc": {
       "label": "Toggle Intermarc width",
-      "description": "Expand or contract the Intermarc pane."
+      "description": "Expand or contract the Intermarc pane in WEM or Agents tabs."
     },
     "toggleDetachTab": {
       "label": "Pop/dock current tab",
-      "description": "Detach the active tab into a window or dock it back."
+      "description": "Detach the active WEM/Agents tab into a window or dock it back."
     },
     "arrangeTile": {
       "label": "Tile windows",

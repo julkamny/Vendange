@@ -11,7 +11,7 @@
 
 ## Databases
 
-- The searchable datasets uploaded by users are now Oxigraph stores under `data_curation/api/datasets/`, created from user-provided CSVs of Intermarc records. A development sample lives in `sample_data/current_export.csv`.
+- The searchable datasets uploaded by users are Oxigraph stores under `data_curation/api/datasets/`, created from user-provided CSVs of Intermarc records. A development sample lives in `sample_data/current_export.csv`.
 - The DB can be inspected with the Oxigraph CLI, see [sparql_store.md](documentation/sparql_store.md)
 
 ## Linked entity ontology

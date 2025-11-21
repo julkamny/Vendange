@@ -119,35 +119,35 @@
     },
     "listUp": {
       "label": "Sélection précédente",
-      "description": "Aller à l'élément précédent dans la liste active."
+      "description": "Aller à l'élément précédent dans la liste WEM ou Agents (y compris en fenêtre détachée)."
     },
     "listDown": {
       "label": "Sélection suivante",
-      "description": "Aller à l'élément suivant dans la liste active."
+      "description": "Aller à l'élément suivant dans la liste WEM ou Agents (y compris en fenêtre détachée)."
     },
     "nextWorkspace": {
       "label": "Changer d'espace (droite)",
-      "description": "Activer l'onglet suivant (boucle au premier)."
+      "description": "Activer l'onglet suivant, qu'il soit WEM, Agents ou SPARQL (boucle au premier)."
     },
     "previousWorkspace": {
       "label": "Changer d'espace (gauche)",
-      "description": "Activer l'onglet précédent (boucle au dernier)."
+      "description": "Activer l'onglet précédent, qu'il soit WEM, Agents ou SPARQL (boucle au dernier)."
     },
     "toggleBacklinks": {
       "label": "Afficher/masquer les backlinks",
-      "description": "Déplier ou replier le panneau des liens entrants."
+      "description": "Déplier ou replier les backlinks dans les onglets WEM ou Agents."
     },
     "toggleList": {
       "label": "Afficher/masquer la liste",
-      "description": "Cacher ou montrer la liste d’entités à gauche."
+      "description": "Cacher ou montrer la liste entités/agents à gauche (fenêtre principale ou détachée)."
     },
     "toggleIntermarc": {
       "label": "Agrandir/réduire l’Intermarc",
-      "description": "Étendre ou réduire la largeur du panneau Intermarc."
+      "description": "Étendre ou réduire la largeur du panneau Intermarc dans les onglets WEM ou Agents."
     },
     "toggleDetachTab": {
       "label": "Détacher / réancrer l’onglet",
-      "description": "Ouvrir l’onglet courant dans une fenêtre ou le ramener."
+      "description": "Ouvrir l’onglet WEM/Agents dans une fenêtre ou le ramener."
     },
     "arrangeTile": {
       "label": "Tuiler les fenêtres",

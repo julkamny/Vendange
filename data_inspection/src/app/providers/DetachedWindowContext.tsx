@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useShortcuts } from './ShortcutContext'
 import { shortcutMatchesEvent } from '../core/shortcuts'
 
@@ -104,19 +104,22 @@ export function DetachedWindowProvider({ children }: { children: ReactNode }) {
     [windows]
   )
 
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      const action =
-        shortcutMatchesEvent(bindings.arrangeTile, event) ? 'tile' :
-        shortcutMatchesEvent(bindings.arrangeCascade, event) ? 'cascade' :
-        null
-      if (!action) return
-      event.preventDefault()
-      arrangeWindows(action)
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+  const handleShortcutEvent = useCallback((event: KeyboardEvent) => {
+    if (event.defaultPrevented) return
+    const action = shortcutMatchesEvent(bindings.arrangeTile, event)
+      ? 'tile'
+      : shortcutMatchesEvent(bindings.arrangeCascade, event)
+        ? 'cascade'
+        : null
+    if (!action) return
+    event.preventDefault()
+    arrangeWindows(action)
   }, [arrangeWindows, bindings.arrangeCascade, bindings.arrangeTile])
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleShortcutEvent)
+    return () => window.removeEventListener('keydown', handleShortcutEvent)
+  }, [handleShortcutEvent])
 
   const openWindow = useCallback(
     (options: OpenWindowOptions): string | null => {
@@ -142,7 +145,8 @@ export function DetachedWindowProvider({ children }: { children: ReactNode }) {
       child.document.body.appendChild(container)
 
       // Inject shortcut listener into child window
-      child.addEventListener('keydown', handleGlobalKeyDown)
+      const childShortcutHandler = (event: KeyboardEvent) => handleShortcutEvent(event)
+      child.addEventListener('keydown', childShortcutHandler)
 
       const handleBeforeUnload = () => {
         setWindows(prev => {
@@ -151,6 +155,7 @@ export function DetachedWindowProvider({ children }: { children: ReactNode }) {
           target.onClose?.()
           return prev.filter(win => win.id !== id)
         })
+        child.removeEventListener('keydown', childShortcutHandler)
       }
 
       child.addEventListener('beforeunload', handleBeforeUnload)
@@ -167,7 +172,7 @@ export function DetachedWindowProvider({ children }: { children: ReactNode }) {
       ])
       return id
     },
-    [],
+    [handleShortcutEvent],
   )
 
   const value = useMemo(

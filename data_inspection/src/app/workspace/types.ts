@@ -59,8 +59,13 @@ export type WorkspaceTabStateSparql = {
   sort: { column: string; direction: 'asc' | 'desc' } | null
 }
 
-export type WorkspaceTabState = WorkspaceTabStateWorkspace | WorkspaceTabStateSparql
-  | AgentTabState
+export type WorkspaceTabState = WorkspaceTabStateWorkspace | WorkspaceTabStateSparql | AgentTabState
+
+/**
+ * Tabs that rely on the workspace layout (list + details + backlinks/intermarc controls).
+ * This covers both the WEM workspace and the Agents workspace.
+ */
+export type WorkspaceLayoutTabState = WorkspaceTabStateWorkspace | AgentTabState
 
 export const DEFAULT_WORKSPACE_STATE: Omit<WorkspaceTabStateWorkspace, 'id' | 'title'> = {
   kind: 'workspace',
@@ -121,4 +126,8 @@ export function isSparqlTab(tab: WorkspaceTabState): tab is WorkspaceTabStateSpa
 
 export function isAgentTab(tab: WorkspaceTabState): tab is AgentTabState {
   return tab.kind === 'agent'
+}
+
+export function isWorkspaceLayoutTab(tab: WorkspaceTabState): tab is WorkspaceLayoutTabState {
+  return tab.kind === 'workspace' || tab.kind === 'agent'
 }

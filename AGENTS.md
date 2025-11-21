@@ -14,6 +14,10 @@
 - The searchable datasets uploaded by users are Oxigraph stores under `data_curation/api/datasets/`, created from user-provided CSVs of Intermarc records. A development sample lives in `sample_data/current_export.csv`.
 - The DB can be inspected with the Oxigraph CLI, see [sparql_store.md](documentation/sparql_store.md)
 
+## Intermarc
+
+- In the brand of Intermarc we're dealing with, $a IS COMPLETELY DIFFERENT from $A, $b from $B, etc. Capital letter and lower-case should never be conflated in FIELD CODE or SUBFIELD CODE. Make sure this logic is honored whenever you have to touch files related to Intermarc.
+
 ## Linked entity ontology
 
 - Links between WEM entities:

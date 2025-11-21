@@ -4,7 +4,7 @@ import type { RecordRow } from '../types'
 import { useAgentData, isAgentRecord } from './useAgentData'
 import { useTranslation } from '../hooks/useTranslation'
 import { useAppData } from '../providers/AppDataContext'
-import { buildLabelFromIntermarc, findZones, addManualAgent90FEntries } from '../lib/intermarc'
+import { buildLabelFromIntermarc, findZones, addManualAgent90FEntries, type Intermarc } from '../lib/intermarc'
 import { IntermarcView } from '../components/IntermarcView'
 import { IntermarcEditor } from '../components/IntermarcEditor'
 import { BacklinksPanel } from '../components/BacklinksPanel'
@@ -35,7 +35,6 @@ type AgentClusterItem = {
   ark: string
   id?: string
   label: string
-  status: 'accepted' | 'rejected'
 }
 
 type AgentCluster = {
@@ -80,45 +79,57 @@ export function AgentView({
   const [agentClusters, setAgentClusters] = useState<AgentCluster[]>(baseAgentClusters)
 
   useEffect(() => {
-    setAgentClusters(prev => mergeAgentClusters(baseAgentClusters, prev))
+    setAgentClusters(baseAgentClusters)
   }, [baseAgentClusters])
+
+  const manualClusterIndex = useMemo(
+    () => buildManualAgentClusterIndex(agentClusters),
+    [agentClusters],
+  )
+
+  const handleIntermarcSave = useCallback(
+    (record: RecordRow, next: Intermarc) => {
+      const typeNormalized = record.typeNorm?.toLowerCase() ?? ''
+      const isAgent =
+        typeNormalized === 'identite publique de personne' ||
+        typeNormalized === 'collectivite' ||
+        typeNormalized === 'famille'
+
+      if (!isAgent) {
+        updateRecordIntermarc(record.id, next)
+        return
+      }
+
+      const targets = extractManualAgentTargets(next)
+      const conflicts: string[] = []
+      for (const target of targets) {
+        const conflict = manualClusterIndex.get(target)
+        if (conflict && conflict.anchorId !== record.id) {
+          const label = conflict.anchorLabel || conflict.anchorId
+          conflicts.push(`${target} (ancré sur ${label})`)
+        }
+      }
+
+      if (conflicts.length) {
+        throw new Error(
+          `Impossible d'enregistrer : ces agents sont déjà rattachés à un autre cluster : ${conflicts.join(', ')}`,
+        )
+      }
+
+      updateRecordIntermarc(record.id, next)
+    },
+    [manualClusterIndex, updateRecordIntermarc],
+  )
 
   const persistManualAgentCluster = useCallback(
     (anchorId: string, items: AgentClusterItem[]) => {
       const anchorRecord = getById(anchorId)
       if (!anchorRecord) return
-      const accepted = items.filter(item => item.status === 'accepted').map(item => ({ ark: item.ark }))
-      const nextIntermarc = addManualAgent90FEntries(anchorRecord.intermarc, accepted)
+      const entries = items.map(item => ({ ark: item.ark }))
+      const nextIntermarc = addManualAgent90FEntries(anchorRecord.intermarc, entries)
       updateRecordIntermarc(anchorRecord.id, nextIntermarc)
     },
     [getById, updateRecordIntermarc],
-  )
-
-  const setClusterItemStatus = useCallback(
-    (anchorId: string, targetArk: string, status: AgentClusterItem['status']) => {
-      let nextItems: AgentClusterItem[] | null = null
-      setAgentClusters(prev => {
-        let updated = false
-        const next = prev
-          .map(cluster => {
-            if (cluster.anchorId !== anchorId) return cluster
-            updated = true
-            const items = cluster.items.map(item =>
-              item.ark === targetArk ? { ...item, status } : item,
-            )
-            nextItems = items
-            return { ...cluster, items }
-          })
-          .filter(cluster => cluster.items.length > 0)
-
-        if (!updated) return prev
-        return next
-      })
-      if (nextItems) {
-        persistManualAgentCluster(anchorId, nextItems)
-      }
-    },
-    [persistManualAgentCluster],
   )
 
   const removeClusterItem = useCallback(
@@ -450,7 +461,6 @@ export function AgentView({
                         {cluster.items.map(item => {
                           const itemRecord = item.id ? getById(item.id) : null
                           const rowClasses = ['cluster-item', 'entity-row', 'entity-row--person']
-                          if (item.status === 'rejected') rowClasses.push('unchecked')
                           if (itemRecord && state.selectedAgentId === itemRecord.id) rowClasses.push('selected')
 
                           return (
@@ -470,8 +480,12 @@ export function AgentView({
                             >
                               <input
                                 type="checkbox"
-                                checked={item.status === 'accepted'}
-                                onChange={event => setClusterItemStatus(cluster.anchorId, item.ark, event.target.checked ? 'accepted' : 'rejected')}
+                                checked
+                                onChange={event => {
+                                  if (!event.target.checked) {
+                                    removeClusterItem(cluster.anchorId, item.ark)
+                                  }
+                                }}
                                 onDoubleClick={event => {
                                   event.preventDefault()
                                   event.stopPropagation()
@@ -506,7 +520,7 @@ export function AgentView({
                   <IntermarcEditor
                     record={selectedRecord}
                     baselineRecord={getCuratedBaselineRecord(selectedRecord.id) ?? undefined}
-                    onSave={next => updateRecordIntermarc(selectedRecord.id, next)}
+                    onSave={next => handleIntermarcSave(selectedRecord, next)}
                     onCancel={() => setEditing(false)}
                   />
                 ) : (
@@ -664,21 +678,15 @@ function buildAgentClusters(records: RecordRow[], getLabel: (r: RecordRow) => st
   const clusters: AgentCluster[] = []
 
   for (const record of records) {
-    const zones = findZones(record.intermarc, '90F')
-    const items: AgentClusterItem[] = []
-    for (const zone of zones) {
-      const note = zone.sousZones.find(sz => sz.code === '90F$q')?.valeur?.trim().toLowerCase()
-      if (note !== 'clusterisation manuelle') continue
-      const targetArk = zone.sousZones.find(sz => sz.code === '90F$3')?.valeur
-      if (!targetArk) continue
+    const targets = extractManualAgentTargets(record.intermarc)
+    const items: AgentClusterItem[] = targets.map(targetArk => {
       const target = byArk.get(targetArk)
-      items.push({
+      return {
         ark: targetArk,
         id: target?.id,
         label: target ? getLabel(target) : targetArk,
-        status: 'accepted',
-      })
-    }
+      }
+    })
     if (items.length) {
       clusters.push({
         anchorId: record.id,
@@ -692,39 +700,26 @@ function buildAgentClusters(records: RecordRow[], getLabel: (r: RecordRow) => st
   return clusters
 }
 
-function mergeAgentClusters(base: AgentCluster[], current: AgentCluster[]): AgentCluster[] {
-  const currentByAnchor = new Map(current.map(cluster => [cluster.anchorId, cluster]))
-  const next: AgentCluster[] = []
-
-  for (const cluster of base) {
-    const existing = currentByAnchor.get(cluster.anchorId)
-    const mergedItems = mergeAgentClusterItems(cluster.items, existing?.items ?? [])
-    next.push({ ...cluster, items: mergedItems })
-    currentByAnchor.delete(cluster.anchorId)
+function extractManualAgentTargets(im: Intermarc): string[] {
+  const zones = findZones(im, '90F')
+  const targets = new Set<string>()
+  for (const zone of zones) {
+    const noteRaw = zone.sousZones.find(sz => sz.code === '90F$q')?.valeur
+    if (!noteRaw || noteRaw.trim().toLowerCase() !== 'clusterisation manuelle') continue
+    const target = zone.sousZones.find(sz => sz.code === '90F$3')?.valeur?.trim()
+    if (target) targets.add(target)
   }
-
-  for (const leftover of currentByAnchor.values()) {
-    const keptItems = leftover.items.filter(item => item.status === 'rejected')
-    if (keptItems.length) {
-      next.push({ ...leftover, items: keptItems })
-    }
-  }
-
-  return next
+  return [...targets]
 }
 
-function mergeAgentClusterItems(base: AgentClusterItem[], existing: AgentClusterItem[]): AgentClusterItem[] {
-  const existingByArk = new Map(existing.map(item => [item.ark, item]))
-  const merged: AgentClusterItem[] = base.map(item => {
-    const previous = existingByArk.get(item.ark)
-    return previous ? { ...item, status: previous.status } : item
+function buildManualAgentClusterIndex(clusters: AgentCluster[]): Map<string, AgentCluster> {
+  const index = new Map<string, AgentCluster>()
+  clusters.forEach(cluster => {
+    cluster.items.forEach(item => {
+      if (!index.has(item.ark)) {
+        index.set(item.ark, cluster)
+      }
+    })
   })
-
-  for (const item of existing) {
-    if (!base.some(candidate => candidate.ark === item.ark) && item.status === 'rejected') {
-      merged.push(item)
-    }
-  }
-
-  return merged
+  return index
 }

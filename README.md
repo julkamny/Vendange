@@ -104,6 +104,7 @@ Review in the Web UI
 - Bottom-right hover toolbar: unfold it to access the pop-out/dock/full-width Intermarc controls and a backlinks toggle. Expanded backlinks reshape the workspace into three equal columns; folding tucks the backlinks panel back under the record. A fourth button hides or shows the list of entities on the left.
 - UI quality-of-life:
   - Hierarchical selectors show anchors and clustered entries in clearly separated sections with 🍇 for clustered items.
+  - Agents list mirrors work clustering: when an agent has a `90F$q Clusterisation manuelle` pointing to another agent in `90F$3`, the anchor and clustered agents are grouped in the list with checkboxes (single click to grey/remove the 90F, double-click to eject the item back to the main list).
   - Double-click or use user-defined shortcuts on cluster/expression banners to jump between works ⇄ expressions ⇄ manifestations, and the pane auto-scrolls to the linked card.
   - Unchecked expressions automatically move to the independent block; their manifestations are greyed out to signal that they will not change the exported CSV.
   - WEM labels display each 150 / 140 / 245 subfield with its code for faster inspection.

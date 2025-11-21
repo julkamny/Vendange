@@ -79,19 +79,35 @@ class ManifestationTitleContext:
 
 def _clone_intermarc(intermarc: Intermarc) -> Intermarc:
     """Create a fresh copy of an intermarc structure to avoid mutating originals."""
-    return Intermarc(
-        zones=[
+    cloned_zones: List[Zone] = []
+
+    for z in intermarc.zones:
+        manual_cluster = False
+        if z.code == "90F":
+            manual_cluster = any(
+                sz.code == "90F$q" and isinstance(sz.valeur, str) and sz.valeur.lower() == "clusterisation manuelle"
+                for sz in z.sousZones
+            )
+
+        zone_flag = z.affected_by_curation or ("manual" if manual_cluster else None)
+        cloned_subzones = [
+            SousZone(
+                code=sz.code,
+                valeur=sz.valeur,
+                affected_by_curation=sz.affected_by_curation or ("manual" if manual_cluster else None),
+            )
+            for sz in z.sousZones
+        ]
+
+        cloned_zones.append(
             Zone(
                 code=z.code,
-                sousZones=[
-                    SousZone(code=sz.code, valeur=sz.valeur, affected_by_curation=sz.affected_by_curation)
-                    for sz in z.sousZones
-                ],
-                affected_by_curation=z.affected_by_curation,
+                sousZones=cloned_subzones,
+                affected_by_curation=zone_flag,
             )
-            for z in intermarc.zones
-        ]
-    )
+        )
+
+    return Intermarc(zones=cloned_zones)
 
 
 def _expression_work_arks(expr: Entity) -> List[str]:

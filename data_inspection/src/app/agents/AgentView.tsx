@@ -4,7 +4,7 @@ import type { RecordRow } from '../types'
 import { useAgentData, isAgentRecord } from './useAgentData'
 import { useTranslation } from '../hooks/useTranslation'
 import { useAppData } from '../providers/AppDataContext'
-import { buildLabelFromIntermarc } from '../lib/intermarc'
+import { buildLabelFromIntermarc, findZones, addManualAgent90FEntries } from '../lib/intermarc'
 import { IntermarcView } from '../components/IntermarcView'
 import { IntermarcEditor } from '../components/IntermarcEditor'
 import { BacklinksPanel } from '../components/BacklinksPanel'
@@ -31,6 +31,20 @@ type AgentContextMenuState = {
   record: RecordRow
 }
 
+type AgentClusterItem = {
+  ark: string
+  id?: string
+  label: string
+  status: 'accepted' | 'rejected'
+}
+
+type AgentCluster = {
+  anchorId: string
+  anchorArk?: string
+  anchorLabel: string
+  items: AgentClusterItem[]
+}
+
 export function AgentView({
   state,
   onStateChange,
@@ -51,6 +65,86 @@ export function AgentView({
     [],
   )
   const workspaceData = useWorkspaceData(stubWorkspaceState)
+
+  const buildAgentLabel = useCallback(
+    (record: RecordRow | null | undefined) =>
+      record ? buildLabelFromIntermarc(record.intermarc, record.type) || record.id : '',
+    [],
+  )
+
+  const baseAgentClusters = useMemo(
+    () => buildAgentClusters(agents, buildAgentLabel),
+    [agents, buildAgentLabel],
+  )
+
+  const [agentClusters, setAgentClusters] = useState<AgentCluster[]>(baseAgentClusters)
+
+  useEffect(() => {
+    setAgentClusters(prev => mergeAgentClusters(baseAgentClusters, prev))
+  }, [baseAgentClusters])
+
+  const persistManualAgentCluster = useCallback(
+    (anchorId: string, items: AgentClusterItem[]) => {
+      const anchorRecord = getById(anchorId)
+      if (!anchorRecord) return
+      const accepted = items.filter(item => item.status === 'accepted').map(item => ({ ark: item.ark }))
+      const nextIntermarc = addManualAgent90FEntries(anchorRecord.intermarc, accepted)
+      updateRecordIntermarc(anchorRecord.id, nextIntermarc)
+    },
+    [getById, updateRecordIntermarc],
+  )
+
+  const setClusterItemStatus = useCallback(
+    (anchorId: string, targetArk: string, status: AgentClusterItem['status']) => {
+      let nextItems: AgentClusterItem[] | null = null
+      setAgentClusters(prev => {
+        let updated = false
+        const next = prev
+          .map(cluster => {
+            if (cluster.anchorId !== anchorId) return cluster
+            updated = true
+            const items = cluster.items.map(item =>
+              item.ark === targetArk ? { ...item, status } : item,
+            )
+            nextItems = items
+            return { ...cluster, items }
+          })
+          .filter(cluster => cluster.items.length > 0)
+
+        if (!updated) return prev
+        return next
+      })
+      if (nextItems) {
+        persistManualAgentCluster(anchorId, nextItems)
+      }
+    },
+    [persistManualAgentCluster],
+  )
+
+  const removeClusterItem = useCallback(
+    (anchorId: string, targetArk: string) => {
+      let nextItems: AgentClusterItem[] | null = null
+      setAgentClusters(prev => {
+        let updated = false
+        const next = prev
+          .map(cluster => {
+            if (cluster.anchorId !== anchorId) return cluster
+            updated = true
+            const items = cluster.items.filter(item => item.ark !== targetArk)
+            nextItems = items
+            return { ...cluster, items }
+          })
+          .filter(cluster => cluster.items.length > 0)
+
+        if (!updated) return prev
+        return next
+      })
+      if (nextItems !== null) {
+        persistManualAgentCluster(anchorId, nextItems)
+      }
+    },
+    [persistManualAgentCluster],
+  )
 
   const listRef = useRef<HTMLElement | null>(null)
   const detailsRef = useRef<HTMLElement | null>(null)
@@ -253,7 +347,7 @@ export function AgentView({
     const clusterZones: Zone[] = Array.isArray(raw90F) ? raw90F.filter((z): z is Zone => typeof z === 'object' && !!z) : []
     const clustered = clusterZones.some(zone =>
       Array.isArray(zone.subfields) &&
-      zone.subfields.some(sf => sf?.code === 'q' && sf?.value === 'Clusterisation script'),
+      zone.subfields.some(sf => sf?.code === 'q' && (sf?.value === 'Clusterisation script' || sf?.value === 'Clusterisation manuelle')),
     )
     return (
       <div
@@ -272,6 +366,34 @@ export function AgentView({
       </div>
     )
   }
+
+  const collator = useMemo(() => new Intl.Collator('fr', { sensitivity: 'accent' }), [])
+
+  const clusteredAgentIds = useMemo(() => {
+    const ids = new Set<string>()
+    agentClusters.forEach(cluster => {
+      ids.add(cluster.anchorId)
+      cluster.items.forEach(item => {
+        if (item.id) ids.add(item.id)
+      })
+    })
+    return ids
+  }, [agentClusters])
+
+  const sortedEntries = useMemo(() => {
+    type Entry = { kind: 'cluster'; cluster: AgentCluster; title: string } | { kind: 'single'; agent: RecordRow; title: string }
+    const clusterEntries: Entry[] = agentClusters.map(cluster => ({
+      kind: 'cluster',
+      cluster,
+      title: cluster.anchorLabel || cluster.anchorId,
+    }))
+
+    const unclusteredEntries: Entry[] = agents
+      .filter(agent => !clusteredAgentIds.has(agent.id))
+      .map(agent => ({ kind: 'single', agent, title: buildAgentLabel(agent) || agent.id }))
+
+    return [...clusterEntries, ...unclusteredEntries].sort((a, b) => collator.compare(a.title, b.title))
+  }, [agentClusters, agents, buildAgentLabel, collator, clusteredAgentIds])
 
   const workspaceClassName = `workspace-view${intermarcFullView ? ' is-intermarc-full' : ''}${
     backlinksExpanded && selectedRecord ? ' has-backlinks-expanded' : ''
@@ -292,8 +414,80 @@ export function AgentView({
           {!listCollapsed ? (
             <aside className="workspace-panel workspace-panel--list" ref={listRef} onScroll={handleListScroll}>
               <div className="work-list-panel">
-                {agents.map(renderRow)}
-                {!agents.length ? <em>{t('messages.noAgents', { defaultValue: 'No agents found.' })}</em> : null}
+                {sortedEntries.map(entry => {
+                  if (entry.kind === 'single') {
+                    return renderRow(entry.agent)
+                  }
+
+                  const { cluster } = entry
+                  const anchorRecord = getById(cluster.anchorId)
+                  const clusterClasses = ['cluster']
+                  const anchorClasses = ['cluster-header-row', 'entity-row', 'entity-row--person']
+                  if (state.selectedAgentId === cluster.anchorId) anchorClasses.push('selected')
+
+                  return (
+                    <div key={`cluster-${cluster.anchorId}`} className={clusterClasses.join(' ')} data-cluster-anchor-id={cluster.anchorId}>
+                      <div
+                        className={anchorClasses.join(' ')}
+                        data-agent-id={cluster.anchorId}
+                        data-agent-ark={cluster.anchorArk}
+                        onClick={() => {
+                          if (anchorRecord) handleRowClick(anchorRecord)
+                        }}
+                        onContextMenu={event => {
+                          if (!anchorRecord) return
+                          event.preventDefault()
+                          setContextMenu({ position: { x: event.clientX, y: event.clientY }, record: anchorRecord })
+                        }}
+                      >
+                        <div className="cluster-header">
+                          <span className="cluster-anchor-marker">⚓︎</span>
+                          <span className="entity-title">{cluster.anchorLabel || cluster.anchorId}</span>
+                          {cluster.anchorArk ? <span className="entity-id">{cluster.anchorArk}</span> : null}
+                        </div>
+                      </div>
+                      <div className="cluster-items">
+                        {cluster.items.map(item => {
+                          const itemRecord = item.id ? getById(item.id) : null
+                          const rowClasses = ['cluster-item', 'entity-row', 'entity-row--person']
+                          if (item.status === 'rejected') rowClasses.push('unchecked')
+                          if (itemRecord && state.selectedAgentId === itemRecord.id) rowClasses.push('selected')
+
+                          return (
+                            <div
+                              key={`${cluster.anchorId}-${item.ark}`}
+                              className={rowClasses.join(' ')}
+                              data-agent-id={item.id}
+                              data-agent-ark={item.ark}
+                              onClick={() => {
+                                if (itemRecord) handleRowClick(itemRecord)
+                              }}
+                              onContextMenu={event => {
+                                if (!itemRecord) return
+                                event.preventDefault()
+                                setContextMenu({ position: { x: event.clientX, y: event.clientY }, record: itemRecord })
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={item.status === 'accepted'}
+                                onChange={event => setClusterItemStatus(cluster.anchorId, item.ark, event.target.checked ? 'accepted' : 'rejected')}
+                                onDoubleClick={event => {
+                                  event.preventDefault()
+                                  event.stopPropagation()
+                                  removeClusterItem(cluster.anchorId, item.ark)
+                                }}
+                              />
+                              <span className="entity-title">{item.label || item.ark}</span>
+                              <span className="entity-id">{item.ark}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+                {!sortedEntries.length ? <em>{t('messages.noAgents', { defaultValue: 'No agents found.' })}</em> : null}
               </div>
             </aside>
           ) : null}
@@ -459,4 +653,78 @@ export function AgentView({
       ) : null}
     </>
   )
+}
+
+function buildAgentClusters(records: RecordRow[], getLabel: (r: RecordRow) => string): AgentCluster[] {
+  const byArk = new Map<string, RecordRow>()
+  records.forEach(rec => {
+    if (rec.ark) byArk.set(rec.ark, rec)
+  })
+
+  const clusters: AgentCluster[] = []
+
+  for (const record of records) {
+    const zones = findZones(record.intermarc, '90F')
+    const items: AgentClusterItem[] = []
+    for (const zone of zones) {
+      const note = zone.sousZones.find(sz => sz.code === '90F$q')?.valeur?.trim().toLowerCase()
+      if (note !== 'clusterisation manuelle') continue
+      const targetArk = zone.sousZones.find(sz => sz.code === '90F$3')?.valeur
+      if (!targetArk) continue
+      const target = byArk.get(targetArk)
+      items.push({
+        ark: targetArk,
+        id: target?.id,
+        label: target ? getLabel(target) : targetArk,
+        status: 'accepted',
+      })
+    }
+    if (items.length) {
+      clusters.push({
+        anchorId: record.id,
+        anchorArk: record.ark,
+        anchorLabel: getLabel(record) || record.id,
+        items,
+      })
+    }
+  }
+
+  return clusters
+}
+
+function mergeAgentClusters(base: AgentCluster[], current: AgentCluster[]): AgentCluster[] {
+  const currentByAnchor = new Map(current.map(cluster => [cluster.anchorId, cluster]))
+  const next: AgentCluster[] = []
+
+  for (const cluster of base) {
+    const existing = currentByAnchor.get(cluster.anchorId)
+    const mergedItems = mergeAgentClusterItems(cluster.items, existing?.items ?? [])
+    next.push({ ...cluster, items: mergedItems })
+    currentByAnchor.delete(cluster.anchorId)
+  }
+
+  for (const leftover of currentByAnchor.values()) {
+    const keptItems = leftover.items.filter(item => item.status === 'rejected')
+    if (keptItems.length) {
+      next.push({ ...leftover, items: keptItems })
+    }
+  }
+
+  return next
+}
+
+function mergeAgentClusterItems(base: AgentClusterItem[], existing: AgentClusterItem[]): AgentClusterItem[] {
+  const existingByArk = new Map(existing.map(item => [item.ark, item]))
+  const merged: AgentClusterItem[] = base.map(item => {
+    const previous = existingByArk.get(item.ark)
+    return previous ? { ...item, status: previous.status } : item
+  })
+
+  for (const item of existing) {
+    if (!base.some(candidate => candidate.ark === item.ark) && item.status === 'rejected') {
+      merged.push(item)
+    }
+  }
+
+  return merged
 }

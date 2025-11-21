@@ -217,6 +217,7 @@ type PrettyPrintOptions = {
 function curationClass(flag?: string): string {
   if (!flag) return ''
   const normalized = flag.toLowerCase()
+  if (normalized === 'manual') return ' curation-created'
   if (normalized === 'created') return ' curation-created'
   if (normalized === 'modified') return ' curation-modified'
   if (normalized === 'deleted') return ' curation-deleted'
@@ -337,6 +338,26 @@ export function add90FEntries(im: Intermarc, entries: { ark: string; date: strin
       ],
     })
   }
+  return { zones: filtered }
+}
+
+export function addManualAgent90FEntries(im: Intermarc, entries: { ark: string }[]): Intermarc {
+  const zones = im.zones.slice()
+  const filtered = zones.filter(
+    z => !(z.code === '90F' && z.sousZones.some(sz => sz.code === '90F$q' && sz.valeur === 'Clusterisation manuelle')),
+  )
+
+  for (const entry of entries) {
+    filtered.push({
+      code: '90F',
+      affectedByCuration: 'manual',
+      sousZones: [
+        { code: '90F$3', valeur: entry.ark, affectedByCuration: 'manual' },
+        { code: '90F$q', valeur: 'Clusterisation manuelle', affectedByCuration: 'manual' },
+      ],
+    })
+  }
+
   return { zones: filtered }
 }
 

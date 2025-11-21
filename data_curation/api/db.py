@@ -535,6 +535,36 @@ def _extract_manual_agent_targets(intermarc: Intermarc) -> set[str]:
     return targets
 
 
+def _is_manual_anchor(store: Store, ark_index: dict[str, str], target_ark: str) -> bool:
+    target_id = ark_index.get(target_ark)
+    if not target_id:
+        return False
+    query = f"""
+    SELECT ?field ?aff
+    WHERE {{
+      GRAPH <{_record_graph(target_id).value}> {{
+        ?rec <{HAS_FIELD.value}> ?field .
+        ?field <{FIELD_CODE_PROP.value}> "90F" .
+        ?field <{HAS_SUBFIELD.value}> ?subQ .
+        ?subQ <{SUBFIELD_CODE_PROP.value}> "90F$q" .
+        ?subQ <{SUBFIELD_VALUE_PROP.value}> "Clusterisation manuelle" .
+        OPTIONAL {{ ?field <{AFFECTED_BY_CURATION_PROP.value}> ?aff }}
+        OPTIONAL {{ ?subQ <{AFFECTED_BY_CURATION_PROP.value}> ?aff }}
+      }}
+    }}
+    """
+    solutions = store.query(query)
+    if not isinstance(solutions, QuerySolutions):
+        return False
+    for solution in solutions:
+        aff = solution.get("aff")
+        if aff and isinstance(aff, Literal):
+            norm = aff.value.lower()
+            if norm in {"created", "manual"}:
+                return True
+    return False
+
+
 def _ensure_unique_manual_agent_clusters(store: Store, anchor_id: str, intermarc: Intermarc) -> None:
     new_targets = _extract_manual_agent_targets(intermarc)
     if not new_targets:
@@ -572,11 +602,17 @@ def _ensure_unique_manual_agent_clusters(store: Store, anchor_id: str, intermarc
         anchor_record_id = _record_id_from_subject(anchor_iri)
         existing.setdefault(target_value, anchor_record_id)
 
+    ark_index = _load_ark_index(store)
+
     for target in new_targets:
         anchor = existing.get(target)
         if anchor and anchor != anchor_id:
             raise ValueError(
                 f"Impossible d'enregistrer : l'agent {target} est deja rattache au cluster de {anchor}."
+            )
+        if _is_manual_anchor(store, ark_index, target):
+            raise ValueError(
+                f"Impossible d'enregistrer : l'agent {target} est deja ancre d'un cluster manuel."
             )
 
 

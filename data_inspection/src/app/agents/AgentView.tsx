@@ -141,13 +141,21 @@ export function AgentView({
           const label = conflict.anchorLabel || conflict.anchorId
           conflicts.push(`${target} (ancré sur ${label})`)
         }
+        const targetRecord = getByArk(target) || getById(target.replace(/^ark:\//, '')) || null
+        if (isManualAnchor(targetRecord)) {
+          conflicts.push(
+            t('agents.cluster.targetIsAnchor', {
+              defaultValue: 'Impossible : une cible est déjà ancre d’un cluster manuel.',
+            }),
+          )
+        }
       }
 
       if (conflicts.length) {
         throw new Error(
           `Impossible d'enregistrer : ces agents sont déjà rattachés à un autre cluster : ${conflicts.join(', ')}`,
         )
-      }
+    }
 
       updateRecordIntermarc(record.id, next)
     },
@@ -190,11 +198,27 @@ export function AgentView({
     [persistManualAgentCluster],
   )
 
+  const cancelPendingCluster = useCallback(() => {
+    setPendingClusterSourceId(prev => (prev ? null : prev))
+    setPendingClusterTarget(null)
+  }, [])
+
   const confirmPendingCluster = useCallback(() => {
     if (!pendingClusterTarget) return
     const source = getById(pendingClusterTarget.sourceId)
     const anchor = getById(pendingClusterTarget.anchorId)
     if (!source || !anchor) {
+      setPendingClusterTarget(null)
+      setPendingClusterSourceId(null)
+      return
+    }
+    if (isManualAnchor(source)) {
+      showToast(
+        t('agents.cluster.targetIsAnchor', {
+          defaultValue: 'Impossible : cet agent est déjà ancre d’un cluster manuel.',
+        }),
+        { tone: 'error' },
+      )
       setPendingClusterTarget(null)
       setPendingClusterSourceId(null)
       return
@@ -434,6 +458,16 @@ export function AgentView({
 
   const prepareForClustering = useCallback(
     (record: RecordRow) => {
+      if (isManualAnchor(record)) {
+        showToast(
+          t('agents.cluster.targetIsAnchor', {
+            defaultValue: 'Impossible : cet agent est déjà ancre d’un cluster manuel.',
+          }),
+          { tone: 'error' },
+        )
+        setContextMenu(null)
+        return
+      }
       setPendingClusterSourceId(record.id)
       setContextMenu(null)
       showToast(t('agents.cluster.prepared', { defaultValue: 'Agent mis en attente pour un clustering.' }), {
@@ -446,10 +480,20 @@ export function AgentView({
   const requestClusterWith = useCallback(
     (anchor: RecordRow) => {
       if (!pendingSourceRecord || !sameAgentKind(anchor, pendingSourceRecord)) return
+      if (isManualAnchor(pendingSourceRecord)) {
+        showToast(
+          t('agents.cluster.targetIsAnchor', {
+            defaultValue: 'Impossible : cet agent est déjà ancre d’un cluster manuel.',
+          }),
+          { tone: 'error' },
+        )
+        setPendingClusterSourceId(null)
+        return
+      }
       setPendingClusterTarget({ anchorId: anchor.id, sourceId: pendingSourceRecord.id })
       setContextMenu(null)
     },
-    [pendingSourceRecord, sameAgentKind],
+    [pendingSourceRecord, sameAgentKind, showToast, t],
   )
 
   const renderRow = (record: RecordRow) => {
@@ -474,6 +518,9 @@ export function AgentView({
         className={classes.join(' ')}
         data-agent-id={record.id}
         onClick={() => handleRowClick(record)}
+        onDoubleClick={() => {
+          if (pendingClusterSourceId === record.id) cancelPendingCluster()
+        }}
         onContextMenu={e => {
           e.preventDefault()
           setContextMenu({ position: { x: e.clientX, y: e.clientY }, record })
@@ -540,12 +587,12 @@ export function AgentView({
 
                   const { cluster } = entry
                   const anchorRecord = getById(cluster.anchorId)
-                  const clusterClasses = ['cluster']
-                  const anchorClasses = ['cluster-header-row', 'entity-row', 'entity-row--person']
-                  if (state.selectedAgentId === cluster.anchorId) anchorClasses.push('selected')
-                  if (pendingClusterSourceId === cluster.anchorId) anchorClasses.push('pending-cluster-source')
+          const clusterClasses = ['cluster']
+          const anchorClasses = ['cluster-header-row', 'entity-row', 'entity-row--person']
+          if (state.selectedAgentId === cluster.anchorId) anchorClasses.push('selected')
+          if (pendingClusterSourceId === cluster.anchorId) anchorClasses.push('pending-cluster-source')
 
-                  return (
+          return (
                     <div key={`cluster-${cluster.anchorId}`} className={clusterClasses.join(' ')} data-cluster-anchor-id={cluster.anchorId}>
                       <div
                         className={anchorClasses.join(' ')}
@@ -553,6 +600,9 @@ export function AgentView({
                         data-agent-ark={cluster.anchorArk}
                         onClick={() => {
                           if (anchorRecord) handleRowClick(anchorRecord)
+                        }}
+                        onDoubleClick={() => {
+                          if (pendingClusterSourceId === cluster.anchorId) cancelPendingCluster()
                         }}
                         onContextMenu={event => {
                           if (!anchorRecord) return
@@ -581,6 +631,9 @@ export function AgentView({
                               data-agent-ark={item.ark}
                               onClick={() => {
                                 if (itemRecord) handleRowClick(itemRecord)
+                              }}
+                              onDoubleClick={() => {
+                                if (pendingClusterSourceId === item.id) cancelPendingCluster()
                               }}
                               onContextMenu={event => {
                                 if (!itemRecord) return
@@ -867,6 +920,24 @@ function buildManualAgentClusterIndex(clusters: AgentCluster[]): Map<string, Age
   return index
 }
 
+function isManualAnchor(record: RecordRow | null): boolean {
+  if (!record) return false
+  const zones = findZones(record.intermarc, '90F')
+  for (const zone of zones) {
+    const note = zone.sousZones.find(sz => sz.code === '90F$q')?.valeur?.trim().toLowerCase()
+    if (note !== 'clusterisation manuelle') continue
+    const flags: string[] = [
+      zone.affectedByCuration,
+      ...zone.sousZones.map(sz => sz.affectedByCuration),
+    ].filter((f): f is string => typeof f === 'string' && f.length > 0)
+    for (const flag of flags) {
+      const norm = flag.toLowerCase()
+      if (norm === 'created' || norm === 'manual') return true
+    }
+  }
+  return false
+}
+
 type ConfirmClusterModalProps = {
   source: RecordRow | null
   anchor: RecordRow | null
@@ -896,7 +967,7 @@ function ConfirmClusterModal({ source, anchor, onConfirm, onCancel }: ConfirmClu
         </p>
         <div className="modal-actions">
           <button type="button" onClick={onCancel}>
-            {t('buttons.cancel')}
+            {t('buttons.cancel', { defaultValue: 'Annuler' })}
           </button>
           <button type="button" className="workspace-side-toolbar__button--primary" onClick={onConfirm}>
             {t('buttons.confirm', { defaultValue: 'Confirmer' })}

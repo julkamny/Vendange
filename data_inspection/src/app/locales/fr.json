@@ -166,7 +166,8 @@
     "save": "Enregistrer",
     "reset": "Réinitialiser",
     "closeEditor": "Fermer l'éditeur",
-    "confirm": "Confirmer"
+    "confirm": "Confirmer",
+    "cancel": "Annuler"
   },
   "labels": {
     "curated": "Curé",
@@ -213,7 +214,8 @@
       "success": "Agent ajouté au cluster.",
       "confirmTitle": "Confirmer la clusterisation",
       "confirmBody": "Rattacher « {{source}} » ({{sourceArk}}) au cluster de « {{anchor}} » ({{anchorArk}}) ?",
-      "pendingAlreadySelected": "Impossible : cet agent est marqué pour un autre rattachement."
+      "pendingAlreadySelected": "Impossible : cet agent est marqué pour un autre rattachement.",
+      "targetIsAnchor": "Impossible : la cible est déjà ancre d'un cluster manuel."
     }
   },
   "messages": {

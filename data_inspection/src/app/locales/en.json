@@ -166,7 +166,8 @@
     "save": "Save",
     "reset": "Reset",
     "closeEditor": "Close editor",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "cancel": "Cancel"
   },
   "labels": {
     "curated": "Curated",
@@ -213,7 +214,8 @@
       "success": "Agent added to cluster.",
       "confirmTitle": "Confirm clustering",
       "confirmBody": "Attach “{{source}}” ({{sourceArk}}) to the cluster of “{{anchor}}” ({{anchorArk}})?",
-      "pendingAlreadySelected": "Cannot proceed: this agent is already marked for another anchoring."
+      "pendingAlreadySelected": "Cannot proceed: this agent is already marked for another anchoring.",
+      "targetIsAnchor": "Cannot cluster: target is already a manual cluster anchor."
     }
   },
   "messages": {

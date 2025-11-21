@@ -87,8 +87,10 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 
 Review in the Web UI
 - Start the UI: `npm run dev`
+- Use the toolbar’s **Export dataset CSV** button to download the current dataset with your curated changes applied.
 - From the dashboard, upload one or more dataset CSV snapshots. Each upload becomes its own Oxigraph store under `data_curation/api/datasets/`; use the dataset’s **Open** action to inspect or curate it.
 - The inspection view keeps a single in-memory copy of the dataset; pristine snapshots are captured per record only when you edit it, keeping load time and memory footprint low while still allowing per-record reset.
+- Three tab kinds are available from the “+” dropdown: WEM workspace, Agents workspace (people/collectives/families with clustering indicator if you add a 90F$q `Clusterisation script`), and SPARQL query tabs; the dropdown now supports keyboard navigation (Enter/Space to open, arrows to move, Escape to close) and closes reliably on outside clicks.
 - The UI detects clusters by scanning for `90F$q = "Clusterisation script"` in works.
 - Key information about entities is displayed in badges:
   - Expression counters (orange) only appear when at least one manifestation points to the entity.
@@ -96,22 +98,19 @@ Review in the Web UI
   - Expressions display a red *750 links* badge whenever more than one work points to them; manifestations expose an orange *740 links* badge when multiple expressions reference them.
   - Relationship badges show outgoing and incoming 5XX links as `outgoing|incoming`, and are hidden when both values are zero.
   - Agent badges disappear for entities without 7XX contributors.
-- Central panel: list of anchors with merged works (checkbox to accept/reject, option to add ARKs).
+- Central panel: list of anchors with merged works (checkbox to accept/reject).
 - Side panel: prettified Intermarc of selected record. ARK labels keep the human-readable title in the text and surface the identifier on hover, and 140/750/740 links are clickable to open the targeted entity in a new workspace tab.
-- Beneath the record viewer, a backlinks panel lists every work/expression/manifestation that references the selected entity, with segmented titles, a direct ARK shortcut, and the fields where the reference lives; expand it into its own third column when you want the entity list, Intermarc, and backlinks side by side.
-- Bottom-right hover toolbar: unfold it to access the pop-out/dock/full-width Intermarc controls and a backlinks toggle. Expanded backlinks reshape the workspace into three equal columns; folding tucks the backlinks panel back under the record.
-- Use the toolbar’s **Export dataset CSV** button to download the current dataset with your curated changes applied.
+- Below or beside the record viewer, a backlinks panel lists every work/expression/manifestation that references the selected entity, with segmented titles, a direct ARK shortcut, and the fields where the reference lives; expand it into its own third column when you want the entity list, Intermarc, and backlinks side by side.
+- Bottom-right hover toolbar: unfold it to access the pop-out/dock/full-width Intermarc controls and a backlinks toggle. Expanded backlinks reshape the workspace into three equal columns; folding tucks the backlinks panel back under the record. A fourth button hides or shows the list of entities on the left.
 - UI quality-of-life:
   - Hierarchical selectors show anchors and clustered entries in clearly separated sections with 🍇 for clustered items.
   - Double-click or use user-defined shortcuts on cluster/expression banners to jump between works ⇄ expressions ⇄ manifestations, and the pane auto-scrolls to the linked card.
   - Unchecked expressions automatically move to the independent block; their manifestations are greyed out to signal that they will not change the exported CSV.
-  - Manifestation labels mirror work title segmentation, displaying each 245 subfield with its code for faster inspection.
+  - WEM labels display each 150 / 140 / 245 subfield with its code for faster inspection.
   - Workspace tabs can be “unmoored” into their own windows; Intermarc panes in those windows remain synced and offer a full-window toggle for multi-monitor comparisons.
-  - Three tab kinds are available from the “+” dropdown: WEM workspace, Agents workspace (people/collectives/families with clustering indicator if you add a 90F$q `Clusterisation script`), and SPARQL query tabs; the dropdown now supports keyboard navigation (Enter/Space to open, arrows to move, Escape to close) and closes reliably on outside clicks.
   - Right-click any ARK (work/expression/manifestation or agent) to open it in a new tab or directly in a detached window; agent ARKs route to the Agents workspace automatically.
   - Right-click a workspace entity row (work/expression/manifestation) or an Intermarc ARK link to open it in a new workspace tab or launch it directly in a detached workspace window; detached windows start with the Intermarc view expanded by default.
-  - Backlinks expansion now sticks as you browse entities, and a new toolbar control lets you hide/show the entity list; when hidden the Intermarc pane flexes to full width (or 2/3 when backlinks are open) for focused reading.
-  - Keyboard shortcuts now work across WEM, Agents, and SPARQL tabs (even when a tab lives in a detached window): arrows move through WEM/Agents lists, tab cycling works left/right, tiling/cascading again resizes detached windows, and the side-toolbar actions (detach tab, toggle backlinks, list, Intermarc width) are consistent everywhere; configure them in the shortcuts modal.
+  - Keyboard shortcuts work across WEM, Agents, and SPARQL tabs (inline or detached) and stay scoped to the window that currently has focus: arrows move through WEM/Agents lists without syncing other windows, tab cycling works left/right, tiling/cascading again resizes detached windows, and the side-toolbar actions (detach tab, toggle backlinks, list, Intermarc width) are consistent everywhere; configure them in the shortcuts modal.
 
 Editing anchor or independent entities :
 - Click a work anchor, then "Modify record" to open a JSON editor (CodeMirror) for the anchor’s Intermarc.

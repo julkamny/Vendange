@@ -84,33 +84,41 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   }, [curatedRecords])
   const [tabs, setTabs] = useState<WorkspaceTabState[]>(() => [createWorkspaceTab(defaultWorkspaceTitle)])
   const [activeId, setActiveId] = useState(() => tabs[0]?.id ?? '')
+  const [shortcutTargetId, setShortcutTargetId] = useState(() => tabs[0]?.id ?? '')
+  const setActive = useCallback(
+    (id: string) => {
+      setActiveId(id)
+      setShortcutTargetId(id)
+    },
+    [setActiveId, setShortcutTargetId],
+  )
 
   const addTab = useCallback(() => {
     const newTab = createWorkspaceTab(defaultWorkspaceTitle)
     setTabs(prev => [...prev, newTab])
-    setActiveId(newTab.id)
-  }, [defaultWorkspaceTitle])
+    setActive(newTab.id)
+  }, [defaultWorkspaceTitle, setActive])
 
   const addSparqlTab = useCallback(() => {
     const newTab = createDefaultSparqlState(`tab-${++tabSequence}`, defaultSparqlTitle)
     setTabs(prev => [...prev, newTab])
-    setActiveId(newTab.id)
-  }, [defaultSparqlTitle])
+    setActive(newTab.id)
+  }, [defaultSparqlTitle, setActive])
 
   const addAgentTab = useCallback(() => {
     const newTab = createAgentTab(defaultAgentTitle)
     setTabs(prev => [...prev, newTab])
-    setActiveId(newTab.id)
-  }, [defaultAgentTitle])
+    setActive(newTab.id)
+  }, [defaultAgentTitle, setActive])
 
   const openTabWithState = useCallback(
     (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => {
       const base = createWorkspaceTab(defaultWorkspaceTitle)
       const configured = initializer ? initializer(base) : base
       setTabs(prev => [...prev, configured])
-      setActiveId(configured.id)
+      setActive(configured.id)
     },
-    [defaultWorkspaceTitle],
+    [defaultWorkspaceTitle, setActive],
   )
 
   const openAgentTabWithState = useCallback(
@@ -118,9 +126,9 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       const base = createAgentTab(defaultAgentTitle)
       const configured = initializer ? initializer(base) : base
       setTabs(prev => [...prev, configured])
-      setActiveId(configured.id)
+      setActive(configured.id)
     },
-    [defaultAgentTitle],
+    [defaultAgentTitle, setActive],
   )
 
   const closeTab = useCallback(
@@ -136,27 +144,31 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
           const replacement = createWorkspaceTab(defaultWorkspaceTitle)
           next.push(replacement)
           if (!next.some(tab => tab.id === activeId)) {
-            setActiveId(replacement.id)
+            setActive(replacement.id)
           }
           return next
         }
         if (!next.some(tab => tab.id === activeId)) {
           const fallback = next[next.length - 1]
-          setActiveId(fallback.id)
+          setActive(fallback.id)
         }
         return next
       })
     },
-    [activeId, closeWindow, defaultWorkspaceTitle, tabs],
+    [activeId, closeWindow, defaultWorkspaceTitle, setActive, tabs],
   )
 
-  const activate = useCallback((id: string) => setActiveId(id), [])
+  const activate = useCallback((id: string) => setActive(id), [setActive])
 
   const updateTabState = useCallback((id: string, updater: (prev: WorkspaceTabState) => WorkspaceTabState) => {
     setTabs(prev => prev.map(tab => (tab.id === id ? updater(tab) : tab)))
   }, [])
 
   const activeTab = useMemo(() => tabs.find(tab => tab.id === activeId) ?? tabs[0], [tabs, activeId])!
+  const shortcutTab = useMemo(
+    () => tabs.find(tab => tab.id === shortcutTargetId) ?? activeTab,
+    [activeTab, shortcutTargetId, tabs],
+  )
   const fallbackWorkspace = useMemo(
     () => createWorkspaceTab(defaultWorkspaceTitle, '__fallback-workspace__'),
     [defaultWorkspaceTitle],
@@ -165,7 +177,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     () => tabs.find(isWorkspaceTab) ?? fallbackWorkspace,
     [tabs, fallbackWorkspace],
   )
-  const workspaceSource = isWorkspaceTab(activeTab) ? activeTab : firstWorkspaceTab
+  const workspaceSource = isWorkspaceTab(shortcutTab) ? shortcutTab : firstWorkspaceTab
   const workspace = useWorkspaceData(workspaceSource)
   const labelFromRecord = useCallback(
     (record: RecordRow | null) => {
@@ -259,7 +271,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
           tone: 'error',
         })
         setTabs(prev => [...prev, configured])
-        setActiveId(configured.id)
+        setActive(configured.id)
         return
       }
       const detachedState: WorkspaceTabStateWorkspace = {
@@ -269,9 +281,9 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         intermarcFullView: true,
       }
       setTabs(prev => [...prev, detachedState])
-      setActiveId(detachedState.id)
+      setActive(detachedState.id)
     },
-    [defaultWorkspaceTitle, getWorkspaceLabel, openWindow, setTabs, setActiveId, showToast, t],
+    [defaultWorkspaceTitle, getWorkspaceLabel, openWindow, setActive, setTabs, showToast, t],
   )
 
   const openAgentDetachedTabWithState = useCallback(
@@ -296,7 +308,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
           tone: 'error',
         })
         setTabs(prev => [...prev, configured])
-        setActiveId(configured.id)
+        setActive(configured.id)
         return
       }
       const detachedState: AgentTabState = {
@@ -306,9 +318,9 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         intermarcFullView: true,
       }
       setTabs(prev => [...prev, detachedState])
-      setActiveId(detachedState.id)
+      setActive(detachedState.id)
     },
-    [defaultAgentTitle, getWorkspaceLabel, openWindow, setTabs, setActiveId, showToast, t],
+    [defaultAgentTitle, getWorkspaceLabel, openWindow, setActive, setTabs, showToast, t],
   )
 
   const detachWorkspaceTab = useCallback(
@@ -340,9 +352,9 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
             : entry,
         ),
       )
-      setActiveId(tab.id)
+      setActive(tab.id)
     },
-    [getWorkspaceLabel, openWindow, setTabs, showToast, t],
+    [getWorkspaceLabel, openWindow, setActive, setTabs, showToast, t],
   )
 
   const dockWorkspaceTab = useCallback(
@@ -392,9 +404,9 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
             : entry,
         ),
       )
-      setActiveId(tab.id)
+      setActive(tab.id)
     },
-    [getWorkspaceLabel, openWindow, setTabs, showToast, t],
+    [getWorkspaceLabel, openWindow, setActive, setTabs, showToast, t],
   )
 
   const dockAgentTab = useCallback(
@@ -418,10 +430,12 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   const handleShortcutAction = useCallback(
     (action: ShortcutAction) => {
       const activeIsWorkspace = isWorkspaceTab(activeTab)
-      const activeIsAgent = isAgentTab(activeTab)
+      const targetTab = shortcutTab
+      const targetIsWorkspace = isWorkspaceTab(targetTab)
+      const targetIsAgent = isAgentTab(targetTab)
 
-      if (action === 'focusUp' && activeIsWorkspace) {
-        updateTabState(activeTab.id, prev =>
+      if (action === 'focusUp' && targetIsWorkspace) {
+        updateTabState(targetTab.id, prev =>
           isWorkspaceTab(prev)
             ? focusTreeUp(prev, {
               clusters,
@@ -436,8 +450,8 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         return
       }
 
-      if (action === 'focusDown' && activeIsWorkspace) {
-        updateTabState(activeTab.id, prev =>
+      if (action === 'focusDown' && targetIsWorkspace) {
+        updateTabState(targetTab.id, prev =>
           isWorkspaceTab(prev)
             ? focusTreeDown(prev, {
               clusters,
@@ -454,7 +468,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
 
       if (action === 'nextWorkspace' || action === 'previousWorkspace') {
         if (tabs.length <= 1) return
-        const currentIndex = tabs.findIndex(tab => tab.id === activeTab.id)
+        const currentIndex = tabs.findIndex(tab => tab.id === targetTab.id)
         const delta = action === 'nextWorkspace' ? 1 : -1
         const nextIndex =
           currentIndex === -1
@@ -465,21 +479,21 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
                 ? tabs.length - 1
                 : currentIndex + delta
         const nextTab = tabs[nextIndex]
-        if (nextTab) setActiveId(nextTab.id)
+        if (nextTab) setActive(nextTab.id)
         return
       }
 
       if (action === 'listUp' || action === 'listDown') {
-        if (activeIsWorkspace) {
-          navigateList(action === 'listUp' ? 'up' : 'down', activeTab)
-        } else if (activeIsAgent) {
-          navigateAgentList(action === 'listUp' ? 'up' : 'down', activeTab, setTabs)
+        if (targetIsWorkspace) {
+          navigateList(action === 'listUp' ? 'up' : 'down', targetTab)
+        } else if (targetIsAgent) {
+          navigateAgentList(action === 'listUp' ? 'up' : 'down', targetTab, setTabs)
         }
         return
       }
 
       if (action === 'toggleBacklinks') {
-        updateTabState(activeTab.id, prev => {
+        updateTabState(targetTab.id, prev => {
           if (!isWorkspaceLayoutTab(prev)) return prev
           const next = !prev.backlinksExpanded
           return {
@@ -492,7 +506,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       }
 
       if (action === 'toggleList') {
-        updateTabState(activeTab.id, prev => {
+        updateTabState(targetTab.id, prev => {
           if (!isWorkspaceLayoutTab(prev)) return prev
           const next = !prev.listCollapsed
           return {
@@ -505,7 +519,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       }
 
       if (action === 'toggleIntermarc') {
-        updateTabState(activeTab.id, prev => {
+        updateTabState(targetTab.id, prev => {
           if (!isWorkspaceLayoutTab(prev)) return prev
           const next = !prev.intermarcFullView
           return {
@@ -518,17 +532,17 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       }
 
       if (action === 'toggleDetachTab') {
-        if (activeIsWorkspace) {
-          if (activeTab.mode === 'detached') {
-            dockWorkspaceTab(activeTab)
+        if (targetIsWorkspace) {
+          if (targetTab.mode === 'detached') {
+            dockWorkspaceTab(targetTab)
           } else {
-            detachWorkspaceTab(activeTab)
+            detachWorkspaceTab(targetTab)
           }
-        } else if (activeIsAgent) {
-          if (activeTab.mode === 'detached') {
-            dockAgentTab(activeTab)
+        } else if (targetIsAgent) {
+          if (targetTab.mode === 'detached') {
+            dockAgentTab(targetTab)
           } else {
-            detachAgentTab(activeTab)
+            detachAgentTab(targetTab)
           }
         }
         return
@@ -545,22 +559,22 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       }
     },
     [
-      activeTab,
-      updateTabState,
-      clusters,
-      workspace.activeCluster,
-      workspace.activeClusterSource,
-      workspace.inventoryWork,
-      workspace.indexes,
-      curatedRecords,
-      tabs,
-      setActiveId,
-      setTabs,
       arrangeWindows,
+      clusters,
+      curatedRecords,
       detachAgentTab,
       detachWorkspaceTab,
       dockAgentTab,
       dockWorkspaceTab,
+      setActive,
+      setTabs,
+      shortcutTab,
+      tabs,
+      updateTabState,
+      workspace.activeCluster,
+      workspace.activeClusterSource,
+      workspace.indexes,
+      workspace.inventoryWork,
     ],
   )
 
@@ -586,6 +600,8 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     const targets = new Set<Window>()
     const focusHandlers: Array<{ win: Window; handler: () => void }> = []
     targets.add(window)
+    const mainFocusHandler = () => setShortcutTargetId(activeId)
+    window.addEventListener('focus', mainFocusHandler)
     tabs.forEach(tab => {
       if (!isWorkspaceLayoutTab(tab)) return
       if (!tab.detachedWindowId) return
@@ -593,17 +609,18 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       const win = container?.ownerDocument?.defaultView
       if (!win) return
       targets.add(win)
-      const handler = () => setActiveId(tab.id)
+      const handler = () => setShortcutTargetId(tab.id)
       focusHandlers.push({ win, handler })
       win.addEventListener('focus', handler)
     })
 
     targets.forEach(win => win.addEventListener('keydown', handleKeydown))
     return () => {
+      window.removeEventListener('focus', mainFocusHandler)
       targets.forEach(win => win.removeEventListener('keydown', handleKeydown))
       focusHandlers.forEach(({ win, handler }) => win.removeEventListener('focus', handler))
     }
-  }, [bindings, shortcutModalOpen, handleShortcutAction, tabs, getContainer, setActiveId])
+  }, [activeId, bindings, getContainer, handleShortcutAction, setShortcutTargetId, shortcutModalOpen, tabs])
 
   return (
     <div className="workspace-tabs">

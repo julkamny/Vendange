@@ -408,6 +408,12 @@ button:focus-visible {
   min-height: 0;
   align-items: flex-start;
 }
+.workspace-view.is-list-collapsed .workspace-view__body {
+  grid-template-columns: minmax(0, 1fr);
+}
+.workspace-view.is-list-collapsed.has-backlinks-expanded .workspace-view__body {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
 .workspace-view.has-backlinks-expanded .workspace-view__body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }

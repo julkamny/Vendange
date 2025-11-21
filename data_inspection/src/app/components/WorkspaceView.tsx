@@ -169,6 +169,7 @@ export function WorkspaceView({
   }, [isAnchorSelection, isRecordClustered, record, recordInCurated, t])
   const [editingRecord, setEditingRecord] = useState(false)
   const intermarcFullView = state.intermarcFullView
+  const [listCollapsed, setListCollapsed] = useState(false)
   const setIntermarcFullView = useCallback(
     (next: boolean | ((prev: boolean) => boolean)) =>
       onStateChange(prev => {
@@ -186,7 +187,6 @@ export function WorkspaceView({
 
   useEffect(() => {
     setEditingRecord(false)
-    setBacklinksExpanded(false)
   }, [record?.id, mode])
 
   useEffect(() => {
@@ -659,7 +659,7 @@ export function WorkspaceView({
 
   const workspaceClassName = `workspace-view${intermarcFullView ? ' is-intermarc-full' : ''}${
     backlinksExpanded && record ? ' has-backlinks-expanded' : ''
-  }`
+  }${listCollapsed ? ' is-list-collapsed' : ''}`
   const detachLabelFull = t('workspace.openInWindow', { defaultValue: 'Open Intermarc in new window' })
   const dockLabelFull = t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })
   const toggleFullLabelFull = intermarcFullView
@@ -673,13 +673,15 @@ export function WorkspaceView({
         <WorkspaceBreadcrumbs items={breadcrumbs} ariaLabel={t('breadcrumbs.ariaLabel')} />
       </header>
       <div className="workspace-view__body">
-        <aside
-          className="workspace-panel workspace-panel--list"
-          ref={listPanelRef}
-          onScroll={handleListScroll}
-        >
-          {renderListPanel(state.viewMode)}
-        </aside>
+        {!listCollapsed ? (
+          <aside
+            className="workspace-panel workspace-panel--list"
+            ref={listPanelRef}
+            onScroll={handleListScroll}
+          >
+            {renderListPanel(state.viewMode)}
+          </aside>
+        ) : null}
         <section
           className="workspace-panel workspace-panel--details"
           ref={detailsPanelRef}
@@ -777,6 +779,29 @@ export function WorkspaceView({
               🖥️
             </span>
             <span className="workspace-side-toolbar__label">{intermarcFullView ? 'Split' : 'Full'}</span>
+          </button>
+          <button
+            type="button"
+            className="workspace-side-toolbar__button"
+            onClick={() => {
+              if (intermarcFullView) setIntermarcFullView(false)
+              setListCollapsed(prev => !prev)
+            }}
+            aria-pressed={listCollapsed}
+            aria-label={
+              listCollapsed
+                ? t('workspace.showList', { defaultValue: 'Show list' })
+                : t('workspace.hideList', { defaultValue: 'Hide list' })
+            }
+          >
+            <span aria-hidden="true" className="workspace-side-toolbar__icon">
+              {listCollapsed ? '📚' : '🗂️'}
+            </span>
+            <span className="workspace-side-toolbar__label">
+              {listCollapsed
+                ? t('workspace.showList', { defaultValue: 'Show list' })
+                : t('workspace.hideList', { defaultValue: 'Hide list' })}
+            </span>
           </button>
           <button
             type="button"

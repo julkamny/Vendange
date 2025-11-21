@@ -110,6 +110,7 @@ Review in the Web UI
   - Three tab kinds are available from the “+” dropdown: WEM workspace, Agents workspace (people/collectives/families with clustering indicator if you add a 90F$q `Clusterisation script`), and SPARQL query tabs; the dropdown now supports keyboard navigation (Enter/Space to open, arrows to move, Escape to close) and closes reliably on outside clicks.
   - Right-click any ARK (work/expression/manifestation or agent) to open it in a new tab or directly in a detached window; agent ARKs route to the Agents workspace automatically.
   - Right-click a workspace entity row (work/expression/manifestation) or an Intermarc ARK link to open it in a new workspace tab or launch it directly in a detached workspace window; detached windows start with the Intermarc view expanded by default.
+  - Backlinks expansion now sticks as you browse entities, and a new toolbar control lets you hide/show the entity list; when hidden the Intermarc pane flexes to full width (or 2/3 when backlinks are open) for focused reading.
 
 Editing anchor or independent entities :
 - Click a work anchor, then "Modify record" to open a JSON editor (CodeMirror) for the anchor’s Intermarc.

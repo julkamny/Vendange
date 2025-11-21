@@ -57,6 +57,7 @@ export function AgentView({
   const lastScrollKeyRef = useRef<string>('')
   const [editing, setEditing] = useState(false)
   const [backlinksExpanded, setBacklinksExpanded] = useState(false)
+  const [listCollapsed, setListCollapsed] = useState(false)
   const intermarcFullView = state.intermarcFullView
   const [contextMenu, setContextMenu] = useState<AgentContextMenuState | null>(null)
   const tabContext = useMemo(
@@ -92,7 +93,6 @@ export function AgentView({
 
   useEffect(() => {
     setEditing(false)
-    setBacklinksExpanded(false)
   }, [state.selectedAgentId, mode])
 
   useEffect(() => {
@@ -249,7 +249,7 @@ export function AgentView({
 
   const workspaceClassName = `workspace-view${intermarcFullView ? ' is-intermarc-full' : ''}${
     backlinksExpanded && selectedRecord ? ' has-backlinks-expanded' : ''
-  }`
+  }${listCollapsed ? ' is-list-collapsed' : ''}`
   const detachLabelFull = t('workspace.openInWindow', { defaultValue: 'Open Intermarc in new window' })
   const dockLabelFull = t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })
   const toggleFullLabelFull = intermarcFullView
@@ -263,12 +263,14 @@ export function AgentView({
           <h3>{t('workspace.agentsTitle', { defaultValue: 'Agents' })}</h3>
         </header>
         <div className="workspace-view__body">
-          <aside className="workspace-panel workspace-panel--list" ref={listRef} onScroll={handleListScroll}>
-            <div className="work-list-panel">
-              {agents.map(renderRow)}
-              {!agents.length ? <em>{t('messages.noAgents', { defaultValue: 'No agents found.' })}</em> : null}
-            </div>
-          </aside>
+          {!listCollapsed ? (
+            <aside className="workspace-panel workspace-panel--list" ref={listRef} onScroll={handleListScroll}>
+              <div className="work-list-panel">
+                {agents.map(renderRow)}
+                {!agents.length ? <em>{t('messages.noAgents', { defaultValue: 'No agents found.' })}</em> : null}
+              </div>
+            </aside>
+          ) : null}
           <section
             className="workspace-panel workspace-panel--details"
             ref={detailsRef}
@@ -361,6 +363,29 @@ export function AgentView({
                 🖥️
               </span>
               <span className="workspace-side-toolbar__label">{intermarcFullView ? 'Split' : 'Full'}</span>
+            </button>
+            <button
+              type="button"
+              className="workspace-side-toolbar__button"
+              onClick={() => {
+                if (intermarcFullView) setIntermarcFullView(false)
+                setListCollapsed(prev => !prev)
+              }}
+              aria-pressed={listCollapsed}
+              aria-label={
+                listCollapsed
+                  ? t('workspace.showList', { defaultValue: 'Show list' })
+                  : t('workspace.hideList', { defaultValue: 'Hide list' })
+              }
+            >
+              <span aria-hidden="true" className="workspace-side-toolbar__icon">
+                {listCollapsed ? '📚' : '🗂️'}
+              </span>
+              <span className="workspace-side-toolbar__label">
+                {listCollapsed
+                  ? t('workspace.showList', { defaultValue: 'Show list' })
+                  : t('workspace.hideList', { defaultValue: 'Hide list' })}
+              </span>
             </button>
             <button
               type="button"

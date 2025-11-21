@@ -14,6 +14,7 @@ import { WorkspaceContextMenu } from '../components/WorkspaceContextMenu'
 import { configureTabStateForRecord } from '../workspace/tabState'
 import { useWorkspaceData } from '../workspace/useWorkspaceData'
 import { DEFAULT_WORKSPACE_STATE } from '../workspace/types'
+import { useToast } from '../providers/ToastContext'
 
 type AgentViewProps = {
   state: AgentTabState
@@ -56,6 +57,7 @@ export function AgentView({
 }: AgentViewProps) {
   const { t } = useTranslation()
   const { agents } = useAgentData()
+  const { showToast } = useToast()
   const { updateRecordIntermarc, getCuratedBaselineRecord, clusters, curated } = useAppData()
   const { getByArk, getById } = useRecordLookup()
   const { getBacklinksForRecord } = useBacklinks()
@@ -77,6 +79,11 @@ export function AgentView({
   )
 
   const [agentClusters, setAgentClusters] = useState<AgentCluster[]>(baseAgentClusters)
+  const [pendingClusterSourceId, setPendingClusterSourceId] = useState<string | null>(null)
+  const [pendingClusterTarget, setPendingClusterTarget] = useState<{
+    anchorId: string
+    sourceId: string
+  } | null>(null)
 
   useEffect(() => {
     setAgentClusters(baseAgentClusters)
@@ -86,6 +93,17 @@ export function AgentView({
     () => buildManualAgentClusterIndex(agentClusters),
     [agentClusters],
   )
+
+  const pendingSourceRecord = useMemo(
+    () => (pendingClusterSourceId ? getById(pendingClusterSourceId) : null),
+    [getById, pendingClusterSourceId],
+  )
+
+  const sameAgentKind = useCallback((a: RecordRow | null, b: RecordRow | null) => {
+    if (!a || !b) return false
+    const norm = (record: RecordRow) => record.typeNorm?.toLowerCase().trim()
+    return norm(a) === norm(b)
+  }, [])
 
   const handleIntermarcSave = useCallback(
     (record: RecordRow, next: Intermarc) => {
@@ -98,6 +116,21 @@ export function AgentView({
       if (!isAgent) {
         updateRecordIntermarc(record.id, next)
         return
+      }
+
+      if (pendingClusterSourceId && pendingClusterSourceId !== record.id) {
+        const pendingRecord = getById(pendingClusterSourceId)
+        if (pendingRecord) {
+          const pendingArk = pendingRecord.ark
+          const targets = extractManualAgentTargets(next)
+          if (pendingArk && targets.includes(pendingArk)) {
+            throw new Error(
+              t('agents.cluster.pendingAlreadySelected', {
+                defaultValue: 'Impossible : cet agent est marqué pour un autre rattachement.',
+              }),
+            )
+          }
+        }
       }
 
       const targets = extractManualAgentTargets(next)
@@ -156,6 +189,60 @@ export function AgentView({
     },
     [persistManualAgentCluster],
   )
+
+  const confirmPendingCluster = useCallback(() => {
+    if (!pendingClusterTarget) return
+    const source = getById(pendingClusterTarget.sourceId)
+    const anchor = getById(pendingClusterTarget.anchorId)
+    if (!source || !anchor) {
+      setPendingClusterTarget(null)
+      setPendingClusterSourceId(null)
+      return
+    }
+    if (!sameAgentKind(source, anchor)) {
+      showToast(t('agents.cluster.typeMismatch', { defaultValue: 'Les agents doivent être du même type.' }), { tone: 'error' })
+      setPendingClusterTarget(null)
+      return
+    }
+    if (!source.ark) {
+      showToast(t('agents.cluster.missingArk', { defaultValue: "Impossible de clustériser : l'agent n'a pas d'ARK." }), {
+        tone: 'error',
+      })
+      setPendingClusterTarget(null)
+      return
+    }
+    const sourceArk = source.ark
+
+    setAgentClusters(prev => {
+      let found = false
+      const next = prev.map(cluster => {
+        if (cluster.anchorId !== anchor.id) return cluster
+        found = true
+        const existing = cluster.items.some(item => item.ark === sourceArk)
+        const items = existing ? cluster.items : [...cluster.items, { ark: sourceArk, id: source.id, label: buildAgentLabel(source) }]
+        return { ...cluster, items }
+      })
+      if (!found) {
+        next.push({
+          anchorId: anchor.id,
+          anchorArk: anchor.ark,
+          anchorLabel: buildAgentLabel(anchor) || anchor.id,
+          items: [{ ark: sourceArk, id: source.id, label: buildAgentLabel(source) }],
+        })
+      }
+      return next
+    })
+
+    const anchorItems =
+      agentClusters.find(c => c.anchorId === anchor.id)?.items ?? []
+    const merged = anchorItems.some(item => item.ark === sourceArk)
+      ? anchorItems
+      : [...anchorItems, { ark: sourceArk, id: source.id, label: buildAgentLabel(source) }]
+    persistManualAgentCluster(anchor.id, merged)
+    setPendingClusterSourceId(null)
+    setPendingClusterTarget(null)
+    showToast(t('agents.cluster.success', { defaultValue: 'Agent ajouté au cluster.' }), { tone: 'success' })
+  }, [agentClusters, buildAgentLabel, getById, pendingClusterTarget, persistManualAgentCluster, sameAgentKind, showToast, t])
 
   const listRef = useRef<HTMLElement | null>(null)
   const detailsRef = useRef<HTMLElement | null>(null)
@@ -345,11 +432,32 @@ export function AgentView({
     }
   }, [contextMenu])
 
+  const prepareForClustering = useCallback(
+    (record: RecordRow) => {
+      setPendingClusterSourceId(record.id)
+      setContextMenu(null)
+      showToast(t('agents.cluster.prepared', { defaultValue: 'Agent mis en attente pour un clustering.' }), {
+        tone: 'info',
+      })
+    },
+    [showToast, t],
+  )
+
+  const requestClusterWith = useCallback(
+    (anchor: RecordRow) => {
+      if (!pendingSourceRecord || !sameAgentKind(anchor, pendingSourceRecord)) return
+      setPendingClusterTarget({ anchorId: anchor.id, sourceId: pendingSourceRecord.id })
+      setContextMenu(null)
+    },
+    [pendingSourceRecord, sameAgentKind],
+  )
+
   const renderRow = (record: RecordRow) => {
     const classes = ['entity-row', 'entity-row--person']
     if (record.typeNorm === 'collectivite') classes.push('entity-row--collective')
     if (record.typeNorm === 'famille') classes.push('entity-row--person')
     if (state.selectedAgentId === record.id) classes.push('selected')
+    if (pendingClusterSourceId === record.id) classes.push('pending-cluster-source')
     const label = buildLabelFromIntermarc(record.intermarc, record.type) || record.id
 
     type SubField = { code?: string; value?: string }
@@ -393,11 +501,11 @@ export function AgentView({
 
   const sortedEntries = useMemo(() => {
     type Entry = { kind: 'cluster'; cluster: AgentCluster; title: string } | { kind: 'single'; agent: RecordRow; title: string }
-    const clusterEntries: Entry[] = agentClusters.map(cluster => ({
-      kind: 'cluster',
-      cluster,
-      title: cluster.anchorLabel || cluster.anchorId,
-    }))
+      const clusterEntries: Entry[] = agentClusters.map(cluster => ({
+        kind: 'cluster',
+        cluster,
+        title: cluster.anchorLabel || cluster.anchorId,
+      }))
 
     const unclusteredEntries: Entry[] = agents
       .filter(agent => !clusteredAgentIds.has(agent.id))
@@ -435,6 +543,7 @@ export function AgentView({
                   const clusterClasses = ['cluster']
                   const anchorClasses = ['cluster-header-row', 'entity-row', 'entity-row--person']
                   if (state.selectedAgentId === cluster.anchorId) anchorClasses.push('selected')
+                  if (pendingClusterSourceId === cluster.anchorId) anchorClasses.push('pending-cluster-source')
 
                   return (
                     <div key={`cluster-${cluster.anchorId}`} className={clusterClasses.join(' ')} data-cluster-anchor-id={cluster.anchorId}>
@@ -462,6 +571,7 @@ export function AgentView({
                           const itemRecord = item.id ? getById(item.id) : null
                           const rowClasses = ['cluster-item', 'entity-row', 'entity-row--person']
                           if (itemRecord && state.selectedAgentId === itemRecord.id) rowClasses.push('selected')
+                          if (pendingClusterSourceId === item.id) rowClasses.push('pending-cluster-source')
 
                           return (
                             <div
@@ -655,6 +765,31 @@ export function AgentView({
           openDetachedLabel={t('workspace.openInDetachedWindow', {
             defaultValue: 'Open in detached workspace window',
           })}
+          extraActionLabel={
+            !pendingSourceRecord
+              ? t('agents.cluster.prepare', { defaultValue: 'Préparer pour clustering' })
+              : pendingSourceRecord.id !== contextMenu.record.id &&
+                  sameAgentKind(pendingSourceRecord, contextMenu.record)
+                ? t('agents.cluster.clusterWith', { defaultValue: 'Clustériser avec la sélection' })
+                : undefined
+          }
+          extraActionDisabled={
+            Boolean(
+              pendingSourceRecord &&
+                pendingSourceRecord.id !== contextMenu.record.id &&
+                !sameAgentKind(pendingSourceRecord, contextMenu.record),
+            )
+          }
+          onExtraAction={() => {
+            if (!pendingSourceRecord) {
+              prepareForClustering(contextMenu.record)
+            } else if (
+              pendingSourceRecord.id !== contextMenu.record.id &&
+              sameAgentKind(pendingSourceRecord, contextMenu.record)
+            ) {
+              requestClusterWith(contextMenu.record)
+            }
+          }}
           onOpen={() => {
             openRecord(contextMenu.record)
             setContextMenu(null)
@@ -663,6 +798,14 @@ export function AgentView({
             openRecord(contextMenu.record, { detach: true })
             setContextMenu(null)
           }}
+        />
+      ) : null}
+      {pendingClusterTarget ? (
+        <ConfirmClusterModal
+          source={getById(pendingClusterTarget.sourceId) ?? null}
+          anchor={getById(pendingClusterTarget.anchorId) ?? null}
+          onConfirm={confirmPendingCluster}
+          onCancel={() => setPendingClusterTarget(null)}
         />
       ) : null}
     </>
@@ -722,4 +865,44 @@ function buildManualAgentClusterIndex(clusters: AgentCluster[]): Map<string, Age
     })
   })
   return index
+}
+
+type ConfirmClusterModalProps = {
+  source: RecordRow | null
+  anchor: RecordRow | null
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+function ConfirmClusterModal({ source, anchor, onConfirm, onCancel }: ConfirmClusterModalProps) {
+  const { t } = useTranslation()
+  if (!source || !anchor) return null
+
+  const sourceLabel = buildLabelFromIntermarc(source.intermarc, source.type) || source.id
+  const anchorLabel = buildLabelFromIntermarc(anchor.intermarc, anchor.type) || anchor.id
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="modal">
+        <h3>{t('agents.cluster.confirmTitle', { defaultValue: 'Confirmer la clusterisation' })}</h3>
+        <p>
+          {t('agents.cluster.confirmBody', {
+            defaultValue: 'Rattacher « {{source}} » ({{sourceArk}}) au cluster de « {{anchor}} » ({{anchorArk}}) ?',
+            source: sourceLabel,
+            anchor: anchorLabel,
+            sourceArk: source.ark ?? source.id,
+            anchorArk: anchor.ark ?? anchor.id,
+          })}
+        </p>
+        <div className="modal-actions">
+          <button type="button" onClick={onCancel}>
+            {t('buttons.cancel')}
+          </button>
+          <button type="button" className="workspace-side-toolbar__button--primary" onClick={onConfirm}>
+            {t('buttons.confirm', { defaultValue: 'Confirmer' })}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }

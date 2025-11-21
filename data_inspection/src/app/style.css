@@ -1239,6 +1239,12 @@ button:focus-visible {
   border-left: 3px solid color-mix(in srgb, var(--entity-controlled) 55%, transparent);
 }
 
+.pending-cluster-source {
+  opacity: 0.5;
+  filter: grayscale(0.3);
+  pointer-events: none;
+}
+
 .inventory-row {
   margin-bottom: 0.35rem;
 }

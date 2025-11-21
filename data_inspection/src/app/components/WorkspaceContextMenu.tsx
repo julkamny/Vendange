@@ -4,6 +4,9 @@ type WorkspaceContextMenuProps = {
   openDetachedLabel: string
   onOpen: () => void
   onOpenDetached: () => void
+  extraActionLabel?: string
+  extraActionDisabled?: boolean
+  onExtraAction?: () => void
 }
 
 export function WorkspaceContextMenu({
@@ -12,6 +15,9 @@ export function WorkspaceContextMenu({
   openDetachedLabel,
   onOpen,
   onOpenDetached,
+  extraActionLabel,
+  extraActionDisabled,
+  onExtraAction,
 }: WorkspaceContextMenuProps) {
   return (
     <div
@@ -25,6 +31,16 @@ export function WorkspaceContextMenu({
       <button type="button" role="menuitem" onClick={onOpenDetached}>
         {openDetachedLabel}
       </button>
+      {extraActionLabel && onExtraAction ? (
+        <button
+          type="button"
+          role="menuitem"
+          disabled={extraActionDisabled}
+          onClick={onExtraAction}
+        >
+          {extraActionLabel}
+        </button>
+      ) : null}
     </div>
   )
 }

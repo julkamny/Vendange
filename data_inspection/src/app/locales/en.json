@@ -165,7 +165,8 @@
     "modifyRecord": "Modify record",
     "save": "Save",
     "reset": "Reset",
-    "closeEditor": "Close editor"
+    "closeEditor": "Close editor",
+    "confirm": "Confirm"
   },
   "labels": {
     "curated": "Curated",
@@ -201,6 +202,19 @@
     "recordSaved": "Record saved",
     "recordSaveFailed": "Failed to save record",
     "recordReset": "Record restored from curated CSV"
+  },
+  "agents": {
+    "cluster": {
+      "prepare": "Prepare for clustering",
+      "clusterWith": "Cluster selected agent here",
+      "prepared": "Agent marked for clustering.",
+      "typeMismatch": "Agents must be of the same type.",
+      "missingArk": "Cannot cluster agent without an ARK.",
+      "success": "Agent added to cluster.",
+      "confirmTitle": "Confirm clustering",
+      "confirmBody": "Attach “{{source}}” ({{sourceArk}}) to the cluster of “{{anchor}}” ({{anchorArk}})?",
+      "pendingAlreadySelected": "Cannot proceed: this agent is already marked for another anchoring."
+    }
   },
   "messages": {
     "noClusters": "No clusters detected. Load curated CSV produced by the script.",

@@ -165,7 +165,8 @@
     "modifyRecord": "Modifier la notice",
     "save": "Enregistrer",
     "reset": "Réinitialiser",
-    "closeEditor": "Fermer l'éditeur"
+    "closeEditor": "Fermer l'éditeur",
+    "confirm": "Confirmer"
   },
   "labels": {
     "curated": "Curé",
@@ -201,6 +202,19 @@
     "recordSaved": "Notice enregistrée",
     "recordSaveFailed": "Impossible d'enregistrer la notice",
     "recordReset": "Notice restaurée depuis le CSV curé"
+  },
+  "agents": {
+    "cluster": {
+      "prepare": "Préparer pour clustering",
+      "clusterWith": "Clustériser avec la sélection",
+      "prepared": "Agent mis en attente pour clustering.",
+      "typeMismatch": "Les agents doivent être du même type.",
+      "missingArk": "Impossible de clustériser : l'agent n'a pas d'ARK.",
+      "success": "Agent ajouté au cluster.",
+      "confirmTitle": "Confirmer la clusterisation",
+      "confirmBody": "Rattacher « {{source}} » ({{sourceArk}}) au cluster de « {{anchor}} » ({{anchorArk}}) ?",
+      "pendingAlreadySelected": "Impossible : cet agent est marqué pour un autre rattachement."
+    }
   },
   "messages": {
     "noClusters": "Aucun cluster détecté. Chargez un CSV curé produit par le script.",

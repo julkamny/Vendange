@@ -111,6 +111,7 @@ Review in the Web UI
   - Right-click any ARK (work/expression/manifestation or agent) to open it in a new tab or directly in a detached window; agent ARKs route to the Agents workspace automatically.
   - Right-click a workspace entity row (work/expression/manifestation) or an Intermarc ARK link to open it in a new workspace tab or launch it directly in a detached workspace window; detached windows start with the Intermarc view expanded by default.
   - Backlinks expansion now sticks as you browse entities, and a new toolbar control lets you hide/show the entity list; when hidden the Intermarc pane flexes to full width (or 2/3 when backlinks are open) for focused reading.
+  - Keyboard shortcuts now cover tab cycling (left/right), list navigation in agents, window tiling/cascading, and the side-toolbar actions (detach tab, toggle backlinks, list, and Intermarc width); configure them in the shortcuts modal.
 
 Editing anchor or independent entities :
 - Click a work anchor, then "Modify record" to open a JSON editor (CodeMirror) for the anchor’s Intermarc.

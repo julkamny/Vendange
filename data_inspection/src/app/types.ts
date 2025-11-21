@@ -163,6 +163,13 @@ export type ShortcutAction =
   | 'listUp'
   | 'listDown'
   | 'nextWorkspace'
+  | 'previousWorkspace'
+  | 'toggleBacklinks'
+  | 'toggleList'
+  | 'toggleIntermarc'
+  | 'toggleDetachTab'
+  | 'arrangeTile'
+  | 'arrangeCascade'
 
 export type ShortcutConfig = {
   action: ShortcutAction

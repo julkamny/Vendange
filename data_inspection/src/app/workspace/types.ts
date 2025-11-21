@@ -15,6 +15,8 @@ export type WorkspaceTabStateWorkspace = {
   mode: 'inline' | 'detached'
   detachedWindowId: string | null
   intermarcFullView: boolean
+  backlinksExpanded: boolean
+  listCollapsed: boolean
   listScope: InventoryScope
   viewMode: ViewMode
   activeWorkAnchorId: string | null
@@ -37,6 +39,8 @@ export type AgentTabState = {
   mode: 'inline' | 'detached'
   detachedWindowId: string | null
   intermarcFullView: boolean
+  backlinksExpanded: boolean
+  listCollapsed: boolean
   selectedAgentId: string | null
   listScrollTop: number
   detailsScrollTop: number
@@ -63,6 +67,8 @@ export const DEFAULT_WORKSPACE_STATE: Omit<WorkspaceTabStateWorkspace, 'id' | 't
   mode: 'inline',
   detachedWindowId: null,
   intermarcFullView: false,
+  backlinksExpanded: false,
+  listCollapsed: false,
   listScope: 'clusters',
   viewMode: 'works',
   activeWorkAnchorId: null,
@@ -83,6 +89,8 @@ export const DEFAULT_AGENT_STATE: Omit<AgentTabState, 'id' | 'title'> = {
   mode: 'inline',
   detachedWindowId: null,
   intermarcFullView: false,
+  backlinksExpanded: false,
+  listCollapsed: false,
   selectedAgentId: null,
   listScrollTop: 0,
   detailsScrollTop: 0,

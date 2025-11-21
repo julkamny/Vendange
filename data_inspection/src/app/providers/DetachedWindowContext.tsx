@@ -1,5 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useShortcuts } from './ShortcutContext'
+import { shortcutMatchesEvent } from '../core/shortcuts'
 
 type DetachedWindowRecord = {
   id: string
@@ -30,6 +32,7 @@ const DetachedWindowContext = createContext<DetachedWindowContextValue | null>(n
 export function DetachedWindowProvider({ children }: { children: ReactNode }) {
   const [windows, setWindows] = useState<DetachedWindowRecord[]>([])
   const sequenceRef = useRef(0)
+  const { bindings } = useShortcuts()
 
   const getContainer = useCallback(
     (id: string) => windows.find(win => win.id === id)?.container ?? null,
@@ -101,27 +104,19 @@ export function DetachedWindowProvider({ children }: { children: ReactNode }) {
     [windows]
   )
 
-  // Handle global shortcuts
-  const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
-    // Alt+T for Tile (KeyT works regardless of modifiers)
-    if (e.altKey && e.code === 'KeyT') {
-      e.preventDefault()
-      arrangeWindows('tile')
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const action =
+        shortcutMatchesEvent(bindings.arrangeTile, event) ? 'tile' :
+        shortcutMatchesEvent(bindings.arrangeCascade, event) ? 'cascade' :
+        null
+      if (!action) return
+      event.preventDefault()
+      arrangeWindows(action)
     }
-    // Alt+C for Cascade (KeyC works regardless of modifiers)
-    if (e.altKey && e.code === 'KeyC') {
-      e.preventDefault()
-      arrangeWindows('cascade')
-    }
-  }, [arrangeWindows])
-
-  // Attach listener to main window
-  useMemo(() => {
-    if (typeof window !== 'undefined') {
-      window.addEventListener('keydown', handleGlobalKeyDown)
-      return () => window.removeEventListener('keydown', handleGlobalKeyDown)
-    }
-  }, [handleGlobalKeyDown])
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [arrangeWindows, bindings.arrangeCascade, bindings.arrangeTile])
 
   const openWindow = useCallback(
     (options: OpenWindowOptions): string | null => {
@@ -172,7 +167,7 @@ export function DetachedWindowProvider({ children }: { children: ReactNode }) {
       ])
       return id
     },
-    [handleGlobalKeyDown],
+    [],
   )
 
   const value = useMemo(

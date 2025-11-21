@@ -32,6 +32,48 @@ export const SHORTCUTS: ShortcutConfig[] = [
     descriptionKey: 'shortcuts.nextWorkspace.description',
     defaultBinding: 'Ctrl+Alt+ArrowRight',
   },
+  {
+    action: 'previousWorkspace',
+    labelKey: 'shortcuts.previousWorkspace.label',
+    descriptionKey: 'shortcuts.previousWorkspace.description',
+    defaultBinding: 'Ctrl+Alt+ArrowLeft',
+  },
+  {
+    action: 'toggleBacklinks',
+    labelKey: 'shortcuts.toggleBacklinks.label',
+    descriptionKey: 'shortcuts.toggleBacklinks.description',
+    defaultBinding: 'Ctrl+Shift+B',
+  },
+  {
+    action: 'toggleList',
+    labelKey: 'shortcuts.toggleList.label',
+    descriptionKey: 'shortcuts.toggleList.description',
+    defaultBinding: 'Ctrl+Shift+L',
+  },
+  {
+    action: 'toggleIntermarc',
+    labelKey: 'shortcuts.toggleIntermarc.label',
+    descriptionKey: 'shortcuts.toggleIntermarc.description',
+    defaultBinding: 'Ctrl+Shift+I',
+  },
+  {
+    action: 'toggleDetachTab',
+    labelKey: 'shortcuts.toggleDetachTab.label',
+    descriptionKey: 'shortcuts.toggleDetachTab.description',
+    defaultBinding: 'Ctrl+Shift+P',
+  },
+  {
+    action: 'arrangeTile',
+    labelKey: 'shortcuts.arrangeTile.label',
+    descriptionKey: 'shortcuts.arrangeTile.description',
+    defaultBinding: 'Alt+T',
+  },
+  {
+    action: 'arrangeCascade',
+    labelKey: 'shortcuts.arrangeCascade.label',
+    descriptionKey: 'shortcuts.arrangeCascade.description',
+    defaultBinding: 'Alt+C',
+  },
 ]
 
 export type ShortcutBindings = Record<ShortcutAction, string>

@@ -56,8 +56,8 @@ export function AgentView({
   const detailsRef = useRef<HTMLElement | null>(null)
   const lastScrollKeyRef = useRef<string>('')
   const [editing, setEditing] = useState(false)
-  const [backlinksExpanded, setBacklinksExpanded] = useState(false)
-  const [listCollapsed, setListCollapsed] = useState(false)
+  const backlinksExpanded = state.backlinksExpanded
+  const listCollapsed = state.listCollapsed
   const intermarcFullView = state.intermarcFullView
   const [contextMenu, setContextMenu] = useState<AgentContextMenuState | null>(null)
   const tabContext = useMemo(
@@ -75,6 +75,32 @@ export function AgentView({
         const resolved = typeof next === 'function' ? next(prev.intermarcFullView) : next
         if (resolved === prev.intermarcFullView) return prev
         return { ...prev, intermarcFullView: resolved }
+      }),
+    [onStateChange],
+  )
+  const setBacklinksExpanded = useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) =>
+      onStateChange(prev => {
+        const resolved = typeof next === 'function' ? next(prev.backlinksExpanded) : next
+        if (resolved === prev.backlinksExpanded) return prev
+        return {
+          ...prev,
+          backlinksExpanded: resolved,
+          intermarcFullView: resolved && prev.intermarcFullView ? false : prev.intermarcFullView,
+        }
+      }),
+    [onStateChange],
+  )
+  const setListCollapsed = useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) =>
+      onStateChange(prev => {
+        const resolved = typeof next === 'function' ? next(prev.listCollapsed) : next
+        if (resolved === prev.listCollapsed) return prev
+        return {
+          ...prev,
+          listCollapsed: resolved,
+          intermarcFullView: resolved && prev.intermarcFullView ? false : prev.intermarcFullView,
+        }
       }),
     [onStateChange],
   )

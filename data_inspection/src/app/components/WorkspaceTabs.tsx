@@ -60,7 +60,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   const { t } = useTranslation()
   const { bindings } = useShortcuts()
   const { clusters, curated } = useAppData()
-  const { openWindow, closeWindow, getContainer, isOpen } = useDetachedWindows()
+  const { openWindow, closeWindow, getContainer, isOpen, arrangeWindows } = useDetachedWindows()
   const { showToast } = useToast()
   const curatedRecords = useMemo(() => curated?.records ?? [], [curated])
   const defaultWorkspaceTitle = useMemo(
@@ -464,8 +464,80 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         if (nextTab) setActiveId(nextTab.id)
         return
       }
+      if (action === 'previousWorkspace') {
+        if (tabs.length <= 1) return
+        const currentIndex = tabs.findIndex(tab => tab.id === activeTab.id)
+        const nextIndex = currentIndex <= 0 ? tabs.length - 1 : currentIndex - 1
+        const nextTab = tabs[nextIndex]
+        if (nextTab) setActiveId(nextTab.id)
+        return
+      }
       if (action === 'listUp' || action === 'listDown') {
-        navigateList(action === 'listUp' ? 'up' : 'down', activeTab)
+        if (isWorkspaceTab(activeTab)) {
+          navigateList(action === 'listUp' ? 'up' : 'down', activeTab)
+        } else if (isAgentTab(activeTab)) {
+          navigateAgentList(action === 'listUp' ? 'up' : 'down', activeTab, setTabs)
+        }
+        return
+      }
+      if (action === 'toggleBacklinks') {
+        updateTabState(activeTab.id, prev => {
+          if (!isWorkspaceTab(prev) && !isAgentTab(prev)) return prev
+          const next = !prev.backlinksExpanded
+          return {
+            ...prev,
+            backlinksExpanded: next,
+            intermarcFullView: next && prev.intermarcFullView ? false : prev.intermarcFullView,
+          }
+        })
+        return
+      }
+      if (action === 'toggleList') {
+        updateTabState(activeTab.id, prev => {
+          if (!isWorkspaceTab(prev) && !isAgentTab(prev)) return prev
+          const next = !prev.listCollapsed
+          return {
+            ...prev,
+            listCollapsed: next,
+            intermarcFullView: next && prev.intermarcFullView ? false : prev.intermarcFullView,
+          }
+        })
+        return
+      }
+      if (action === 'toggleIntermarc') {
+        updateTabState(activeTab.id, prev => {
+          if (!isWorkspaceTab(prev) && !isAgentTab(prev)) return prev
+          const next = !prev.intermarcFullView
+          return {
+            ...prev,
+            intermarcFullView: next,
+            backlinksExpanded: next ? false : prev.backlinksExpanded,
+          }
+        })
+        return
+      }
+      if (action === 'toggleDetachTab') {
+        if (isWorkspaceTab(activeTab)) {
+          if (activeTab.mode === 'detached') {
+            dockWorkspaceTab(activeTab)
+          } else {
+            detachWorkspaceTab(activeTab)
+          }
+        } else if (isAgentTab(activeTab)) {
+          if (activeTab.mode === 'detached') {
+            dockAgentTab(activeTab)
+          } else {
+            detachAgentTab(activeTab)
+          }
+        }
+        return
+      }
+      if (action === 'arrangeTile') {
+        arrangeWindows('tile')
+        return
+      }
+      if (action === 'arrangeCascade') {
+        arrangeWindows('cascade')
         return
       }
     },
@@ -480,6 +552,12 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       curatedRecords,
       tabs,
       setActiveId,
+      setTabs,
+      arrangeWindows,
+      detachAgentTab,
+      detachWorkspaceTab,
+      dockAgentTab,
+      dockWorkspaceTab,
     ],
   )
 
@@ -1021,6 +1099,12 @@ type ManifestationListEntry = {
   manifestationId: string
 }
 
+type AgentListEntry = {
+  row: HTMLElement
+  trigger: HTMLElement
+  agentId: string
+}
+
 function navigateList(direction: NavigationDirection, state: WorkspaceTabStateWorkspace) {
   if (state.viewMode === 'works') {
     navigateWorkList(direction, state)
@@ -1029,6 +1113,35 @@ function navigateList(direction: NavigationDirection, state: WorkspaceTabStateWo
   } else if (state.viewMode === 'manifestations') {
     navigateManifestationList(direction, state)
   }
+}
+
+function navigateAgentList(direction: NavigationDirection, state: AgentTabState, setTabs: (updater: (prev: WorkspaceTabState[]) => WorkspaceTabState[]) => void) {
+  if (typeof document === 'undefined') return
+  const panel = document.querySelector('.work-list-panel')
+  if (!panel) return
+  const rows = Array.from(panel.querySelectorAll<HTMLElement>('.entity-row'))
+  if (!rows.length) return
+
+  const entries: AgentListEntry[] = rows
+    .map(row => {
+      const trigger = row
+      const agentId = row.dataset.agentId || ''
+      if (!agentId) return null
+      return { row, trigger, agentId }
+    })
+    .filter((entry): entry is AgentListEntry => !!entry && !!entry.agentId)
+
+  if (!entries.length) return
+
+  const currentId = state.selectedAgentId
+  const currentIndex = currentId ? entries.findIndex(entry => entry.agentId === currentId) : -1
+  const nextIndex = computeNextIndex(entries.length, currentIndex, direction)
+  if (nextIndex === null) return
+  const target = entries[nextIndex]
+  activateEntry(target)
+  setTabs(prev =>
+    prev.map(tab => (isAgentTab(tab) && tab.id === state.id ? { ...tab, selectedAgentId: target.agentId } : tab)),
+  )
 }
 
 function navigateWorkList(direction: NavigationDirection, state: WorkspaceTabStateWorkspace) {

@@ -169,7 +169,8 @@ export function WorkspaceView({
   }, [isAnchorSelection, isRecordClustered, record, recordInCurated, t])
   const [editingRecord, setEditingRecord] = useState(false)
   const intermarcFullView = state.intermarcFullView
-  const [listCollapsed, setListCollapsed] = useState(false)
+  const backlinksExpanded = state.backlinksExpanded
+  const listCollapsed = state.listCollapsed
   const setIntermarcFullView = useCallback(
     (next: boolean | ((prev: boolean) => boolean)) =>
       onStateChange(prev => {
@@ -179,7 +180,32 @@ export function WorkspaceView({
       }),
     [onStateChange],
   )
-  const [backlinksExpanded, setBacklinksExpanded] = useState(false)
+  const setBacklinksExpanded = useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) =>
+      onStateChange(prev => {
+        const resolved = typeof next === 'function' ? next(prev.backlinksExpanded) : next
+        if (resolved === prev.backlinksExpanded) return prev
+        return {
+          ...prev,
+          backlinksExpanded: resolved,
+          intermarcFullView: resolved && prev.intermarcFullView ? false : prev.intermarcFullView,
+        }
+      }),
+    [onStateChange],
+  )
+  const setListCollapsed = useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) =>
+      onStateChange(prev => {
+        const resolved = typeof next === 'function' ? next(prev.listCollapsed) : next
+        if (resolved === prev.listCollapsed) return prev
+        return {
+          ...prev,
+          listCollapsed: resolved,
+          intermarcFullView: resolved && prev.intermarcFullView ? false : prev.intermarcFullView,
+        }
+      }),
+    [onStateChange],
+  )
   const listPanelRef = useRef<HTMLElement | null>(null)
   const detailsPanelRef = useRef<HTMLElement | null>(null)
   const lastScrollKeyRef = useRef<string>('')

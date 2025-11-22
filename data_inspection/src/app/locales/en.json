@@ -282,6 +282,8 @@
     "expressions_other": "{{count}} expressions",
     "manifestations_one": "{{count}} manifestation",
     "manifestations_other": "{{count}} manifestations",
+    "works_one": "{{count}} work",
+    "works_other": "{{count}} works",
     "relationships_one": "{{count}} general relationship",
     "relationships_other": "{{count}} general relationships",
     "workLinks_one": "{{count}} link to a work",

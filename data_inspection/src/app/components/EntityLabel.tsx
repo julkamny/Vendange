@@ -22,6 +22,7 @@ export function EntityPill({ type, text, tooltip }: EntityPillProps) {
 const BADGE_LABEL_KEYS: Record<CountBadgeKind, string> = {
   expressions: 'badges.expressions',
   manifestations: 'badges.manifestations',
+  works: 'badges.works',
   workLinks: 'badges.workLinks',
   expressionLinks: 'badges.expressionLinks',
 }
@@ -91,7 +92,7 @@ export function EntityLabel({
   const visibleCounts = useMemo(() => {
     if (!counts) return []
     const entries: Array<{ kind: CountBadgeKind; value: number }> = []
-    ;(['expressions', 'manifestations', 'workLinks', 'expressionLinks'] as CountBadgeKind[]).forEach(kind => {
+    ;(['expressions', 'manifestations', 'works', 'workLinks', 'expressionLinks'] as CountBadgeKind[]).forEach(kind => {
       const value = counts[kind]
       if (typeof value !== 'number') return
       const shouldDisplay =

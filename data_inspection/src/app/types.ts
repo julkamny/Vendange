@@ -131,7 +131,7 @@ export type EntityTitleSegment = {
   value: string
 }
 
-export type CountBadgeKind = 'expressions' | 'manifestations' | 'workLinks' | 'expressionLinks'
+export type CountBadgeKind = 'expressions' | 'manifestations' | 'works' | 'workLinks' | 'expressionLinks'
 
 export type InventoryEntityContext = {
   workArk?: string | null

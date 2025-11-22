@@ -1402,14 +1402,14 @@ button:focus-visible {
   border-color: color-mix(in srgb, var(--entity-manifestation) 45%, transparent);
 }
 .entity-pill-person {
-  background: var(--pill-person-bg);
-  color: var(--pill-person-fg);
-  border-color: color-mix(in srgb, var(--entity-person) 45%, transparent);
+  background: rgb(91, 151, 211);
+  color: #0d1c2e;
+  border-color: color-mix(in srgb, rgb(91, 151, 211) 45%, transparent);
 }
 .entity-pill-collective {
-  background: var(--pill-collective-bg);
-  color: var(--pill-collective-fg);
-  border-color: color-mix(in srgb, var(--entity-collective) 45%, transparent);
+  background: rgb(93, 151, 166);
+  color: #0d1f23;
+  border-color: color-mix(in srgb, rgb(93, 151, 166) 45%, transparent);
 }
 .entity-pill-brand {
   background: var(--pill-brand-bg);
@@ -1426,6 +1426,11 @@ button:focus-visible {
   background: var(--pill-concept-bg);
   color: var(--pill-concept-fg);
   border-color: color-mix(in srgb, var(--entity-concept) 45%, transparent);
+}
+.entity-pill-family {
+  background: rgb(143, 190, 208);
+  color: #0d2a3a;
+  border-color: color-mix(in srgb, rgb(143, 190, 208) 60%, transparent);
 }
 .entity-pill-controlled {
   background: var(--pill-controlled-bg);
@@ -1448,6 +1453,11 @@ button:focus-visible {
   background: var(--pill-manifestation-bg);
   color: var(--pill-manifestation-fg);
   border-color: color-mix(in srgb, var(--entity-manifestation) 45%, transparent);
+}
+.entity-count-badge--works {
+  background: var(--pill-work-bg);
+  color: var(--pill-work-fg);
+  border-color: color-mix(in srgb, var(--entity-work) 45%, transparent);
 }
 .entity-count-badge--workLinks {
   background: var(--pill-work-bg);

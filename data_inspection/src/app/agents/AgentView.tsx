@@ -11,10 +11,12 @@ import { BacklinksPanel } from '../components/BacklinksPanel'
 import { useBacklinks } from '../hooks/useBacklinks'
 import { useRecordLookup } from '../hooks/useRecordLookup'
 import { WorkspaceContextMenu } from '../components/WorkspaceContextMenu'
+import { EntityLabel } from '../components/EntityLabel'
 import { configureTabStateForRecord } from '../workspace/tabState'
 import { useWorkspaceData } from '../workspace/useWorkspaceData'
 import { DEFAULT_WORKSPACE_STATE } from '../workspace/types'
 import { useToast } from '../providers/ToastContext'
+import { agentTitleSegments } from '../core/entities'
 
 type AgentViewProps = {
   state: AgentTabState
@@ -503,6 +505,15 @@ export function AgentView({
     if (state.selectedAgentId === record.id) classes.push('selected')
     if (pendingClusterSourceId === record.id) classes.push('pending-cluster-source')
     const label = buildLabelFromIntermarc(record.intermarc, record.type) || record.id
+    const segments = agentTitleSegments(record)
+    const counts = backlinkCounts(record)
+    const pillType =
+      record.typeNorm === 'collectivite'
+        ? 'collective'
+        : record.typeNorm === 'famille'
+          ? 'family'
+          : 'person'
+    const badges = [{ type: pillType, text: record.id, tooltip: record.ark ?? record.id }]
 
     type SubField = { code?: string; value?: string }
     type Zone = { subfields?: SubField[] }
@@ -526,14 +537,30 @@ export function AgentView({
           setContextMenu({ position: { x: e.clientX, y: e.clientY }, record })
         }}
       >
-        <span className="entity-title">{label}</span>
-        {record.ark ? <span className="entity-id">{record.ark}</span> : null}
+        <EntityLabel title={label} titleSegments={segments} badges={badges} counts={counts} />
         {clustered ? <span className="entity-cluster-flag">🍇</span> : null}
       </div>
     )
   }
 
   const collator = useMemo(() => new Intl.Collator('fr', { sensitivity: 'accent' }), [])
+
+  const backlinkCounts = useCallback(
+    (record: RecordRow): Partial<Record<'works' | 'expressions' | 'manifestations', number>> => {
+      const backlinks = getBacklinksForRecord(record)
+      let works = 0
+      let expressions = 0
+      let manifestations = 0
+      backlinks.forEach(entry => {
+        const type = entry.record.typeNorm.toLowerCase()
+        if (type === 'oeuvre' || type === 'work') works += 1
+        else if (type === 'expression') expressions += 1
+        else if (type === 'manifestation') manifestations += 1
+      })
+      return { works, expressions, manifestations }
+    },
+    [getBacklinksForRecord],
+  )
 
   const clusteredAgentIds = useMemo(() => {
     const ids = new Set<string>()
@@ -587,12 +614,12 @@ export function AgentView({
 
                   const { cluster } = entry
                   const anchorRecord = getById(cluster.anchorId)
-          const clusterClasses = ['cluster']
-          const anchorClasses = ['cluster-header-row', 'entity-row', 'entity-row--person']
-          if (state.selectedAgentId === cluster.anchorId) anchorClasses.push('selected')
-          if (pendingClusterSourceId === cluster.anchorId) anchorClasses.push('pending-cluster-source')
+                  const clusterClasses = ['cluster']
+                  const anchorClasses = ['cluster-header-row', 'entity-row', 'entity-row--person']
+                  if (state.selectedAgentId === cluster.anchorId) anchorClasses.push('selected')
+                  if (pendingClusterSourceId === cluster.anchorId) anchorClasses.push('pending-cluster-source')
 
-          return (
+                  return (
                     <div key={`cluster-${cluster.anchorId}`} className={clusterClasses.join(' ')} data-cluster-anchor-id={cluster.anchorId}>
                       <div
                         className={anchorClasses.join(' ')}
@@ -612,8 +639,27 @@ export function AgentView({
                       >
                         <div className="cluster-header">
                           <span className="cluster-anchor-marker">⚓︎</span>
-                          <span className="entity-title">{cluster.anchorLabel || cluster.anchorId}</span>
-                          {cluster.anchorArk ? <span className="entity-id">{cluster.anchorArk}</span> : null}
+                          {anchorRecord ? (
+                            <EntityLabel
+                              title={cluster.anchorLabel || cluster.anchorId}
+                              titleSegments={agentTitleSegments(anchorRecord)}
+                              badges={[
+                                {
+                                  type:
+                                    anchorRecord.typeNorm === 'collectivite'
+                                      ? 'collective'
+                                      : anchorRecord.typeNorm === 'famille'
+                                        ? 'family'
+                                        : 'person',
+                                  text: anchorRecord.id,
+                                  tooltip: anchorRecord.ark ?? anchorRecord.id,
+                                },
+                              ]}
+                              counts={backlinkCounts(anchorRecord)}
+                            />
+                          ) : (
+                            <span className="entity-title">{cluster.anchorLabel || cluster.anchorId}</span>
+                          )}
                         </div>
                       </div>
                       <div className="cluster-items">
@@ -655,8 +701,30 @@ export function AgentView({
                                   removeClusterItem(cluster.anchorId, item.ark)
                                 }}
                               />
-                              <span className="entity-title">{item.label || item.ark}</span>
-                              <span className="entity-id">{item.ark}</span>
+                              {itemRecord ? (
+                                <EntityLabel
+                                  title={item.label || item.ark}
+                                  titleSegments={agentTitleSegments(itemRecord)}
+                                  badges={[
+                                    {
+                                      type:
+                                        itemRecord.typeNorm === 'collectivite'
+                                          ? 'collective'
+                                          : itemRecord.typeNorm === 'famille'
+                                            ? 'family'
+                                            : 'person',
+                                      text: itemRecord.id,
+                                      tooltip: itemRecord.ark ?? itemRecord.id,
+                                    },
+                                  ]}
+                                  counts={backlinkCounts(itemRecord)}
+                                />
+                              ) : (
+                                <>
+                                  <span className="entity-title">{item.label || item.ark}</span>
+                                  <span className="entity-id">{item.ark}</span>
+                                </>
+                              )}
                             </div>
                           )
                         })}

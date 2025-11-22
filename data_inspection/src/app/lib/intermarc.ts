@@ -80,11 +80,16 @@ export function buildLabelFromIntermarc(im: Intermarc, type: string): string | u
       const parts = [
         getFirstSubZoneValue(im, '100', '100$a'),
         getFirstSubZoneValue(im, '100', '100$m'),
+        getFirstSubZoneValue(im, '100', '100$d'),
       ].filter((p): p is string => !!p)
       return parts.length ? parts.join(' ') : undefined
     }
-    case 'collectivite':
-      return getFirstSubZoneValue(im, '110', '110$a')
+    case 'collectivite': {
+      const main = getFirstSubZoneValue(im, '110', '110$a')
+      const qualifier = getFirstSubZoneValue(im, '110', '110$q')
+      if (main && qualifier) return `${main} — ${qualifier}`
+      return main
+    }
     case 'manifestation':
       return getFirstSubZoneValue(im, '245', '245$a')
     case 'expression': {

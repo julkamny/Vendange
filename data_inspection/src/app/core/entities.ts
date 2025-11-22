@@ -134,6 +134,22 @@ export function countExpressionWorkLinks(rec: RecordRow): number {
   return arks.size
 }
 
+export function agentTitleSegments(rec: RecordRow): EntityTitleSegment[] {
+  const norm = rec.typeNorm.toLowerCase()
+  const zoneCode = norm === 'collectivite' ? '110' : norm === 'famille' ? '120' : '100'
+  const zone = findZones(rec.intermarc, zoneCode)[0]
+  if (!zone) return []
+  const segments: EntityTitleSegment[] = []
+  for (const sz of zone.sousZones) {
+    const value = typeof sz.valeur === 'string' ? sz.valeur.trim() : ''
+    if (!value) continue
+    const labelSource = extractSubfieldLabel(sz.code)
+    const label = labelSource ? labelSource.toUpperCase() : sz.code
+    segments.push({ code: sz.code, label, value })
+  }
+  return segments
+}
+
 export function countManifestationExpressionLinks(rec: RecordRow): number {
   if (rec.typeNorm !== 'manifestation') return 0
   const zones = findZones(rec.intermarc, '740')

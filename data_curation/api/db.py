@@ -569,7 +569,7 @@ def _is_manual_anchor(store: Store, ark_index: dict[str, str], target_ark: str) 
         ?rec <{HAS_FIELD.value}> ?field .
         ?field <{FIELD_CODE_PROP.value}> "90F" .
         ?field <{HAS_SUBFIELD.value}> ?subQ .
-        ?subQ <{SUBFIELD_CODE_PROP.value}> "90F$q" .
+        ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
         ?subQ <{SUBFIELD_VALUE_PROP.value}> "Clusterisation manuelle" .
         OPTIONAL {{ ?field <{AFFECTED_BY_CURATION_PROP.value}> ?aff }}
         OPTIONAL {{ ?subQ <{AFFECTED_BY_CURATION_PROP.value}> ?aff }}
@@ -600,10 +600,10 @@ def _ensure_unique_manual_agent_clusters(store: Store, anchor_id: str, intermarc
         ?anchor <{HAS_FIELD.value}> ?field .
         ?field <{FIELD_CODE_PROP.value}> "90F" .
         ?field <{HAS_SUBFIELD.value}> ?subQ .
-        ?subQ <{SUBFIELD_CODE_PROP.value}> "90F$q" .
+        ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
         ?subQ <{SUBFIELD_VALUE_PROP.value}> "Clusterisation manuelle" .
         ?field <{HAS_SUBFIELD.value}> ?subT .
-        ?subT <{SUBFIELD_CODE_PROP.value}> "90F$3" .
+        ?subT <{SUBFIELD_CODE_PROP.value}> "90Fs3" .
         ?subT <{SUBFIELD_VALUE_PROP.value}> ?target .
       }}
     }}
@@ -614,8 +614,14 @@ def _ensure_unique_manual_agent_clusters(store: Store, anchor_id: str, intermarc
     if not isinstance(solutions, QuerySolutions):
         raise ValueError("Manual cluster query did not return a SELECT result set")
     for solution in solutions:
-        anchor_node = solution.get("anchor")
-        target_node = solution.get("target")
+        try:
+            anchor_node = solution["anchor"]
+        except (KeyError, TypeError):
+            anchor_node = None
+        try:
+            target_node = solution["target"]
+        except (KeyError, TypeError):
+            target_node = None
         if not anchor_node or not target_node:
             continue
         anchor_iri = getattr(anchor_node, "value", None)
@@ -671,7 +677,7 @@ def _is_work_anchor(store: Store, ark_index: dict[str, str], target_ark: str) ->
         ?rec <{HAS_FIELD.value}> ?field .
         ?field <{FIELD_CODE_PROP.value}> "90F" .
         ?field <{HAS_SUBFIELD.value}> ?subQ .
-        ?subQ <{SUBFIELD_CODE_PROP.value}> "90F$q" .
+        ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
         ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
         FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
         OPTIONAL {{ ?field <{AFFECTED_BY_CURATION_PROP.value}> ?aff }}
@@ -703,12 +709,12 @@ def _ensure_unique_work_clusters(store: Store, anchor_id: str, intermarc: Interm
         ?anchor <{HAS_FIELD.value}> ?field .
         ?field <{FIELD_CODE_PROP.value}> "90F" .
         ?field <{HAS_SUBFIELD.value}> ?subQ .
-        ?subQ <{SUBFIELD_CODE_PROP.value}> "90F$q" .
+        ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
         ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
         FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
         ?field <{HAS_SUBFIELD.value}> ?subT .
         ?subT <{SUBFIELD_CODE_PROP.value}> ?codeTarget .
-        FILTER(?codeTarget = "90F$3" || ?codeTarget = "90F$a")
+        FILTER(?codeTarget = "90Fs3" || ?codeTarget = "90Fsa")
         ?subT <{SUBFIELD_VALUE_PROP.value}> ?target .
       }}
     }}
@@ -719,8 +725,14 @@ def _ensure_unique_work_clusters(store: Store, anchor_id: str, intermarc: Interm
     if not isinstance(solutions, QuerySolutions):
         raise ValueError("Manual cluster query did not return a SELECT result set")
     for solution in solutions:
-        anchor_node = solution.get("anchor")
-        target_node = solution.get("target")
+        try:
+            anchor_node = solution["anchor"]
+        except (KeyError, TypeError):
+            anchor_node = None
+        try:
+            target_node = solution["target"]
+        except (KeyError, TypeError):
+            target_node = None
         if not anchor_node or not target_node:
             continue
         anchor_iri = getattr(anchor_node, "value", None)
@@ -803,7 +815,7 @@ def _is_expression_anchor(store: Store, ark_index: dict[str, str], target_ark: s
         ?rec <{HAS_FIELD.value}> ?field .
         ?field <{FIELD_CODE_PROP.value}> "90F" .
         ?field <{HAS_SUBFIELD.value}> ?subQ .
-        ?subQ <{SUBFIELD_CODE_PROP.value}> "90F$q" .
+        ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
         ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
         FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
         OPTIONAL {{ ?field <{AFFECTED_BY_CURATION_PROP.value}> ?aff }}
@@ -815,7 +827,10 @@ def _is_expression_anchor(store: Store, ark_index: dict[str, str], target_ark: s
     if not isinstance(solutions, QuerySolutions):
         return False
     for solution in solutions:
-        aff = solution.get("aff")
+        try:
+            aff = solution["aff"]
+        except(KeyError,TypeError):
+            val = None
         if aff and isinstance(aff, Literal):
             norm = aff.value.lower()
             if norm in {"created", "manual"}:
@@ -865,12 +880,12 @@ def _ensure_unique_expression_clusters(store: Store, anchor_id: str, intermarc: 
         ?anchor <{HAS_FIELD.value}> ?field .
         ?field <{FIELD_CODE_PROP.value}> "90F" .
         ?field <{HAS_SUBFIELD.value}> ?subQ .
-        ?subQ <{SUBFIELD_CODE_PROP.value}> "90F$q" .
+        ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
         ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
         FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
         ?field <{HAS_SUBFIELD.value}> ?subT .
         ?subT <{SUBFIELD_CODE_PROP.value}> ?codeTarget .
-        FILTER(?codeTarget = "90F$3" || ?codeTarget = "90F$a")
+        FILTER(?codeTarget = "90Fs3" || ?codeTarget = "90Fsa")
         ?subT <{SUBFIELD_VALUE_PROP.value}> ?target .
       }}
     }}
@@ -881,8 +896,14 @@ def _ensure_unique_expression_clusters(store: Store, anchor_id: str, intermarc: 
     if not isinstance(solutions, QuerySolutions):
         raise ValueError("Expression cluster query did not return a SELECT result set")
     for solution in solutions:
-        anchor_node = solution.get("anchor")
-        target_node = solution.get("target")
+        try:
+            anchor_node = solution["anchor"]
+        except (KeyError, TypeError):
+            anchor_node = None
+        try:
+            target_node = solution["target"]
+        except (KeyError, TypeError):
+            target_node = None
         if not anchor_node or not target_node:
             continue
         anchor_iri = getattr(anchor_node, "value", None)

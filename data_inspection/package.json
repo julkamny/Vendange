@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test": "node --test --import tsx \"./test/*.test.ts\"",
     "test:sparql": "node --test --import tsx ./test/queryUtils.test.ts"
   },
   "dependencies": {

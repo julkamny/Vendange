@@ -509,6 +509,7 @@ def _build_record_quads(record: ParsedRecord, ark_to_id: dict[str | None, str]) 
 
 def _build_record_from_payload(record_id: str, type_raw: str, intermarc_json: str) -> ParsedRecord:
     intermarc = Intermarc.from_json_string(intermarc_json)
+    _ensure_manual_cluster_flags(intermarc)
     return ParsedRecord(
         id=record_id,
         type_raw=type_raw,
@@ -518,9 +519,26 @@ def _build_record_from_payload(record_id: str, type_raw: str, intermarc_json: st
     )
 
 
+def _ensure_manual_cluster_flags(intermarc: Intermarc) -> None:
+    for zone in intermarc.get_zone("90F"):
+        note = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$q"), None)
+        if not note or str(note).strip().lower() != "clusterisation manuelle":
+            continue
+        if not zone.affected_by_curation:
+            zone.affected_by_curation = "manual"
+        for sub in zone.sousZones:
+            if not sub.affected_by_curation:
+                sub.affected_by_curation = "manual"
+
+
 def _is_agent_type(type_raw: str) -> bool:
     normalized = fold_diacritics(type_raw).strip().lower()
     return normalized in {"identite publique de personne", "collectivite", "famille"}
+
+
+def _is_work_type(type_raw: str) -> bool:
+    normalized = fold_diacritics(type_raw).strip().lower()
+    return normalized == "oeuvre" or normalized == "work"
 
 
 def _extract_manual_agent_targets(intermarc: Intermarc) -> set[str]:
@@ -616,6 +634,111 @@ def _ensure_unique_manual_agent_clusters(store: Store, anchor_id: str, intermarc
             )
 
 
+def _extract_work_cluster_targets(intermarc: Intermarc) -> set[str]:
+    targets: set[str] = set()
+    for zone in intermarc.get_zone("90F"):
+        note = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$q"), None)
+        if not note:
+            continue
+        norm_note = str(note).strip().lower()
+        if norm_note not in {"clusterisation manuelle", "clusterisation script"}:
+            continue
+        target = None
+        if norm_note == "clusterisation script":
+            target = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$a"), None)
+        else:
+            target = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$3"), None)
+            if target is None:
+                target = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$a"), None)
+        if target:
+            targets.add(str(target).strip())
+    return targets
+
+
+def _is_work_anchor(store: Store, ark_index: dict[str, str], target_ark: str) -> bool:
+    target_id = ark_index.get(target_ark)
+    if not target_id:
+        return False
+    query = f"""
+    SELECT ?aff
+    WHERE {{
+      GRAPH <{_record_graph(target_id).value}> {{
+        ?rec <{HAS_FIELD.value}> ?field .
+        ?field <{FIELD_CODE_PROP.value}> "90F" .
+        ?field <{HAS_SUBFIELD.value}> ?subQ .
+        ?subQ <{SUBFIELD_CODE_PROP.value}> "90F$q" .
+        ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
+        FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
+        OPTIONAL {{ ?field <{AFFECTED_BY_CURATION_PROP.value}> ?aff }}
+        OPTIONAL {{ ?subQ <{AFFECTED_BY_CURATION_PROP.value}> ?aff }}
+      }}
+    }}
+    """
+    solutions = store.query(query)
+    if not isinstance(solutions, QuerySolutions):
+        return False
+    for solution in solutions:
+        aff = solution.get("aff")
+        if aff and isinstance(aff, Literal):
+            norm = aff.value.lower()
+            if norm in {"created", "manual"}:
+                return True
+    return False
+
+
+def _ensure_unique_work_clusters(store: Store, anchor_id: str, intermarc: Intermarc) -> None:
+    new_targets = _extract_work_cluster_targets(intermarc)
+    if not new_targets:
+        return
+
+    query = f"""
+    SELECT ?anchor ?target
+    WHERE {{
+      GRAPH ?g {{
+        ?anchor <{HAS_FIELD.value}> ?field .
+        ?field <{FIELD_CODE_PROP.value}> "90F" .
+        ?field <{HAS_SUBFIELD.value}> ?subQ .
+        ?subQ <{SUBFIELD_CODE_PROP.value}> "90F$q" .
+        ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
+        FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
+        ?field <{HAS_SUBFIELD.value}> ?subT .
+        ?subT <{SUBFIELD_CODE_PROP.value}> ?codeTarget .
+        FILTER(?codeTarget = "90F$3" || ?codeTarget = "90F$a")
+        ?subT <{SUBFIELD_VALUE_PROP.value}> ?target .
+      }}
+    }}
+    """
+
+    existing: dict[str, str] = {}
+    solutions = store.query(query)
+    if not isinstance(solutions, QuerySolutions):
+        raise ValueError("Manual cluster query did not return a SELECT result set")
+    for solution in solutions:
+        anchor_node = solution.get("anchor")
+        target_node = solution.get("target")
+        if not anchor_node or not target_node:
+            continue
+        anchor_iri = getattr(anchor_node, "value", None)
+        target_value = getattr(target_node, "value", None)
+        if not anchor_iri or not target_value:
+            continue
+        anchor_record_id = _record_id_from_subject(anchor_iri)
+        existing.setdefault(target_value, anchor_record_id)
+
+    ark_index = _load_ark_index(store)
+
+    for target in new_targets:
+        anchor = existing.get(target)
+        if anchor and anchor != anchor_id:
+            raise ValueError(
+                f"Impossible d'enregistrer : l'oeuvre {target} est deja rattachee au cluster de {anchor}."
+            )
+        if _is_work_anchor(store, ark_index, target):
+            raise ValueError(
+                f"Impossible d'enregistrer : l'oeuvre {target} est deja ancre d'un cluster."
+            )
+
+
 def update_record(dataset_id: str, record_id: str, *, type_raw: str, intermarc_json: str) -> None:
     """Update a single record graph with fresh data."""
 
@@ -625,6 +748,8 @@ def update_record(dataset_id: str, record_id: str, *, type_raw: str, intermarc_j
         store = _get_store_locked(dataset_id)
         if _is_agent_type(record.type_raw):
             _ensure_unique_manual_agent_clusters(store, record.id, record.intermarc)
+        if _is_work_type(record.type_raw):
+            _ensure_unique_work_clusters(store, record.id, record.intermarc)
         ark_index = _load_ark_index(store)
         if record.ark:
             ark_index[record.ark] = record.id

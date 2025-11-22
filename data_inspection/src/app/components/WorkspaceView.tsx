@@ -19,6 +19,13 @@ import { BacklinksPanel } from './BacklinksPanel'
 import { useBacklinks } from '../hooks/useBacklinks'
 import { WorkspaceContextMenu } from './WorkspaceContextMenu'
 import { isAgentRecord } from '../agents/useAgentData'
+import { useToast } from '../providers/ToastContext'
+import {
+  addManualWork90FEntries,
+  extractWorkClusterTargets,
+  isClusterAnchorCreated,
+  type Intermarc,
+} from '../lib/intermarc'
 
 type WorkspaceViewProps = {
   state: WorkspaceTabStateWorkspace
@@ -53,6 +60,46 @@ function BreadcrumbItem({ value, isLast }: { value: string; isLast: boolean }) {
     <span className={`workspace-breadcrumb${isLast ? ' is-current' : ''}`} aria-current={isLast ? 'page' : undefined}>
       {label}
     </span>
+  )
+}
+
+type ConfirmWorkClusterModalProps = {
+  source: RecordRow | null
+  anchor: RecordRow | null
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+function ConfirmWorkClusterModal({ source, anchor, onConfirm, onCancel }: ConfirmWorkClusterModalProps) {
+  const { t } = useTranslation()
+  if (!source || !anchor) return null
+
+  const sourceLabel = titleOf(source) || source.id
+  const anchorLabel = titleOf(anchor) || anchor.id
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="modal">
+        <h3>{t('works.cluster.confirmTitle', { defaultValue: 'Confirmer la clusterisation' })}</h3>
+        <p>
+          {t('works.cluster.confirmBody', {
+            defaultValue: 'Rattacher « {{source}} » ({{sourceArk}}) au cluster de « {{anchor}} » ({{anchorArk}}) ?',
+            source: sourceLabel,
+            anchor: anchorLabel,
+            sourceArk: source.ark ?? source.id,
+            anchorArk: anchor.ark ?? anchor.id,
+          })}
+        </p>
+        <div className="modal-actions">
+          <button type="button" onClick={onCancel}>
+            {t('buttons.cancel', { defaultValue: 'Annuler' })}
+          </button>
+          <button type="button" className="workspace-side-toolbar__button--primary" onClick={onConfirm}>
+            {t('buttons.confirm', { defaultValue: 'Confirmer' })}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -93,6 +140,7 @@ export function WorkspaceView({
   const { t } = useTranslation()
   const { getById, getByArk } = useRecordLookup()
   const { getBacklinksForRecord } = useBacklinks()
+  const { showToast } = useToast()
   const record = state.selectedEntity
     ? findRecord(state.selectedEntity.id, curated?.records ?? [])
     : null
@@ -168,6 +216,33 @@ export function WorkspaceView({
     return null
   }, [isAnchorSelection, isRecordClustered, record, recordInCurated, t])
   const [editingRecord, setEditingRecord] = useState(false)
+  const [pendingClusterSourceId, setPendingClusterSourceId] = useState<string | null>(null)
+  const [pendingClusterTarget, setPendingClusterTarget] = useState<{ anchorId: string; sourceId: string } | null>(null)
+  const pendingClusterSourceRecord = useMemo(
+    () => (pendingClusterSourceId ? getById(pendingClusterSourceId) ?? null : null),
+    [getById, pendingClusterSourceId],
+  )
+  const workClusterIndex = useMemo(() => {
+    const index = new Map<string, { anchorId: string; anchorLabel?: string | null }>()
+    clusters.forEach(cluster => {
+      cluster.items.forEach(item => {
+        if (!item.ark || index.has(item.ark)) return
+        index.set(item.ark, { anchorId: cluster.anchorId, anchorLabel: cluster.anchorTitle })
+      })
+    })
+    return index
+  }, [clusters])
+  const isProtectedWorkAnchor = useCallback(
+    (target: RecordRow | null) => {
+      if (!target || target.typeNorm !== 'oeuvre') return false
+      return isClusterAnchorCreated(target.intermarc)
+    },
+    [],
+  )
+  const cancelPendingCluster = useCallback(() => {
+    setPendingClusterSourceId(null)
+    setPendingClusterTarget(null)
+  }, [])
   const intermarcFullView = state.intermarcFullView
   const backlinksExpanded = state.backlinksExpanded
   const listCollapsed = state.listCollapsed
@@ -507,6 +582,66 @@ export function WorkspaceView({
     [openRecordForArk],
   )
 
+  const handleIntermarcSave = useCallback(
+    (targetRecord: RecordRow, next: Intermarc) => {
+      if (targetRecord.typeNorm !== 'oeuvre') {
+        updateRecordIntermarc(targetRecord.id, next)
+        return
+      }
+
+      if (pendingClusterSourceId && pendingClusterSourceId !== targetRecord.id) {
+        const pendingArk = pendingClusterSourceRecord?.ark
+        if (pendingArk) {
+          const targets = extractWorkClusterTargets(next)
+          if (targets.includes(pendingArk)) {
+            throw new Error(
+              t('works.cluster.pendingAlreadySelected', {
+                defaultValue: 'Impossible : cette œuvre est déjà marquée pour un rattachement.',
+              }),
+            )
+          }
+        }
+      }
+
+      const targets = extractWorkClusterTargets(next)
+      const conflicts: string[] = []
+      targets.forEach(target => {
+        const conflict = workClusterIndex.get(target)
+        if (conflict && conflict.anchorId !== targetRecord.id) {
+          const label = conflict.anchorLabel || conflict.anchorId
+          conflicts.push(`${target} (ancré sur ${label})`)
+        }
+        const targetRecordRow =
+          getByArk(target) || getById(target.replace(/^ark:\//, '')) || null
+        if (isProtectedWorkAnchor(targetRecordRow)) {
+          conflicts.push(
+            t('works.cluster.targetIsAnchor', {
+              defaultValue: 'Impossible : une cible est déjà ancre d’un cluster.',
+            }),
+          )
+        }
+      })
+
+      if (conflicts.length) {
+        throw new Error(
+          `Impossible d'enregistrer : ces œuvres sont déjà rattachées à un autre cluster : ${conflicts.join(', ')}`,
+        )
+      }
+
+      updateRecordIntermarc(targetRecord.id, next)
+    },
+    [
+      getByArk,
+      getById,
+      isProtectedWorkAnchor,
+      pendingClusterSourceId,
+      pendingClusterSourceRecord,
+      t,
+      updateRecordIntermarc,
+      workClusterIndex,
+    ],
+  )
+
   const handleOpenRecordInNewTab = useCallback(() => {
     if (!contextMenu) return
     openRecordInWorkspace(contextMenu.record)
@@ -518,6 +653,121 @@ export function WorkspaceView({
     openRecordInWorkspace(contextMenu.record, { detach: true })
     setContextMenu(null)
   }, [contextMenu, openRecordInWorkspace])
+
+  const prepareForClustering = useCallback(
+    (target: RecordRow) => {
+      if (target.typeNorm !== 'oeuvre') return
+      if (!target.ark) {
+        showToast(t('works.cluster.missingArk', { defaultValue: "Impossible : l'œuvre n'a pas d'ARK." }), {
+          tone: 'error',
+        })
+        setContextMenu(null)
+        return
+      }
+      if (isProtectedWorkAnchor(target)) {
+        showToast(
+          t('works.cluster.targetIsAnchor', {
+            defaultValue: 'Impossible : cette œuvre est déjà ancre d’un cluster.',
+          }),
+          { tone: 'error' },
+        )
+        setContextMenu(null)
+        return
+      }
+      setPendingClusterSourceId(target.id)
+      setContextMenu(null)
+      showToast(t('works.cluster.prepared', { defaultValue: 'Œuvre mise en attente pour un clustering.' }), {
+        tone: 'info',
+      })
+    },
+    [isProtectedWorkAnchor, showToast, t],
+  )
+
+  const requestClusterWith = useCallback(
+    (anchor: RecordRow) => {
+      if (!pendingClusterSourceRecord || anchor.typeNorm !== 'oeuvre') return
+      if (pendingClusterSourceRecord.typeNorm !== 'oeuvre') return
+      if (isProtectedWorkAnchor(pendingClusterSourceRecord)) {
+        showToast(
+          t('works.cluster.targetIsAnchor', {
+            defaultValue: 'Impossible : cette œuvre est déjà ancre d’un cluster.',
+          }),
+          { tone: 'error' },
+        )
+        setPendingClusterSourceId(null)
+        return
+      }
+      setPendingClusterTarget({ anchorId: anchor.id, sourceId: pendingClusterSourceRecord.id })
+      setContextMenu(null)
+    },
+    [isProtectedWorkAnchor, pendingClusterSourceRecord, showToast, t],
+  )
+
+  const confirmPendingCluster = useCallback(() => {
+    if (!pendingClusterTarget) return
+    const source = getById(pendingClusterTarget.sourceId)
+    const anchor = getById(pendingClusterTarget.anchorId)
+    if (!source || !anchor) {
+      setPendingClusterTarget(null)
+      setPendingClusterSourceId(null)
+      return
+    }
+    if (!source.ark) {
+      showToast(t('works.cluster.missingArk', { defaultValue: "Impossible : l'œuvre n'a pas d'ARK." }), {
+        tone: 'error',
+      })
+      setPendingClusterTarget(null)
+      return
+    }
+    if (isProtectedWorkAnchor(source)) {
+      showToast(
+        t('works.cluster.targetIsAnchor', { defaultValue: 'Impossible : cette œuvre est déjà ancre d’un cluster.' }),
+        { tone: 'error' },
+      )
+      setPendingClusterTarget(null)
+      setPendingClusterSourceId(null)
+      return
+    }
+    const conflict = workClusterIndex.get(source.ark)
+    if (conflict && conflict.anchorId !== anchor.id) {
+      const label = conflict.anchorLabel || conflict.anchorId
+      showToast(
+        t('works.cluster.pendingAlreadySelected', {
+          defaultValue: 'Impossible : cette œuvre est déjà rattachée au cluster de {{anchor}}.',
+          anchor: label,
+        }),
+        { tone: 'error' },
+      )
+      setPendingClusterTarget(null)
+      setPendingClusterSourceId(null)
+      return
+    }
+
+    const manualTargets = new Set<string>()
+    const anchorCluster = clusters.find(c => c.anchorId === anchor.id)
+    anchorCluster?.items.forEach(item => {
+      if (item.origin === 'manual' && item.ark) manualTargets.add(item.ark)
+    })
+    manualTargets.add(source.ark)
+
+    const nextIntermarc = addManualWork90FEntries(
+      anchor.intermarc,
+      [...manualTargets].map(ark => ({ ark })),
+    )
+    updateRecordIntermarc(anchor.id, nextIntermarc)
+    setPendingClusterSourceId(null)
+    setPendingClusterTarget(null)
+    showToast(t('works.cluster.success', { defaultValue: 'Œuvre ajoutée au cluster.' }), { tone: 'success' })
+  }, [
+    clusters,
+    getById,
+    isProtectedWorkAnchor,
+    pendingClusterTarget,
+    showToast,
+    t,
+    updateRecordIntermarc,
+    workClusterIndex,
+  ])
 
   const handleSelectWork = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
     onStateChange(prev => ({
@@ -587,6 +837,8 @@ export function WorkspaceView({
           onSelectWork={handleSelectWork}
           onOpenExpressions={handleOpenExpressions}
           onToggleWork={({ clusterId, workArk, accepted }) => setWorkAccepted(clusterId, workArk, accepted)}
+          pendingClusterSourceId={pendingClusterSourceId}
+          onCancelPendingCluster={cancelPendingCluster}
         />
       )
     }
@@ -724,7 +976,7 @@ export function WorkspaceView({
                   <IntermarcEditor
                     record={record}
                     baselineRecord={getCuratedBaselineRecord(record.id) ?? undefined}
-                    onSave={next => updateRecordIntermarc(record.id, next)}
+                    onSave={next => handleIntermarcSave(record, next)}
                     onCancel={() => setEditingRecord(false)}
                   />
                 ) : (
@@ -863,8 +1115,44 @@ export function WorkspaceView({
         openDetachedLabel={t('workspace.openInDetachedWindow', {
           defaultValue: 'Open in detached workspace window',
         })}
+        extraActionLabel={
+          contextMenu.record.typeNorm === 'oeuvre'
+            ? !pendingClusterSourceRecord
+              ? t('works.cluster.prepare', { defaultValue: 'Préparer pour clustering' })
+              : pendingClusterSourceRecord.id !== contextMenu.record.id &&
+                  pendingClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
+                ? t('works.cluster.clusterWith', { defaultValue: 'Clustériser avec la sélection' })
+                : undefined
+            : undefined
+        }
+        extraActionDisabled={
+          Boolean(
+            pendingClusterSourceRecord &&
+              pendingClusterSourceRecord.id !== contextMenu.record.id &&
+              pendingClusterSourceRecord.typeNorm !== contextMenu.record.typeNorm,
+          )
+        }
+        onExtraAction={() => {
+          if (contextMenu.record.typeNorm !== 'oeuvre') return
+          if (!pendingClusterSourceRecord) {
+            prepareForClustering(contextMenu.record)
+          } else if (
+            pendingClusterSourceRecord.id !== contextMenu.record.id &&
+            pendingClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
+          ) {
+            requestClusterWith(contextMenu.record)
+          }
+        }}
         onOpen={handleOpenRecordInNewTab}
         onOpenDetached={handleOpenRecordInDetachedWindow}
+      />
+    ) : null}
+    {pendingClusterTarget ? (
+      <ConfirmWorkClusterModal
+        source={getById(pendingClusterTarget.sourceId) ?? null}
+        anchor={getById(pendingClusterTarget.anchorId) ?? null}
+        onConfirm={confirmPendingCluster}
+        onCancel={() => setPendingClusterTarget(null)}
       />
     ) : null}
     </>

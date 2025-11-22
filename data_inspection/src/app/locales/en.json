@@ -204,6 +204,20 @@
     "recordSaveFailed": "Failed to save record",
     "recordReset": "Record restored from curated CSV"
   },
+  "works": {
+    "cluster": {
+      "prepare": "Prepare for clustering",
+      "clusterWith": "Cluster selected work here",
+      "prepared": "Work marked for clustering.",
+      "typeMismatch": "Works must be of the same type.",
+      "missingArk": "Cannot cluster work without an ARK.",
+      "success": "Work added to cluster.",
+      "confirmTitle": "Confirm clustering",
+      "confirmBody": "Attach “{{source}}” ({{sourceArk}}) to the cluster of “{{anchor}}” ({{anchorArk}})?",
+      "pendingAlreadySelected": "Cannot proceed: this work already belongs to another cluster.",
+      "targetIsAnchor": "Cannot cluster: target is already a cluster anchor."
+    }
+  },
   "agents": {
     "cluster": {
       "prepare": "Prepare for clustering",

@@ -29,7 +29,14 @@ export type DatasetSummary = {
   stats: DatasetStats
 }
 
-export type ClusterItem = { ark: string; id?: string; title?: string; accepted: boolean; date?: string }
+export type ClusterItem = {
+  ark: string
+  id?: string
+  title?: string
+  accepted: boolean
+  date?: string
+  origin: 'script' | 'manual'
+}
 export type ManifestationItem = {
   id: string
   ark: string

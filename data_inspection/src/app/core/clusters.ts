@@ -1,6 +1,6 @@
 import { findZones } from '../lib/intermarc'
 import type { Cluster, ClusterItem, ExpressionAnchorGroup, ExpressionClusterItem, ExpressionItem, RecordRow } from '../types'
-import { CLUSTER_NOTE } from './constants'
+import { CLUSTER_NOTE, MANUAL_CLUSTER_NOTE } from './constants'
 import {
   titleOf,
   expressionWorkArks,
@@ -46,11 +46,18 @@ export function detectClusters(curated: RecordRow[], originalIdxByArk: Map<strin
 
     const zones = findZones(work.intermarc, '90F')
     const items: ClusterItem[] = []
+    const seenTargets = new Set<string>()
     for (const z of zones) {
       const note = z.sousZones.find(sz => sz.code === '90F$q')?.valeur
-      if (note !== CLUSTER_NOTE) continue
-      const ark = z.sousZones.find(sz => sz.code === '90F$a')?.valeur
-      if (!ark) continue
+      const origin = note === CLUSTER_NOTE ? 'script' : note === MANUAL_CLUSTER_NOTE ? 'manual' : null
+      if (!origin) continue
+      const ark =
+        origin === 'script'
+          ? z.sousZones.find(sz => sz.code === '90F$a')?.valeur
+          : z.sousZones.find(sz => sz.code === '90F$3')?.valeur ??
+            z.sousZones.find(sz => sz.code === '90F$a')?.valeur
+      if (!ark || seenTargets.has(ark)) continue
+      seenTargets.add(ark)
       const date = z.sousZones.find(sz => sz.code === '90F$d')?.valeur
       const curatedTarget = worksByArk.get(ark)
       const fallback = curatedTarget || originalIdxByArk.get(ark)
@@ -61,7 +68,7 @@ export function detectClusters(curated: RecordRow[], originalIdxByArk: Map<strin
             .flatMap(zz => zz.sousZones)
             .find(sz => sz.code === '150$a')?.valeur
       const id = curatedTarget?.id || fallback?.id
-      items.push({ ark, id, title, accepted: true, date })
+      items.push({ ark, id, title, accepted: true, date, origin })
     }
     if (!items.length) continue
 

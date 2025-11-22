@@ -9,7 +9,14 @@ import type {
   ManifestationItem,
 } from '../types'
 import type { Intermarc } from '../lib/intermarc'
-import { parseIntermarc, primeArkLabelCache, resetArkLabelCache, registerArkLabelForRecord, findZones } from '../lib/intermarc'
+import {
+  parseIntermarc,
+  primeArkLabelCache,
+  resetArkLabelCache,
+  registerArkLabelForRecord,
+  findZones,
+  rebuildWorkCluster90FEntries,
+} from '../lib/intermarc'
 import { detectClusters, buildArkIndex } from '../core/clusters'
 import { buildOriginalIndexes, type OriginalIndexes } from '../core/originalIndexes'
 import { getCurrentLanguage } from '../i18n'
@@ -187,51 +194,32 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const updates: UpdatePayload[] = []
       setState(prev => {
         if (!prev.curated) return prev
-        const clusterIndex = prev.clusters.findIndex(c => c.anchorId === clusterId)
-        if (clusterIndex === -1) return prev
-        const targetCluster = cloneCluster(prev.clusters[clusterIndex])
-        const item = targetCluster.items.find(entry => entry.ark === workArk)
-        if (!item) return prev
+        const cluster = prev.clusters.find(c => c.anchorId === clusterId)
+        if (!cluster) return prev
+        const anchorRecord = prev.curated.records.find(r => r.id === cluster.anchorId)
+        if (!anchorRecord) return prev
 
         const today = new Date().toISOString().slice(0, 10)
-        item.accepted = accepted
-        if (accepted && !item.date) item.date = today
-
-        const affectedAnchors = new Set<string>()
-        if (!accepted) {
-          for (const group of targetCluster.expressionGroups) {
-            for (const expr of group.clustered) {
-              if (expr.workArk === workArk && expr.accepted) {
-                expr.accepted = false
-                expr.date = undefined
-                affectedAnchors.add(group.anchor.id)
-              }
-            }
-          }
-        }
+        const nextItems = cluster.items
+          .filter(entry => (accepted ? true : entry.ark !== workArk))
+          .map(entry => ({
+            ...entry,
+            accepted: true,
+            date: entry.origin === 'script' ? entry.date ?? today : entry.date,
+          }))
 
         const pristineRecords = new Map(prev.pristineRecords)
-        snapshotRecord(prev.curated, targetCluster.anchorId, pristineRecords)
+        snapshotRecord(prev.curated, cluster.anchorId, pristineRecords)
 
-        let curated = updateWorkClusterIntermarc(targetCluster, prev.curated)
-        const anchorRecord = curated.records.find(r => r.id === targetCluster.anchorId)
-        if (anchorRecord) {
-          updates.push({ id: anchorRecord.id, type: anchorRecord.type, intermarc: anchorRecord.intermarcStr })
-          registerArkLabelForRecord(anchorRecord)
+        const updatedIntermarc = rebuildWorkCluster90FEntries(anchorRecord.intermarc, nextItems, { defaultDate: today })
+        const curated = updateRecordIntermarcInDataset(prev.curated, anchorRecord.id, updatedIntermarc)
+        const clusters = detectClusters(curated.records, buildArkIndex(curated.records))
+        const updatedRecord = curated.records.find(r => r.id === anchorRecord.id)
+        if (updatedRecord) {
+          updates.push({ id: updatedRecord.id, type: updatedRecord.type, intermarc: updatedRecord.intermarcStr })
+          registerArkLabelForRecord(updatedRecord)
         }
 
-        for (const anchorId of affectedAnchors) {
-          snapshotRecord(prev.curated, anchorId, pristineRecords)
-          curated = updateExpressionClusterIntermarc(targetCluster, anchorId, curated)
-          const expressionRecord = curated.records.find(r => r.id === anchorId)
-          if (expressionRecord) {
-            updates.push({ id: expressionRecord.id, type: expressionRecord.type, intermarc: expressionRecord.intermarcStr })
-            registerArkLabelForRecord(expressionRecord)
-          }
-        }
-
-        const clusters = prev.clusters.slice()
-        clusters[clusterIndex] = targetCluster
         return { ...prev, clusters, curated, pristineRecords }
       })
       const datasetId = datasetIdRef.current
@@ -634,17 +622,6 @@ function updateManifestationParentInDataset(
     }
   }
   return next
-}
-
-function updateWorkClusterIntermarc(cluster: Cluster, dataset: DataSet): DataSet {
-  const anchorRecord = dataset.records.find(r => r.id === cluster.anchorId)
-  if (!anchorRecord) return dataset
-  const today = new Date().toISOString().slice(0, 10)
-  const entries = cluster.items
-    .filter(entry => entry.accepted)
-    .map(entry => ({ ark: entry.ark, date: entry.date ?? today, note: CLUSTER_NOTE }))
-  const updatedIntermarc = add90FEntries(anchorRecord.intermarc, entries)
-  return updateRecordIntermarcInDataset(dataset, anchorRecord.id, updatedIntermarc)
 }
 
 function updateExpressionClusterIntermarc(cluster: Cluster, anchorExpressionId: string, dataset: DataSet): DataSet {

@@ -16,6 +16,8 @@ type WorkListPanelProps = {
   onSelectWork: (payload: { workId: string; workArk?: string | null }) => void
   onOpenExpressions: (payload: { workId: string; workArk?: string | null }) => void
   onToggleWork: (payload: { clusterId: string; workArk: string; accepted: boolean }) => void
+  pendingClusterSourceId?: string | null
+  onCancelPendingCluster?: () => void
 }
 
 export function WorkListPanel({
@@ -25,6 +27,8 @@ export function WorkListPanel({
   onSelectWork,
   onOpenExpressions,
   onToggleWork,
+  pendingClusterSourceId,
+  onCancelPendingCluster,
 }: WorkListPanelProps) {
   const { t, language } = useTranslation()
   const { originalIndexes } = useAppData()
@@ -108,6 +112,7 @@ export function WorkListPanel({
           const clusterClasses = ['cluster']
           if (state.activeWorkAnchorId === cluster.anchorId) clusterClasses.push('active')
           const anchorRowClasses = ['cluster-header-row', 'entity-row', 'entity-row--work']
+          if (pendingClusterSourceId && pendingClusterSourceId === cluster.anchorId) anchorRowClasses.push('pending-cluster-source')
           if (state.highlightedWorkArk && state.highlightedWorkArk === cluster.anchorArk) {
             anchorRowClasses.push('highlight')
           }
@@ -130,6 +135,10 @@ export function WorkListPanel({
                   }}
                   onDoubleClick={event => {
                     if (shouldIgnoreAgentBadge(event)) return
+                    if (pendingClusterSourceId && pendingClusterSourceId === cluster.anchorId) {
+                      onCancelPendingCluster?.()
+                      return
+                    }
                     onOpenExpressions({ workId: cluster.anchorId, workArk: cluster.anchorArk })
                   }}
                 >
@@ -160,6 +169,7 @@ export function WorkListPanel({
                   const itemCounts = computeWorkCounts(cluster, item.ark)
                   const rowClasses = ['cluster-item', 'entity-row', 'entity-row--work']
                   if (!item.accepted) rowClasses.push('unchecked')
+                  if (pendingClusterSourceId && pendingClusterSourceId === item.id) rowClasses.push('pending-cluster-source')
                   if (state.highlightedWorkArk && state.highlightedWorkArk === item.ark) {
                     rowClasses.push('highlight')
                   }
@@ -179,6 +189,10 @@ export function WorkListPanel({
                       }}
                       onDoubleClick={event => {
                         if (shouldIgnoreWorkRowEvent(event)) return
+                        if (pendingClusterSourceId && pendingClusterSourceId === item.id) {
+                          onCancelPendingCluster?.()
+                          return
+                        }
                         onOpenExpressions({ workId: cluster.anchorId, workArk: item.ark })
                       }}
                     >
@@ -217,6 +231,7 @@ export function WorkListPanel({
           (work.ark && state.highlightedWorkArk === work.ark) ||
           (!work.ark && state.selectedEntity?.entityType === 'work' && state.selectedEntity.id === work.id)
         if (highlight) headerClasses.push('highlight')
+        if (pendingClusterSourceId && pendingClusterSourceId === work.id) headerClasses.push('pending-cluster-source')
         const counts = computeUnclusteredWorkCounts(work, originalIndexes ?? null)
         const agentNames = getAgentNames(work.id, work.ark)
         const relationships = relationshipsFor(work.id, work.ark)
@@ -234,6 +249,10 @@ export function WorkListPanel({
               }}
               onDoubleClick={event => {
                 if (shouldIgnoreAgentBadge(event)) return
+                if (pendingClusterSourceId && pendingClusterSourceId === work.id) {
+                  onCancelPendingCluster?.()
+                  return
+                }
                 onOpenExpressions({ workId: work.id, workArk: work.ark })
               }}
             >

@@ -289,12 +289,41 @@ export function WorkspaceView({
     clusters.forEach(cluster => {
       cluster.expressionGroups.forEach(group => {
         group.clustered.forEach(item => {
-          if (!item.ark || index.has(item.ark)) return
-          index.set(item.ark, { anchorId: cluster.anchorId, anchorExpressionId: group.anchor.id, anchorLabel: item.anchorExpressionId })
+          const anchorLabel = group.anchor.title || group.anchor.id || undefined
+          if (item.ark && !index.has(item.ark)) {
+            index.set(item.ark, { anchorId: cluster.anchorId, anchorExpressionId: group.anchor.id, anchorLabel })
+          }
+          if (item.id && !index.has(item.id)) {
+            index.set(item.id, { anchorId: cluster.anchorId, anchorExpressionId: group.anchor.id, anchorLabel })
+          }
         })
       })
     })
     return index
+  }, [clusters])
+
+  const getExpressionClusterMembership = useCallback(
+    (target: RecordRow | null) => {
+      if (!target || target.typeNorm !== 'expression') return null
+      const candidates = [target.ark, target.id].filter(Boolean) as string[]
+      for (const key of candidates) {
+        const info = expressionClusterIndex.get(key)
+        if (info) return info
+      }
+      return null
+    },
+    [expressionClusterIndex],
+  )
+
+  const expressionClusterAnchorKeys = useMemo(() => {
+    const keys = new Set<string>()
+    clusters.forEach(cluster => {
+      cluster.expressionGroups.forEach(group => {
+        keys.add(group.anchor.id)
+        if (group.anchor.ark) keys.add(group.anchor.ark)
+      })
+    })
+    return keys
   }, [clusters])
   const isProtectedWorkAnchor = useCallback(
     (target: RecordRow | null) => {
@@ -303,12 +332,22 @@ export function WorkspaceView({
     },
     [],
   )
+  const isExpressionClusterAnchor = useCallback(
+    (target: RecordRow | null) => {
+      if (!target || target.typeNorm !== 'expression') return false
+      if (expressionClusterAnchorKeys.has(target.id)) return true
+      if (target.ark && expressionClusterAnchorKeys.has(target.ark)) return true
+      return false
+    },
+    [expressionClusterAnchorKeys],
+  )
   const isProtectedExpressionAnchor = useCallback(
     (target: RecordRow | null) => {
       if (!target || target.typeNorm !== 'expression') return false
+      if (isExpressionClusterAnchor(target)) return true
       return isClusterAnchorCreated(target.intermarc)
     },
-    [],
+    [isExpressionClusterAnchor],
   )
   const cancelPendingCluster = useCallback(() => {
     setPendingClusterSourceId(null)
@@ -718,6 +757,15 @@ export function WorkspaceView({
         }
 
         const targets = extractExpressionClusterTargets(next)
+        const sourceMembership = getExpressionClusterMembership(targetRecord)
+        if (sourceMembership && targets.length > 0) {
+          throw new Error(
+            t('expressions.cluster.anchorAlreadyClustered', {
+              defaultValue:
+                "Impossible : une expression déjà rattachée à un cluster ne peut pas en devenir l'ancre.",
+            }),
+          )
+        }
         const conflicts: string[] = []
         targets.forEach(target => {
           const conflict = expressionClusterIndex.get(target)
@@ -771,6 +819,7 @@ export function WorkspaceView({
     [
       getByArk,
       getById,
+      clusters,
       isProtectedWorkAnchor,
       isProtectedExpressionAnchor,
       pendingClusterSourceId,
@@ -781,7 +830,7 @@ export function WorkspaceView({
       updateRecordIntermarc,
       workClusterIndex,
       expressionClusterIndex,
-      expressionsShareParentWork,
+      getExpressionClusterMembership,
     ],
   )
 
@@ -933,18 +982,54 @@ export function WorkspaceView({
         setContextMenu(null)
         return
       }
+      const membership = getExpressionClusterMembership(target)
+      if (membership) {
+        showToast(
+          t('expressions.cluster.alreadyClustered', {
+            defaultValue: 'Impossible : cette expression est déjà rattachée au cluster de {{anchor}}.',
+            anchor: membership.anchorLabel || membership.anchorExpressionId,
+          }),
+          { tone: 'error' },
+        )
+        setContextMenu(null)
+        return
+      }
       setPendingExpressionClusterSourceId(target.id)
       setContextMenu(null)
       showToast(t('expressions.cluster.prepared', { defaultValue: 'Expression mise en attente pour clustering.' }), {
         tone: 'info',
       })
     },
-    [isProtectedExpressionAnchor, showToast, t],
+    [getExpressionClusterMembership, isProtectedExpressionAnchor, showToast, t],
   )
 
   const requestExpressionClusterWith = useCallback(
     (anchor: RecordRow) => {
       if (anchor.typeNorm !== 'expression' || !pendingExpressionClusterSourceRecord) return
+      const sourceMembership = getExpressionClusterMembership(pendingExpressionClusterSourceRecord)
+      if (sourceMembership) {
+        showToast(
+          t('expressions.cluster.alreadyClustered', {
+            defaultValue: 'Impossible : cette expression est déjà rattachée au cluster de {{anchor}}.',
+            anchor: sourceMembership.anchorLabel || sourceMembership.anchorExpressionId,
+          }),
+          { tone: 'error' },
+        )
+        setPendingExpressionClusterSourceId(null)
+        return
+      }
+      const anchorMembership = getExpressionClusterMembership(anchor)
+      if (anchorMembership) {
+        showToast(
+          t('expressions.cluster.anchorAlreadyClustered', {
+            defaultValue:
+              "Impossible : une expression déjà rattachée à un cluster ne peut pas en être l'ancre.",
+            anchor: anchorMembership.anchorLabel || anchorMembership.anchorExpressionId,
+          }),
+          { tone: 'error' },
+        )
+        return
+      }
       const sameParent = expressionsShareParentWork(anchor, pendingExpressionClusterSourceRecord)
       const clusteredParents = worksClusteredTogether(
         expressionWorkArks(anchor)[0],
@@ -974,7 +1059,14 @@ export function WorkspaceView({
       setPendingExpressionClusterTarget({ anchorId: anchor.id, sourceId: pendingExpressionClusterSourceRecord.id })
       setContextMenu(null)
     },
-    [isProtectedExpressionAnchor, pendingExpressionClusterSourceRecord, showToast, t],
+    [
+      clusters,
+      getExpressionClusterMembership,
+      isProtectedExpressionAnchor,
+      pendingExpressionClusterSourceRecord,
+      showToast,
+      t,
+    ],
   )
 
   const confirmPendingExpressionCluster = useCallback(() => {
@@ -992,6 +1084,31 @@ export function WorkspaceView({
         { tone: 'error' },
       )
       setPendingExpressionClusterTarget(null)
+      return
+    }
+    const anchorMembership = getExpressionClusterMembership(anchor)
+    if (anchorMembership) {
+      showToast(
+        t('expressions.cluster.anchorAlreadyClustered', {
+          defaultValue: "Impossible : une expression déjà rattachée à un cluster ne peut pas en être l'ancre.",
+          anchor: anchorMembership.anchorLabel || anchorMembership.anchorExpressionId,
+        }),
+        { tone: 'error' },
+      )
+      setPendingExpressionClusterTarget(null)
+      return
+    }
+    const sourceMembership = getExpressionClusterMembership(source)
+    if (sourceMembership && sourceMembership.anchorExpressionId !== anchor.id) {
+      showToast(
+        t('expressions.cluster.alreadyClustered', {
+          defaultValue: 'Impossible : cette expression est déjà rattachée au cluster de {{anchor}}.',
+          anchor: sourceMembership.anchorLabel || sourceMembership.anchorExpressionId,
+        }),
+        { tone: 'error' },
+      )
+      setPendingExpressionClusterTarget(null)
+      setPendingExpressionClusterSourceId(null)
       return
     }
     const sameParent = expressionsShareParentWork(anchor, source)
@@ -1053,6 +1170,7 @@ export function WorkspaceView({
     clusters,
     expressionClusterIndex,
     getById,
+    getExpressionClusterMembership,
     isProtectedExpressionAnchor,
     pendingExpressionClusterTarget,
     showToast,

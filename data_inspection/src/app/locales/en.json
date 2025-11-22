@@ -230,6 +230,8 @@
       "confirmTitle": "Confirm clustering",
       "confirmBody": "Attach “{{source}}” ({{sourceArk}}) to the cluster of “{{anchor}}” ({{anchorArk}})?",
       "pendingAlreadySelected": "Cannot proceed: this expression already belongs to another cluster.",
+      "alreadyClustered": "Cannot proceed: this expression already belongs to the cluster of {{anchor}}.",
+      "anchorAlreadyClustered": "Cannot cluster here: a clustered expression cannot act as a cluster anchor.",
       "targetIsAnchor": "Cannot cluster: target is already a cluster anchor."
     }
   },

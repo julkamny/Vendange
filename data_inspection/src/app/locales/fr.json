@@ -230,6 +230,8 @@
       "confirmTitle": "Confirmer la clusterisation",
       "confirmBody": "Rattacher « {{source}} » ({{sourceArk}}) au cluster de « {{anchor}} » ({{anchorArk}}) ?",
       "pendingAlreadySelected": "Impossible : cette expression est déjà rattachée à un autre cluster.",
+      "alreadyClustered": "Impossible : cette expression est déjà rattachée au cluster de {{anchor}}.",
+      "anchorAlreadyClustered": "Impossible : une expression déjà rattachée à un cluster ne peut pas en être l'ancre.",
       "targetIsAnchor": "Impossible : la cible est déjà ancre d'un cluster."
     }
   },

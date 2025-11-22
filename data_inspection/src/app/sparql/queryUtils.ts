@@ -205,7 +205,11 @@ function pathContainsRelation(value: unknown): boolean {
 class ScopeTracker {
   private readonly parent = new Map<string, string>()
 
-  constructor(private readonly entityVariables: Set<string>) {}
+  private readonly entityVariables: Set<string>
+
+  constructor(entityVariables: Set<string>) {
+    this.entityVariables = entityVariables
+  }
 
   find(name: string): string {
     const current = this.parent.get(name)

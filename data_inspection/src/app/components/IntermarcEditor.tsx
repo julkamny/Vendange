@@ -57,13 +57,22 @@ type EntitySuggestion = {
 }
 
 class ArkLabelWidget extends WidgetType {
+  private readonly label: string
+  private readonly ark: string
+  private readonly zone: string
+  private readonly subfield: string
+
   constructor(
-    private readonly label: string,
-    private readonly ark: string,
-    private readonly zone: string,
-    private readonly subfield: string,
+    label: string,
+    ark: string,
+    zone: string,
+    subfield: string,
   ) {
     super()
+    this.label = label
+    this.ark = ark
+    this.zone = zone
+    this.subfield = subfield
   }
 
   eq(other: ArkLabelWidget): boolean {
@@ -349,7 +358,7 @@ function createIntermarcCompletionSource(params: { suggestions: EntitySuggestion
     if (!query && !context.explicit) return null
     const allowedControlledLists = getControlledListsForSubfield(subfieldCode)
     const allowedKinds = getAllowedKindsForSubfield(subfieldCode)
-    console.log('Autocomplete context', { subfieldCode, query, allowedKinds, allowedControlledLists })  
+    console.log('Autocomplete context', { subfieldCode, query, allowedKinds, allowedControlledLists })
     if ((!allowedKinds || allowedKinds.length === 0) && allowedControlledLists.length === 0) {
       return null
     }
@@ -523,9 +532,8 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave }: In
 
   const isDirty = doc !== recordDoc
   const canReset = baselineDoc !== null ? doc !== baselineDoc : doc !== recordDoc
-  const saveButtonClassName = `save-button${
-    saveStatus === 'success' ? ' is-success' : saveStatus === 'error' ? ' is-error' : ''
-  }`
+  const saveButtonClassName = `save-button${saveStatus === 'success' ? ' is-success' : saveStatus === 'error' ? ' is-error' : ''
+    }`
   const statusSymbol = saveStatus === 'success' ? '✓' : saveStatus === 'error' ? '!' : null
 
   return (

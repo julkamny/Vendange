@@ -38,8 +38,8 @@ function buildLabelLookup(): LabelLookup {
   return entries
 }
 
-const CONTROLLED_SUBFIELD_MAP = createMap(CONTROLLED_SUBFIELD_LISTS)
-const CONTROLLED_SUBFIELD_WILDCARD_MAP = createMap(CONTROLLED_SUBFIELD_WILDCARDS)
+const CONTROLLED_SUBFIELD_MAP = createMap(CONTROLLED_SUBFIELD_LISTS as unknown as Record<string, readonly string[]>)
+const CONTROLLED_SUBFIELD_WILDCARD_MAP = createMap(CONTROLLED_SUBFIELD_WILDCARDS as unknown as Record<string, readonly string[]>)
 const CONTROLLED_LABEL_LOOKUP = buildLabelLookup()
 
 export const CONTROLLED_LIST_NAMES = Object.keys(CONTROLLED_LIST_VALUES)
@@ -77,5 +77,5 @@ export function hasControlledListsForSubfield(subfield: string | undefined | nul
 }
 
 export function getControlledListValues(listName: string): readonly string[] {
-  return (CONTROLLED_LIST_VALUES[listName] as readonly string[]) ?? EMPTY
+  return ((CONTROLLED_LIST_VALUES as unknown as Record<string, readonly string[]>)[listName]) ?? EMPTY
 }

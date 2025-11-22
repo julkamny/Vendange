@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from 'react'
 import type { AgentTabState, WorkspaceTabStateWorkspace } from '../workspace/types'
-import type { RecordRow } from '../types'
+import type { RecordRow, EntityBadgeSpec } from '../types'
 import { useAgentData, isAgentRecord } from './useAgentData'
 import { useTranslation } from '../hooks/useTranslation'
 import { useAppData } from '../providers/AppDataContext'
@@ -157,7 +157,7 @@ export function AgentView({
         throw new Error(
           `Impossible d'enregistrer : ces agents sont déjà rattachés à un autre cluster : ${conflicts.join(', ')}`,
         )
-    }
+      }
 
       updateRecordIntermarc(record.id, next)
     },
@@ -589,11 +589,11 @@ export function AgentView({
 
   const sortedEntries = useMemo(() => {
     type Entry = { kind: 'cluster'; cluster: AgentCluster; title: string } | { kind: 'single'; agent: RecordRow; title: string }
-      const clusterEntries: Entry[] = agentClusters.map(cluster => ({
-        kind: 'cluster',
-        cluster,
-        title: cluster.anchorLabel || cluster.anchorId,
-      }))
+    const clusterEntries: Entry[] = agentClusters.map(cluster => ({
+      kind: 'cluster',
+      cluster,
+      title: cluster.anchorLabel || cluster.anchorId,
+    }))
 
     const unclusteredEntries: Entry[] = agents
       .filter(agent => !clusteredAgentIds.has(agent.id))
@@ -602,9 +602,8 @@ export function AgentView({
     return [...clusterEntries, ...unclusteredEntries].sort((a, b) => collator.compare(a.title, b.title))
   }, [agentClusters, agents, buildAgentLabel, collator, clusteredAgentIds])
 
-  const workspaceClassName = `workspace-view${intermarcFullView ? ' is-intermarc-full' : ''}${
-    backlinksExpanded && selectedRecord ? ' has-backlinks-expanded' : ''
-  }${listCollapsed ? ' is-list-collapsed' : ''}`
+  const workspaceClassName = `workspace-view${intermarcFullView ? ' is-intermarc-full' : ''}${backlinksExpanded && selectedRecord ? ' has-backlinks-expanded' : ''
+    }${listCollapsed ? ' is-list-collapsed' : ''}`
   const detachLabelFull = t('workspace.openInWindow', { defaultValue: 'Open Intermarc in new window' })
   const dockLabelFull = t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })
   const toggleFullLabelFull = intermarcFullView
@@ -904,15 +903,15 @@ export function AgentView({
             !pendingSourceRecord
               ? t('agents.cluster.prepare', { defaultValue: 'Préparer pour clustering' })
               : pendingSourceRecord.id !== contextMenu.record.id &&
-                  sameAgentKind(pendingSourceRecord, contextMenu.record)
+                sameAgentKind(pendingSourceRecord, contextMenu.record)
                 ? t('agents.cluster.clusterWith', { defaultValue: 'Clustériser avec la sélection' })
                 : undefined
           }
           extraActionDisabled={
             Boolean(
               pendingSourceRecord &&
-                pendingSourceRecord.id !== contextMenu.record.id &&
-                !sameAgentKind(pendingSourceRecord, contextMenu.record),
+              pendingSourceRecord.id !== contextMenu.record.id &&
+              !sameAgentKind(pendingSourceRecord, contextMenu.record),
             )
           }
           onExtraAction={() => {

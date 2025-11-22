@@ -13,7 +13,7 @@ import {
   SUBFIELD_VALUE_PREDICATE,
 } from '../sparql/sparnaturalConfig'
 import { ensureGraphWrapping } from '../sparql/queryUtils'
-import { CONTROLLED_SUBFIELD_LISTS } from '../data/controlledListsData'
+import { CONTROLLED_LIST_VALUES } from '../data/controlledListsData'
 
 const BASE_PREFIX = `${BASE_NS}/`
 const REL_PREFIX = REL_NS
@@ -76,7 +76,7 @@ export function SparnaturalBuilder({
     const seen = new Set<string>()
     const values: string[] = []
     lists.forEach(key => {
-      const options = CONTROLLED_SUBFIELD_LISTS[key] as string[] | undefined
+      const options = (CONTROLLED_LIST_VALUES as any)[key] as string[] | undefined
       if (!options) return
       options.forEach(option => {
         if (seen.has(option)) return
@@ -116,20 +116,20 @@ export function SparnaturalBuilder({
       el.customization = {
         list: {
           dataProvider: {
-            init() {},
+            init() { },
             getListContent(
-          _domain: string,
-          predicate: string,
-          _range: string,
-          callback: (items: Array<{ term: RDFTerm; label: string }>) => void,
-        ) {
-          if (predicate === SPAR_CONTROLLED_VALUE_PREDICATE || predicate === SUBFIELD_VALUE_PREDICATE) {
-            callback(listItems)
-          } else {
-            callback([])
-          }
-        },
-      },
+              _domain: string,
+              predicate: string,
+              _range: string,
+              callback: (items: Array<{ term: RDFTerm; label: string }>) => void,
+            ) {
+              if (predicate === SPAR_CONTROLLED_VALUE_PREDICATE || predicate === SUBFIELD_VALUE_PREDICATE) {
+                callback(listItems)
+              } else {
+                callback([])
+              }
+            },
+          },
         },
       }
     }

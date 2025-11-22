@@ -76,7 +76,7 @@ export function SparnaturalBuilder({
     const seen = new Set<string>()
     const values: string[] = []
     lists.forEach(key => {
-      const options = (CONTROLLED_LIST_VALUES as any)[key] as string[] | undefined
+      const options = CONTROLLED_LIST_VALUES[key as keyof typeof CONTROLLED_LIST_VALUES] ?? []
       if (!options) return
       options.forEach(option => {
         if (seen.has(option)) return

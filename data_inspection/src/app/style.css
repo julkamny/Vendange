@@ -1743,65 +1743,107 @@ body.modal-open {
 }
 
 .shortcuts-modal {
-  max-width: 520px;
-}
-.expression-filter-banner {
-  gap: 1.4rem;
-}
-.expression-filter-banner .banner-label {
-  flex: 1;
-}
-.expression-filter-control {
-  align-items: flex-end;
-  gap: 0.4rem;
-}
-.expression-filter-select {
-  min-width: 260px;
-}
-.shortcut-list {
+  max-width: min(1200px, 95vw);
+  width: 100%;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
 }
+.shortcuts-modal h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, var(--color-text) 0%, var(--color-text-muted) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.shortcuts-modal .modal-instructions {
+  margin-bottom: 1.5rem;
+  max-width: 600px;
+}
+
+.shortcut-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem 2rem;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  padding-bottom: 1rem;
+}
+
 .shortcut-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.6rem 0.2rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-surface-alt) 40%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
-.shortcut-row:last-of-type {
-  border-bottom: none;
+.shortcut-row:hover {
+  background: color-mix(in srgb, var(--color-surface-alt) 80%, transparent);
+  border-color: color-mix(in srgb, var(--color-border) 80%, transparent);
+  transform: translateY(-1px);
 }
+
 .shortcut-info {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.15rem;
+  min-width: 0;
 }
 .shortcut-name {
   font-weight: 600;
+  font-size: 0.95rem;
   color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .shortcut-description {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--color-text-soft);
+  line-height: 1.3;
 }
+
 .shortcut-binding {
-  min-width: 140px;
+  min-width: 80px;
+  max-width: 140px;
   justify-self: flex-end;
-  white-space: normal;
-  line-height: 1.2;
+  white-space: nowrap;
+  line-height: 1;
   text-align: center;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.45rem 0.75rem;
-  word-break: break-word;
+  padding: 0.35rem 0.6rem;
+  font-family: Menlo, Consolas, 'Roboto Mono', monospace;
+  font-size: 0.85rem;
+  background: color-mix(in srgb, var(--color-surface) 50%, var(--color-bg));
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--color-shadow) 40%, transparent);
+  color: var(--color-text-muted);
+  transition: all 0.2s ease;
+}
+.shortcut-binding:hover {
+  border-color: var(--color-link);
+  color: var(--color-text);
+  background: var(--color-surface);
 }
 .shortcut-binding.recording {
   background: var(--color-selection);
+  border-color: var(--color-link);
+  color: var(--color-link);
   border-style: dashed;
+  animation: pulse-border 1.5s infinite;
+}
+
+@keyframes pulse-border {
+  0% { border-color: color-mix(in srgb, var(--color-link) 40%, transparent); }
+  50% { border-color: var(--color-link); }
+  100% { border-color: color-mix(in srgb, var(--color-link) 40%, transparent); }
 }
 
 .sparql-workspace {

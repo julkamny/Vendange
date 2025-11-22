@@ -440,7 +440,6 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
               clusters,
               activeCluster: workspace.activeCluster,
               activeClusterSource: workspace.activeClusterSource,
-              inventoryWork: workspace.inventoryWork,
               indexes: workspace.indexes,
               curatedRecords,
             })
@@ -456,7 +455,6 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
               clusters,
               activeCluster: workspace.activeCluster,
               activeClusterSource: workspace.activeClusterSource,
-              inventoryWork: workspace.inventoryWork,
               indexes: workspace.indexes,
               curatedRecords,
             })
@@ -573,7 +571,6 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       workspace.activeCluster,
       workspace.activeClusterSource,
       workspace.indexes,
-      workspace.inventoryWork,
     ],
   )
 

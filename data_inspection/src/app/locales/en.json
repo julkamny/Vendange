@@ -70,8 +70,7 @@
   "breadcrumbs": {
     "ariaLabel": "Workspace navigation",
     "scope": {
-      "clusters": "Clusters",
-      "inventory": "Inventory"
+      "clusters": "Clusters"
     },
     "view": {
       "works": "Works",
@@ -87,8 +86,7 @@
     "provideFiles": "Upload a dataset CSV to get started."
   },
   "listScope": {
-    "clusters": "Clusters",
-    "inventory": "All entities"
+    "clusters": "Clusters"
   },
   "uploadModal": {
     "title": "Upload dataset CSV",

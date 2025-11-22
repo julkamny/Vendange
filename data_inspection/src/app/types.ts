@@ -114,7 +114,7 @@ export type InventoryEntityType =
   | 'concept'
   | 'controlled'
 
-export type InventoryScope = 'clusters' | 'inventory'
+export type InventoryScope = 'clusters'
 
 export type EntityPillKind =
   | 'work'

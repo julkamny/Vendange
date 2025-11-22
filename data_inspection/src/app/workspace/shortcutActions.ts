@@ -1,5 +1,4 @@
-import { findExpressionInCluster, findPrimaryExpressionForWork, titleOf, expressionWorkArks } from '../core/entities'
-import { getCurrentLanguage } from '../i18n'
+import { findExpressionInCluster, findPrimaryExpressionForWork } from '../core/entities'
 import type { Cluster, RecordRow } from '../types'
 import type { WorkspaceTabStateWorkspace } from './types'
 import type { WorkspaceDataIndexes } from './useWorkspaceData'
@@ -8,7 +7,6 @@ type ShortcutContext = {
   clusters: Cluster[]
   activeCluster: Cluster | null
   activeClusterSource: 'cluster' | 'inventory' | 'none'
-  inventoryWork: RecordRow | null
   indexes: WorkspaceDataIndexes
   curatedRecords: RecordRow[]
 }
@@ -17,32 +15,18 @@ export function focusTreeUp(state: WorkspaceTabStateWorkspace, ctx: ShortcutCont
   const selected = state.selectedEntity
   if (!selected) return state
 
-  if (state.listScope === 'inventory') {
-    const inventoryResult = focusInventoryTreeUp(state, selected, ctx)
-    return inventoryResult ?? state
-  }
-
   const clusterResult = focusClusterTreeUp(state, selected, ctx)
   if (clusterResult) return clusterResult
-
-  const inventoryFallback = focusInventoryTreeUp(state, selected, ctx)
-  return inventoryFallback ?? state
+  return state
 }
 
 export function focusTreeDown(state: WorkspaceTabStateWorkspace, ctx: ShortcutContext): WorkspaceTabStateWorkspace {
   const selected = state.selectedEntity
   if (!selected) return state
 
-  if (state.listScope === 'inventory') {
-    const inventoryResult = focusInventoryTreeDown(state, selected, ctx)
-    return inventoryResult ?? state
-  }
-
   const clusterResult = focusClusterTreeDown(state, selected, ctx)
   if (clusterResult) return clusterResult
-
-  const inventoryFallback = focusInventoryTreeDown(state, selected, ctx)
-  return inventoryFallback ?? state
+  return state
 }
 
 function focusClusterTreeUp(
@@ -63,13 +47,10 @@ function focusClusterTreeUp(
     return {
       ...state,
       viewMode: 'expressions',
-      listScope: 'clusters',
       activeWorkAnchorId: cluster.anchorId,
       activeExpressionAnchorId: anchorId,
       highlightedExpressionArk: expressionArk,
       highlightedWorkArk: workArk ?? null,
-      inventoryFocusWorkId: null,
-      inventoryFocusExpressionId: null,
       selectedEntity: {
         id: expressionId,
         source: inferRecordSource(expressionId, ctx.curatedRecords),
@@ -96,13 +77,10 @@ function focusClusterTreeUp(
     return {
       ...state,
       viewMode: 'works',
-      listScope: 'clusters',
       activeWorkAnchorId: cluster.anchorId,
       activeExpressionAnchorId: null,
       highlightedExpressionArk: null,
       highlightedWorkArk: workArk ?? null,
-      inventoryFocusWorkId: null,
-      inventoryFocusExpressionId: null,
       selectedEntity: {
         id: workId,
         source: inferRecordSource(workId, ctx.curatedRecords),
@@ -132,13 +110,10 @@ function focusClusterTreeDown(
     const baseState: WorkspaceTabStateWorkspace = {
       ...state,
       viewMode: 'expressions',
-      listScope: 'clusters',
       activeWorkAnchorId: cluster.anchorId,
       activeExpressionAnchorId: null,
       highlightedExpressionArk: null,
       highlightedWorkArk: targetWorkArk ?? null,
-      inventoryFocusExpressionId: null,
-      inventoryFocusWorkId: null,
     }
 
     if (!expression) {
@@ -178,13 +153,10 @@ function focusClusterTreeDown(
     const baseState: WorkspaceTabStateWorkspace = {
       ...state,
       viewMode: 'manifestations',
-      listScope: 'clusters',
       activeWorkAnchorId: cluster.anchorId,
       activeExpressionAnchorId: anchorId,
       highlightedExpressionArk: expressionArk ?? null,
       highlightedWorkArk: expression.workArk ?? state.highlightedWorkArk ?? null,
-      inventoryFocusExpressionId: null,
-      inventoryFocusWorkId: null,
     }
 
     if (!nextManifest) {
@@ -202,204 +174,6 @@ function focusClusterTreeDown(
         expressionArk: expressionArk ?? undefined,
         clusterAnchorId: cluster.anchorId,
         isAnchor: !!anchorId && anchorId === expression.id,
-      },
-    }
-  }
-
-  return null
-}
-
-function focusInventoryTreeUp(
-  state: WorkspaceTabStateWorkspace,
-  entity: NonNullable<WorkspaceTabStateWorkspace['selectedEntity']>,
-  ctx: ShortcutContext,
-): WorkspaceTabStateWorkspace | null {
-  if (entity.entityType === 'manifestation') {
-    const expressionRecord = findExpressionRecord(entity.expressionId, entity.expressionArk, ctx)
-    if (!expressionRecord) return null
-    const workArk = expressionWorkArks(expressionRecord)[0] ?? entity.workArk ?? null
-    const workRecord = findWorkRecord(null, workArk ?? null, ctx)
-    const expressionArk = expressionRecord.ark || entity.expressionArk || null
-
-    return {
-      ...state,
-      listScope: 'inventory',
-      viewMode: 'expressions',
-      activeWorkAnchorId: null,
-      activeExpressionAnchorId: null,
-      highlightedExpressionArk: expressionArk,
-      highlightedWorkArk: workArk ?? state.highlightedWorkArk ?? null,
-      inventoryFocusWorkId: workRecord?.id ?? state.inventoryFocusWorkId ?? null,
-      inventoryFocusExpressionId: expressionRecord.id,
-      selectedEntity: {
-        id: expressionRecord.id,
-        source: inferRecordSource(expressionRecord.id, ctx.curatedRecords),
-        entityType: 'expression',
-        workArk: workArk ?? undefined,
-        expressionId: expressionRecord.id,
-        expressionArk: expressionArk ?? undefined,
-      },
-    }
-  }
-
-  if (entity.entityType === 'expression') {
-    const expressionRecord = findExpressionRecord(entity.expressionId ?? entity.id, entity.expressionArk, ctx)
-    const workArk = entity.workArk ?? (expressionRecord ? expressionWorkArks(expressionRecord)[0] : undefined) ?? null
-    const workRecord = findWorkRecord(entity.id, workArk, ctx)
-    const cluster = resolveClusterForWork(state, ctx, workArk, workRecord?.id ?? entity.id)
-
-    return {
-      ...state,
-      listScope: 'clusters',
-      viewMode: 'works',
-      activeWorkAnchorId: cluster?.anchorId ?? null,
-      activeExpressionAnchorId: null,
-      highlightedExpressionArk: null,
-      highlightedWorkArk: workArk ?? null,
-      inventoryFocusWorkId: null,
-      inventoryFocusExpressionId: null,
-      selectedEntity: {
-        id: workRecord?.id ?? entity.id,
-        source: inferRecordSource(workRecord?.id ?? entity.id, ctx.curatedRecords),
-        entityType: 'work',
-        workArk: workArk ?? undefined,
-        clusterAnchorId: cluster?.anchorId,
-        isAnchor: cluster ? (workRecord?.id ?? entity.id) === cluster.anchorId : false,
-      },
-    }
-  }
-
-  if (entity.entityType === 'work') {
-    const workRecord = findWorkRecord(entity.id, entity.workArk ?? null, ctx)
-    const cluster = resolveClusterForWork(state, ctx, workRecord?.ark ?? entity.workArk ?? null, workRecord?.id ?? entity.id)
-
-    return {
-      ...state,
-      listScope: 'clusters',
-      viewMode: 'works',
-      activeWorkAnchorId: cluster?.anchorId ?? null,
-      activeExpressionAnchorId: null,
-      highlightedExpressionArk: null,
-      highlightedWorkArk: workRecord?.ark ?? entity.workArk ?? null,
-      inventoryFocusWorkId: null,
-      inventoryFocusExpressionId: null,
-      selectedEntity: {
-        id: workRecord?.id ?? entity.id,
-        source: inferRecordSource(workRecord?.id ?? entity.id, ctx.curatedRecords),
-        entityType: 'work',
-        workArk: workRecord?.ark ?? entity.workArk ?? undefined,
-        clusterAnchorId: cluster?.anchorId,
-        isAnchor: cluster ? (workRecord?.id ?? entity.id) === cluster.anchorId : false,
-      },
-    }
-  }
-
-  return null
-}
-
-function focusInventoryTreeDown(
-  state: WorkspaceTabStateWorkspace,
-  entity: NonNullable<WorkspaceTabStateWorkspace['selectedEntity']>,
-  ctx: ShortcutContext,
-): WorkspaceTabStateWorkspace | null {
-  if (entity.entityType === 'work') {
-    const workRecord = findWorkRecord(entity.id, entity.workArk ?? null, ctx)
-    const workArk = workRecord?.ark ?? entity.workArk ?? null
-    const expressions = workArk ? [...(ctx.indexes.expressionsByWorkArk.get(workArk) ?? [])] : []
-
-    if (!expressions.length) {
-      return {
-        ...state,
-        listScope: 'inventory',
-        viewMode: 'expressions',
-        activeWorkAnchorId: null,
-        activeExpressionAnchorId: null,
-        highlightedExpressionArk: null,
-        highlightedWorkArk: workArk ?? null,
-        inventoryFocusWorkId: workRecord?.id ?? entity.id,
-        inventoryFocusExpressionId: null,
-        selectedEntity: {
-          id: entity.id,
-          source: inferRecordSource(entity.id, ctx.curatedRecords),
-          entityType: 'work',
-          workArk: workArk ?? undefined,
-        },
-      }
-    }
-
-    const collator = new Intl.Collator(getCurrentLanguage(), { sensitivity: 'accent' })
-    expressions.sort((a, b) => collator.compare(getExpressionLabel(a), getExpressionLabel(b)))
-    const first = expressions[0]
-    const expressionArk = first.ark || null
-
-    return {
-      ...state,
-      listScope: 'inventory',
-      viewMode: 'expressions',
-      activeWorkAnchorId: null,
-      activeExpressionAnchorId: null,
-      highlightedExpressionArk: expressionArk,
-      highlightedWorkArk: workArk ?? null,
-      inventoryFocusWorkId: workRecord?.id ?? entity.id,
-      inventoryFocusExpressionId: first.id,
-      selectedEntity: {
-        id: first.id,
-        source: inferRecordSource(first.id, ctx.curatedRecords),
-        entityType: 'expression',
-        workArk: workArk ?? undefined,
-        expressionId: first.id,
-        expressionArk: expressionArk ?? undefined,
-      },
-    }
-  }
-
-  if (entity.entityType === 'expression') {
-    const expressionRecord = findExpressionRecord(entity.expressionId ?? entity.id, entity.expressionArk, ctx)
-    const expressionArk = expressionRecord?.ark ?? entity.expressionArk ?? null
-    const workArk = entity.workArk ?? (expressionRecord ? expressionWorkArks(expressionRecord)[0] : undefined) ?? null
-    const manifestations = expressionArk ? [...(ctx.indexes.manifestationsByExpressionArk.get(expressionArk) ?? [])] : []
-
-    if (!manifestations.length) {
-      return {
-        ...state,
-        listScope: 'inventory',
-        viewMode: 'manifestations',
-        activeWorkAnchorId: null,
-        activeExpressionAnchorId: null,
-        highlightedExpressionArk: expressionArk,
-        highlightedWorkArk: workArk ?? state.highlightedWorkArk ?? null,
-        inventoryFocusExpressionId: entity.expressionId ?? entity.id,
-        inventoryFocusWorkId: state.inventoryFocusWorkId ?? null,
-        selectedEntity: {
-          ...entity,
-          expressionId: entity.expressionId ?? entity.id,
-          expressionArk: expressionArk ?? undefined,
-          workArk: workArk ?? entity.workArk,
-        },
-      }
-    }
-
-    const collator = new Intl.Collator(getCurrentLanguage(), { sensitivity: 'accent' })
-    manifestations.sort((a, b) => collator.compare(getManifestationLabel(a), getManifestationLabel(b)))
-    const first = manifestations[0]
-
-    return {
-      ...state,
-      listScope: 'inventory',
-      viewMode: 'manifestations',
-      activeWorkAnchorId: null,
-      activeExpressionAnchorId: null,
-      highlightedExpressionArk: expressionArk,
-      highlightedWorkArk: workArk ?? state.highlightedWorkArk ?? null,
-      inventoryFocusExpressionId: entity.expressionId ?? entity.id,
-      inventoryFocusWorkId: state.inventoryFocusWorkId ?? null,
-      selectedEntity: {
-        id: first.id,
-        source: inferRecordSource(first.id, ctx.curatedRecords),
-        entityType: 'manifestation',
-        expressionId: expressionRecord?.id,
-        expressionArk: expressionArk ?? undefined,
-        workArk: workArk ?? undefined,
       },
     }
   }
@@ -472,44 +246,4 @@ export function resolveAnchorExpressionId(cluster: Cluster, expression: ReturnTy
 export function inferRecordSource(id: string | undefined, curated: RecordRow[]): 'curated' {
   if (id && curated.some(record => record.id === id)) return 'curated'
   return 'curated'
-}
-
-function findWorkRecord(
-  workId: string | null | undefined,
-  workArk: string | null | undefined,
-  ctx: ShortcutContext,
-): RecordRow | null {
-  if (workId) {
-    const byId = ctx.indexes.worksById.get(workId)
-    if (byId) return byId
-  }
-  if (workArk) {
-    const byArk = ctx.indexes.worksByArk.get(workArk)
-    if (byArk) return byArk
-  }
-  return null
-}
-
-function findExpressionRecord(
-  expressionId: string | null | undefined,
-  expressionArk: string | null | undefined,
-  ctx: ShortcutContext,
-): RecordRow | null {
-  if (expressionId) {
-    const byId = ctx.indexes.expressionsById.get(expressionId)
-    if (byId) return byId
-  }
-  if (expressionArk) {
-    const byArk = ctx.indexes.expressionsByArk.get(expressionArk)
-    if (byArk) return byArk
-  }
-  return null
-}
-
-function getExpressionLabel(record: RecordRow): string {
-  return titleOf(record) || record.id
-}
-
-function getManifestationLabel(record: RecordRow): string {
-  return titleOf(record) || record.id
 }

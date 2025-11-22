@@ -91,6 +91,7 @@ Review in the Web UI
 - From the dashboard, upload one or more dataset CSV snapshots. Each upload becomes its own Oxigraph store under `data_curation/api/datasets/`; use the dataset’s **Open** action to inspect or curate it.
 - The inspection view keeps a single in-memory copy of the dataset; pristine snapshots are captured per record only when you edit it, keeping load time and memory footprint low while still allowing per-record reset.
 - Three tab kinds are available from the “+” dropdown: WEM workspace, Agents workspace (people/collectives/families), and SPARQL query tabs; the dropdown now supports keyboard navigation (Enter/Space to open, arrows to move, Escape to close) and closes reliably on outside clicks.
+- The workspace list scope is fixed to clusters; the legacy “inventory” view has been removed along with its keyboard navigation paths.
 - The UI detects clusters by scanning for `90F$q = "Clusterisation script"` in works.
 - Key information about entities is displayed in badges:
   - Expression counters (orange) only appear when at least one manifestation points to the entity.

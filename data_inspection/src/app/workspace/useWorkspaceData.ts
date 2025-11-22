@@ -84,37 +84,28 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
   }, [curated?.records])
 
   const activeContext = useMemo(() => {
-    console.log('state', state)
-    if (state.listScope === 'clusters') {
-      const targetWorkId = state.inventoryFocusWorkId
-      const targetWorkArk = state.highlightedWorkArk ?? null
-      const workRecord =
-        (targetWorkId ? dataIndexes.worksById.get(targetWorkId) ?? null : null) ||
-        (targetWorkArk ? dataIndexes.worksByArk.get(targetWorkArk) ?? null : null)
-      console.log('workRecord', workRecord, targetWorkId, targetWorkArk)
-      if (!workRecord) {
-        return { cluster: null as Cluster | null, source: 'none' as const, inventoryWork: null as RecordRow | null }
-      }
+    const candidateWorkRecord =
+      (state.inventoryFocusWorkId ? dataIndexes.worksById.get(state.inventoryFocusWorkId) ?? null : null) ||
+      (state.highlightedWorkArk ? dataIndexes.worksByArk.get(state.highlightedWorkArk) ?? null : null)
 
-      // Check if this work is actually a cluster anchor OR part of a cluster
+    if (state.activeWorkAnchorId) {
+      const cluster = clusters.find(entry => entry.anchorId === state.activeWorkAnchorId) ?? null
+      if (cluster) {
+        return { cluster, source: 'cluster' as const, inventoryWork: null as RecordRow | null }
+      }
+    }
+
+    if (candidateWorkRecord) {
       const existingCluster = clusters.find(c => {
-        if (c.anchorId === workRecord.id) return true
-        // Check if the work is one of the clustered items
-        if (c.items.some(item => item.id === workRecord.id || (workRecord.ark && item.ark === workRecord.ark))) {
-          console.log('found cluster', c)
-          return true
-        }
-        return false
+        if (c.anchorId === candidateWorkRecord.id) return true
+        return c.items.some(item => item.id === candidateWorkRecord.id || (candidateWorkRecord.ark && item.ark === candidateWorkRecord.ark))
       })
+
       if (existingCluster) {
-        return {
-          cluster: existingCluster,
-          source: 'cluster' as const,
-          inventoryWork: null as RecordRow | null,
-        }
+        return { cluster: existingCluster, source: 'cluster' as const, inventoryWork: null as RecordRow | null }
       }
 
-      const workArk = workRecord.ark || targetWorkArk || ''
+      const workArk = candidateWorkRecord.ark || state.highlightedWorkArk || ''
       const expressionRecords = workArk ? dataIndexes.expressionsByWorkArk.get(workArk) ?? [] : []
       const independentExpressions = expressionRecords.map(expr => {
         const expressionArk = expr.ark
@@ -131,94 +122,37 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
           ark: expressionArk || expr.id,
           title: titleOf(expr) || expr.id,
           workArk,
-          workId: workRecord.id,
+          workId: candidateWorkRecord.id,
           manifestations,
         }
       })
       const pseudoCluster: Cluster = {
-        anchorId: workRecord.id,
+        anchorId: candidateWorkRecord.id,
         anchorArk: workArk,
-        anchorTitle: titleOf(workRecord),
+        anchorTitle: titleOf(candidateWorkRecord),
         items: [],
         expressionGroups: [],
         independentExpressions,
       }
-      return {
-        cluster: pseudoCluster,
-        source: 'inventory' as const,
-        inventoryWork: workRecord,
-      }
+      return { cluster: pseudoCluster, source: 'inventory' as const, inventoryWork: candidateWorkRecord }
     }
 
-    let cluster: Cluster | null = null
-    if (state.activeWorkAnchorId) {
-      cluster = clusters.find(entry => entry.anchorId === state.activeWorkAnchorId) ?? null
-    } else {
-      cluster = clusters[0] ?? null
+    const fallbackCluster = clusters[0] ?? null
+    if (fallbackCluster) {
+      return { cluster: fallbackCluster, source: 'cluster' as const, inventoryWork: null as RecordRow | null }
     }
 
-    if (cluster) {
-      return {
-        cluster,
-        source: 'cluster' as const,
-        inventoryWork: null as RecordRow | null,
-      }
-    }
-
-    // Fallback: if we were looking for a cluster but it's gone (e.g. unclustered),
-    // try to show the work as an inventory item if we have the ID.
-    if (state.activeWorkAnchorId) {
-      const workRecord = dataIndexes.worksById.get(state.activeWorkAnchorId)
-      if (workRecord) {
-        const workArk = workRecord.ark || ''
-        const expressionRecords = workArk ? dataIndexes.expressionsByWorkArk.get(workArk) ?? [] : []
-        const independentExpressions = expressionRecords.map(expr => {
-          const expressionArk = expr.ark
-          const manifestations =
-            expressionArk && expressionArk.length > 0
-              ? manifestationsForExpression(
-                expressionArk,
-                dataIndexes.manifestationsByExpressionArk,
-                dataIndexes.expressionsByArk,
-              )
-              : []
-          return {
-            id: expr.id,
-            ark: expressionArk || expr.id,
-            title: titleOf(expr) || expr.id,
-            workArk,
-            workId: workRecord.id,
-            manifestations,
-          }
-        })
-        const pseudoCluster: Cluster = {
-          anchorId: workRecord.id,
-          anchorArk: workArk,
-          anchorTitle: titleOf(workRecord),
-          items: [],
-          expressionGroups: [],
-          independentExpressions,
-        }
-        return {
-          cluster: pseudoCluster,
-          source: 'inventory' as const,
-          inventoryWork: workRecord,
-        }
-      }
-    }
-
-    return {
-      cluster: null,
-      source: 'none' as const,
-      inventoryWork: null as RecordRow | null,
-    }
+    return { cluster: null, source: 'none' as const, inventoryWork: null as RecordRow | null }
   }, [
-    state.listScope,
-    state.inventoryFocusWorkId,
-    state.highlightedWorkArk,
-    state.activeWorkAnchorId,
     clusters,
-    dataIndexes,
+    dataIndexes.expressionsByArk,
+    dataIndexes.expressionsByWorkArk,
+    dataIndexes.manifestationsByExpressionArk,
+    dataIndexes.worksByArk,
+    dataIndexes.worksById,
+    state.activeWorkAnchorId,
+    state.highlightedWorkArk,
+    state.inventoryFocusWorkId,
   ])
 
   return {

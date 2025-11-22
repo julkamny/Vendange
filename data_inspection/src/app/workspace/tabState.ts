@@ -48,7 +48,6 @@ function configureForWork(
     return {
       ...base,
       title: titleOf(record) || base.title,
-      listScope: 'clusters',
       viewMode: 'works',
       activeWorkAnchorId: cluster.anchorId,
       highlightedWorkArk,
@@ -70,7 +69,7 @@ function configureForWork(
   return {
     ...base,
     title: titleOf(record) || base.title,
-    listScope: 'inventory',
+    listScope: 'clusters',
     viewMode: 'works',
     activeWorkAnchorId: null,
     highlightedWorkArk,
@@ -118,7 +117,6 @@ function configureForExpression(
     return {
       ...base,
       title: titleOf(workRecord ?? record) || base.title,
-      listScope: 'clusters',
       viewMode: 'expressions',
       activeWorkAnchorId: cluster.anchorId,
       activeExpressionAnchorId: anchorId,
@@ -133,7 +131,7 @@ function configureForExpression(
   return {
     ...base,
     title: titleOf(workRecord ?? record) || base.title,
-    listScope: 'inventory',
+    listScope: 'clusters',
     viewMode: 'expressions',
     activeWorkAnchorId: null,
     activeExpressionAnchorId: null,
@@ -184,7 +182,6 @@ function configureForManifestation(
     return {
       ...base,
       title: manifestationTitle(record) || titleOf(expressionRecord ?? workRecord ?? record) || base.title,
-      listScope: 'clusters',
       viewMode: 'manifestations',
       activeWorkAnchorId: cluster.anchorId,
       activeExpressionAnchorId: anchorId,
@@ -199,7 +196,7 @@ function configureForManifestation(
   return {
     ...base,
     title: manifestationTitle(record) || titleOf(expressionRecord ?? workRecord ?? record) || base.title,
-    listScope: 'inventory',
+    listScope: 'clusters',
     viewMode: 'manifestations',
     activeWorkAnchorId: null,
     activeExpressionAnchorId: null,

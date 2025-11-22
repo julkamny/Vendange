@@ -70,8 +70,7 @@
   "breadcrumbs": {
     "ariaLabel": "Navigation de l'espace de travail",
     "scope": {
-      "clusters": "Grappes",
-      "inventory": "Inventaire"
+      "clusters": "Grappes"
     },
     "view": {
       "works": "Œuvres",
@@ -87,8 +86,7 @@
     "provideFiles": "Importez un CSV de jeu de données pour démarrer."
   },
   "listScope": {
-    "clusters": "Clusters",
-    "inventory": "Toutes les entités"
+    "clusters": "Clusters"
   },
   "uploadModal": {
     "title": "Importer un CSV de jeu de données",

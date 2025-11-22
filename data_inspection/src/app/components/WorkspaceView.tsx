@@ -315,16 +315,6 @@ export function WorkspaceView({
     [expressionClusterIndex],
   )
 
-  const expressionClusterAnchorKeys = useMemo(() => {
-    const keys = new Set<string>()
-    clusters.forEach(cluster => {
-      cluster.expressionGroups.forEach(group => {
-        keys.add(group.anchor.id)
-        if (group.anchor.ark) keys.add(group.anchor.ark)
-      })
-    })
-    return keys
-  }, [clusters])
   const isProtectedWorkAnchor = useCallback(
     (target: RecordRow | null) => {
       if (!target || target.typeNorm !== 'oeuvre') return false
@@ -332,22 +322,12 @@ export function WorkspaceView({
     },
     [],
   )
-  const isExpressionClusterAnchor = useCallback(
-    (target: RecordRow | null) => {
-      if (!target || target.typeNorm !== 'expression') return false
-      if (expressionClusterAnchorKeys.has(target.id)) return true
-      if (target.ark && expressionClusterAnchorKeys.has(target.ark)) return true
-      return false
-    },
-    [expressionClusterAnchorKeys],
-  )
   const isProtectedExpressionAnchor = useCallback(
     (target: RecordRow | null) => {
       if (!target || target.typeNorm !== 'expression') return false
-      if (isExpressionClusterAnchor(target)) return true
       return isClusterAnchorCreated(target.intermarc)
     },
-    [isExpressionClusterAnchor],
+    [],
   )
   const cancelPendingCluster = useCallback(() => {
     setPendingClusterSourceId(null)

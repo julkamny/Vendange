@@ -1,8 +1,8 @@
 import { useMemo, useCallback, type MouseEvent } from 'react'
-import type { Cluster, ExpressionClusterItem, ExpressionItem, EntityBadgeSpec } from '../../types'
+import type { Cluster, ExpressionClusterItem, ExpressionItem } from '../../types'
 import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
-import { EntityLabel, EntityPill, CountBadge, AgentBadge, RelationshipBadge } from '../../components/EntityLabel'
+import { EntityPill, CountBadge, AgentBadge, RelationshipBadge } from '../../components/EntityLabel'
 import { useRecordLookup } from '../../hooks/useRecordLookup'
 import { countExpressionWorkLinks } from '../../core/entities'
 import { useBacklinks } from '../../hooks/useBacklinks'
@@ -131,10 +131,15 @@ export function ExpressionPanel({
     [countIncomingRelationships, getGeneralRelationshipCount, resolveExpressionRecord],
   )
 
-  const independentExpressions = useMemo(
-    () => cluster?.independentExpressions ?? [],
-    [cluster?.independentExpressions],
-  )
+  const groups = useMemo(() => {
+    if (!cluster) return []
+    const base = cluster.expressionGroups
+    const independents = (cluster.independentExpressions ?? []).map(expr => ({
+      anchor: expr,
+      clustered: [],
+    }))
+    return [...base, ...independents]
+  }, [cluster])
 
   if (!cluster) return <em>{t('messages.noClusters')}</em>
 
@@ -144,7 +149,7 @@ export function ExpressionPanel({
 
   return (
     <div className="expression-groups">
-      {cluster.expressionGroups.map(group => {
+      {groups.map(group => {
         const groupClasses = ['expression-group']
         if (state.activeExpressionAnchorId === group.anchor.id) groupClasses.push('active')
 
@@ -205,7 +210,7 @@ export function ExpressionPanel({
             >
               <ExpressionGroupLabel
                 expression={group.anchor}
-                isAnchor
+                isAnchor={group.anchor.workArk === cluster.anchorArk}
                 manifestationCount={group.anchor.manifestations.length}
                 workLinkCount={anchorWorkLinks}
                 agentNames={anchorAgentNames}
@@ -296,70 +301,6 @@ export function ExpressionPanel({
           </div>
         )
       })}
-
-      {independentExpressions.length ? (
-        <div className="expression-independent">
-          <div className="expression-independent-header">{t('labels.independentExpressions')}</div>
-          {independentExpressions.map(expr => {
-        const rowClasses = ['expression-item', 'entity-row', 'entity-row--expression', 'independent']
-        if (pendingClusterSourceId && pendingClusterSourceId === expr.id) rowClasses.push('pending-cluster-source')
-            const agentNames = getAgentNames(expr.id, expr.ark)
-            const { workLinkCount, relationships } = computeExpressionMetrics(expr.id, expr.ark)
-            const mediaKinds = getMediaKinds(expr.id, expr.ark)
-            const matchesHighlight = matchesFilter(expr.workArk, highlightedWorkArk)
-            const isSelectedExpression =
-              (selectedEntity?.entityType === 'expression' && selectedEntity.expressionId === expr.id) ||
-              (selectedEntity?.entityType === 'manifestation' && selectedEntity.expressionId === expr.id)
-            const isWorkSelection =
-              selectedEntity?.entityType === 'work' && selectedEntity.workArk === expr.workArk
-            if (isSelectedExpression) rowClasses.push('selected')
-            else if (isWorkSelection || (highlightedWorkArk && matchesHighlight)) rowClasses.push('highlight')
-            if (highlightedWorkArk && matchesHighlight) rowClasses.push('filter-match')
-            if (highlightedExpressionArk && highlightedExpressionArk === expr.ark) rowClasses.push('highlight')
-
-            const badges: EntityBadgeSpec[] = [{ type: 'expression', text: expr.id, tooltip: expr.ark }]
-            if (expr.workId) badges.push({ type: 'work', text: expr.workId, tooltip: expr.workArk })
-            const agentBadgeNames = agentNames.length ? agentNames : undefined
-
-            return (
-              <div
-                key={expr.id}
-                className={rowClasses.join(' ')}
-                data-expression-id={expr.id}
-                data-expression-ark={expr.ark ?? undefined}
-                onClick={() =>
-                  onSelectExpression({
-                    expressionId: expr.id,
-                    expressionArk: expr.ark,
-                    workArk: expr.workArk,
-                  })
-                }
-              onDoubleClick={event => {
-                if (shouldIgnoreExpressionEvent(event)) return
-                if (pendingClusterSourceId && pendingClusterSourceId === expr.id) {
-                  onCancelPendingCluster?.()
-                  return
-                }
-                onOpenManifestations({
-                  expressionId: expr.id,
-                  expressionArk: expr.ark,
-                  workArk: expr.workArk,
-                })
-                }}
-              >
-                <EntityLabel
-                  title={expr.title || expr.id}
-                  badges={badges}
-                  counts={{ manifestations: expr.manifestations.length, workLinks: workLinkCount }}
-                  agentNames={agentBadgeNames}
-                  relationships={relationships}
-                  mediaKinds={mediaKinds}
-                />
-              </div>
-            )
-          })}
-        </div>
-      ) : null}
     </div>
   )
 }

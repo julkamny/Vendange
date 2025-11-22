@@ -1197,23 +1197,6 @@ export function WorkspaceView({
       return
     }
 
-    onStateChange(prev => ({
-      ...prev,
-      viewMode: 'expressions',
-      listScope: 'inventory',
-      activeWorkAnchorId: null,
-      activeExpressionAnchorId: null,
-      highlightedWorkArk: workArk ?? null,
-      highlightedExpressionArk: null,
-      inventoryFocusWorkId: workId,
-      inventoryFocusExpressionId: null,
-      selectedEntity: {
-        id: workId,
-        source: 'curated',
-        entityType: 'work',
-        workArk: workArk ?? undefined,
-      },
-    }))
   }
 
   const renderListPanel = (viewMode: WorkspaceTabStateWorkspace['viewMode']) => {

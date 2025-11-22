@@ -783,7 +783,10 @@ def _expression_parents(store: Store, record_id: str) -> set[str]:
     solutions = store.query(query)
     if isinstance(solutions, QuerySolutions):
         for sol in solutions:
-            val = sol.get("value")
+            try:
+                val = sol["value"]
+            except (KeyError, TypeError):
+                val = None
             if isinstance(val, Literal):
                 parents.add(val.value)
     return parents

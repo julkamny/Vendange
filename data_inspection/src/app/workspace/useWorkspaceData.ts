@@ -84,8 +84,9 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
   }, [curated?.records])
 
   const activeContext = useMemo(() => {
+    const selectedWorkId = state.selectedEntity?.entityType === 'work' ? state.selectedEntity.id : null
     const candidateWorkRecord =
-      (state.inventoryFocusWorkId ? dataIndexes.worksById.get(state.inventoryFocusWorkId) ?? null : null) ||
+      (selectedWorkId ? dataIndexes.worksById.get(selectedWorkId) ?? null : null) ||
       (state.highlightedWorkArk ? dataIndexes.worksByArk.get(state.highlightedWorkArk) ?? null : null)
 
     if (state.activeWorkAnchorId) {
@@ -152,7 +153,7 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
     dataIndexes.worksById,
     state.activeWorkAnchorId,
     state.highlightedWorkArk,
-    state.inventoryFocusWorkId,
+    state.selectedEntity,
   ])
 
   return {

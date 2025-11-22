@@ -25,9 +25,6 @@ export type WorkspaceTabStateWorkspace = {
   highlightedExpressionArk: string | null
   expressionFilterArk: string | null
   selectedEntity: SelectedEntity | null
-  inventoryExpressionFilterArk: string | null
-  inventoryFocusWorkId: string | null
-  inventoryFocusExpressionId: string | null
   listScrollTop: number
   detailsScrollTop: number
 }
@@ -82,9 +79,6 @@ export const DEFAULT_WORKSPACE_STATE: Omit<WorkspaceTabStateWorkspace, 'id' | 't
   highlightedExpressionArk: null,
   expressionFilterArk: null,
   selectedEntity: null,
-  inventoryExpressionFilterArk: null,
-  inventoryFocusWorkId: null,
-  inventoryFocusExpressionId: null,
   listScrollTop: 0,
   detailsScrollTop: 0,
 }

@@ -53,8 +53,6 @@ function configureForWork(
       highlightedWorkArk,
       activeExpressionAnchorId: null,
       highlightedExpressionArk: null,
-      inventoryFocusWorkId: null,
-      inventoryFocusExpressionId: null,
       selectedEntity: {
         id: record.id,
         source,
@@ -75,8 +73,6 @@ function configureForWork(
     highlightedWorkArk,
     activeExpressionAnchorId: null,
     highlightedExpressionArk: null,
-    inventoryFocusWorkId: record.id,
-    inventoryFocusExpressionId: null,
     selectedEntity: {
       id: record.id,
       source,
@@ -122,8 +118,6 @@ function configureForExpression(
       activeExpressionAnchorId: anchorId,
       highlightedWorkArk,
       highlightedExpressionArk: expressionArkForState,
-      inventoryFocusWorkId: null,
-      inventoryFocusExpressionId: null,
       selectedEntity,
     }
   }
@@ -137,8 +131,6 @@ function configureForExpression(
     activeExpressionAnchorId: null,
     highlightedWorkArk,
     highlightedExpressionArk: expressionArkForState,
-    inventoryFocusWorkId: workRecord?.id ?? null,
-    inventoryFocusExpressionId: record.id,
     selectedEntity,
   }
 }
@@ -187,8 +179,6 @@ function configureForManifestation(
       activeExpressionAnchorId: anchorId,
       highlightedWorkArk,
       highlightedExpressionArk: expressionArkForState,
-      inventoryFocusWorkId: null,
-      inventoryFocusExpressionId: null,
       selectedEntity,
     }
   }
@@ -202,8 +192,6 @@ function configureForManifestation(
     activeExpressionAnchorId: null,
     highlightedWorkArk,
     highlightedExpressionArk: expressionArkForState,
-    inventoryFocusWorkId: workRecord?.id ?? null,
-    inventoryFocusExpressionId: expressionId,
     selectedEntity,
   }
 }

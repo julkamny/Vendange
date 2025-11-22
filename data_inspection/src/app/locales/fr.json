@@ -218,6 +218,21 @@
       "targetIsAnchor": "Impossible : la cible est déjà ancre d'un cluster."
     }
   },
+  "expressions": {
+    "cluster": {
+      "prepare": "Préparer pour clustering",
+      "clusterWith": "Clustériser l’expression sélectionnée ici",
+      "prepared": "Expression mise en attente pour clustering.",
+      "typeMismatch": "Les expressions doivent être du même type.",
+      "parentMismatch": "Les expressions doivent partager la même œuvre parente.",
+      "missingArk": "Impossible de clustériser : l’expression n’a pas d’ARK.",
+      "success": "Expression ajoutée au cluster.",
+      "confirmTitle": "Confirmer la clusterisation",
+      "confirmBody": "Rattacher « {{source}} » ({{sourceArk}}) au cluster de « {{anchor}} » ({{anchorArk}}) ?",
+      "pendingAlreadySelected": "Impossible : cette expression est déjà rattachée à un autre cluster.",
+      "targetIsAnchor": "Impossible : la cible est déjà ancre d'un cluster."
+    }
+  },
   "agents": {
     "cluster": {
       "prepare": "Préparer pour clustering",

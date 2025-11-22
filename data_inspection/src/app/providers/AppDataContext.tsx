@@ -16,6 +16,7 @@ import {
   registerArkLabelForRecord,
   findZones,
   rebuildWorkCluster90FEntries,
+  rebuildExpressionCluster90FEntries,
 } from '../lib/intermarc'
 import { detectClusters, buildArkIndex } from '../core/clusters'
 import { buildOriginalIndexes, type OriginalIndexes } from '../core/originalIndexes'
@@ -24,8 +25,6 @@ import { normalizeType } from '../core/records'
 import { stringifyCsv } from '../lib/csv'
 import { useToast } from './ToastContext'
 import { cloneIntermarc } from '../core/intermarc-utils'
-import { add90FEntries } from '../lib/intermarc'
-import { CLUSTER_NOTE } from '../core/constants'
 import { fetchDatasetRecords, syncRecordUpdate, type DatasetRecordPayload } from '../lib/api'
 import { postBroadcastEvent, subscribeToBroadcast, getBroadcastClientId } from '../lib/broadcast'
 
@@ -240,31 +239,40 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const updates: UpdatePayload[] = []
       setState(prev => {
         if (!prev.curated) return prev
-        const clusterIndex = prev.clusters.findIndex(c => c.anchorId === clusterId)
-        if (clusterIndex === -1) return prev
-        const targetCluster = cloneCluster(prev.clusters[clusterIndex])
-        const group = targetCluster.expressionGroups.find(g => g.anchor.id === anchorExpressionId)
+        const cluster = prev.clusters.find(c => c.anchorId === clusterId)
+        if (!cluster) return prev
+        const group = cluster.expressionGroups.find(g => g.anchor.id === anchorExpressionId)
         if (!group) return prev
-        const expression = group.clustered.find(expr => expr.ark === expressionArk)
-        if (!expression) return prev
-
-        const today = new Date().toISOString().slice(0, 10)
-        expression.accepted = accepted
-        expression.date = accepted ? expression.date ?? today : undefined
 
         const pristineRecords = new Map(prev.pristineRecords)
         snapshotRecord(prev.curated, anchorExpressionId, pristineRecords)
-        snapshotRecord(prev.curated, expression.id, pristineRecords)
 
-        const curated = updateExpressionClusterIntermarc(targetCluster, anchorExpressionId, prev.curated)
+        const today = new Date().toISOString().slice(0, 10)
+        const nextClustered = group.clustered
+          .filter(expr => (accepted ? true : expr.ark !== expressionArk))
+          .map(expr => ({
+            ...expr,
+            accepted: true,
+            date: expr.origin === 'script' ? expr.date ?? today : expr.date,
+          }))
+
+        const curated = updateExpressionClusterIntermarc(
+          {
+            ...cluster,
+            expressionGroups: cluster.expressionGroups.map(g =>
+              g.anchor.id === anchorExpressionId ? { ...g, clustered: nextClustered } : g,
+            ),
+          },
+          anchorExpressionId,
+          prev.curated,
+        )
         const anchorRecord = curated.records.find(r => r.id === anchorExpressionId)
         if (anchorRecord) {
           updates.push({ id: anchorRecord.id, type: anchorRecord.type, intermarc: anchorRecord.intermarcStr })
           registerArkLabelForRecord(anchorRecord)
         }
 
-        const clusters = prev.clusters.slice()
-        clusters[clusterIndex] = targetCluster
+        const clusters = detectClusters(curated.records, buildArkIndex(curated.records))
         return { ...prev, clusters, curated, pristineRecords }
       })
       const datasetId = datasetIdRef.current
@@ -630,9 +638,11 @@ function updateExpressionClusterIntermarc(cluster: Cluster, anchorExpressionId: 
   const group = cluster.expressionGroups.find(g => g.anchor.id === anchorExpressionId)
   if (!group) return dataset
   const today = new Date().toISOString().slice(0, 10)
-  const entries = group.clustered
-    .filter(entry => entry.accepted)
-    .map(entry => ({ ark: entry.ark, date: entry.date ?? today, note: CLUSTER_NOTE }))
-  const updatedIntermarc = add90FEntries(record.intermarc, entries)
+  const entries = group.clustered.map(entry => ({
+    ark: entry.ark,
+    date: entry.date ?? today,
+    origin: entry.origin,
+  }))
+  const updatedIntermarc = rebuildExpressionCluster90FEntries(record.intermarc, entries, { defaultDate: today })
   return updateRecordIntermarcInDataset(dataset, record.id, updatedIntermarc)
 }

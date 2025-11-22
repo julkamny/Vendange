@@ -218,6 +218,21 @@
       "targetIsAnchor": "Cannot cluster: target is already a cluster anchor."
     }
   },
+  "expressions": {
+    "cluster": {
+      "prepare": "Prepare for clustering",
+      "clusterWith": "Cluster selected expression here",
+      "prepared": "Expression marked for clustering.",
+      "typeMismatch": "Expressions must be of the same type.",
+      "parentMismatch": "Expressions must share the same parent work.",
+      "missingArk": "Cannot cluster expression without an ARK.",
+      "success": "Expression added to cluster.",
+      "confirmTitle": "Confirm clustering",
+      "confirmBody": "Attach “{{source}}” ({{sourceArk}}) to the cluster of “{{anchor}}” ({{anchorArk}})?",
+      "pendingAlreadySelected": "Cannot proceed: this expression already belongs to another cluster.",
+      "targetIsAnchor": "Cannot cluster: target is already a cluster anchor."
+    }
+  },
   "agents": {
     "cluster": {
       "prepare": "Prepare for clustering",

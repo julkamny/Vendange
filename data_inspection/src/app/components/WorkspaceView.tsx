@@ -12,7 +12,7 @@ import { IntermarcEditor } from './IntermarcEditor'
 import { isWorkClustered, isExpressionClustered, isManifestationClustered } from '../core/clusterCoverage'
 import { useArkDecoratedText } from '../hooks/useArkDecoratedText'
 import { useRecordLookup } from '../hooks/useRecordLookup'
-import { expressionWorkArks, manifestationTitle, titleOf } from '../core/entities'
+import { expressionWorkArks, expressionsShareParentWork, manifestationTitle, titleOf } from '../core/entities'
 import { configureTabStateForRecord } from '../workspace/tabState'
 import { deriveInternalIdFromArk } from '../lib/ark'
 import { BacklinksPanel } from './BacklinksPanel'
@@ -24,6 +24,8 @@ import {
   addManualWork90FEntries,
   extractWorkClusterTargets,
   isClusterAnchorCreated,
+  addManualExpression90FEntries,
+  extractExpressionClusterTargets,
   type Intermarc,
 } from '../lib/intermarc'
 
@@ -84,6 +86,47 @@ function ConfirmWorkClusterModal({ source, anchor, onConfirm, onCancel }: Confir
         <p>
           {t('works.cluster.confirmBody', {
             defaultValue: 'Rattacher « {{source}} » ({{sourceArk}}) au cluster de « {{anchor}} » ({{anchorArk}}) ?',
+            source: sourceLabel,
+            anchor: anchorLabel,
+            sourceArk: source.ark ?? source.id,
+            anchorArk: anchor.ark ?? anchor.id,
+          })}
+        </p>
+        <div className="modal-actions">
+          <button type="button" onClick={onCancel}>
+            {t('buttons.cancel', { defaultValue: 'Annuler' })}
+          </button>
+          <button type="button" className="workspace-side-toolbar__button--primary" onClick={onConfirm}>
+            {t('buttons.confirm', { defaultValue: 'Confirmer' })}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+type ConfirmExpressionClusterModalProps = {
+  source: RecordRow | null
+  anchor: RecordRow | null
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+function ConfirmExpressionClusterModal({ source, anchor, onConfirm, onCancel }: ConfirmExpressionClusterModalProps) {
+  const { t } = useTranslation()
+  if (!source || !anchor) return null
+
+  const sourceLabel = titleOf(source) || source.id
+  const anchorLabel = titleOf(anchor) || anchor.id
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="modal">
+        <h3>{t('expressions.cluster.confirmTitle', { defaultValue: 'Confirmer la clusterisation' })}</h3>
+        <p>
+          {t('expressions.cluster.confirmBody', {
+            defaultValue:
+              'Rattacher « {{source}} » ({{sourceArk}}) au cluster de « {{anchor}} » ({{anchorArk}}) ?',
             source: sourceLabel,
             anchor: anchorLabel,
             sourceArk: source.ark ?? source.id,
@@ -218,9 +261,18 @@ export function WorkspaceView({
   const [editingRecord, setEditingRecord] = useState(false)
   const [pendingClusterSourceId, setPendingClusterSourceId] = useState<string | null>(null)
   const [pendingClusterTarget, setPendingClusterTarget] = useState<{ anchorId: string; sourceId: string } | null>(null)
+  const [pendingExpressionClusterSourceId, setPendingExpressionClusterSourceId] = useState<string | null>(null)
+  const [pendingExpressionClusterTarget, setPendingExpressionClusterTarget] = useState<{
+    anchorId: string
+    sourceId: string
+  } | null>(null)
   const pendingClusterSourceRecord = useMemo(
     () => (pendingClusterSourceId ? getById(pendingClusterSourceId) ?? null : null),
     [getById, pendingClusterSourceId],
+  )
+  const pendingExpressionClusterSourceRecord = useMemo(
+    () => (pendingExpressionClusterSourceId ? getById(pendingExpressionClusterSourceId) ?? null : null),
+    [getById, pendingExpressionClusterSourceId],
   )
   const workClusterIndex = useMemo(() => {
     const index = new Map<string, { anchorId: string; anchorLabel?: string | null }>()
@@ -232,6 +284,18 @@ export function WorkspaceView({
     })
     return index
   }, [clusters])
+  const expressionClusterIndex = useMemo(() => {
+    const index = new Map<string, { anchorId: string; anchorExpressionId: string; anchorLabel?: string | null }>()
+    clusters.forEach(cluster => {
+      cluster.expressionGroups.forEach(group => {
+        group.clustered.forEach(item => {
+          if (!item.ark || index.has(item.ark)) return
+          index.set(item.ark, { anchorId: cluster.anchorId, anchorExpressionId: group.anchor.id, anchorLabel: item.anchorExpressionId })
+        })
+      })
+    })
+    return index
+  }, [clusters])
   const isProtectedWorkAnchor = useCallback(
     (target: RecordRow | null) => {
       if (!target || target.typeNorm !== 'oeuvre') return false
@@ -239,9 +303,20 @@ export function WorkspaceView({
     },
     [],
   )
+  const isProtectedExpressionAnchor = useCallback(
+    (target: RecordRow | null) => {
+      if (!target || target.typeNorm !== 'expression') return false
+      return isClusterAnchorCreated(target.intermarc)
+    },
+    [],
+  )
   const cancelPendingCluster = useCallback(() => {
     setPendingClusterSourceId(null)
     setPendingClusterTarget(null)
+  }, [])
+  const cancelPendingExpressionCluster = useCallback(() => {
+    setPendingExpressionClusterSourceId(null)
+    setPendingExpressionClusterTarget(null)
   }, [])
   const intermarcFullView = state.intermarcFullView
   const backlinksExpanded = state.backlinksExpanded
@@ -584,48 +659,105 @@ export function WorkspaceView({
 
   const handleIntermarcSave = useCallback(
     (targetRecord: RecordRow, next: Intermarc) => {
-      if (targetRecord.typeNorm !== 'oeuvre') {
+      if (targetRecord.typeNorm === 'oeuvre') {
+        if (pendingClusterSourceId && pendingClusterSourceId !== targetRecord.id) {
+          const pendingArk = pendingClusterSourceRecord?.ark
+          if (pendingArk) {
+            const targets = extractWorkClusterTargets(next)
+            if (targets.includes(pendingArk)) {
+              throw new Error(
+                t('works.cluster.pendingAlreadySelected', {
+                  defaultValue: 'Impossible : cette œuvre est déjà marquée pour un rattachement.',
+                }),
+              )
+            }
+          }
+        }
+
+        const targets = extractWorkClusterTargets(next)
+        const conflicts: string[] = []
+        targets.forEach(target => {
+          const conflict = workClusterIndex.get(target)
+          if (conflict && conflict.anchorId !== targetRecord.id) {
+            const label = conflict.anchorLabel || conflict.anchorId
+            conflicts.push(`${target} (ancré sur ${label})`)
+          }
+          const targetRecordRow = getByArk(target) || getById(target.replace(/^ark:\//, '')) || null
+          if (isProtectedWorkAnchor(targetRecordRow)) {
+            conflicts.push(
+              t('works.cluster.targetIsAnchor', {
+                defaultValue: 'Impossible : une cible est déjà ancre d’un cluster.',
+              }),
+            )
+          }
+        })
+
+        if (conflicts.length) {
+          throw new Error(
+            `Impossible d'enregistrer : ces œuvres sont déjà rattachées à un autre cluster : ${conflicts.join(', ')}`,
+          )
+        }
+
         updateRecordIntermarc(targetRecord.id, next)
         return
       }
 
-      if (pendingClusterSourceId && pendingClusterSourceId !== targetRecord.id) {
-        const pendingArk = pendingClusterSourceRecord?.ark
-        if (pendingArk) {
-          const targets = extractWorkClusterTargets(next)
-          if (targets.includes(pendingArk)) {
-            throw new Error(
-              t('works.cluster.pendingAlreadySelected', {
-                defaultValue: 'Impossible : cette œuvre est déjà marquée pour un rattachement.',
+      if (targetRecord.typeNorm === 'expression') {
+        if (pendingExpressionClusterSourceId && pendingExpressionClusterSourceId !== targetRecord.id) {
+          const pendingArk = pendingExpressionClusterSourceRecord?.ark
+          if (pendingArk) {
+            const targets = extractExpressionClusterTargets(next)
+            if (targets.includes(pendingArk)) {
+              throw new Error(
+                t('expressions.cluster.pendingAlreadySelected', {
+                  defaultValue: 'Impossible : cette expression est déjà marquée pour un rattachement.',
+                }),
+              )
+            }
+          }
+        }
+
+        const targets = extractExpressionClusterTargets(next)
+        const conflicts: string[] = []
+        targets.forEach(target => {
+          const conflict = expressionClusterIndex.get(target)
+          if (conflict && conflict.anchorExpressionId !== targetRecord.id) {
+            const label = conflict.anchorExpressionId
+            conflicts.push(`${target} (ancré sur ${label})`)
+          }
+          const targetRecordRow = getByArk(target) || getById(target.replace(/^ark:\//, '')) || null
+          if (isProtectedExpressionAnchor(targetRecordRow)) {
+            conflicts.push(
+              t('expressions.cluster.targetIsAnchor', {
+                defaultValue: 'Impossible : la cible est déjà ancre d’un cluster.',
               }),
             )
           }
-        }
-      }
+          if (targetRecordRow && targetRecordRow.typeNorm === 'expression') {
+            const parentOverlap = expressionsShareParentWork(targetRecord, targetRecordRow)
+            if (!parentOverlap) {
+              conflicts.push(
+                t('expressions.cluster.parentMismatch', {
+                  defaultValue: 'Impossible : les expressions doivent partager la même œuvre parente.',
+                }),
+              )
+            }
+          } else if (!targetRecordRow) {
+            // Unknown target: conservatively flag
+            conflicts.push(
+              t('expressions.cluster.parentMismatch', {
+                defaultValue: 'Impossible : parent non vérifiable pour la cible.',
+              }),
+            )
+          }
+        })
 
-      const targets = extractWorkClusterTargets(next)
-      const conflicts: string[] = []
-      targets.forEach(target => {
-        const conflict = workClusterIndex.get(target)
-        if (conflict && conflict.anchorId !== targetRecord.id) {
-          const label = conflict.anchorLabel || conflict.anchorId
-          conflicts.push(`${target} (ancré sur ${label})`)
+        if (conflicts.length) {
+          throw new Error(conflicts.join(' '))
         }
-        const targetRecordRow =
-          getByArk(target) || getById(target.replace(/^ark:\//, '')) || null
-        if (isProtectedWorkAnchor(targetRecordRow)) {
-          conflicts.push(
-            t('works.cluster.targetIsAnchor', {
-              defaultValue: 'Impossible : une cible est déjà ancre d’un cluster.',
-            }),
-          )
-        }
-      })
 
-      if (conflicts.length) {
-        throw new Error(
-          `Impossible d'enregistrer : ces œuvres sont déjà rattachées à un autre cluster : ${conflicts.join(', ')}`,
-        )
+        updateRecordIntermarc(targetRecord.id, next)
+        return
       }
 
       updateRecordIntermarc(targetRecord.id, next)
@@ -634,11 +766,16 @@ export function WorkspaceView({
       getByArk,
       getById,
       isProtectedWorkAnchor,
+      isProtectedExpressionAnchor,
       pendingClusterSourceId,
       pendingClusterSourceRecord,
+      pendingExpressionClusterSourceId,
+      pendingExpressionClusterSourceRecord,
       t,
       updateRecordIntermarc,
       workClusterIndex,
+      expressionClusterIndex,
+      expressionsShareParentWork,
     ],
   )
 
@@ -767,6 +904,142 @@ export function WorkspaceView({
     t,
     updateRecordIntermarc,
     workClusterIndex,
+  ])
+
+  const prepareExpressionForClustering = useCallback(
+    (target: RecordRow) => {
+      if (target.typeNorm !== 'expression') return
+      if (!target.ark) {
+        showToast(
+          t('expressions.cluster.missingArk', { defaultValue: "Impossible : l'expression n'a pas d'ARK." }),
+          { tone: 'error' },
+        )
+        setContextMenu(null)
+        return
+      }
+      if (isProtectedExpressionAnchor(target)) {
+        showToast(
+          t('expressions.cluster.targetIsAnchor', {
+            defaultValue: 'Impossible : cette expression est déjà ancre d’un cluster.',
+          }),
+          { tone: 'error' },
+        )
+        setContextMenu(null)
+        return
+      }
+      setPendingExpressionClusterSourceId(target.id)
+      setContextMenu(null)
+      showToast(t('expressions.cluster.prepared', { defaultValue: 'Expression mise en attente pour clustering.' }), {
+        tone: 'info',
+      })
+    },
+    [isProtectedExpressionAnchor, showToast, t],
+  )
+
+  const requestExpressionClusterWith = useCallback(
+    (anchor: RecordRow) => {
+      if (anchor.typeNorm !== 'expression' || !pendingExpressionClusterSourceRecord) return
+      if (!expressionsShareParentWork(anchor, pendingExpressionClusterSourceRecord)) {
+        showToast(
+          t('expressions.cluster.parentMismatch', {
+            defaultValue: 'Impossible : les expressions doivent partager la même œuvre parente.',
+          }),
+          { tone: 'error' },
+        )
+        setPendingExpressionClusterSourceId(null)
+        return
+      }
+      if (isProtectedExpressionAnchor(pendingExpressionClusterSourceRecord)) {
+        showToast(
+          t('expressions.cluster.targetIsAnchor', {
+            defaultValue: 'Impossible : cette expression est déjà ancre d’un cluster.',
+          }),
+          { tone: 'error' },
+        )
+        setPendingExpressionClusterSourceId(null)
+        return
+      }
+      setPendingExpressionClusterTarget({ anchorId: anchor.id, sourceId: pendingExpressionClusterSourceRecord.id })
+      setContextMenu(null)
+    },
+    [isProtectedExpressionAnchor, pendingExpressionClusterSourceRecord, showToast, t],
+  )
+
+  const confirmPendingExpressionCluster = useCallback(() => {
+    if (!pendingExpressionClusterTarget) return
+    const source = getById(pendingExpressionClusterTarget.sourceId)
+    const anchor = getById(pendingExpressionClusterTarget.anchorId)
+    if (!source || !anchor) {
+      setPendingExpressionClusterTarget(null)
+      setPendingExpressionClusterSourceId(null)
+      return
+    }
+    if (!source.ark) {
+      showToast(
+        t('expressions.cluster.missingArk', { defaultValue: "Impossible : l'expression n'a pas d'ARK." }),
+        { tone: 'error' },
+      )
+      setPendingExpressionClusterTarget(null)
+      return
+    }
+    if (!expressionsShareParentWork(anchor, source)) {
+      showToast(
+        t('expressions.cluster.parentMismatch', {
+          defaultValue: 'Impossible : les expressions doivent partager la même œuvre parente.',
+        }),
+        { tone: 'error' },
+      )
+      setPendingExpressionClusterTarget(null)
+      setPendingExpressionClusterSourceId(null)
+      return
+    }
+    if (isProtectedExpressionAnchor(source)) {
+      showToast(
+        t('expressions.cluster.targetIsAnchor', {
+          defaultValue: 'Impossible : cette expression est déjà ancre d’un cluster.',
+        }),
+        { tone: 'error' },
+      )
+      setPendingExpressionClusterTarget(null)
+      setPendingExpressionClusterSourceId(null)
+      return
+    }
+    const conflict = expressionClusterIndex.get(source.ark)
+    if (conflict && conflict.anchorExpressionId !== anchor.id) {
+      showToast(
+        t('expressions.cluster.pendingAlreadySelected', {
+          defaultValue: 'Impossible : cette expression est déjà rattachée à un autre cluster.',
+        }),
+        { tone: 'error' },
+      )
+      setPendingExpressionClusterTarget(null)
+      setPendingExpressionClusterSourceId(null)
+      return
+    }
+
+    const manualTargets = new Set<string>()
+    const anchorGroup = clusters
+      .find(c => c.expressionGroups.some(g => g.anchor.id === anchor.id))
+      ?.expressionGroups.find(g => g.anchor.id === anchor.id)
+    anchorGroup?.clustered.forEach(item => {
+      if (item.origin === 'manual' && item.ark) manualTargets.add(item.ark)
+    })
+    manualTargets.add(source.ark)
+
+    const nextIntermarc = addManualExpression90FEntries(anchor.intermarc, [...manualTargets].map(ark => ({ ark })))
+    updateRecordIntermarc(anchor.id, nextIntermarc)
+    setPendingExpressionClusterSourceId(null)
+    setPendingExpressionClusterTarget(null)
+    showToast(t('expressions.cluster.success', { defaultValue: 'Expression ajoutée au cluster.' }), { tone: 'success' })
+  }, [
+    clusters,
+    expressionClusterIndex,
+    getById,
+    isProtectedExpressionAnchor,
+    pendingExpressionClusterTarget,
+    showToast,
+    t,
+    updateRecordIntermarc,
   ])
 
   const handleSelectWork = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
@@ -903,6 +1176,8 @@ export function WorkspaceView({
               }
             })
           }}
+          pendingClusterSourceId={pendingExpressionClusterSourceId}
+          onCancelPendingCluster={cancelPendingExpressionCluster}
         />
       )
     }
@@ -1123,24 +1398,44 @@ export function WorkspaceView({
                   pendingClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
                 ? t('works.cluster.clusterWith', { defaultValue: 'Clustériser avec la sélection' })
                 : undefined
-            : undefined
+            : contextMenu.record.typeNorm === 'expression'
+              ? !pendingExpressionClusterSourceRecord
+                ? t('expressions.cluster.prepare', { defaultValue: 'Préparer pour clustering' })
+                : pendingExpressionClusterSourceRecord.id !== contextMenu.record.id &&
+                    pendingExpressionClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
+                  ? t('expressions.cluster.clusterWith', { defaultValue: 'Clustériser avec la sélection' })
+                  : undefined
+              : undefined
         }
         extraActionDisabled={
           Boolean(
-            pendingClusterSourceRecord &&
+            (pendingClusterSourceRecord &&
               pendingClusterSourceRecord.id !== contextMenu.record.id &&
-              pendingClusterSourceRecord.typeNorm !== contextMenu.record.typeNorm,
+              pendingClusterSourceRecord.typeNorm !== contextMenu.record.typeNorm) ||
+              (pendingExpressionClusterSourceRecord &&
+                pendingExpressionClusterSourceRecord.id !== contextMenu.record.id &&
+                pendingExpressionClusterSourceRecord.typeNorm !== contextMenu.record.typeNorm),
           )
         }
         onExtraAction={() => {
-          if (contextMenu.record.typeNorm !== 'oeuvre') return
-          if (!pendingClusterSourceRecord) {
-            prepareForClustering(contextMenu.record)
-          } else if (
-            pendingClusterSourceRecord.id !== contextMenu.record.id &&
-            pendingClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
-          ) {
-            requestClusterWith(contextMenu.record)
+          if (contextMenu.record.typeNorm === 'oeuvre') {
+            if (!pendingClusterSourceRecord) {
+              prepareForClustering(contextMenu.record)
+            } else if (
+              pendingClusterSourceRecord.id !== contextMenu.record.id &&
+              pendingClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
+            ) {
+              requestClusterWith(contextMenu.record)
+            }
+          } else if (contextMenu.record.typeNorm === 'expression') {
+            if (!pendingExpressionClusterSourceRecord) {
+              prepareExpressionForClustering(contextMenu.record)
+            } else if (
+              pendingExpressionClusterSourceRecord.id !== contextMenu.record.id &&
+              pendingExpressionClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
+            ) {
+              requestExpressionClusterWith(contextMenu.record)
+            }
           }
         }}
         onOpen={handleOpenRecordInNewTab}
@@ -1153,6 +1448,14 @@ export function WorkspaceView({
         anchor={getById(pendingClusterTarget.anchorId) ?? null}
         onConfirm={confirmPendingCluster}
         onCancel={() => setPendingClusterTarget(null)}
+      />
+    ) : null}
+    {pendingExpressionClusterTarget ? (
+      <ConfirmExpressionClusterModal
+        source={getById(pendingExpressionClusterTarget.sourceId) ?? null}
+        anchor={getById(pendingExpressionClusterTarget.anchorId) ?? null}
+        onConfirm={confirmPendingExpressionCluster}
+        onCancel={() => setPendingExpressionClusterTarget(null)}
       />
     ) : null}
     </>

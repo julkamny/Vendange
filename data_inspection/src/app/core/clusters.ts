@@ -112,6 +112,14 @@ export function detectClusters(curated: RecordRow[], originalIdxByArk: Map<strin
           anchorExpressionId: expr.id,
           accepted: true,
           date,
+          origin:
+            findZones(expr.intermarc, '90F').some(
+              z =>
+                z.sousZones.some(sz => sz.code === '90F$q' && sz.valeur === MANUAL_CLUSTER_NOTE) &&
+                z.sousZones.some(sz => (sz.code === '90F$3' || sz.code === '90F$a') && sz.valeur === targetArk),
+            )
+              ? 'manual'
+              : 'script',
           manifestations: targetManifestations,
         })
         usedExpressionArks.add(targetArk)

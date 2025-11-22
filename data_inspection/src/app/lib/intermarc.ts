@@ -433,6 +433,72 @@ export function rebuildWorkCluster90FEntries(
   return { zones: filtered }
 }
 
+export function addManualExpression90FEntries(im: Intermarc, entries: { ark: string }[]): Intermarc {
+  const zones = im.zones.slice()
+  const filtered = zones.filter(
+    z => !(z.code === '90F' && z.sousZones.some(sz => sz.code === '90F$q' && sz.valeur === MANUAL_CLUSTER_NOTE)),
+  )
+
+  entries.forEach(entry => {
+    filtered.push({
+      code: '90F',
+      affectedByCuration: 'manual',
+      sousZones: [
+        { code: '90F$3', valeur: entry.ark, affectedByCuration: 'manual' },
+        { code: '90F$q', valeur: MANUAL_CLUSTER_NOTE, affectedByCuration: 'manual' },
+      ],
+    })
+  })
+
+  return { zones: filtered }
+}
+
+export function rebuildExpressionCluster90FEntries(
+  im: Intermarc,
+  items: { ark: string; origin: 'script' | 'manual'; date?: string }[],
+  options: { defaultDate?: string } = {},
+): Intermarc {
+  const defaultDate = options.defaultDate ?? new Date().toISOString().slice(0, 10)
+  const zones = im.zones.slice()
+  const filtered = zones.filter(
+    z =>
+      !(
+        z.code === '90F' &&
+        z.sousZones.some(
+          sz => sz.code === '90F$q' && (sz.valeur === CLUSTER_NOTE || sz.valeur === MANUAL_CLUSTER_NOTE),
+        )
+      ),
+  )
+
+  items.forEach(item => {
+    if (!item.ark) return
+    if (item.origin === 'script') {
+      const date = item.date ?? defaultDate
+      filtered.push({
+        code: '90F',
+        affectedByCuration: 'created',
+        sousZones: [
+          { code: '90F$a', valeur: item.ark, affectedByCuration: 'created' },
+          { code: '90F$q', valeur: CLUSTER_NOTE, affectedByCuration: 'created' },
+          { code: '90F$d', valeur: date, affectedByCuration: 'created' },
+        ],
+      })
+      return
+    }
+
+    filtered.push({
+      code: '90F',
+      affectedByCuration: 'manual',
+      sousZones: [
+        { code: '90F$3', valeur: item.ark, affectedByCuration: 'manual' },
+        { code: '90F$q', valeur: MANUAL_CLUSTER_NOTE, affectedByCuration: 'manual' },
+      ],
+    })
+  })
+
+  return { zones: filtered }
+}
+
 export function extractWorkClusterTargets(im: Intermarc): string[] {
   const zones = findZones(im, '90F')
   const targets = new Set<string>()
@@ -443,6 +509,22 @@ export function extractWorkClusterTargets(im: Intermarc): string[] {
       zone.sousZones.find(sz => sz.code === (note === CLUSTER_NOTE ? '90F$a' : '90F$3'))?.valeur?.trim() ||
       zone.sousZones.find(sz => sz.code === '90F$a')?.valeur?.trim() ||
       zone.sousZones.find(sz => sz.code === '90F$3')?.valeur?.trim()
+    if (target) targets.add(target)
+  })
+  return [...targets]
+}
+
+export function extractExpressionClusterTargets(im: Intermarc): string[] {
+  const zones = findZones(im, '90F')
+  const targets = new Set<string>()
+  zones.forEach(zone => {
+    const note = zone.sousZones.find(sz => sz.code === '90F$q')?.valeur?.trim()
+    if (!note || (note !== CLUSTER_NOTE && note !== MANUAL_CLUSTER_NOTE)) return
+    const target =
+      note === CLUSTER_NOTE
+        ? zone.sousZones.find(sz => sz.code === '90F$a')?.valeur?.trim()
+        : zone.sousZones.find(sz => sz.code === '90F$3')?.valeur?.trim() ||
+          zone.sousZones.find(sz => sz.code === '90F$a')?.valeur?.trim()
     if (target) targets.add(target)
   })
   return [...targets]

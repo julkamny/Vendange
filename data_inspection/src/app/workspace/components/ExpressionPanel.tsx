@@ -28,6 +28,8 @@ type ExpressionPanelProps = {
     workArk?: string
     anchorId?: string
   }) => void
+  pendingClusterSourceId?: string | null
+  onCancelPendingCluster?: () => void
 }
 
 type ExpressionGroupLabelProps = {
@@ -107,6 +109,8 @@ export function ExpressionPanel({
   onSelectExpression,
   onToggleExpression,
   onOpenManifestations,
+  pendingClusterSourceId,
+  onCancelPendingCluster,
 }: ExpressionPanelProps) {
   const { t } = useTranslation()
   const { getById, getByArk, getAgentNames, getGeneralRelationshipCount, getMediaKinds } = useRecordLookup()
@@ -145,6 +149,7 @@ export function ExpressionPanel({
         if (state.activeExpressionAnchorId === group.anchor.id) groupClasses.push('active')
 
         const anchorClasses = ['expression-anchor', 'entity-row', 'entity-row--expression']
+        if (pendingClusterSourceId && pendingClusterSourceId === group.anchor.id) anchorClasses.push('pending-cluster-source')
         const anchorAgentNames = getAgentNames(group.anchor.id, group.anchor.ark)
         const {
           workLinkCount: anchorWorkLinks,
@@ -186,6 +191,10 @@ export function ExpressionPanel({
               }
               onDoubleClick={event => {
                 if (shouldIgnoreAnchorEvent(event)) return
+                if (pendingClusterSourceId && pendingClusterSourceId === group.anchor.id) {
+                  onCancelPendingCluster?.()
+                  return
+                }
                 onOpenManifestations({
                   expressionId: group.anchor.id,
                   expressionArk: group.anchor.ark,
@@ -211,6 +220,7 @@ export function ExpressionPanel({
                 group.clustered.map(expr => {
                   const rowClasses = ['expression-item', 'entity-row', 'entity-row--expression']
                   if (!expr.accepted) rowClasses.push('unchecked')
+                  if (pendingClusterSourceId && pendingClusterSourceId === expr.id) rowClasses.push('pending-cluster-source')
                   const exprAgentNames = getAgentNames(expr.id, expr.ark)
                   const exprMediaKinds = getMediaKinds(expr.id, expr.ark)
                   const { workLinkCount, relationships } = computeExpressionMetrics(expr.id, expr.ark)
@@ -244,6 +254,10 @@ export function ExpressionPanel({
                       }
                       onDoubleClick={event => {
                         if (shouldIgnoreExpressionEvent(event)) return
+                        if (pendingClusterSourceId && pendingClusterSourceId === expr.id) {
+                          onCancelPendingCluster?.()
+                          return
+                        }
                         onOpenManifestations({
                           expressionId: expr.id,
                           expressionArk: expr.ark,
@@ -287,7 +301,8 @@ export function ExpressionPanel({
         <div className="expression-independent">
           <div className="expression-independent-header">{t('labels.independentExpressions')}</div>
           {independentExpressions.map(expr => {
-            const rowClasses = ['expression-item', 'entity-row', 'entity-row--expression', 'independent']
+        const rowClasses = ['expression-item', 'entity-row', 'entity-row--expression', 'independent']
+        if (pendingClusterSourceId && pendingClusterSourceId === expr.id) rowClasses.push('pending-cluster-source')
             const agentNames = getAgentNames(expr.id, expr.ark)
             const { workLinkCount, relationships } = computeExpressionMetrics(expr.id, expr.ark)
             const mediaKinds = getMediaKinds(expr.id, expr.ark)
@@ -319,13 +334,17 @@ export function ExpressionPanel({
                     workArk: expr.workArk,
                   })
                 }
-                onDoubleClick={event => {
-                  if (shouldIgnoreExpressionEvent(event)) return
-                  onOpenManifestations({
-                    expressionId: expr.id,
-                    expressionArk: expr.ark,
-                    workArk: expr.workArk,
-                  })
+              onDoubleClick={event => {
+                if (shouldIgnoreExpressionEvent(event)) return
+                if (pendingClusterSourceId && pendingClusterSourceId === expr.id) {
+                  onCancelPendingCluster?.()
+                  return
+                }
+                onOpenManifestations({
+                  expressionId: expr.id,
+                  expressionArk: expr.ark,
+                  workArk: expr.workArk,
+                })
                 }}
               >
                 <EntityLabel

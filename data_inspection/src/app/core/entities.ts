@@ -1,5 +1,6 @@
 import { findZones } from '../lib/intermarc'
 import { CLUSTER_NOTE } from './constants'
+import { MANUAL_CLUSTER_NOTE } from './constants'
 import type { EntityTitleSegment, Cluster, ExpressionItem, ExpressionClusterItem, ManifestationItem, RecordRow } from '../types'
 
 export function zoneText(zone: { sousZones: Array<{ valeur?: unknown }> }): string {
@@ -95,9 +96,18 @@ export function expressionWorkArks(rec: RecordRow): string[] {
 
 export function expressionClusterTargets(rec: RecordRow): { ark: string; date: string | undefined }[] {
   return findZones(rec.intermarc, '90F')
-    .filter(z => z.sousZones.some(sz => sz.code === '90F$q' && sz.valeur === CLUSTER_NOTE))
+    .filter(z =>
+      z.sousZones.some(
+        sz => sz.code === '90F$q' && (sz.valeur === CLUSTER_NOTE || sz.valeur === MANUAL_CLUSTER_NOTE),
+      ),
+    )
     .map(z => {
-      const ark = z.sousZones.find(sz => sz.code === '90F$a')?.valeur
+      const note = z.sousZones.find(sz => sz.code === '90F$q')?.valeur
+      const ark =
+        note === CLUSTER_NOTE
+          ? z.sousZones.find(sz => sz.code === '90F$a')?.valeur
+          : z.sousZones.find(sz => sz.code === '90F$3')?.valeur ??
+            z.sousZones.find(sz => sz.code === '90F$a')?.valeur
       if (!ark) return null
       const date = z.sousZones.find(sz => sz.code === '90F$d')?.valeur
       return { ark, date }
@@ -132,6 +142,13 @@ export function countExpressionWorkLinks(rec: RecordRow): number {
     })
   })
   return arks.size
+}
+
+export function expressionsShareParentWork(a: RecordRow, b: RecordRow): boolean {
+  if (a.typeNorm !== 'expression' || b.typeNorm !== 'expression') return false
+  const parentsA = new Set(expressionWorkArks(a))
+  const parentsB = expressionWorkArks(b)
+  return parentsB.some(parent => parentsA.has(parent))
 }
 
 export function agentTitleSegments(rec: RecordRow): EntityTitleSegment[] {

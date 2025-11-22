@@ -59,6 +59,7 @@ export type ExpressionClusterItem = ExpressionItem & {
   anchorExpressionId: string
   accepted: boolean
   date?: string
+  origin: 'script' | 'manual'
 }
 
 export type ManifestationDragPayload = {

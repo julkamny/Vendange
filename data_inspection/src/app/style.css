@@ -893,21 +893,21 @@ button:focus-visible {
   margin-bottom: 0.75rem;
 }
 .cluster-item {
-  display: flex;
+  display: inline;
   gap: 0.6rem;
   align-items: center;
 }
 .cluster-item .entity-label,
 .cluster-header-row .entity-label {
-  display: flex;
+  display: inline;
   gap: 0.35rem;
   align-items: center;
 }
 .cluster-item .entity-title--segmented,
 .cluster-header-row .entity-title--segmented {
-  display: inline-flex;
+  display: inline;
   gap: 0.25rem;
-  flex-wrap: wrap;
+  white-space: normal;
 }
 .cluster-add {
   display: flex;

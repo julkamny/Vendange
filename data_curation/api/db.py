@@ -841,31 +841,96 @@ def _is_expression_anchor(store: Store, ark_index: dict[str, str], target_ark: s
 def _works_clustered_together(store: Store, ark_index: dict[str, str], work_ark_a: str, work_ark_b: str) -> bool:
     if work_ark_a == work_ark_b:
         return True
-    id_a = ark_index.get(work_ark_a)
-    id_b = ark_index.get(work_ark_b)
-    if not id_a or not id_b:
-        return False
-    query_template = """
+
+    # First check for any record that clusters both targets in the same graph
+    combined_query = f"""
     ASK {{
-      GRAPH <{graph}> {{
-        ?rec <{HAS_FIELD.value}> ?field .
-        ?field <{FIELD_CODE_PROP.value}> "90F" .
-        ?field <{HAS_SUBFIELD.value}> ?subQ .
-        ?subQ <{SUBFIELD_CODE_PROP.value}> "90F$q" .
-        ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
-        FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
-        ?field <{HAS_SUBFIELD.value}> ?subT .
-        ?subT <{SUBFIELD_CODE_PROP.value}> ?codeTarget .
-        FILTER(?codeTarget = "90F$3" || ?codeTarget = "90F$a")
-        ?subT <{SUBFIELD_VALUE_PROP.value}> "{target}" .
+      GRAPH ?g {{
+        ?rec <{HAS_FIELD.value}> ?field1 .
+        ?field1 <{FIELD_CODE_PROP.value}> "90F" .
+        ?field1 <{HAS_SUBFIELD.value}> ?subQ1 .
+        ?subQ1 <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
+        ?subQ1 <{SUBFIELD_VALUE_PROP.value}> ?note1 .
+        FILTER(?note1 = "Clusterisation manuelle" || ?note1 = "Clusterisation script")
+        ?field1 <{HAS_SUBFIELD.value}> ?subT1 .
+        ?subT1 <{SUBFIELD_CODE_PROP.value}> ?codeTarget1 .
+        FILTER(?codeTarget1 = "90Fs3" || ?codeTarget1 = "90Fsa")
+        ?subT1 <{SUBFIELD_VALUE_PROP.value}> "{work_ark_a}" .
+
+        ?rec <{HAS_FIELD.value}> ?field2 .
+        ?field2 <{FIELD_CODE_PROP.value}> "90F" .
+        ?field2 <{HAS_SUBFIELD.value}> ?subQ2 .
+        ?subQ2 <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
+        ?subQ2 <{SUBFIELD_VALUE_PROP.value}> ?note2 .
+        FILTER(?note2 = "Clusterisation manuelle" || ?note2 = "Clusterisation script")
+        ?field2 <{HAS_SUBFIELD.value}> ?subT2 .
+        ?subT2 <{SUBFIELD_CODE_PROP.value}> ?codeTarget2 .
+        FILTER(?codeTarget2 = "90Fs3" || ?codeTarget2 = "90Fsa")
+        ?subT2 <{SUBFIELD_VALUE_PROP.value}> "{work_ark_b}" .
       }}
     }}
     """
-    query_a = query_template.format(graph=_record_graph(id_a).value, HAS_FIELD=HAS_FIELD, FIELD_CODE_PROP=FIELD_CODE_PROP, HAS_SUBFIELD=HAS_SUBFIELD, SUBFIELD_CODE_PROP=SUBFIELD_CODE_PROP, SUBFIELD_VALUE_PROP=SUBFIELD_VALUE_PROP, target=work_ark_b)
-    query_b = query_template.format(graph=_record_graph(id_b).value, HAS_FIELD=HAS_FIELD, FIELD_CODE_PROP=FIELD_CODE_PROP, HAS_SUBFIELD=HAS_SUBFIELD, SUBFIELD_CODE_PROP=SUBFIELD_CODE_PROP, SUBFIELD_VALUE_PROP=SUBFIELD_VALUE_PROP, target=work_ark_a)
-    result_a = store.query(query_a)
-    result_b = store.query(query_b)
-    return bool(result_a) or bool(result_b)
+    try:
+        combined_result = store.query(combined_query)
+        if bool(combined_result):
+            return True
+    except Exception:
+        # Fall through to other checks on error
+        pass
+
+    # Check direct anchoring: work A anchored to B or work B anchored to A
+    id_a = ark_index.get(work_ark_a)
+    id_b = ark_index.get(work_ark_b)
+
+    if id_a:
+        query_a = f"""
+        ASK {{
+          GRAPH <{_record_graph(id_a).value}> {{
+            ?rec <{HAS_FIELD.value}> ?field .
+            ?field <{FIELD_CODE_PROP.value}> "90F" .
+            ?field <{HAS_SUBFIELD.value}> ?subQ .
+            ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
+            ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
+            FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
+            ?field <{HAS_SUBFIELD.value}> ?subT .
+            ?subT <{SUBFIELD_CODE_PROP.value}> ?codeTarget .
+            FILTER(?codeTarget = "90Fs3" || ?codeTarget = "90Fsa")
+            ?subT <{SUBFIELD_VALUE_PROP.value}> "{work_ark_b}" .
+          }}
+        }}
+        """
+        try:
+            result_a = store.query(query_a)
+            if bool(result_a):
+                return True
+        except Exception:
+            pass
+
+    if id_b:
+        query_b = f"""
+        ASK {{
+          GRAPH <{_record_graph(id_b).value}> {{
+            ?rec <{HAS_FIELD.value}> ?field .
+            ?field <{FIELD_CODE_PROP.value}> "90F" .
+            ?field <{HAS_SUBFIELD.value}> ?subQ .
+            ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
+            ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
+            FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
+            ?field <{HAS_SUBFIELD.value}> ?subT .
+            ?subT <{SUBFIELD_CODE_PROP.value}> ?codeTarget .
+            FILTER(?codeTarget = "90Fs3" || ?codeTarget = "90Fsa")
+            ?subT <{SUBFIELD_VALUE_PROP.value}> "{work_ark_a}" .
+          }}
+        }}
+        """
+        try:
+            result_b = store.query(query_b)
+            if bool(result_b):
+                return True
+        except Exception:
+            pass
+
+    return False
 
 
 def _ensure_unique_expression_clusters(store: Store, anchor_id: str, intermarc: Intermarc) -> None:

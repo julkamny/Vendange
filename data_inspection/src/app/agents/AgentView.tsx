@@ -161,7 +161,7 @@ export function AgentView({
 
       updateRecordIntermarc(record.id, next)
     },
-    [manualClusterIndex, updateRecordIntermarc],
+    [manualClusterIndex, updateRecordIntermarc, getByArk, getById, pendingClusterSourceId, t],
   )
 
   const persistManualAgentCluster = useCallback(

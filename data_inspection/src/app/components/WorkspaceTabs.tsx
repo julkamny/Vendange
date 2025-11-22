@@ -429,7 +429,6 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
 
   const handleShortcutAction = useCallback(
     (action: ShortcutAction, sourceDocument: Document = document) => {
-      const activeIsWorkspace = isWorkspaceTab(activeTab)
       const targetTab = shortcutTab
       const targetIsWorkspace = isWorkspaceTab(targetTab)
       const targetIsAgent = isAgentTab(targetTab)

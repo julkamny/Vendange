@@ -4,6 +4,7 @@
 - Update the README once you're done working to make sure it reflects the current state of the app.
 - Strive to avoid introducing repetition in the codebase, reuse as much code as possible to implement what you've been asked.
 - When a file gets too long (more than 500 LOC), break it down into smaller files. Don't allow a file to grow out of hand.
+- Once you're done working, if you've touched files in the React app living in data_inspection, you need to execute `npm run lint`.
 
 ## Tips
 

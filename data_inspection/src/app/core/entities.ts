@@ -151,6 +151,19 @@ export function expressionsShareParentWork(a: RecordRow, b: RecordRow): boolean 
   return parentsB.some(parent => parentsA.has(parent))
 }
 
+export function worksClusteredTogether(arkA: string | undefined | null, arkB: string | undefined | null, clusters: Cluster[]): boolean {
+  if (!arkA || !arkB) return false
+  if (arkA === arkB) return true
+  for (const cluster of clusters) {
+    const anchor = cluster.anchorArk
+    const itemArks = new Set(cluster.items.map(item => item.ark))
+    if (anchor === arkA && itemArks.has(arkB)) return true
+    if (anchor === arkB && itemArks.has(arkA)) return true
+    if (itemArks.has(arkA) && itemArks.has(arkB)) return true
+  }
+  return false
+}
+
 export function agentTitleSegments(rec: RecordRow): EntityTitleSegment[] {
   const norm = rec.typeNorm.toLowerCase()
   const zoneCode = norm === 'collectivite' ? '110' : norm === 'famille' ? '120' : '100'

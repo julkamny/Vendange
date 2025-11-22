@@ -12,7 +12,7 @@ import { IntermarcEditor } from './IntermarcEditor'
 import { isWorkClustered, isExpressionClustered, isManifestationClustered } from '../core/clusterCoverage'
 import { useArkDecoratedText } from '../hooks/useArkDecoratedText'
 import { useRecordLookup } from '../hooks/useRecordLookup'
-import { expressionWorkArks, expressionsShareParentWork, manifestationTitle, titleOf } from '../core/entities'
+import { expressionWorkArks, expressionsShareParentWork, manifestationTitle, titleOf, worksClusteredTogether } from '../core/entities'
 import { configureTabStateForRecord } from '../workspace/tabState'
 import { deriveInternalIdFromArk } from '../lib/ark'
 import { BacklinksPanel } from './BacklinksPanel'
@@ -735,15 +735,21 @@ export function WorkspaceView({
           }
           if (targetRecordRow && targetRecordRow.typeNorm === 'expression') {
             const parentOverlap = expressionsShareParentWork(targetRecord, targetRecordRow)
-            if (!parentOverlap) {
+            const clusteredParents =
+              worksClusteredTogether(
+                expressionWorkArks(targetRecord)[0],
+                expressionWorkArks(targetRecordRow)[0],
+                clusters,
+              )
+            if (!parentOverlap && !clusteredParents) {
               conflicts.push(
                 t('expressions.cluster.parentMismatch', {
-                  defaultValue: 'Impossible : les expressions doivent partager la même œuvre parente.',
+                  defaultValue:
+                    'Impossible : les expressions doivent partager la même œuvre parente ou des parents déjà en cluster.',
                 }),
               )
             }
           } else if (!targetRecordRow) {
-            // Unknown target: conservatively flag
             conflicts.push(
               t('expressions.cluster.parentMismatch', {
                 defaultValue: 'Impossible : parent non vérifiable pour la cible.',
@@ -939,7 +945,13 @@ export function WorkspaceView({
   const requestExpressionClusterWith = useCallback(
     (anchor: RecordRow) => {
       if (anchor.typeNorm !== 'expression' || !pendingExpressionClusterSourceRecord) return
-      if (!expressionsShareParentWork(anchor, pendingExpressionClusterSourceRecord)) {
+      const sameParent = expressionsShareParentWork(anchor, pendingExpressionClusterSourceRecord)
+      const clusteredParents = worksClusteredTogether(
+        expressionWorkArks(anchor)[0],
+        expressionWorkArks(pendingExpressionClusterSourceRecord)[0],
+        clusters,
+      )
+      if (!sameParent && !clusteredParents) {
         showToast(
           t('expressions.cluster.parentMismatch', {
             defaultValue: 'Impossible : les expressions doivent partager la même œuvre parente.',
@@ -982,7 +994,13 @@ export function WorkspaceView({
       setPendingExpressionClusterTarget(null)
       return
     }
-    if (!expressionsShareParentWork(anchor, source)) {
+    const sameParent = expressionsShareParentWork(anchor, source)
+    const clusteredParents = worksClusteredTogether(
+      expressionWorkArks(anchor)[0],
+      expressionWorkArks(source)[0],
+      clusters,
+    )
+    if (!sameParent && !clusteredParents) {
       showToast(
         t('expressions.cluster.parentMismatch', {
           defaultValue: 'Impossible : les expressions doivent partager la même œuvre parente.',

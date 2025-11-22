@@ -9,6 +9,7 @@
 ## Tips
 
 - If you need to run Python, know that the .venv at the root of the repo (where you've been summoned) is managed by uv.
+- Do `uv run` when running a command.
 
 ## Databases
 

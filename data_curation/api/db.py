@@ -823,6 +823,36 @@ def _is_expression_anchor(store: Store, ark_index: dict[str, str], target_ark: s
     return False
 
 
+def _works_clustered_together(store: Store, ark_index: dict[str, str], work_ark_a: str, work_ark_b: str) -> bool:
+    if work_ark_a == work_ark_b:
+        return True
+    id_a = ark_index.get(work_ark_a)
+    id_b = ark_index.get(work_ark_b)
+    if not id_a or not id_b:
+        return False
+    query_template = """
+    ASK {{
+      GRAPH <{graph}> {{
+        ?rec <{HAS_FIELD.value}> ?field .
+        ?field <{FIELD_CODE_PROP.value}> "90F" .
+        ?field <{HAS_SUBFIELD.value}> ?subQ .
+        ?subQ <{SUBFIELD_CODE_PROP.value}> "90F$q" .
+        ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
+        FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
+        ?field <{HAS_SUBFIELD.value}> ?subT .
+        ?subT <{SUBFIELD_CODE_PROP.value}> ?codeTarget .
+        FILTER(?codeTarget = "90F$3" || ?codeTarget = "90F$a")
+        ?subT <{SUBFIELD_VALUE_PROP.value}> "{target}" .
+      }}
+    }}
+    """
+    query_a = query_template.format(graph=_record_graph(id_a).value, HAS_FIELD=HAS_FIELD, FIELD_CODE_PROP=FIELD_CODE_PROP, HAS_SUBFIELD=HAS_SUBFIELD, SUBFIELD_CODE_PROP=SUBFIELD_CODE_PROP, SUBFIELD_VALUE_PROP=SUBFIELD_VALUE_PROP, target=work_ark_b)
+    query_b = query_template.format(graph=_record_graph(id_b).value, HAS_FIELD=HAS_FIELD, FIELD_CODE_PROP=FIELD_CODE_PROP, HAS_SUBFIELD=HAS_SUBFIELD, SUBFIELD_CODE_PROP=SUBFIELD_CODE_PROP, SUBFIELD_VALUE_PROP=SUBFIELD_VALUE_PROP, target=work_ark_a)
+    result_a = store.query(query_a)
+    result_b = store.query(query_b)
+    return bool(result_a) or bool(result_b)
+
+
 def _ensure_unique_expression_clusters(store: Store, anchor_id: str, intermarc: Intermarc) -> None:
     new_targets = _extract_expression_cluster_targets(intermarc)
     if not new_targets:
@@ -878,9 +908,18 @@ def _ensure_unique_expression_clusters(store: Store, anchor_id: str, intermarc: 
         target_id = ark_index.get(target)
         if target_id:
             target_parents = _expression_parents(store, target_id)
-            if anchor_parents and target_parents and anchor_parents.isdisjoint(target_parents):
+            parents_overlap = anchor_parents.intersection(target_parents)
+            parents_clustered = False
+            for parent_a in anchor_parents:
+                for parent_b in target_parents:
+                    if _works_clustered_together(store, ark_index, parent_a, parent_b):
+                        parents_clustered = True
+                        break
+                if parents_clustered:
+                    break
+            if anchor_parents and target_parents and not parents_overlap and not parents_clustered:
                 raise ValueError(
-                    f"Impossible d'enregistrer : l'expression {target} n'a pas le même parent 750$3 que l'ancre."
+                    f"Impossible d'enregistrer : l'expression {target} n'a pas le même parent 750$3 ou des parents déjà en cluster que l'ancre."
                 )
 
 

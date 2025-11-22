@@ -6,6 +6,8 @@ import {
   type Intermarc,
   isClusterAnchorCreated,
 } from '../src/app/lib/intermarc'
+import { worksClusteredTogether } from '../src/app/core/entities'
+import type { Cluster } from '../src/app/types'
 
 const baseExpression = (ark: string, parent: string) => {
   const intermarc: Intermarc = {
@@ -73,4 +75,24 @@ test('isClusterAnchorCreated detects expression anchors with manual flags', () =
     ],
   }
   assert.equal(isClusterAnchorCreated(im), true)
+})
+
+test('worksClusteredTogether true when in same cluster', () => {
+  const clusters: Cluster[] = [
+    {
+      anchorId: 'w1',
+      anchorArk: 'ark:/work/1',
+      anchorTitle: 'A',
+      items: [{ ark: 'ark:/work/2', accepted: true, origin: 'script' }],
+      expressionGroups: [],
+      independentExpressions: [],
+    },
+  ]
+  assert.equal(worksClusteredTogether('ark:/work/1', 'ark:/work/2', clusters), true)
+  assert.equal(worksClusteredTogether('ark:/work/2', 'ark:/work/1', clusters), true)
+})
+
+test('worksClusteredTogether false when not linked', () => {
+  const clusters: Cluster[] = []
+  assert.equal(worksClusteredTogether('ark:/work/1', 'ark:/work/2', clusters), false)
 })

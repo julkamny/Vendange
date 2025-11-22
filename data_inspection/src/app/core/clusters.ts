@@ -70,7 +70,6 @@ export function detectClusters(curated: RecordRow[], originalIdxByArk: Map<strin
       const id = curatedTarget?.id || fallback?.id
       items.push({ ark, id, title, accepted: true, date, origin })
     }
-    if (!items.length) continue
 
     const anchorArk = work.ark || ''
     const anchorTitle = titleOf(work)
@@ -146,6 +145,9 @@ export function detectClusters(curated: RecordRow[], originalIdxByArk: Map<strin
         usedExpressionArks.add(exprArk)
       }
     }
+    const hasExpressionCluster =
+      expressionGroups.some(group => group.clustered.length > 0) || independentExpressions.length > 0
+    if (!items.length && !hasExpressionCluster) continue
 
     result.push({
       anchorId: work.id,

@@ -74,25 +74,53 @@ export function detectClusters(curated: RecordRow[], originalIdxByArk: Map<strin
     const anchorArk = work.ark || ''
     const anchorTitle = titleOf(work)
 
-    const anchorExpressions = expressionsByWorkArk.get(anchorArk) || []
+    const clusterWorkArks = [anchorArk, ...items.map(item => item.ark)]
+    const candidateExpressions: RecordRow[] = []
+    const seenCandidateIds = new Set<string>()
+    for (const workArk of clusterWorkArks) {
+      const expressions = expressionsByWorkArk.get(workArk) || []
+      for (const expr of expressions) {
+        if (seenCandidateIds.has(expr.id)) continue
+        seenCandidateIds.add(expr.id)
+        candidateExpressions.push(expr)
+      }
+    }
+
+    const clusteredBy = new Map<string, string>()
+    for (const expr of candidateExpressions) {
+      for (const { ark: targetArk } of expressionClusterTargets(expr)) {
+        if (!targetArk || clusteredBy.has(targetArk)) continue
+        clusteredBy.set(targetArk, expr.id)
+      }
+    }
+
     const expressionGroups: ExpressionAnchorGroup[] = []
     const usedExpressionArks = new Set<string>()
 
-    for (const expr of anchorExpressions) {
+    for (const expr of candidateExpressions) {
+      const exprWorkArks = expressionWorkArks(expr)
+      const exprWorkArk = exprWorkArks[0] || ''
       const anchorManifestations = expr.ark
         ? manifestationsForExpression(expr.ark, manifestationsByExpressionArk, expressionsByArk)
         : []
+      const clusterTargets = expressionClusterTargets(expr)
+      const isClusteredByAnother =
+        expr.ark && clusteredBy.has(expr.ark) && clusteredBy.get(expr.ark) !== expr.id
+      const shouldBeAnchor = clusterTargets.length > 0 || exprWorkArk === anchorArk
+
+      if (!shouldBeAnchor || isClusteredByAnother) continue
+
       const anchorExpression: ExpressionItem = {
         id: expr.id,
         ark: expr.ark || expr.id,
         title: titleOf(expr) || expr.id,
-        workArk: anchorArk,
-        workId: work.id,
+        workArk: exprWorkArk,
+        workId: exprWorkArk ? workIdByArk.get(exprWorkArk) : undefined,
         manifestations: anchorManifestations,
       }
 
       const clustered: ExpressionClusterItem[] = []
-      for (const { ark: targetArk, date } of expressionClusterTargets(expr)) {
+      for (const { ark: targetArk, date } of clusterTargets) {
         const target = expressionsByArk.get(targetArk)
         const workArks = target ? expressionWorkArks(target) : []
         const sourceWorkArk = workArks[0] || ''
@@ -124,26 +152,28 @@ export function detectClusters(curated: RecordRow[], originalIdxByArk: Map<strin
         usedExpressionArks.add(targetArk)
       }
 
+      usedExpressionArks.add(anchorExpression.ark)
       expressionGroups.push({ anchor: anchorExpression, clustered })
     }
 
     const independentExpressions: ExpressionItem[] = []
-    for (const item of items) {
-      const workExpressions = expressionsByWorkArk.get(item.ark) || []
-      for (const expr of workExpressions) {
-        const exprArk = expr.ark
-        if (!exprArk || usedExpressionArks.has(exprArk)) continue
-        const manifests = manifestationsForExpression(exprArk, manifestationsByExpressionArk, expressionsByArk)
-        independentExpressions.push({
-          id: expr.id,
-          ark: exprArk,
-          title: titleOf(expr) || expr.id,
-          workArk: item.ark,
-          workId: item.id,
-          manifestations: manifests,
-        })
-        usedExpressionArks.add(exprArk)
-      }
+    for (const expr of candidateExpressions) {
+      const exprArk = expr.ark
+      if (!exprArk || usedExpressionArks.has(exprArk)) continue
+      if (clusteredBy.has(exprArk) && clusteredBy.get(exprArk) !== expr.id) continue
+      const workArks = expressionWorkArks(expr)
+      const workArk = workArks[0] || ''
+      const workId = workArk ? workIdByArk.get(workArk) : undefined
+      const manifests = manifestationsForExpression(exprArk, manifestationsByExpressionArk, expressionsByArk)
+      independentExpressions.push({
+        id: expr.id,
+        ark: exprArk,
+        title: titleOf(expr) || expr.id,
+        workArk,
+        workId,
+        manifestations: manifests,
+      })
+      usedExpressionArks.add(exprArk)
     }
     const hasExpressionCluster =
       expressionGroups.some(group => group.clustered.length > 0) || independentExpressions.length > 0

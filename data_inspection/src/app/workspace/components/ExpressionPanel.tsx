@@ -218,11 +218,9 @@ export function ExpressionPanel({
                 mediaKinds={anchorMediaKinds}
               />
             </div>
-            <div className="expression-items">
-              {group.clustered.length === 0 ? (
-                <div className="expression-empty">{t('labels.noClusteredExpressions')}</div>
-              ) : (
-                group.clustered.map(expr => {
+            {group.clustered.length > 0 ? (
+              <div className="expression-items">
+                {group.clustered.map(expr => {
                   const rowClasses = ['expression-item', 'entity-row', 'entity-row--expression']
                   if (!expr.accepted) rowClasses.push('unchecked')
                   if (pendingClusterSourceId && pendingClusterSourceId === expr.id) rowClasses.push('pending-cluster-source')
@@ -295,9 +293,9 @@ export function ExpressionPanel({
                       />
                     </div>
                   )
-                })
-              )}
-            </div>
+                })}
+              </div>
+            ) : null}
           </div>
         )
       })}

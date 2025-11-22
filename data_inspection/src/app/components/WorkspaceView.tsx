@@ -1309,9 +1309,8 @@ export function WorkspaceView({
     )
   }
 
-  const workspaceClassName = `workspace-view${intermarcFullView ? ' is-intermarc-full' : ''}${
-    backlinksExpanded && record ? ' has-backlinks-expanded' : ''
-  }${listCollapsed ? ' is-list-collapsed' : ''}`
+  const workspaceClassName = `workspace-view${intermarcFullView ? ' is-intermarc-full' : ''}${backlinksExpanded && record ? ' has-backlinks-expanded' : ''
+    }${listCollapsed ? ' is-list-collapsed' : ''}`
   const detachLabelFull = t('workspace.openInWindow', { defaultValue: 'Open Intermarc in new window' })
   const dockLabelFull = t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })
   const toggleFullLabelFull = intermarcFullView
@@ -1320,243 +1319,243 @@ export function WorkspaceView({
 
   return (
     <>
-    <div className={workspaceClassName}>
-      <header className="workspace-view__header">
-        <WorkspaceBreadcrumbs items={breadcrumbs} ariaLabel={t('breadcrumbs.ariaLabel')} />
-      </header>
-      <div className="workspace-view__body">
-        {!listCollapsed ? (
-          <aside
-            className="workspace-panel workspace-panel--list"
-            ref={listPanelRef}
-            onScroll={handleListScroll}
-          >
-            {renderListPanel(state.viewMode)}
-          </aside>
-        ) : null}
-        <section
-          className="workspace-panel workspace-panel--details"
-          ref={detailsPanelRef}
-          onScroll={handleDetailsScroll}
-        >
-          {record ? (
-            <>
-              <div className="record-details" onContextMenu={handleRecordContextMenu}>
-                <header className="record-details__header">
-                  <h3>{record.id}</h3>
-                  <span>{record.type}</span>
-                </header>
-                {editingRecord && canEditRecord ? (
-                  <IntermarcEditor
-                    record={record}
-                    baselineRecord={getCuratedBaselineRecord(record.id) ?? undefined}
-                    onSave={next => handleIntermarcSave(record, next)}
-                    onCancel={() => setEditingRecord(false)}
-                  />
-                ) : (
-                  <>
-                    <IntermarcView record={record} onArkClick={handleArkClick} />
-                    {readOnlyReason ? <p className="record-editor__note">{readOnlyReason}</p> : null}
-                    {canEditRecord ? (
-                      <div className="editor-actions">
-                        <button type="button" onClick={() => setEditingRecord(true)}>
-                          {t('buttons.modifyRecord')}
-                        </button>
-                      </div>
-                    ) : null}
-                  </>
-                )}
-              </div>
-              {!backlinksExpanded ? (
-                <BacklinksPanel backlinks={backlinks} onOpenArk={openRecordForArk} lookupWorkByArk={getByArk} />
-              ) : null}
-            </>
-          ) : (
-            <p>{t('layout.selectPrompt')}</p>
-          )}
-        </section>
-        {record && backlinksExpanded ? (
+      <div className={workspaceClassName}>
+        <header className="workspace-view__header">
+          <WorkspaceBreadcrumbs items={breadcrumbs} ariaLabel={t('breadcrumbs.ariaLabel')} />
+        </header>
+        <div className="workspace-view__body">
+          {!listCollapsed ? (
+            <aside
+              className="workspace-panel workspace-panel--list"
+              ref={listPanelRef}
+              onScroll={handleListScroll}
+            >
+              {renderListPanel(state.viewMode)}
+            </aside>
+          ) : null}
           <section
-            className="workspace-panel workspace-panel--backlinks"
-            aria-label={t('backlinks.title', { defaultValue: 'Backlinks' })}
+            className="workspace-panel workspace-panel--details"
+            ref={detailsPanelRef}
+            onScroll={handleDetailsScroll}
           >
-            <BacklinksPanel backlinks={backlinks} onOpenArk={openRecordForArk} lookupWorkByArk={getByArk} />
+            {record ? (
+              <>
+                <div className="record-details" onContextMenu={handleRecordContextMenu}>
+                  <header className="record-details__header">
+                    <h3>{record.id}</h3>
+                    <span>{record.type}</span>
+                  </header>
+                  {editingRecord && canEditRecord ? (
+                    <IntermarcEditor
+                      record={record}
+                      baselineRecord={getCuratedBaselineRecord(record.id) ?? undefined}
+                      onSave={next => handleIntermarcSave(record, next)}
+                      onCancel={() => setEditingRecord(false)}
+                    />
+                  ) : (
+                    <>
+                      <IntermarcView record={record} onArkClick={handleArkClick} />
+                      {readOnlyReason ? <p className="record-editor__note">{readOnlyReason}</p> : null}
+                      {canEditRecord ? (
+                        <div className="editor-actions">
+                          <button type="button" onClick={() => setEditingRecord(true)}>
+                            {t('buttons.modifyRecord')}
+                          </button>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+                {!backlinksExpanded ? (
+                  <BacklinksPanel backlinks={backlinks} onOpenArk={openRecordForArk} lookupWorkByArk={getByArk} />
+                ) : null}
+              </>
+            ) : (
+              <p>{t('layout.selectPrompt')}</p>
+            )}
           </section>
+          {record && backlinksExpanded ? (
+            <section
+              className="workspace-panel workspace-panel--backlinks"
+              aria-label={t('backlinks.title', { defaultValue: 'Backlinks' })}
+            >
+              <BacklinksPanel backlinks={backlinks} onOpenArk={openRecordForArk} lookupWorkByArk={getByArk} />
+            </section>
+          ) : null}
+        </div>
+        {record ? (
+          <div
+            className="workspace-side-toolbar"
+            aria-label={t('workspace.sidebarActions', { defaultValue: 'Workspace actions' })}
+          >
+            {mode === 'inline' && onRequestDetach ? (
+              <button
+                type="button"
+                className="workspace-side-toolbar__button"
+                onClick={onRequestDetach}
+                aria-label={detachLabelFull}
+              >
+                <span aria-hidden="true" className="workspace-side-toolbar__icon">
+                  🪟
+                </span>
+                <span className="workspace-side-toolbar__label">Pop</span>
+              </button>
+            ) : null}
+            {mode === 'detached' && onRequestDock ? (
+              <button
+                type="button"
+                className="workspace-side-toolbar__button"
+                onClick={onRequestDock}
+                aria-label={dockLabelFull}
+              >
+                <span aria-hidden="true" className="workspace-side-toolbar__icon">
+                  ↩️
+                </span>
+                <span className="workspace-side-toolbar__label">Dock</span>
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="workspace-side-toolbar__button"
+              onClick={() => {
+                setIntermarcFullView(prev => {
+                  const next = !prev
+                  if (next) setBacklinksExpanded(false)
+                  return next
+                })
+              }}
+              aria-label={toggleFullLabelFull}
+            >
+              <span aria-hidden="true" className="workspace-side-toolbar__icon">
+                🖥️
+              </span>
+              <span className="workspace-side-toolbar__label">{intermarcFullView ? 'Split' : 'Full'}</span>
+            </button>
+            <button
+              type="button"
+              className="workspace-side-toolbar__button"
+              onClick={() => {
+                if (intermarcFullView) setIntermarcFullView(false)
+                setListCollapsed(prev => !prev)
+              }}
+              aria-pressed={listCollapsed}
+              aria-label={
+                listCollapsed
+                  ? t('workspace.showList', { defaultValue: 'Show list' })
+                  : t('workspace.hideList', { defaultValue: 'Hide list' })
+              }
+            >
+              <span aria-hidden="true" className="workspace-side-toolbar__icon">
+                {listCollapsed ? '📚' : '🗂️'}
+              </span>
+              <span className="workspace-side-toolbar__label">
+                {listCollapsed
+                  ? t('workspace.showList', { defaultValue: 'Show list' })
+                  : t('workspace.hideList', { defaultValue: 'Hide list' })}
+              </span>
+            </button>
+            <button
+              type="button"
+              className="workspace-side-toolbar__button workspace-side-toolbar__button--primary"
+              onClick={() =>
+                setBacklinksExpanded(prev => {
+                  const next = !prev
+                  if (next && intermarcFullView) setIntermarcFullView(false)
+                  return next
+                })
+              }
+              aria-pressed={backlinksExpanded}
+              aria-label={
+                backlinksExpanded
+                  ? t('backlinks.hide', { defaultValue: 'Fold backlinks' })
+                  : t('backlinks.show', { defaultValue: 'Expand backlinks' })
+              }
+            >
+              <span aria-hidden="true" className="workspace-side-toolbar__icon">
+                {backlinksExpanded ? '⬇️' : '🔗'}
+              </span>
+              <span className="workspace-side-toolbar__label">
+                {backlinksExpanded ? t('backlinks.hide', { defaultValue: 'Fold links' }) : 'Backlinks'}
+              </span>
+            </button>
+          </div>
         ) : null}
       </div>
-      {record ? (
-        <div
-          className="workspace-side-toolbar"
-          aria-label={t('workspace.sidebarActions', { defaultValue: 'Workspace actions' })}
-        >
-          {mode === 'inline' && onRequestDetach ? (
-            <button
-              type="button"
-              className="workspace-side-toolbar__button"
-              onClick={onRequestDetach}
-              aria-label={detachLabelFull}
-            >
-              <span aria-hidden="true" className="workspace-side-toolbar__icon">
-                🪟
-              </span>
-              <span className="workspace-side-toolbar__label">Pop</span>
-            </button>
-          ) : null}
-          {mode === 'detached' && onRequestDock ? (
-            <button
-              type="button"
-              className="workspace-side-toolbar__button"
-              onClick={onRequestDock}
-              aria-label={dockLabelFull}
-            >
-              <span aria-hidden="true" className="workspace-side-toolbar__icon">
-                ↩️
-              </span>
-              <span className="workspace-side-toolbar__label">Dock</span>
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="workspace-side-toolbar__button"
-            onClick={() => {
-              setIntermarcFullView(prev => {
-                const next = !prev
-                if (next) setBacklinksExpanded(false)
-                return next
-              })
-            }}
-            aria-label={toggleFullLabelFull}
-          >
-            <span aria-hidden="true" className="workspace-side-toolbar__icon">
-              🖥️
-            </span>
-            <span className="workspace-side-toolbar__label">{intermarcFullView ? 'Split' : 'Full'}</span>
-          </button>
-          <button
-            type="button"
-            className="workspace-side-toolbar__button"
-            onClick={() => {
-              if (intermarcFullView) setIntermarcFullView(false)
-              setListCollapsed(prev => !prev)
-            }}
-            aria-pressed={listCollapsed}
-            aria-label={
-              listCollapsed
-                ? t('workspace.showList', { defaultValue: 'Show list' })
-                : t('workspace.hideList', { defaultValue: 'Hide list' })
-            }
-          >
-            <span aria-hidden="true" className="workspace-side-toolbar__icon">
-              {listCollapsed ? '📚' : '🗂️'}
-            </span>
-            <span className="workspace-side-toolbar__label">
-              {listCollapsed
-                ? t('workspace.showList', { defaultValue: 'Show list' })
-                : t('workspace.hideList', { defaultValue: 'Hide list' })}
-            </span>
-          </button>
-          <button
-            type="button"
-            className="workspace-side-toolbar__button workspace-side-toolbar__button--primary"
-            onClick={() =>
-              setBacklinksExpanded(prev => {
-                const next = !prev
-                if (next && intermarcFullView) setIntermarcFullView(false)
-                return next
-              })
-            }
-            aria-pressed={backlinksExpanded}
-            aria-label={
-              backlinksExpanded
-                ? t('backlinks.hide', { defaultValue: 'Fold backlinks' })
-                : t('backlinks.show', { defaultValue: 'Expand backlinks' })
-            }
-          >
-            <span aria-hidden="true" className="workspace-side-toolbar__icon">
-              {backlinksExpanded ? '⬇️' : '🔗'}
-            </span>
-            <span className="workspace-side-toolbar__label">
-              {backlinksExpanded ? t('backlinks.hide', { defaultValue: 'Fold links' }) : 'Backlinks'}
-            </span>
-          </button>
-        </div>
-      ) : null}
-    </div>
-    {contextMenu ? (
-      <WorkspaceContextMenu
-        position={contextMenu.position}
-        openLabel={t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })}
-        openDetachedLabel={t('workspace.openInDetachedWindow', {
-          defaultValue: 'Open in detached workspace window',
-        })}
-        extraActionLabel={
-          contextMenu.record.typeNorm === 'oeuvre'
-            ? !pendingClusterSourceRecord
-              ? t('works.cluster.prepare', { defaultValue: 'Préparer pour clustering' })
-              : pendingClusterSourceRecord.id !== contextMenu.record.id &&
+      {contextMenu ? (
+        <WorkspaceContextMenu
+          position={contextMenu.position}
+          openLabel={t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })}
+          openDetachedLabel={t('workspace.openInDetachedWindow', {
+            defaultValue: 'Open in detached workspace window',
+          })}
+          extraActionLabel={
+            contextMenu.record.typeNorm === 'oeuvre'
+              ? !pendingClusterSourceRecord
+                ? t('works.cluster.prepare', { defaultValue: 'Préparer pour clustering' })
+                : pendingClusterSourceRecord.id !== contextMenu.record.id &&
                   pendingClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
-                ? t('works.cluster.clusterWith', { defaultValue: 'Clustériser avec la sélection' })
-                : undefined
-            : contextMenu.record.typeNorm === 'expression'
-              ? !pendingExpressionClusterSourceRecord
-                ? t('expressions.cluster.prepare', { defaultValue: 'Préparer pour clustering' })
-                : pendingExpressionClusterSourceRecord.id !== contextMenu.record.id &&
-                    pendingExpressionClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
-                  ? t('expressions.cluster.clusterWith', { defaultValue: 'Clustériser avec la sélection' })
+                  ? t('works.cluster.clusterWith', { defaultValue: 'Clustériser avec la sélection' })
                   : undefined
-              : undefined
-        }
-        extraActionDisabled={
-          Boolean(
-            (pendingClusterSourceRecord &&
-              pendingClusterSourceRecord.id !== contextMenu.record.id &&
-              pendingClusterSourceRecord.typeNorm !== contextMenu.record.typeNorm) ||
+              : contextMenu.record.typeNorm === 'expression'
+                ? !pendingExpressionClusterSourceRecord
+                  ? t('expressions.cluster.prepare', { defaultValue: 'Préparer pour clustering' })
+                  : pendingExpressionClusterSourceRecord.id !== contextMenu.record.id &&
+                    pendingExpressionClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
+                    ? t('expressions.cluster.clusterWith', { defaultValue: 'Clustériser avec la sélection' })
+                    : undefined
+                : undefined
+          }
+          extraActionDisabled={
+            Boolean(
+              (pendingClusterSourceRecord &&
+                pendingClusterSourceRecord.id !== contextMenu.record.id &&
+                pendingClusterSourceRecord.typeNorm !== contextMenu.record.typeNorm) ||
               (pendingExpressionClusterSourceRecord &&
                 pendingExpressionClusterSourceRecord.id !== contextMenu.record.id &&
                 pendingExpressionClusterSourceRecord.typeNorm !== contextMenu.record.typeNorm),
-          )
-        }
-        onExtraAction={() => {
-          if (contextMenu.record.typeNorm === 'oeuvre') {
-            if (!pendingClusterSourceRecord) {
-              prepareForClustering(contextMenu.record)
-            } else if (
-              pendingClusterSourceRecord.id !== contextMenu.record.id &&
-              pendingClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
-            ) {
-              requestClusterWith(contextMenu.record)
-            }
-          } else if (contextMenu.record.typeNorm === 'expression') {
-            if (!pendingExpressionClusterSourceRecord) {
-              prepareExpressionForClustering(contextMenu.record)
-            } else if (
-              pendingExpressionClusterSourceRecord.id !== contextMenu.record.id &&
-              pendingExpressionClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
-            ) {
-              requestExpressionClusterWith(contextMenu.record)
-            }
+            )
           }
-        }}
-        onOpen={handleOpenRecordInNewTab}
-        onOpenDetached={handleOpenRecordInDetachedWindow}
-      />
-    ) : null}
-    {pendingClusterTarget ? (
-      <ConfirmWorkClusterModal
-        source={getById(pendingClusterTarget.sourceId) ?? null}
-        anchor={getById(pendingClusterTarget.anchorId) ?? null}
-        onConfirm={confirmPendingCluster}
-        onCancel={() => setPendingClusterTarget(null)}
-      />
-    ) : null}
-    {pendingExpressionClusterTarget ? (
-      <ConfirmExpressionClusterModal
-        source={getById(pendingExpressionClusterTarget.sourceId) ?? null}
-        anchor={getById(pendingExpressionClusterTarget.anchorId) ?? null}
-        onConfirm={confirmPendingExpressionCluster}
-        onCancel={() => setPendingExpressionClusterTarget(null)}
-      />
-    ) : null}
+          onExtraAction={() => {
+            if (contextMenu.record.typeNorm === 'oeuvre') {
+              if (!pendingClusterSourceRecord) {
+                prepareForClustering(contextMenu.record)
+              } else if (
+                pendingClusterSourceRecord.id !== contextMenu.record.id &&
+                pendingClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
+              ) {
+                requestClusterWith(contextMenu.record)
+              }
+            } else if (contextMenu.record.typeNorm === 'expression') {
+              if (!pendingExpressionClusterSourceRecord) {
+                prepareExpressionForClustering(contextMenu.record)
+              } else if (
+                pendingExpressionClusterSourceRecord.id !== contextMenu.record.id &&
+                pendingExpressionClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
+              ) {
+                requestExpressionClusterWith(contextMenu.record)
+              }
+            }
+          }}
+          onOpen={handleOpenRecordInNewTab}
+          onOpenDetached={handleOpenRecordInDetachedWindow}
+        />
+      ) : null}
+      {pendingClusterTarget ? (
+        <ConfirmWorkClusterModal
+          source={getById(pendingClusterTarget.sourceId) ?? null}
+          anchor={getById(pendingClusterTarget.anchorId) ?? null}
+          onConfirm={confirmPendingCluster}
+          onCancel={() => setPendingClusterTarget(null)}
+        />
+      ) : null}
+      {pendingExpressionClusterTarget ? (
+        <ConfirmExpressionClusterModal
+          source={getById(pendingExpressionClusterTarget.sourceId) ?? null}
+          anchor={getById(pendingExpressionClusterTarget.anchorId) ?? null}
+          onConfirm={confirmPendingExpressionCluster}
+          onCancel={() => setPendingExpressionClusterTarget(null)}
+        />
+      ) : null}
     </>
   )
 }

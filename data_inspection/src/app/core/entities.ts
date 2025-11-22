@@ -143,6 +143,11 @@ export function agentTitleSegments(rec: RecordRow): EntityTitleSegment[] {
   for (const sz of zone.sousZones) {
     const value = typeof sz.valeur === 'string' ? sz.valeur.trim() : ''
     if (!value) continue
+    // Only keep lowercase subfield codes (case-sensitive)
+    const code = sz.code ?? ''
+    const dollarIndex = code.lastIndexOf('$')
+    const sub = dollarIndex >= 0 ? code.slice(dollarIndex + 1) : code
+    if (sub !== sub.toLowerCase()) continue
     const labelSource = extractSubfieldLabel(sz.code)
     const label = labelSource ? labelSource.toUpperCase() : sz.code
     segments.push({ code: sz.code, label, value })

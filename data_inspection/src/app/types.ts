@@ -114,6 +114,7 @@ export type EntityPillKind =
   | 'manifestation'
   | 'person'
   | 'collective'
+  | 'family'
   | 'brand'
   | 'deweyConcept'
   | 'concept'

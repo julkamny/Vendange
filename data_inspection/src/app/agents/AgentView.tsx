@@ -507,13 +507,13 @@ export function AgentView({
     const label = buildLabelFromIntermarc(record.intermarc, record.type) || record.id
     const segments = agentTitleSegments(record)
     const counts = backlinkCounts(record)
-    const pillType =
+    const pillType: EntityBadgeSpec['type'] =
       record.typeNorm === 'collectivite'
         ? 'collective'
         : record.typeNorm === 'famille'
           ? 'family'
           : 'person'
-    const badges = [{ type: pillType, text: record.id, tooltip: record.ark ?? record.id }]
+    const badges: EntityBadgeSpec[] = [{ type: pillType, text: record.id, tooltip: record.ark ?? record.id }]
 
     type SubField = { code?: string; value?: string }
     type Zone = { subfields?: SubField[] }
@@ -653,7 +653,7 @@ export function AgentView({
                                         : 'person',
                                   text: anchorRecord.id,
                                   tooltip: anchorRecord.ark ?? anchorRecord.id,
-                                },
+                                } satisfies EntityBadgeSpec,
                               ]}
                               counts={backlinkCounts(anchorRecord)}
                             />
@@ -715,7 +715,7 @@ export function AgentView({
                                             : 'person',
                                       text: itemRecord.id,
                                       tooltip: itemRecord.ark ?? itemRecord.id,
-                                    },
+                                    } satisfies EntityBadgeSpec,
                                   ]}
                                   counts={backlinkCounts(itemRecord)}
                                 />

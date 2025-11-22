@@ -897,6 +897,18 @@ button:focus-visible {
   gap: 0.6rem;
   align-items: center;
 }
+.cluster-item .entity-label,
+.cluster-header-row .entity-label {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+.cluster-item .entity-title--segmented,
+.cluster-header-row .entity-title--segmented {
+  display: inline-flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
 .cluster-add {
   display: flex;
   gap: 0.5rem;

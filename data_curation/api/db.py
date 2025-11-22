@@ -830,7 +830,7 @@ def _is_expression_anchor(store: Store, ark_index: dict[str, str], target_ark: s
         try:
             aff = solution["aff"]
         except(KeyError,TypeError):
-            val = None
+            aff = None
         if aff and isinstance(aff, Literal):
             norm = aff.value.lower()
             if norm in {"created", "manual"}:

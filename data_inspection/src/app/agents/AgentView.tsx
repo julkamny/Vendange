@@ -470,13 +470,27 @@ export function AgentView({
         setContextMenu(null)
         return
       }
+      if (record.ark) {
+        const conflict = manualClusterIndex.get(record.ark)
+        if (conflict) {
+          showToast(
+            t('agents.cluster.pendingAlreadySelected', {
+              defaultValue: 'Impossible : cet agent est déjà rattaché au cluster de {{anchor}}.',
+              anchor: conflict.anchorLabel || conflict.anchorId,
+            }),
+            { tone: 'error' },
+          )
+          setContextMenu(null)
+          return
+        }
+      }
       setPendingClusterSourceId(record.id)
       setContextMenu(null)
       showToast(t('agents.cluster.prepared', { defaultValue: 'Agent mis en attente pour un clustering.' }), {
         tone: 'info',
       })
     },
-    [showToast, t],
+    [manualClusterIndex, showToast, t],
   )
 
   const requestClusterWith = useCallback(

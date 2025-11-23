@@ -33,6 +33,11 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
   1. The original work gets a `552$q` subfield with the ARK identifier of the controled value with `169$a` "A pour adaptation" and a `552$3` subfield pointing to the ARK identifier of the adaptation.
   2. The adaptation gets a `552$q` with the ARK identifier of the controled value with `169$a` "Est une adaptation de" and a `552$3` subfield pointing to the ARK identifier of the original work.
   
+### Testing backend guardrails
+- End-to-end guards between the React UI and FastAPI are covered in `data_curation/tests/test_cluster_guards.py`. Run them with `uv run pytest data_curation/tests/test_cluster_guards.py`.
+- The tests spin up fresh Oxigraph stores under `data_curation/api/datasets/<prefix>-<uuid>` (work/expression/manifestation fixtures with 150/140/245/750/740 fields) and **intentionally leave them on disk** for inspection after a run.
+- If you only need linting for the API layer while avoiding older exploratory notebooks, use `uv run ruff check data_curation/api data_curation/tests`.
+
 4) Running data curation operations
 - To launch the FastAPI server in `data_curation/api`: `uv run fastapi dev data_curation/api/app.py`. See below for explanations.
 - The React UI opens on a dashboard that lets you upload CSV snapshots, launch clustering (with or without expression propagation) while streaming script logs, jump into the inspection workspace, or delete a dataset. Every upload becomes its own Oxigraph store—colleagues can curate multiple corpora in parallel.

@@ -580,7 +580,10 @@ def _is_manual_anchor(store: Store, ark_index: dict[str, str], target_ark: str) 
     if not isinstance(solutions, QuerySolutions):
         return False
     for solution in solutions:
-        aff = solution.get("aff")
+        try:
+            aff = solution["aff"]
+        except (KeyError, TypeError):
+            aff = None
         if aff and isinstance(aff, Literal):
             norm = aff.value.lower()
             if norm in {"created", "manual"}:
@@ -689,7 +692,10 @@ def _is_work_anchor(store: Store, ark_index: dict[str, str], target_ark: str) ->
     if not isinstance(solutions, QuerySolutions):
         return False
     for solution in solutions:
-        aff = solution.get("aff")
+        try:
+            aff = solution["aff"]
+        except (KeyError, TypeError):
+            aff = None
         if aff and isinstance(aff, Literal):
             norm = aff.value.lower()
             if norm in {"created", "manual"}:
@@ -979,6 +985,12 @@ def _ensure_unique_expression_clusters(store: Store, anchor_id: str, intermarc: 
         existing.setdefault(target_value, anchor_record_id)
 
     ark_index = _load_ark_index(store)
+    anchor_ark = _extract_ark(intermarc)
+    anchor_membership = existing.get(anchor_ark) if anchor_ark else None
+    if anchor_membership and anchor_membership != anchor_id:
+        raise ValueError(
+            "Impossible d'enregistrer : une expression déjà rattachée à un cluster ne peut pas en devenir l'ancre."
+        )
     anchor_parents = _expression_parents(store, anchor_id)
 
     for target in new_targets:
@@ -992,21 +1004,22 @@ def _ensure_unique_expression_clusters(store: Store, anchor_id: str, intermarc: 
                 f"Impossible d'enregistrer : l'expression {target} est deja ancre d'un cluster."
             )
         target_id = ark_index.get(target)
-        if target_id:
-            target_parents = _expression_parents(store, target_id)
-            parents_overlap = anchor_parents.intersection(target_parents)
-            parents_clustered = False
-            for parent_a in anchor_parents:
-                for parent_b in target_parents:
-                    if _works_clustered_together(store, ark_index, parent_a, parent_b):
-                        parents_clustered = True
-                        break
-                if parents_clustered:
+        if not target_id:
+            raise ValueError("Impossible d'enregistrer : parent non vérifiable pour la cible.")
+        target_parents = _expression_parents(store, target_id)
+        parents_overlap = anchor_parents.intersection(target_parents)
+        parents_clustered = False
+        for parent_a in anchor_parents:
+            for parent_b in target_parents:
+                if _works_clustered_together(store, ark_index, parent_a, parent_b):
+                    parents_clustered = True
                     break
-            if anchor_parents and target_parents and not parents_overlap and not parents_clustered:
-                raise ValueError(
-                    f"Impossible d'enregistrer : l'expression {target} n'a pas le même parent 750$3 ou des parents déjà en cluster que l'ancre."
-                )
+            if parents_clustered:
+                break
+        if anchor_parents and target_parents and not parents_overlap and not parents_clustered:
+            raise ValueError(
+                f"Impossible d'enregistrer : l'expression {target} n'a pas le même parent 750$3 ou des parents déjà en cluster que l'ancre."
+            )
 
 
 def update_record(dataset_id: str, record_id: str, *, type_raw: str, intermarc_json: str) -> None:

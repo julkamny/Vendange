@@ -5,6 +5,7 @@
 - Strive to avoid introducing repetition in the codebase, reuse as much code as possible to implement what you've been asked.
 - When a file gets too long (more than 500 LOC), break it down into smaller files. Don't allow a file to grow out of hand.
 - Once you're done working, if you've touched files in the React app living in data_inspection, you need to execute `npm run lint`.
+- If you've touched files in the FastAPI Python back-end, use `uv run ruff check` and pytest.
 
 ## Tips
 
@@ -14,11 +15,12 @@
 ## Databases
 
 - The searchable datasets uploaded by users are Oxigraph stores under `data_curation/api/datasets/`, created from user-provided CSVs of Intermarc records. A development sample lives in `sample_data/current_export.csv`.
-- The DB can be inspected with the Oxigraph CLI, see [sparql_store.md](documentation/sparql_store.md)
+- The DB can be inspected with the Oxigraph CLI or `uv run pyoxigraph`, see [sparql_store.md](documentation/sparql_store.md)
 
 ## Intermarc
 
 - In the brand of Intermarc we're dealing with, $a IS COMPLETELY DIFFERENT from $A, $b from $B, etc. Capital letter and lower-case should never be conflated in FIELD CODE or SUBFIELD CODE. Make sure this logic is honored whenever you have to touch files related to Intermarc.
+- In our SPARQL databases, the `$` between the field and the subfield has been replaced with `s`. So `90F$q` becomes `90Fsq`.
 
 ## Linked entity ontology
 

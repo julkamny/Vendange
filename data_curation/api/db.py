@@ -10,7 +10,7 @@ import sys
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Set
 from urllib.parse import quote
 
 from pyoxigraph import BlankNode, DefaultGraph, Literal, NamedNode, QuerySolution, QuerySolutions, Quad, Store

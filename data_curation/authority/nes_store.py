@@ -1,7 +1,7 @@
 # scripts/authority/nes_store.py
 from __future__ import annotations
 import sqlite3
-from typing import Iterable, List, Optional
+from typing import Iterable, List
 from pathlib import Path
 import time
 

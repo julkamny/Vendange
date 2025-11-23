@@ -59,10 +59,12 @@ def parse_variants_from_sru(xml_text: str) -> Tuple[List[str], List[str]]:
 
     # déduplication en gardant l'ordre
     def dedup(seq: List[str]) -> List[str]:
-        seen = set(); out=[]
+        seen = set()
+        out=[]
         for x in seq:
             if x not in seen:
-                seen.add(x); out.append(x)
+                seen.add(x)
+                out.append(x)
         return out
 
     return dedup(accepted), dedup(rejected)

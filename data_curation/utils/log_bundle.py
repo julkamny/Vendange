@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import html
-import logging
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -122,7 +121,7 @@ class LogBundle:
             "<!DOCTYPE html>",
             "<html lang='fr'>",
             "<head>",
-            f"<meta charset='utf-8' />",
+            "<meta charset='utf-8' />",
             f"<title>{html.escape(title)}</title>",
             "<style>",
             self._css(),

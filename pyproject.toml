@@ -30,6 +30,8 @@ dependencies = [
     "spacy==3.8.7",
     "fr_dep_news_trf==3.8.0",
     "google-genai>=1.50.1",
+    "pytest>=9.0.1",
+    "pytest-playwright>=0.3.0",
 ]
 
 [tool.uv]

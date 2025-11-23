@@ -9,7 +9,7 @@ from datetime import date
 from pathlib import Path
 
 from data_curation.authority.nes_service import NameExpansionService
-from data_curation.models import AgentResponsibility, Entity, Intermarc, WorkGroupKey, Zone, SousZone
+from data_curation.models import AgentResponsibility, Entity, Intermarc, Zone, SousZone
 from data_curation.curation.adaptation import (
     AdaptationTriggerMatch,
     ILLUSTRATION_TRIGGER_VARIANTS,

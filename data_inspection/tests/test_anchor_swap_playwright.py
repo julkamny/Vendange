@@ -93,25 +93,31 @@ def test_anchor_swap_flow(page):
     page.wait_for_selector('[data-work-id="w1"]')
 
     # No anchor swap action on unclustered work
-    page.locator('[data-work-id="w4"]').click(button='right')
+    page.locator('[data-work-id="w4"].cluster-header-row').first.click(button='right')
     expect(
-        page.locator('.workspace-context-menu').get_by_role('button', name=re.compile('changement d', re.IGNORECASE))
+        page.locator('.workspace-context-menu').get_by_role('menuitem', name=re.compile('changement d', re.IGNORECASE))
     ).to_have_count(0)
     page.keyboard.press('Escape')
 
     # Prepare swap on clustered member
-    page.locator('[data-work-id="w2"]').click(button='right')
-    page.get_by_role('button', name=re.compile('changement d', re.IGNORECASE)).click()
+    page.locator('[data-work-id="w2"].cluster-item, [data-work-id="w2"].cluster-header-row').first.click(button='right')
+    menu = page.locator('.workspace-context-menu')
+    expect(menu).to_be_visible()
+    menu.get_by_role('menuitem', name=re.compile('changement d', re.IGNORECASE)).click()
 
     # Attempt with non-anchor should toast
-    page.locator('[data-work-id="w3"]').click(button='right')
-    page.get_by_role('button', name=re.compile('Effectuer', re.IGNORECASE)).click()
+    page.locator('[data-work-id="w3"].cluster-item, [data-work-id="w3"].cluster-header-row').first.click(button='right')
+    menu = page.locator('.workspace-context-menu')
+    expect(menu).to_be_visible()
+    menu.get_by_role('menuitem', name=re.compile('Effectuer', re.IGNORECASE)).click()
     expect(page.locator('.toast-message').last).to_contain_text("pas l'ancre")
 
     # Perform real swap with anchor w1
-    page.locator('[data-work-id="w1"].cluster-header-row').click(button='right')
-    page.get_by_role('button', name=re.compile('Effectuer', re.IGNORECASE)).click()
-    page.get_by_role('button', name=re.compile('Confirmer', re.IGNORECASE)).click()
+    page.locator('[data-work-id="w1"].cluster-header-row').first.click(button='right')
+    menu = page.locator('.workspace-context-menu')
+    expect(menu).to_be_visible()
+    menu.get_by_role('menuitem', name=re.compile('Effectuer', re.IGNORECASE)).click()
+    page.get_by_role('button', name=re.compile('Confirmer|Confirm', re.IGNORECASE)).click()
 
     page.wait_for_selector('[data-work-id="w2"].cluster-header-row')
     expect(page.locator('[data-work-id="w1"].cluster-item')).to_be_visible()
@@ -121,18 +127,24 @@ def test_anchor_swap_flow(page):
     page.wait_for_selector('[data-expression-id="e1"]')
 
     # Prepare expression swap on member e2
-    page.locator('[data-expression-id="e2"]').click(button='right')
-    page.get_by_role('button', name=re.compile('changement d', re.IGNORECASE)).click()
+    page.locator('[data-expression-id="e2"]:not(.expression-anchor)').first.click(button='right')
+    menu = page.locator('.workspace-context-menu')
+    expect(menu).to_be_visible()
+    menu.get_by_role('menuitem', name=re.compile('changement d', re.IGNORECASE)).click()
 
     # Error when targeting non-anchor member
-    page.locator('[data-expression-id="e3"]').click(button='right')
-    page.get_by_role('button', name=re.compile('Effectuer', re.IGNORECASE)).click()
+    page.locator('[data-expression-id="e3"]:not(.expression-anchor)').first.click(button='right')
+    menu = page.locator('.workspace-context-menu')
+    expect(menu).to_be_visible()
+    menu.get_by_role('menuitem', name=re.compile('Effectuer', re.IGNORECASE)).click()
     expect(page.locator('.toast-message').last).to_contain_text("pas l'ancre")
 
     # Successful expression anchor swap
     page.locator('[data-expression-id="e1"]')
-    page.locator('[data-expression-id="e1"]').click(button='right')
-    page.get_by_role('button', name=re.compile('Effectuer', re.IGNORECASE)).click()
-    page.get_by_role('button', name=re.compile('Confirmer', re.IGNORECASE)).click()
+    page.locator('[data-expression-id="e1"].expression-anchor').first.click(button='right')
+    menu = page.locator('.workspace-context-menu')
+    expect(menu).to_be_visible()
+    menu.get_by_role('menuitem', name=re.compile('Effectuer', re.IGNORECASE)).click()
+    page.get_by_role('button', name=re.compile('Confirmer|Confirm', re.IGNORECASE)).click()
 
     page.wait_for_selector('[data-expression-id="e2"].expression-anchor')

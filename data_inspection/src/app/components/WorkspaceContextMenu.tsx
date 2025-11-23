@@ -1,12 +1,12 @@
+export type MenuAction = { label: string; disabled?: boolean; onSelect: () => void }
+
 type WorkspaceContextMenuProps = {
   position: { x: number; y: number }
   openLabel: string
   openDetachedLabel: string
   onOpen: () => void
   onOpenDetached: () => void
-  extraActionLabel?: string
-  extraActionDisabled?: boolean
-  onExtraAction?: () => void
+  extraActions?: MenuAction[]
 }
 
 export function WorkspaceContextMenu({
@@ -15,9 +15,7 @@ export function WorkspaceContextMenu({
   openDetachedLabel,
   onOpen,
   onOpenDetached,
-  extraActionLabel,
-  extraActionDisabled,
-  onExtraAction,
+  extraActions,
 }: WorkspaceContextMenuProps) {
   return (
     <div
@@ -31,16 +29,17 @@ export function WorkspaceContextMenu({
       <button type="button" role="menuitem" onClick={onOpenDetached}>
         {openDetachedLabel}
       </button>
-      {extraActionLabel && onExtraAction ? (
+      {extraActions?.map(action => (
         <button
+          key={action.label}
           type="button"
           role="menuitem"
-          disabled={extraActionDisabled}
-          onClick={onExtraAction}
+          disabled={action.disabled}
+          onClick={action.onSelect}
         >
-          {extraActionLabel}
+          {action.label}
         </button>
-      ) : null}
+      ))}
     </div>
   )
 }

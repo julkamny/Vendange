@@ -2,9 +2,10 @@ import type { RefObject } from 'react'
 import { IntermarcEditor } from '../../components/IntermarcEditor'
 import { IntermarcView } from '../../components/IntermarcView'
 import { BacklinksPanel } from '../../components/BacklinksPanel'
-import { WorkspaceContextMenu } from '../../components/WorkspaceContextMenu'
+import { WorkspaceContextMenu, type MenuAction } from '../../components/WorkspaceContextMenu'
 import { WorkspaceBreadcrumbs } from './WorkspaceBreadcrumbs'
 import { ConfirmExpressionClusterModal, ConfirmWorkClusterModal } from './ClusterModals'
+import { AnchorSwapModal } from './AnchorSwapModal'
 import type { WorkspaceTabStateWorkspace } from '../../workspace/types'
 import type { RecordRow } from '../../types'
 import type { BacklinkInfo } from '../../hooks/useBacklinks'
@@ -16,6 +17,7 @@ type Props = {
   workspaceClassName: string
   breadcrumbs: string[]
   record: RecordRow | null
+  getById: (id: string) => RecordRow | null
   renderListPanel: (viewMode: WorkspaceTabStateWorkspace['viewMode']) => JSX.Element
   listPanelRef: RefObject<HTMLElement>
   detailsPanelRef: RefObject<HTMLElement>
@@ -70,6 +72,16 @@ type Props = {
   requestClusterWith: (anchor: RecordRow) => void
   prepareExpressionForClustering: (target: RecordRow) => void
   requestExpressionClusterWith: (anchor: RecordRow) => void
+  getWorkAnchorSwapAction: (record: RecordRow | null) => MenuAction | null
+  getExpressionAnchorSwapAction: (record: RecordRow | null) => MenuAction | null
+  pendingWorkAnchorSwapSourceRecord: RecordRow | null
+  pendingWorkAnchorSwapTarget: { anchorId: string; sourceId: string } | null
+  pendingExpressionAnchorSwapSourceRecord: RecordRow | null
+  pendingExpressionAnchorSwapTarget: { anchorId: string; sourceId: string } | null
+  confirmPendingWorkAnchorSwap: () => void
+  cancelPendingWorkAnchorSwap: () => void
+  confirmPendingExpressionAnchorSwap: () => void
+  cancelPendingExpressionAnchorSwap: () => void
   setBacklinksExpandedLabel: string
 }
 
@@ -80,6 +92,7 @@ export function WorkspaceViewLayout(props: Props) {
     workspaceClassName,
     breadcrumbs,
     record,
+    getById,
     renderListPanel,
     listPanelRef,
     detailsPanelRef,
@@ -134,8 +147,65 @@ export function WorkspaceViewLayout(props: Props) {
     requestClusterWith,
     prepareExpressionForClustering,
     requestExpressionClusterWith,
+    getWorkAnchorSwapAction,
+    getExpressionAnchorSwapAction,
+    pendingWorkAnchorSwapSourceRecord,
+    pendingWorkAnchorSwapTarget,
+    pendingExpressionAnchorSwapSourceRecord,
+    pendingExpressionAnchorSwapTarget,
+    confirmPendingWorkAnchorSwap,
+    cancelPendingWorkAnchorSwap,
+    confirmPendingExpressionAnchorSwap,
+    cancelPendingExpressionAnchorSwap,
     setBacklinksExpandedLabel,
   } = props
+
+  const buildClusterAction = (target: RecordRow): MenuAction | null => {
+    const disabled = Boolean(
+      (pendingClusterSourceRecord &&
+        pendingClusterSourceRecord.id !== target.id &&
+        pendingClusterSourceRecord.typeNorm !== target.typeNorm) ||
+        (pendingExpressionClusterSourceRecord &&
+          pendingExpressionClusterSourceRecord.id !== target.id &&
+          pendingExpressionClusterSourceRecord.typeNorm !== target.typeNorm),
+    )
+
+    if (target.typeNorm === 'oeuvre') {
+      if (!pendingClusterSourceRecord) {
+        return {
+          label: prepareWorkLabel,
+          disabled,
+          onSelect: () => prepareForClustering(target),
+        }
+      }
+      if (pendingClusterSourceRecord.id !== target.id && pendingClusterSourceRecord.typeNorm === target.typeNorm) {
+        return {
+          label: clusterWorkLabel,
+          disabled,
+          onSelect: () => requestClusterWith(target),
+        }
+      }
+    } else if (target.typeNorm === 'expression') {
+      if (!pendingExpressionClusterSourceRecord) {
+        return {
+          label: prepareExpressionLabel,
+          disabled,
+          onSelect: () => prepareExpressionForClustering(target),
+        }
+      }
+      if (
+        pendingExpressionClusterSourceRecord.id !== target.id &&
+        pendingExpressionClusterSourceRecord.typeNorm === target.typeNorm
+      ) {
+        return {
+          label: clusterExpressionLabel,
+          disabled,
+          onSelect: () => requestExpressionClusterWith(target),
+        }
+      }
+    }
+    return null
+  }
 
   return (
     <>
@@ -259,58 +329,24 @@ export function WorkspaceViewLayout(props: Props) {
       </div>
 
       {contextMenu ? (
+        (() => {
+          const actions: MenuAction[] = []
+          const clusterAction = buildClusterAction(contextMenu.record)
+          if (clusterAction) actions.push(clusterAction)
+          const swapAction =
+            contextMenu.record.typeNorm === 'oeuvre'
+              ? getWorkAnchorSwapAction(contextMenu.record)
+              : contextMenu.record.typeNorm === 'expression'
+                ? getExpressionAnchorSwapAction(contextMenu.record)
+                : null
+          if (swapAction) actions.push(swapAction)
+
+          return (
         <WorkspaceContextMenu
           position={contextMenu.position}
           openLabel={openTabLabel}
           openDetachedLabel={openDetachedLabel}
-          extraActionLabel={
-            contextMenu.record.typeNorm === 'oeuvre'
-              ? !pendingClusterSourceRecord
-                ? prepareWorkLabel
-                : pendingClusterSourceRecord.id !== contextMenu.record.id &&
-                  pendingClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
-                  ? clusterWorkLabel
-                  : undefined
-              : contextMenu.record.typeNorm === 'expression'
-                ? !pendingExpressionClusterSourceRecord
-                  ? prepareExpressionLabel
-                  : pendingExpressionClusterSourceRecord.id !== contextMenu.record.id &&
-                    pendingExpressionClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
-                    ? clusterExpressionLabel
-                    : undefined
-                : undefined
-          }
-          extraActionDisabled={
-            Boolean(
-              (pendingClusterSourceRecord &&
-                pendingClusterSourceRecord.id !== contextMenu.record.id &&
-                pendingClusterSourceRecord.typeNorm !== contextMenu.record.typeNorm) ||
-              (pendingExpressionClusterSourceRecord &&
-                pendingExpressionClusterSourceRecord.id !== contextMenu.record.id &&
-                pendingExpressionClusterSourceRecord.typeNorm !== contextMenu.record.typeNorm),
-            )
-          }
-          onExtraAction={() => {
-            if (contextMenu.record.typeNorm === 'oeuvre') {
-              if (!pendingClusterSourceRecord) {
-                prepareForClustering(contextMenu.record)
-              } else if (
-                pendingClusterSourceRecord.id !== contextMenu.record.id &&
-                pendingClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
-              ) {
-                requestClusterWith(contextMenu.record)
-              }
-            } else if (contextMenu.record.typeNorm === 'expression') {
-              if (!pendingExpressionClusterSourceRecord) {
-                prepareExpressionForClustering(contextMenu.record)
-              } else if (
-                pendingExpressionClusterSourceRecord.id !== contextMenu.record.id &&
-                pendingExpressionClusterSourceRecord.typeNorm === contextMenu.record.typeNorm
-              ) {
-                requestExpressionClusterWith(contextMenu.record)
-              }
-            }
-          }}
+          extraActions={actions}
           onOpen={() => {
             openRecordForArk(contextMenu.record.ark ?? contextMenu.record.id)
             setContextMenu(null)
@@ -320,6 +356,8 @@ export function WorkspaceViewLayout(props: Props) {
             setContextMenu(null)
           }}
         />
+          )
+        })()
       ) : null}
 
       {pendingClusterTarget ? (
@@ -337,6 +375,26 @@ export function WorkspaceViewLayout(props: Props) {
           anchor={contextMenu?.record ?? null}
           onConfirm={confirmPendingExpressionCluster}
           onCancel={cancelPendingExpressionCluster}
+        />
+      ) : null}
+
+      {pendingWorkAnchorSwapTarget ? (
+        <AnchorSwapModal
+          kind="work"
+          source={pendingWorkAnchorSwapSourceRecord}
+          anchor={getById(pendingWorkAnchorSwapTarget.anchorId)}
+          onConfirm={confirmPendingWorkAnchorSwap}
+          onCancel={cancelPendingWorkAnchorSwap}
+        />
+      ) : null}
+
+      {pendingExpressionAnchorSwapTarget ? (
+        <AnchorSwapModal
+          kind="expression"
+          source={pendingExpressionAnchorSwapSourceRecord}
+          anchor={getById(pendingExpressionAnchorSwapTarget.anchorId)}
+          onConfirm={confirmPendingExpressionAnchorSwap}
+          onCancel={cancelPendingExpressionAnchorSwap}
         />
       ) : null}
     </>

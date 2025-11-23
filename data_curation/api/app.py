@@ -49,6 +49,11 @@ class DatasetTitlePayload(BaseModel):
     title: str
 
 
+class AnchorSwapPayload(BaseModel):
+    anchor_id: str = Field(..., alias="anchorId")
+    target_id: str = Field(..., alias="targetId")
+
+
 app = FastAPI(title="Vendange Search API")
 
 app.add_middleware(
@@ -346,6 +351,16 @@ async def update_record(dataset_id: str, payload: UpdateRecordPayload) -> dict[s
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "ok"}
+
+
+@app.post("/api/datasets/{dataset_id}/swap_anchor")
+def swap_anchor(dataset_id: str, payload: AnchorSwapPayload) -> dict[str, object]:
+    _ensure_dataset(dataset_id)
+    try:
+        updated = db.swap_cluster_anchor(dataset_id, anchor_id=payload.anchor_id, target_id=payload.target_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"updatedRecords": updated}
 
 
 @app.post("/api/datasets/{dataset_id}/query")

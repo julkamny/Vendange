@@ -56,6 +56,7 @@ type AppDataContextValue = AppDataState & {
   loadDataset: (datasetId: string, options?: { title?: string }) => Promise<DatasetSummary>
   refreshDataset: () => Promise<void>
   updateRecordIntermarc: (recordId: string, intermarc: Intermarc) => void
+  applyServerUpdates: (updates: DatasetRecordPayload[]) => void
   getCuratedBaselineRecord: (recordId: string) => RecordRow | null
   setWorkAccepted: (clusterId: string, workArk: string, accepted: boolean) => void
   setExpressionAccepted: (
@@ -193,6 +194,31 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     },
     [showToast],
   )
+
+  const applyServerUpdates = useCallback((updates: DatasetRecordPayload[]) => {
+    if (!updates.length) return
+    setState(prev => {
+      if (!prev.curated) return prev
+      const pristineRecords = new Map(prev.pristineRecords)
+      updates.forEach(update => snapshotRecord(prev.curated, update.id, pristineRecords))
+
+      let curated = prev.curated
+      updates.forEach(update => {
+        const intermarc = parseIntermarc(update.intermarc)
+        curated = updateRecordIntermarcInDataset(curated, update.id, intermarc)
+        const record = curated.records.find(r => r.id === update.id)
+        if (record) registerArkLabelForRecord(record)
+      })
+
+      const clusters = detectClusters(curated.records, buildArkIndex(curated.records))
+      return { ...prev, curated, clusters, pristineRecords }
+    })
+
+    const datasetId = datasetIdRef.current
+    if (datasetId) {
+      postBroadcastEvent({ type: 'dataset-update', datasetId, recordIds: updates.map(update => update.id) })
+    }
+  }, [])
 
   const getCuratedBaselineRecord = useCallback(
     (recordId: string) => {
@@ -405,6 +431,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       loadDataset,
       refreshDataset,
       updateRecordIntermarc,
+      applyServerUpdates,
       getCuratedBaselineRecord,
       setWorkAccepted,
       setExpressionAccepted,
@@ -417,6 +444,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       loadDataset,
       refreshDataset,
       updateRecordIntermarc,
+      applyServerUpdates,
       getCuratedBaselineRecord,
       setWorkAccepted,
       setExpressionAccepted,

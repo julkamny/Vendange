@@ -893,37 +893,42 @@ export function AgentView({
         ) : null}
       </div>
       {contextMenu ? (
+        (() => {
+          const extraActions = [] as { label: string; disabled?: boolean; onSelect: () => void }[]
+          const clusterLabel = !pendingSourceRecord
+            ? t('agents.cluster.prepare', { defaultValue: 'Préparer pour clustering' })
+            : pendingSourceRecord.id !== contextMenu.record.id && sameAgentKind(pendingSourceRecord, contextMenu.record)
+              ? t('agents.cluster.clusterWith', { defaultValue: 'Clustériser avec la sélection' })
+              : undefined
+          const clusterDisabled = Boolean(
+            pendingSourceRecord &&
+              pendingSourceRecord.id !== contextMenu.record.id &&
+              !sameAgentKind(pendingSourceRecord, contextMenu.record),
+          )
+          if (clusterLabel) {
+            extraActions.push({
+              label: clusterLabel,
+              disabled: clusterDisabled,
+              onSelect: () => {
+                if (!pendingSourceRecord) {
+                  prepareForClustering(contextMenu.record)
+                } else if (
+                  pendingSourceRecord.id !== contextMenu.record.id &&
+                  sameAgentKind(pendingSourceRecord, contextMenu.record)
+                ) {
+                  requestClusterWith(contextMenu.record)
+                }
+              },
+            })
+          }
+
         <WorkspaceContextMenu
           position={contextMenu.position}
           openLabel={t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })}
           openDetachedLabel={t('workspace.openInDetachedWindow', {
             defaultValue: 'Open in detached workspace window',
           })}
-          extraActionLabel={
-            !pendingSourceRecord
-              ? t('agents.cluster.prepare', { defaultValue: 'Préparer pour clustering' })
-              : pendingSourceRecord.id !== contextMenu.record.id &&
-                sameAgentKind(pendingSourceRecord, contextMenu.record)
-                ? t('agents.cluster.clusterWith', { defaultValue: 'Clustériser avec la sélection' })
-                : undefined
-          }
-          extraActionDisabled={
-            Boolean(
-              pendingSourceRecord &&
-              pendingSourceRecord.id !== contextMenu.record.id &&
-              !sameAgentKind(pendingSourceRecord, contextMenu.record),
-            )
-          }
-          onExtraAction={() => {
-            if (!pendingSourceRecord) {
-              prepareForClustering(contextMenu.record)
-            } else if (
-              pendingSourceRecord.id !== contextMenu.record.id &&
-              sameAgentKind(pendingSourceRecord, contextMenu.record)
-            ) {
-              requestClusterWith(contextMenu.record)
-            }
-          }}
+          extraActions={extraActions}
           onOpen={() => {
             openRecord(contextMenu.record)
             setContextMenu(null)
@@ -933,6 +938,7 @@ export function AgentView({
             setContextMenu(null)
           }}
         />
+        })()
       ) : null}
       {pendingClusterTarget ? (
         <ConfirmClusterModal

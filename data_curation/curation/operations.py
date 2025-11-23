@@ -57,14 +57,6 @@ class ExpressionClusterResult:
     clustered_expression_ids: List[str] = field(default_factory=list)
     clustered_expression_arks: List[str] = field(default_factory=list)
 
-
-@dataclass(frozen=True)
-class AdaptationTriggerMatch:
-    span: Any
-    category: str
-    normalized: str
-
-
 @dataclass
 class ManifestationTitleContext:
     title: str

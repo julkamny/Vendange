@@ -19,6 +19,7 @@ from .db_store import (
     reset_dataset_store,
 )
 from .db_ingest import ingest_csv
+from .anchor_swap import swap_cluster_anchor
 from .db_guards import update_record
 from .db_query import compact_dataset, dataset_stats, load_entities, load_records, run_sparql_query
 
@@ -35,6 +36,7 @@ __all__ = [
     "load_entities",
     "dataset_stats",
     "compact_dataset",
+    "swap_cluster_anchor",
     "_STORE_LOCK",
     "get_store_locked",
 ]

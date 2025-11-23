@@ -130,6 +130,24 @@ export async function syncRecordUpdate(
   }
 }
 
+export async function swapClusterAnchor(
+  datasetId: string,
+  payload: { anchorId: string; targetId: string },
+): Promise<DatasetRecordPayload[]> {
+  const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/swap_anchor`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ anchorId: payload.anchorId, targetId: payload.targetId }),
+  })
+  if (!response.ok) {
+    const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
+    throw new Error(detail.detail || 'Failed to swap cluster anchor')
+  }
+  const data = await parseJson<{ updatedRecords?: DatasetRecordPayload[] }>(response)
+  return data.updatedRecords ?? []
+}
+
 export type ClusterLogEvent = {
   type: 'log'
   datasetId: string

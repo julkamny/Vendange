@@ -14,6 +14,7 @@ import { isAgentRecord } from '../agents/useAgentData'
 import { useToast } from '../providers/ToastContext'
 import { deriveInternalIdFromArk } from '../lib/ark'
 import { useWorkspaceClustering } from './workspace/useWorkspaceClustering'
+import { useAnchorSwap } from './workspace/useAnchorSwap'
 import { useIntermarcSaveGuards } from './workspace/useIntermarcSaveGuards'
 import { useWorkspaceInteractions } from './workspace/useWorkspaceInteractions'
 import { WorkspaceViewLayout } from './workspace/WorkspaceViewLayout'
@@ -49,11 +50,13 @@ export function WorkspaceView({
   onRequestDock,
 }: WorkspaceViewProps) {
   const {
+    datasetId,
     clusters,
     curated,
     setWorkAccepted,
     setExpressionAccepted,
     updateRecordIntermarc,
+    applyServerUpdates,
     getCuratedBaselineRecord,
   } = useAppData()
   const workspace = useWorkspaceData(state)
@@ -216,6 +219,28 @@ export function WorkspaceView({
     requestExpressionClusterWith,
     workClusterIndex,
   } = clustering
+
+  const {
+    getWorkAnchorSwapAction,
+    getExpressionAnchorSwapAction,
+    pendingWorkAnchorSwapSourceRecord,
+    pendingWorkAnchorSwapTarget,
+    pendingExpressionAnchorSwapSourceRecord,
+    pendingExpressionAnchorSwapTarget,
+    confirmWorkAnchorSwap,
+    confirmExpressionAnchorSwap,
+    cancelWorkAnchorSwap,
+    cancelExpressionAnchorSwap,
+  } = useAnchorSwap({
+    datasetId,
+    workClusterIndex,
+    expressionClusterIndex,
+    getById,
+    applyServerUpdates,
+    showToast,
+    t,
+    setContextMenu,
+  })
 
   const handleIntermarcSave = useIntermarcSaveGuards({
     clusters,
@@ -406,6 +431,7 @@ export function WorkspaceView({
       workspaceClassName={workspaceClassName}
       breadcrumbs={breadcrumbs}
       record={record}
+      getById={getById}
       renderListPanel={renderListPanel}
       listPanelRef={listPanelRef}
       detailsPanelRef={detailsPanelRef}
@@ -460,6 +486,16 @@ export function WorkspaceView({
       requestClusterWith={requestClusterWith}
       prepareExpressionForClustering={prepareExpressionForClustering}
       requestExpressionClusterWith={requestExpressionClusterWith}
+      getWorkAnchorSwapAction={getWorkAnchorSwapAction}
+      getExpressionAnchorSwapAction={getExpressionAnchorSwapAction}
+      pendingWorkAnchorSwapSourceRecord={pendingWorkAnchorSwapSourceRecord}
+      pendingWorkAnchorSwapTarget={pendingWorkAnchorSwapTarget}
+      pendingExpressionAnchorSwapSourceRecord={pendingExpressionAnchorSwapSourceRecord}
+      pendingExpressionAnchorSwapTarget={pendingExpressionAnchorSwapTarget}
+      confirmPendingWorkAnchorSwap={confirmWorkAnchorSwap}
+      cancelPendingWorkAnchorSwap={cancelWorkAnchorSwap}
+      confirmPendingExpressionAnchorSwap={confirmExpressionAnchorSwap}
+      cancelPendingExpressionAnchorSwap={cancelExpressionAnchorSwap}
       setBacklinksExpandedLabel={t('backlinks.show', { defaultValue: 'Backlinks' })}
     />
   )

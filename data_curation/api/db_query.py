@@ -104,26 +104,24 @@ def _term_to_python(term: object) -> object:
 
 def _load_record_from_store(store: Store, subject: NamedNode, graph: NamedNode) -> Entity:
     fields = []
-    for quad in store.quads_for_pattern(subject, HAS_FIELD, None, graph):
+    for quad in store.quads_for_pattern(subject, HAS_FIELD, None, None):
         field = quad.object
         fields.append(field)
     fields = sorted(fields, key=lambda node: field_sort_key(record_id_from_subject(graph.value), node))
     zones = []
     for field in fields:
-        code = literal_first_value(store, field, FIELD_CODE_PROP, graph) or ""
-        affected_by_curation = literal_first_value(store, field, AFFECTED_BY_CURATION_PROP, graph)
+        code = literal_first_value(store, field, FIELD_CODE_PROP, None) or ""
+        affected_by_curation = literal_first_value(store, field, AFFECTED_BY_CURATION_PROP, None)
         subfields = []
-        for sub_quad in store.quads_for_pattern(field, HAS_SUBFIELD, None, graph):
+        for sub_quad in store.quads_for_pattern(field, HAS_SUBFIELD, None, None):
             sub = sub_quad.object
-            if not isinstance(sub, NamedNode):
-                continue
             subfields.append(sub)
         subfields = sorted(subfields, key=subfield_sort_key)
         zone_subs = []
         for sub in subfields:
-            sub_code = literal_first_value(store, sub, SUBFIELD_CODE_PROP, graph) or ""
-            sub_val = literal_first_value(store, sub, SUBFIELD_VALUE_PROP, graph) or ""
-            sub_aff = literal_first_value(store, sub, AFFECTED_BY_CURATION_PROP, graph)
+            sub_code = literal_first_value(store, sub, SUBFIELD_CODE_PROP, None) or ""
+            sub_val = literal_first_value(store, sub, SUBFIELD_VALUE_PROP, None) or ""
+            sub_aff = literal_first_value(store, sub, AFFECTED_BY_CURATION_PROP, None)
             zone_subs.append(
                 {
                     "code": unsanitize_subfield_code(sub_code),

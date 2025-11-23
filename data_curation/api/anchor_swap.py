@@ -111,14 +111,14 @@ def _rewrite_cluster_fields(
     adaptation_targets: List[str] = []
 
     for idx, zone in enumerate(anchor.intermarc.zones):
-        if zone.code == "90F" and _has_curation_flag(zone):
+        if zone.code == "90F":
             cluster_indices_to_remove.add(idx)
             cluster_zones_to_transfer.append(zone)
             continue
         if zone.code == "552" and _has_curation_flag(zone) and link_has_adaptation_ark in zone.subfield_values("552$q"):
             adaptation_indices_to_remove.add(idx)
             target_val = next((sub.valeur for sub in zone.sousZones if sub.code == "552$3"), None)
-            if target_val:
+            if target_val and target_val != target_ark:
                 adaptation_targets.append(target_val)
 
     cleaned_anchor = _clone_intermarc(anchor.intermarc, skip=cluster_indices_to_remove | adaptation_indices_to_remove)
@@ -216,6 +216,9 @@ def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> L
                 if not adaptation_id or adaptation_id not in subjects:
                     raise ValueError(f"Adaptation introuvable : {adaptation_ark}")
                 adaptation_entity = _load_record_from_store(store, *subjects[adaptation_id])
+                if adaptation_entity.id_entitelrm == target_entity.id_entitelrm:
+                    # Avoid rewriting backlinks on the new anchor itself (would create self links)
+                    continue
                 patched = _update_adaptation_backlinks(
                     adaptation_entity,
                     previous_anchor=anchor_ark,

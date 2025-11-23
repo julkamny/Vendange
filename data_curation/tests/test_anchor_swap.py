@@ -169,3 +169,43 @@ def test_expression_anchor_swap_moves_cluster():
         if sz.get("code") in {"90F$3", "90F$a"}
     ]
     assert "ark:/12148/e1" in targets
+
+
+def test_anchor_swap_drops_self_adaptation():
+    # w2 is anchor with adaptation to w4 (the target). After swap, w4 becomes anchor but must not get self adaptation.
+    records = [
+        {"id": "w1", "type": "Oeuvre", "intermarc": _work_intermarc("ark:/12148/w1", "Work One")},
+        {"id": "w2", "type": "Oeuvre", "intermarc": _work_intermarc("ark:/12148/w2", "Work Two")},
+        {"id": "w3", "type": "Oeuvre", "intermarc": _work_intermarc("ark:/12148/w3", "Work Three")},
+        {"id": "w4", "type": "Oeuvre", "intermarc": _work_intermarc("ark:/12148/w4", "Work Four")},
+        {"id": "cv1", "type": "Valeur contrôlée", "intermarc": _controlled_value(HAS_ADAPT_ARK, "A pour adaptation")},
+        {"id": "cv2", "type": "Valeur contrôlée", "intermarc": _controlled_value(IS_ADAPT_OF_ARK, "Est une adaptation de")},
+    ]
+    dataset_id = _build_dataset(records)
+
+    anchor_extra = [
+        _cluster_zone("ark:/12148/w4"),
+        _adaptation_zone("ark:/12148/w4", qualifier=HAS_ADAPT_ARK),
+    ]
+    anchor_im = _work_intermarc("ark:/12148/w2", "Work Two", anchor_extra)
+    db.update_record(dataset_id, "w2", type_raw="Oeuvre", intermarc_json=anchor_im)
+
+    db.swap_cluster_anchor(dataset_id, anchor_id="w2", target_id="w4")
+
+    records_after = {rec["id"]: rec for rec in db.load_records(dataset_id)}
+    w4_zones = json.loads(records_after["w4"]["intermarc"])["zones"]
+    w2_zones = json.loads(records_after["w2"]["intermarc"])["zones"]
+
+    # New anchor w4 must carry cluster links but no self adaptation
+    assert any(z.get("code") == "90F" for z in w4_zones)
+    for z in w4_zones:
+        if z.get("code") != "552":
+            continue
+        target_vals = {sz.get("valeur") for sz in z.get("sousZones", []) if sz.get("code") == "552$3"}
+        assert "ark:/12148/w4" not in target_vals
+
+    # Original anchor should have lost curated 552 links
+    assert not any(
+        z.get("code") == "552" and any(sz.get("valeur") == HAS_ADAPT_ARK for sz in z.get("sousZones", []) if sz.get("code") == "552$q")
+        for z in w2_zones
+    )

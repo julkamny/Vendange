@@ -53,7 +53,7 @@ export type AppDataState = {
 }
 
 type AppDataContextValue = AppDataState & {
-  loadDataset: (datasetId: string, options?: { title?: string }) => Promise<void>
+  loadDataset: (datasetId: string, options?: { title?: string }) => Promise<DatasetSummary>
   refreshDataset: () => Promise<void>
   updateRecordIntermarc: (recordId: string, intermarc: Intermarc) => void
   getCuratedBaselineRecord: (recordId: string) => RecordRow | null
@@ -121,6 +121,19 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           loadingDataset: false,
           originalIndexes,
         })
+        return {
+          id: dataset.id,
+          title: dataset.title,
+          createdAt: dataset.created_at,
+          updatedAt: dataset.updated_at,
+          sourceFilename: dataset.source_filename,
+          lastClusteredAt: dataset.last_clustered_at,
+          stats: {
+            entityCount: dataset.stats.entity_count,
+            quadCount: dataset.stats.quad_count,
+            sizeBytes: dataset.stats.size_bytes,
+          },
+        }
       } catch (error) {
         console.error('Failed to load dataset', error)
         showToast('Impossible de charger la base sélectionnée.', { tone: 'error' })

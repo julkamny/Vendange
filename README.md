@@ -118,6 +118,7 @@ Review in the Web UI
 - Agent clustering stays in sync front-to-back: the UI rewrites the anchor Intermarc through `updateRecordIntermarc`, which calls `/api/datasets/{id}/update_record`; the FastAPI layer rejects saves when a manual 90F$3 ARK is already linked to another anchor, so the UI state and the Oxigraph store cannot diverge.
 - UI shortcut for clustering: right-click an agent to “prepare for clustering”, then right-click a compatible agent (same kind) and confirm; the app writes the corresponding `90F$q Clusterisation manuelle` + `90F$3` in the anchor’s Intermarc using the same backend path as manual edits.
   - Double-click or use user-defined shortcuts on cluster/expression banners to jump between works ⇄ expressions ⇄ manifestations, and the pane auto-scrolls to the linked card.
+  - Deep-linking: `http://localhost:5173/<dataset_slug>` opens the inspection view directly for that dataset (dashboard is skipped). Opening a dataset from the dashboard also updates the URL to `/dataset_slug`; hitting back or clearing returns to `/`.
   - Unchecked expressions automatically move to the independent block; their manifestations are greyed out to signal that they will not change the exported CSV.
   - WEM labels display each 150 / 140 / 245 subfield with its code for faster inspection.
   - Workspace tabs can be “unmoored” into their own windows; Intermarc panes in those windows remain synced and offer a full-window toggle for multi-monitor comparisons.

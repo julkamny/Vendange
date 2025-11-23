@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import './App.css'
 import './app/style.css'
 import { AppDataProvider, useAppData } from './app/providers'
@@ -35,12 +35,21 @@ function AppRouter() {
   const [openingDatasetId, setOpeningDatasetId] = useState<string | null>(null)
   const { loadDataset, clearData } = useAppData()
 
+  const pathDatasetId = useMemo(() => {
+    if (typeof window === 'undefined') return null
+    const slug = window.location.pathname.replace(/^\//, '').replace(/\/$/, '')
+    return slug || null
+  }, [])
+
   const openInspection = useCallback(async (dataset: DatasetSummary) => {
     setOpeningDatasetId(dataset.id)
     try {
-      await loadDataset(dataset.id, { title: dataset.title })
-      setActiveDataset(dataset)
+      const summary = await loadDataset(dataset.id, { title: dataset.title })
+      setActiveDataset(summary)
       setView('inspection')
+      if (typeof window !== 'undefined') {
+        window.history.pushState({ datasetId: summary.id }, '', `/${summary.id}`)
+      }
     } catch {
       // loadDataset already reports the error
     } finally {
@@ -48,11 +57,51 @@ function AppRouter() {
     }
   }, [loadDataset])
 
+  const openInspectionBySlug = useCallback(
+    async (slug: string, pushState: boolean) => {
+      setOpeningDatasetId(slug)
+      try {
+        const summary = await loadDataset(slug)
+        setActiveDataset(summary)
+        setView('inspection')
+        if (pushState && typeof window !== 'undefined') {
+          window.history.pushState({ datasetId: summary.id }, '', `/${summary.id}`)
+        }
+      } catch {
+        // loadDataset toasts errors
+      } finally {
+        setOpeningDatasetId(null)
+      }
+    },
+    [loadDataset],
+  )
+
   const goHome = useCallback(() => {
     clearData()
     setActiveDataset(null)
     setView('dashboard')
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/')
+    }
   }, [clearData])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const slug = pathDatasetId
+    if (slug) {
+      openInspectionBySlug(slug, false)
+    }
+    const onPop = () => {
+      const nextSlug = window.location.pathname.replace(/^\//, '').replace(/\/$/, '')
+      if (nextSlug) {
+        openInspectionBySlug(nextSlug, false)
+      } else {
+        goHome()
+      }
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [goHome, openInspectionBySlug, pathDatasetId])
 
   if (view === 'dashboard') {
     return <DatasetDashboard onOpenInspection={openInspection} openingDatasetId={openingDatasetId ?? undefined} />

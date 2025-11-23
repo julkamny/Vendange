@@ -398,10 +398,10 @@ def list_dataset_records(dataset_id: str) -> dict[str, object]:
         "dataset": _serialize_dataset(meta),
         "records": [
             {
-                "id": record.id,
-                "type": record.type_raw,
-                "ark": record.ark,
-                "intermarc": record.intermarc_raw,
+                "id": record["id"],
+                "type": record["type"],
+                "ark": record.get("ark"),
+                "intermarc": record["intermarc"],
             }
             for record in records
         ],

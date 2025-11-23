@@ -16,6 +16,7 @@ export function detectClusters(curated: RecordRow[], originalIdxByArk: Map<strin
   const expressionsByArk = new Map<string, RecordRow>()
   const expressionsByWorkArk = new Map<string, RecordRow[]>()
   const manifestationsByExpressionArk = new Map<string, RecordRow[]>()
+  const clusteredWorkArks = new Set<string>()
 
   for (const rec of curated) {
     if (rec.typeNorm === 'oeuvre') {
@@ -24,6 +25,18 @@ export function detectClusters(curated: RecordRow[], originalIdxByArk: Map<strin
         worksByArk.set(workArk, rec)
         workIdByArk.set(workArk, rec.id)
         workTitleByArk.set(workArk, titleOf(rec) || rec.id)
+      }
+
+      // Collect works that are clustered by another anchor to avoid duplicate clusters later.
+      const zones = findZones(rec.intermarc, '90F')
+      for (const z of zones) {
+        const note = z.sousZones.find(sz => sz.code === '90F$q')?.valeur
+        if (!note || (note !== CLUSTER_NOTE && note !== MANUAL_CLUSTER_NOTE)) continue
+        const target =
+          note === CLUSTER_NOTE
+            ? z.sousZones.find(sz => sz.code === '90F$a')?.valeur
+            : z.sousZones.find(sz => sz.code === '90F$3')?.valeur || z.sousZones.find(sz => sz.code === '90F$a')?.valeur
+        if (target) clusteredWorkArks.add(target)
       }
     } else if (rec.typeNorm === 'expression') {
       if (rec.ark) expressionsByArk.set(rec.ark, rec)
@@ -73,6 +86,10 @@ export function detectClusters(curated: RecordRow[], originalIdxByArk: Map<strin
 
     const anchorArk = work.ark || ''
     const anchorTitle = titleOf(work)
+
+    const isClusterMemberOnly = anchorArk && clusteredWorkArks.has(anchorArk)
+    // Skip work that is only a clustered member (no outgoing 90F) to avoid duplicate cluster entries.
+    if (!items.length && isClusterMemberOnly) continue
 
     const clusterWorkArks = [anchorArk, ...items.map(item => item.ark)]
     const candidateExpressions: RecordRow[] = []

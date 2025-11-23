@@ -112,6 +112,11 @@ def _rewrite_cluster_fields(
 
     for idx, zone in enumerate(anchor.intermarc.zones):
         if zone.code == "90F":
+            note = next((sub.valeur for sub in zone.sousZones if sub.code == "90F$q"), None)
+            if not note or note not in {"Clusterisation manuelle", "Clusterisation script"}:
+                continue
+            if not _has_curation_flag(zone):
+                continue
             cluster_indices_to_remove.add(idx)
             cluster_zones_to_transfer.append(zone)
             continue

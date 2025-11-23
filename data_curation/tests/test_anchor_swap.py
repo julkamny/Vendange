@@ -64,16 +64,17 @@ def _controlled_value(ark: str, label: str):
 
 
 def _cluster_zone(target: str, *, note: str = "Clusterisation manuelle", affected: str = "created"):
-    return _zone("90F", [("q", note, affected), ("3", target, affected)], affected)
+    suffix = "a" if note.strip().lower() == "clusterisation script" else "3"
+    return _zone("90F", [("q", note, affected), (suffix, target, affected)], affected)
 
 
 def _adaptation_zone(target: str, *, qualifier: str, affected: str = "created"):
     return _zone("552", [("q", qualifier, affected), ("3", target, affected)], affected)
 
 
-def _build_dataset(records):
-    dataset_id = f"anchor-swap-{uuid4().hex[:8]}"
-    datasets.ensure_dataset(dataset_id, title="anchor swap")
+def _build_dataset(records, name: str | None = None):
+    dataset_id = name or f"anchor-swap-{uuid4().hex[:8]}"
+    datasets.ensure_dataset(dataset_id, title=dataset_id)
     db.ingest_csv(_records_to_csv_bytes(records), dataset_id)
     return dataset_id
 
@@ -95,7 +96,7 @@ def test_work_anchor_swap_moves_cluster_and_adaptations():
         {"id": "cv1", "type": "Valeur contrôlée", "intermarc": _controlled_value(HAS_ADAPT_ARK, "A pour adaptation")},
         {"id": "cv2", "type": "Valeur contrôlée", "intermarc": _controlled_value(IS_ADAPT_OF_ARK, "Est une adaptation de")},
     ]
-    dataset_id = _build_dataset(records)
+    dataset_id = _build_dataset(records, "anchor-swap-work-adapt")
 
     anchor_extra = [
         _cluster_zone("ark:/12148/w2"),
@@ -149,7 +150,7 @@ def test_expression_anchor_swap_moves_cluster():
         {"id": "e1", "type": "Expression", "intermarc": _expression_intermarc("ark:/12148/e1", "ark:/12148/w1")},
         {"id": "e2", "type": "Expression", "intermarc": _expression_intermarc("ark:/12148/e2", "ark:/12148/w1")},
     ]
-    dataset_id = _build_dataset(records)
+    dataset_id = _build_dataset(records, "anchor-swap-expression")
 
     anchor_im = _expression_intermarc("ark:/12148/e1", "ark:/12148/w1", extra_zones=[_cluster_zone("ark:/12148/e2")])
     db.update_record(dataset_id, "e1", type_raw="Expression", intermarc_json=anchor_im)
@@ -181,7 +182,7 @@ def test_anchor_swap_drops_self_adaptation():
         {"id": "cv1", "type": "Valeur contrôlée", "intermarc": _controlled_value(HAS_ADAPT_ARK, "A pour adaptation")},
         {"id": "cv2", "type": "Valeur contrôlée", "intermarc": _controlled_value(IS_ADAPT_OF_ARK, "Est une adaptation de")},
     ]
-    dataset_id = _build_dataset(records)
+    dataset_id = _build_dataset(records, "anchor-swap-self-adapt")
 
     anchor_extra = [
         _cluster_zone("ark:/12148/w4"),
@@ -202,7 +203,7 @@ def test_anchor_swap_drops_self_adaptation():
         if z.get("code") != "552":
             continue
         target_vals = {sz.get("valeur") for sz in z.get("sousZones", []) if sz.get("code") == "552$3"}
-        assert "ark:/12148/w4" not in target_vals
+        assert len(target_vals) == 0
 
     # Original anchor should have lost curated 552 links
     assert not any(

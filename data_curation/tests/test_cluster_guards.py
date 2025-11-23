@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from data_curation.api import db, datasets
+from data_curation.api import db, datasets  # noqa: E402
 
 
 def _zone(code: str, subfields, affected: str | None = None):

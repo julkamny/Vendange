@@ -12,7 +12,6 @@ from .db_shared import (
     HAS_SUBFIELD,
     PROP_RECORD_ID,
     PROP_TYPE_RAW,
-    RDF_TYPE,
     XSD_BOOLEAN,
     XSD_DECIMAL_TYPES,
     XSD_INTEGER_TYPES,
@@ -107,8 +106,6 @@ def _load_record_from_store(store: Store, subject: NamedNode, graph: NamedNode) 
     fields = []
     for quad in store.quads_for_pattern(subject, HAS_FIELD, None, graph):
         field = quad.object
-        if not isinstance(field, NamedNode):
-            continue
         fields.append(field)
     fields = sorted(fields, key=lambda node: field_sort_key(record_id_from_subject(graph.value), node))
     zones = []
@@ -148,11 +145,15 @@ def _load_record_from_store(store: Store, subject: NamedNode, graph: NamedNode) 
     return Entity(record_id_val, type_raw, intermarc_json)
 
 
-def _record_subjects(store: Store) -> dict[str, NamedNode]:
-    mapping: dict[str, NamedNode] = {}
+def _record_subjects(store: Store) -> dict[str, tuple[NamedNode, NamedNode]]:
+    mapping: dict[str, tuple[NamedNode, NamedNode]] = {}
     for quad in store.quads_for_pattern(None, PROP_RECORD_ID, None, None):
         if isinstance(quad.subject, NamedNode) and isinstance(quad.object, Literal):
-            mapping[quad.object.value] = quad.subject
+            graph_name = getattr(quad, "graph_name", None)
+            if isinstance(graph_name, NamedNode):
+                mapping[quad.object.value] = (quad.subject, graph_name)
+            else:
+                mapping[quad.object.value] = (quad.subject, record_graph(quad.object.value))
     return mapping
 
 
@@ -161,8 +162,7 @@ def load_records(dataset_id: str) -> List[dict[str, object]]:
         store = get_store_locked(dataset_id)
         subjects = _record_subjects(store)
         records = []
-        for record_id, subject in subjects.items():
-            graph = record_graph(record_id)
+        for record_id, (subject, graph) in subjects.items():
             intermarc = _load_record_from_store(store, subject, graph)
             records.append(
                 {
@@ -180,8 +180,7 @@ def load_entities(dataset_id: str) -> list[Entity]:
         store = get_store_locked(dataset_id)
         subjects = _record_subjects(store)
         entities = []
-        for record_id, subject in subjects.items():
-            graph = record_graph(record_id)
+        for record_id, (subject, graph) in subjects.items():
             entity = _load_record_from_store(store, subject, graph)
             entities.append(entity)
     return entities
@@ -192,8 +191,9 @@ def dataset_stats(dataset_id: str) -> Dict[str, int]:
     size = directory_size(directory)
     with _STORE_LOCK:
         store = get_store_locked(dataset_id)
-        record_count = sum(1 for _ in store.quads_for_pattern(None, RDF_TYPE, None, None))
-    return {"size": size, "records": record_count}
+        entity_count = sum(1 for _ in store.quads_for_pattern(None, PROP_RECORD_ID, None, None))
+        quad_count = len(store)
+    return {"size_bytes": size, "entity_count": entity_count, "quad_count": quad_count}
 
 
 def compact_dataset(dataset_id: str) -> None:

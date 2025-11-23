@@ -277,9 +277,9 @@ def _serialize_dataset(meta: DatasetMetadata) -> dict[str, Any]:
         "sourceFilename": meta.source_filename,
         "lastClusteredAt": meta.last_clustered_at,
         "stats": {
-            "entity_count": stats.get("entity_count", 0),
-            "quad_count": stats.get("quad_count", 0),
-            "size_bytes": stats.get("size_bytes", 0),
+            "entityCount": stats.get("entity_count", 0),
+            "quadCount": stats.get("quad_count", 0),
+            "sizeBytes": stats.get("size_bytes", 0),
         },
     }
 

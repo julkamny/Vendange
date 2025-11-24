@@ -247,7 +247,8 @@
       "modalIntro": "Which expression(s) should be uprooted before attaching “{{manifestation}}” to “{{target}}”?",
       "choiceLegend": "Expressions to uproot (740$3)",
       "confirm": "Confirm attachment",
-      "success": "Manifestation attached to the selected expression."
+      "success": "Manifestation attached to the selected expression.",
+      "alreadyPending": "Another manifestation is already marked for uprooting."
     }
   },
   "agents": {

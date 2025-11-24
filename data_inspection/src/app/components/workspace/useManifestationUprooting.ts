@@ -54,6 +54,16 @@ export function useManifestationUprooting({
   const prepareManifestationForUprooting = useCallback(
     (target: RecordRow) => {
       if (target.typeNorm !== 'manifestation') return
+      if (pendingManifestationId && pendingManifestationId !== target.id) {
+        showToast(
+          t('manifestations.uproot.alreadyPending', {
+            defaultValue: 'Une manifestation est déjà en attente de déracinage.',
+          }),
+          { tone: 'error' },
+        )
+        setContextMenu(null)
+        return
+      }
       setPendingManifestationId(target.id)
       setContextMenu(null)
       const label = manifestationTitle(target) || target.id

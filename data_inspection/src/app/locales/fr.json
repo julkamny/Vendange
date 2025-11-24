@@ -247,7 +247,8 @@
       "modalIntro": "Quelles expressions déraciner avant de rattacher « {{manifestation}} » à « {{target}} » ?",
       "choiceLegend": "Expressions à déraciner (740$3)",
       "confirm": "Confirmer le rattachement",
-      "success": "Manifestation rattachée à la nouvelle expression."
+      "success": "Manifestation rattachée à la nouvelle expression.",
+      "alreadyPending": "Une autre manifestation est déjà en attente de déracinage."
     }
   },
   "agents": {

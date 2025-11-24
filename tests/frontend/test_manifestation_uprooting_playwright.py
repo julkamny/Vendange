@@ -17,6 +17,7 @@ from tests.backend.utils import (
     _manifestation_intermarc,
     _records_to_csv_bytes,
     _work_intermarc,
+    create_intermarc_json,
     create_zone,
 )
 
@@ -45,6 +46,16 @@ def _build_dataset() -> str:
             "id": "m2",
             "type": "Manifestation",
             "intermarc": _manifestation_intermarc("ark:/m2", "ark:/e1", "Manifestation M2"),
+        },
+        {
+            "id": "cv-partial",
+            "type": "Valeur contrôlée",
+            "intermarc": create_intermarc_json(
+                [
+                    create_zone("001", [("a", "ark:/cv/partiellement", None)]),
+                    create_zone("169", [("a", "Partiellement", None)]),
+                ]
+            ),
         },
     ]
 

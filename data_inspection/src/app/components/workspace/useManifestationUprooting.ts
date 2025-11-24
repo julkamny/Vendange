@@ -12,6 +12,7 @@ type AttachRequest = {
   targetExpressionArk: string | null
   detachableArks: string[]
   selectedArks: string[]
+  partial: boolean
 }
 
 type UseManifestationUprootingArgs = {
@@ -20,6 +21,7 @@ type UseManifestationUprootingArgs = {
   showToast: (message: string, options?: { tone: 'error' | 'info' | 'success' }) => void
   t: TranslationFn
   setContextMenu: (next: WorkspaceContextMenuState | null) => void
+  findControlledValueArk: (label: string) => string | null
   sharedPendingManifestationId?: string | null
   setSharedPendingManifestationId?: (next: string | null) => void
 }
@@ -30,6 +32,7 @@ export function useManifestationUprooting({
   showToast,
   t,
   setContextMenu,
+  findControlledValueArk,
   sharedPendingManifestationId,
   setSharedPendingManifestationId,
 }: UseManifestationUprootingArgs) {
@@ -128,6 +131,7 @@ export function useManifestationUprooting({
         targetExpressionArk: expression.ark ?? null,
         detachableArks,
         selectedArks,
+        partial: false,
       })
       setContextMenu(null)
     },
@@ -145,6 +149,10 @@ export function useManifestationUprooting({
   }, [])
 
   const cancelPendingAttach = useCallback(() => setPendingAttach(null), [])
+
+  const togglePartial = useCallback((checked: boolean) => {
+    setPendingAttach(prev => (prev ? { ...prev, partial: checked } : prev))
+  }, [])
 
   const confirmAttach = useCallback(() => {
     if (!pendingAttach) return
@@ -170,18 +178,13 @@ export function useManifestationUprooting({
       return
     }
     if (!pendingAttach.selectedArks.length) {
-      showToast(
-        t('manifestations.uproot.selectionRequired', {
-          defaultValue: 'Sélectionnez au moins une expression à déraciner.',
-        }),
-        { tone: 'error' },
-      )
-      return
+      // No detach selected: keep existing links, just add the new one
     }
 
     const nextIntermarc = rewriteManifestationExpressionLinks(manifestation.intermarc, {
       remove: pendingAttach.selectedArks,
       add: pendingAttach.targetExpressionArk,
+      partialArk: pendingAttach.partial ? findControlledValueArk('Partiellement') ?? undefined : undefined,
     })
     updateRecordIntermarc(manifestation.id, nextIntermarc)
     setPendingAttach(null)
@@ -192,7 +195,7 @@ export function useManifestationUprooting({
       }),
       { tone: 'success' },
     )
-  }, [getById, pendingAttach, setPendingManifestationId, showToast, t, updateRecordIntermarc])
+  }, [findControlledValueArk, getById, pendingAttach, setPendingManifestationId, showToast, t, updateRecordIntermarc])
 
   return {
     pendingManifestationRecord,
@@ -201,6 +204,7 @@ export function useManifestationUprooting({
     requestAttachToExpression,
     toggleDetachSelection,
     cancelPendingAttach,
+    togglePartial,
     confirmAttach,
   }
 }

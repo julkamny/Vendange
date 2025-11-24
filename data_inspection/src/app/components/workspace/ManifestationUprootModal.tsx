@@ -10,6 +10,8 @@ type Props = {
   selectedArks: string[]
   lookupExpressionByArk: (ark: string) => RecordRow | null
   onToggle: (ark: string, checked: boolean) => void
+  partial: boolean
+  onPartialToggle: (checked: boolean) => void
   onConfirm: () => void
   onCancel: () => void
 }
@@ -21,6 +23,8 @@ export function ManifestationUprootModal({
   selectedArks,
   lookupExpressionByArk,
   onToggle,
+  partial,
+  onPartialToggle,
   onConfirm,
   onCancel,
 }: Props) {
@@ -39,7 +43,7 @@ export function ManifestationUprootModal({
 
   const manifestationLabel = manifestationTitle(manifestation) || manifestation.id
   const targetLabel = titleOf(targetExpression) || targetExpression.id
-  const canConfirm = selectedArks.length > 0
+  const canConfirm = Boolean(targetExpression)
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -88,6 +92,18 @@ export function ManifestationUprootModal({
           ) : null}
         </fieldset>
         <div className="modal-actions">
+          <label className="modal-checkbox modal-checkbox--inline">
+            <input
+              type="checkbox"
+              checked={partial}
+              onChange={event => onPartialToggle(event.target.checked)}
+            />
+            <div className="modal-checkbox__body">
+              <span className="modal-checkbox__label">
+                {t('manifestations.uproot.partial', { defaultValue: 'Marquer le rattachement comme partiel (740$q)' })}
+              </span>
+            </div>
+          </label>
           <button type="button" onClick={onCancel}>
             {t('buttons.cancel', { defaultValue: 'Annuler' })}
           </button>

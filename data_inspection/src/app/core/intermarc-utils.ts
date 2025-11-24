@@ -12,7 +12,7 @@ export function cloneIntermarc(im: Intermarc): Intermarc {
 
 export function rewriteManifestationExpressionLinks(
   intermarc: Intermarc,
-  options: { remove: string[]; add: string },
+  options: { remove: string[]; add: string; partialArk?: string | null },
 ): Intermarc {
   const detachSet = new Set(options.remove.map(entry => entry.trim()).filter(Boolean))
   const next = cloneIntermarc(intermarc)
@@ -28,11 +28,16 @@ export function rewriteManifestationExpressionLinks(
     zone => zone.code === '740' && zone.sousZones.some(sub => sub.code === '740$3' && sub.valeur === options.add),
   )
   if (!alreadyLinked) {
+    const partialSubfield =
+      options.partialArk && options.partialArk.trim()
+        ? [{ code: '740$q', valeur: options.partialArk.trim(), affectedByCuration: 'modified' as const }]
+        : []
     next.zones.push({
       code: '740',
       affectedByCuration: 'modified',
       sousZones: [
         { code: '740$3', valeur: options.add, affectedByCuration: 'modified' },
+        ...partialSubfield,
       ],
     })
   }

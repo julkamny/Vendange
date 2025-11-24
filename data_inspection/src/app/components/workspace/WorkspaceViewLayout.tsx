@@ -95,10 +95,12 @@ type Props = {
     targetExpressionArk: string | null
     detachableArks: string[]
     selectedArks: string[]
+    partial: boolean
   } | null
   prepareManifestationForUprooting: (target: RecordRow) => void
   requestAttachToExpression: (target: RecordRow) => void
   toggleDetachSelection: (ark: string, checked: boolean) => void
+  togglePartialAttach: (checked: boolean) => void
   cancelPendingAttach: () => void
   confirmAttach: () => void
 }
@@ -185,6 +187,7 @@ export function WorkspaceViewLayout(props: Props) {
     prepareManifestationForUprooting,
     requestAttachToExpression,
     toggleDetachSelection,
+    togglePartialAttach,
     cancelPendingAttach,
     confirmAttach,
   } = props
@@ -470,6 +473,8 @@ export function WorkspaceViewLayout(props: Props) {
           selectedArks={pendingManifestationAttach.selectedArks}
           lookupExpressionByArk={ark => getByArk(ark)}
           onToggle={toggleDetachSelection}
+          partial={pendingManifestationAttach.partial}
+          onPartialToggle={togglePartialAttach}
           onConfirm={confirmAttach}
           onCancel={cancelPendingAttach}
         />

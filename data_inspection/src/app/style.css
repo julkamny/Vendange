@@ -843,6 +843,12 @@ button:focus-visible {
   background: color-mix(in srgb, var(--color-highlight) 70%, transparent);
   outline: none;
 }
+.workspace-context-menu button:disabled {
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-surface-alt) 75%, transparent);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
 
 .cluster {
   border: 1px solid color-mix(in srgb, var(--entity-work) 32%, var(--color-border));
@@ -1760,6 +1766,10 @@ button:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
+}
+.modal-checkbox--inline {
+  flex-direction: row;
+  align-items: center;
 }
 .modal-checkbox__label {
   font-weight: 600;

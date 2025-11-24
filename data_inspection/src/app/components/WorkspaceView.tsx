@@ -21,6 +21,7 @@ import { WorkspaceViewLayout } from './workspace/WorkspaceViewLayout'
 import { useWorkspaceBreadcrumbs } from './workspace/useWorkspaceBreadcrumbs'
 import { useSelectionMeta } from './workspace/useSelectionMeta'
 import { useManifestationUprooting } from './workspace/useManifestationUprooting'
+import { extractControlledValueLabel } from '../core/controlledValues'
 
 type WorkspaceViewProps = {
   state: WorkspaceTabStateWorkspace
@@ -270,6 +271,15 @@ export function WorkspaceView({
     showToast,
     t,
     setContextMenu,
+    findControlledValueArk: useCallback(
+      (label: string) => {
+        const target = curated?.records?.find(
+          rec => extractControlledValueLabel(rec)?.toLowerCase() === label.trim().toLowerCase(),
+        )
+        return target?.ark ?? target?.id ?? null
+      },
+      [curated?.records],
+    ),
     sharedPendingManifestationId,
     setSharedPendingManifestationId,
   })
@@ -279,6 +289,7 @@ export function WorkspaceView({
     prepareManifestationForUprooting,
     requestAttachToExpression,
     toggleDetachSelection,
+    togglePartial,
     cancelPendingAttach,
     confirmAttach,
   } = manifestationUprooting
@@ -560,6 +571,7 @@ export function WorkspaceView({
       prepareManifestationForUprooting={prepareManifestationForUprooting}
       requestAttachToExpression={requestAttachToExpression}
       toggleDetachSelection={toggleDetachSelection}
+      togglePartialAttach={togglePartial}
       cancelPendingAttach={cancelPendingAttach}
       confirmAttach={confirmAttach}
       setBacklinksExpandedLabel={t('backlinks.show', { defaultValue: 'Backlinks' })}

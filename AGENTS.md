@@ -7,10 +7,13 @@
 - Once you're done working, if you've touched files in the React app living in data_inspection, you need to execute `npm run lint`.
 - If you've touched files in the FastAPI Python back-end, use `uv run ruff check` and pytest.
 
+## Tests
+
+- Built with Playwright Pytest, located in /tests, run them once you've finished working.
+
 ## Tips
 
-- If you need to run Python, know that the .venv at the root of the repo (where you've been summoned) is managed by uv.
-- Do `uv run` when running a command.
+- If you need to use Python, do `uv run` when running a command.
 
 ## Databases
 

@@ -225,7 +225,6 @@ function curationClass(flag?: string): string {
   const normalized = flag.toLowerCase()
   if (normalized === 'manual') return ' curation-created'
   if (normalized === 'created') return ' curation-created'
-  if (normalized === 'modified') return ' curation-modified'
   if (normalized === 'deleted') return ' curation-deleted'
   return ''
 }

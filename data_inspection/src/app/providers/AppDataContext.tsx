@@ -638,8 +638,8 @@ function updateManifestationParentInDataset(
     for (const sub of zone.sousZones) {
       if (sub.code === '740$3' && sub.valeur === previousExpressionArk) {
         sub.valeur = newExpressionArk
-        sub.affectedByCuration = 'modified'
-        zone.affectedByCuration = 'modified'
+        sub.affectedByCuration = 'manual'
+        zone.affectedByCuration = 'manual'
         updated = true
       }
     }
@@ -649,16 +649,16 @@ function updateManifestationParentInDataset(
     const targetSub = zone?.sousZones.find(sz => sz.code === '740$3')
     if (targetSub) {
       targetSub.valeur = newExpressionArk
-      targetSub.affectedByCuration = 'modified'
-      if (zone) zone.affectedByCuration = 'modified'
+      targetSub.affectedByCuration = 'manual'
+      if (zone) zone.affectedByCuration = 'manual'
       updated = true
     }
   }
   if (!updated) {
     cloned.zones.push({
       code: '740',
-      affectedByCuration: 'modified',
-      sousZones: [{ code: '740$3', valeur: newExpressionArk, affectedByCuration: 'modified' }],
+      affectedByCuration: 'manual',
+      sousZones: [{ code: '740$3', valeur: newExpressionArk, affectedByCuration: 'manual' }],
     })
     updated = true
   }

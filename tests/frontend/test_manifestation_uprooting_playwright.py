@@ -126,7 +126,7 @@ def test_manifestation_uproot_and_attach_across_tabs(page):
     modal = page.locator('.modal')
     expect(modal).to_be_visible()
     checkboxes = modal.locator('input[type="checkbox"]')
-    expect(checkboxes).to_have_count(2)
+    expect(checkboxes).to_have_count(3)
     modal.get_by_role('button', name=re.compile('Confirmer|Confirm', re.IGNORECASE)).click()
     modal.wait_for(state='detached')
 

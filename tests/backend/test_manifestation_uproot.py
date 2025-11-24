@@ -98,3 +98,10 @@ def test_manifestation_uproot_and_attach_updates_740_links():
     ]
 
     assert targets == ["ark:/e3"]
+    has_partial = any(
+        sz.get("code") == "740$q" and sz.get("valeur") == partial_ark
+        for zone in stored.get("zones", [])
+        if zone.get("code") == "740"
+        for sz in zone.get("sousZones", [])
+    )
+    assert has_partial

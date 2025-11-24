@@ -233,6 +233,23 @@
       "targetIsAnchor": "Impossible : la cible est déjà ancre d'un cluster."
     }
   },
+  "manifestations": {
+    "uproot": {
+      "prepareAction": "Préparer pour déracinage",
+      "attachHere": "Rattacher la manifestation sélectionnée à cette expression",
+      "prepared": "Manifestation mise en attente pour déracinage.",
+      "noSelection": "Aucune manifestation en attente.",
+      "targetMissingArk": "Impossible : l'expression n'a pas d'ARK.",
+      "missingManifestation": "Manifestation introuvable, recommencez.",
+      "noExpressions": "Cette manifestation ne référence aucune expression (740$3 manquant).",
+      "selectionRequired": "Sélectionnez au moins une expression à déraciner.",
+      "modalTitle": "Rattacher la manifestation à une expression",
+      "modalIntro": "Quelles expressions déraciner avant de rattacher « {{manifestation}} » à « {{target}} » ?",
+      "choiceLegend": "Expressions à déraciner (740$3)",
+      "confirm": "Confirmer le rattachement",
+      "success": "Manifestation rattachée à la nouvelle expression."
+    }
+  },
   "agents": {
     "cluster": {
       "prepare": "Préparer pour clustering",

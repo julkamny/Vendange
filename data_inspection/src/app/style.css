@@ -1737,6 +1737,28 @@ button:focus-visible {
   margin-right: auto;
   color: var(--color-text-muted);
 }
+.modal-fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+.modal-fieldset legend {
+  padding: 0 0.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+.modal-checkbox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0.4rem 0;
+}
+.modal-checkbox input {
+  margin-right: 0.5rem;
+}
+.modal-checkbox small {
+  color: var(--color-text-muted);
+}
 
 body.modal-open {
   overflow: hidden;

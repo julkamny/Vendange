@@ -6,6 +6,7 @@ import { WorkspaceContextMenu, type MenuAction } from '../../components/Workspac
 import { WorkspaceBreadcrumbs } from './WorkspaceBreadcrumbs'
 import { ConfirmExpressionClusterModal, ConfirmWorkClusterModal } from './ClusterModals'
 import { AnchorSwapModal } from './AnchorSwapModal'
+import { ManifestationUprootModal } from './ManifestationUprootModal'
 import type { WorkspaceTabStateWorkspace } from '../../workspace/types'
 import type { RecordRow } from '../../types'
 import type { BacklinkInfo } from '../../hooks/useBacklinks'
@@ -18,6 +19,7 @@ type Props = {
   breadcrumbs: string[]
   record: RecordRow | null
   getById: (id: string) => RecordRow | null
+  getByArk: (ark: string) => RecordRow | null
   renderListPanel: (viewMode: WorkspaceTabStateWorkspace['viewMode']) => JSX.Element
   listPanelRef: RefObject<HTMLElement>
   detailsPanelRef: RefObject<HTMLElement>
@@ -57,6 +59,8 @@ type Props = {
   clusterWorkLabel: string
   prepareExpressionLabel: string
   clusterExpressionLabel: string
+  prepareUprootLabel: string
+  attachManifestationLabel: string
   backlinksTitle: string
   contextMenu: WorkspaceContextMenuState | null
   setContextMenu: (next: WorkspaceContextMenuState | null) => void
@@ -83,6 +87,19 @@ type Props = {
   confirmPendingExpressionAnchorSwap: () => void
   cancelPendingExpressionAnchorSwap: () => void
   setBacklinksExpandedLabel: string
+  pendingManifestationRecord: RecordRow | null
+  pendingManifestationAttach: {
+    manifestationId: string
+    targetExpressionId: string | null
+    targetExpressionArk: string | null
+    detachableArks: string[]
+    selectedArks: string[]
+  } | null
+  prepareManifestationForUprooting: (target: RecordRow) => void
+  requestAttachToExpression: (target: RecordRow) => void
+  toggleDetachSelection: (ark: string, checked: boolean) => void
+  cancelPendingAttach: () => void
+  confirmAttach: () => void
 }
 
 export function WorkspaceViewLayout(props: Props) {
@@ -93,6 +110,7 @@ export function WorkspaceViewLayout(props: Props) {
     breadcrumbs,
     record,
     getById,
+    getByArk,
     renderListPanel,
     listPanelRef,
     detailsPanelRef,
@@ -132,6 +150,8 @@ export function WorkspaceViewLayout(props: Props) {
     clusterWorkLabel,
     prepareExpressionLabel,
     clusterExpressionLabel,
+    prepareUprootLabel,
+    attachManifestationLabel,
     backlinksTitle,
     contextMenu,
     setContextMenu,
@@ -158,6 +178,13 @@ export function WorkspaceViewLayout(props: Props) {
     confirmPendingExpressionAnchorSwap,
     cancelPendingExpressionAnchorSwap,
     setBacklinksExpandedLabel,
+    pendingManifestationRecord,
+    pendingManifestationAttach,
+    prepareManifestationForUprooting,
+    requestAttachToExpression,
+    toggleDetachSelection,
+    cancelPendingAttach,
+    confirmAttach,
   } = props
 
   const buildClusterAction = (target: RecordRow): MenuAction | null => {
@@ -331,6 +358,23 @@ export function WorkspaceViewLayout(props: Props) {
       {contextMenu ? (
         (() => {
           const actions: MenuAction[] = []
+          const uprootAction =
+            contextMenu.record.typeNorm === 'manifestation'
+              ? {
+                  label: prepareUprootLabel,
+                  onSelect: () => prepareManifestationForUprooting(contextMenu.record),
+                }
+              : null
+          if (uprootAction) actions.push(uprootAction)
+          const attachAction =
+            pendingManifestationRecord && contextMenu.record.typeNorm === 'expression'
+              ? {
+                  label: attachManifestationLabel,
+                  disabled: !contextMenu.record.ark,
+                  onSelect: () => requestAttachToExpression(contextMenu.record),
+                }
+              : null
+          if (attachAction) actions.push(attachAction)
           const clusterAction = buildClusterAction(contextMenu.record)
           if (clusterAction) actions.push(clusterAction)
           const swapAction =
@@ -395,6 +439,24 @@ export function WorkspaceViewLayout(props: Props) {
           anchor={getById(pendingExpressionAnchorSwapTarget.anchorId)}
           onConfirm={confirmPendingExpressionAnchorSwap}
           onCancel={cancelPendingExpressionAnchorSwap}
+        />
+      ) : null}
+
+      {pendingManifestationAttach ? (
+        <ManifestationUprootModal
+          manifestation={getById(pendingManifestationAttach.manifestationId)}
+          targetExpression={
+            getById(pendingManifestationAttach.targetExpressionId ?? '') ||
+            (pendingManifestationAttach.targetExpressionArk
+              ? getByArk(pendingManifestationAttach.targetExpressionArk)
+              : null)
+          }
+          detachableArks={pendingManifestationAttach.detachableArks}
+          selectedArks={pendingManifestationAttach.selectedArks}
+          lookupExpressionByArk={ark => getByArk(ark)}
+          onToggle={toggleDetachSelection}
+          onConfirm={confirmAttach}
+          onCancel={cancelPendingAttach}
         />
       ) : null}
     </>

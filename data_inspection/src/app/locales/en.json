@@ -233,6 +233,23 @@
       "targetIsAnchor": "Cannot cluster: target is already a cluster anchor."
     }
   },
+  "manifestations": {
+    "uproot": {
+      "prepareAction": "Prepare for uprooting",
+      "attachHere": "Attach selected manifestation to this expression",
+      "prepared": "Manifestation marked for uprooting.",
+      "noSelection": "No manifestation is waiting to be uprooted.",
+      "targetMissingArk": "Cannot attach to an expression without an ARK.",
+      "missingManifestation": "Unable to find the selected manifestation.",
+      "noExpressions": "This manifestation is not linked to any expression (missing 740$3).",
+      "selectionRequired": "Pick at least one expression to uproot from.",
+      "modalTitle": "Attach manifestation to expression",
+      "modalIntro": "Which expression(s) should be uprooted before attaching “{{manifestation}}” to “{{target}}”?",
+      "choiceLegend": "Expressions to uproot (740$3)",
+      "confirm": "Confirm attachment",
+      "success": "Manifestation attached to the selected expression."
+    }
+  },
   "agents": {
     "cluster": {
       "prepare": "Prepare for clustering",

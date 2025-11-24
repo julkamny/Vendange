@@ -20,6 +20,7 @@ import { useWorkspaceInteractions } from './workspace/useWorkspaceInteractions'
 import { WorkspaceViewLayout } from './workspace/WorkspaceViewLayout'
 import { useWorkspaceBreadcrumbs } from './workspace/useWorkspaceBreadcrumbs'
 import { useSelectionMeta } from './workspace/useSelectionMeta'
+import { useManifestationUprooting } from './workspace/useManifestationUprooting'
 
 type WorkspaceViewProps = {
   state: WorkspaceTabStateWorkspace
@@ -31,6 +32,8 @@ type WorkspaceViewProps = {
   mode?: 'inline' | 'detached'
   onRequestDetach?: () => void
   onRequestDock?: () => void
+  sharedPendingManifestationId?: string | null
+  setSharedPendingManifestationId?: (next: string | null) => void
 }
 
 function findRecord(id: string, curated: RecordRow[]): RecordRow | null {
@@ -48,6 +51,8 @@ export function WorkspaceView({
   mode = 'inline',
   onRequestDetach,
   onRequestDock,
+  sharedPendingManifestationId,
+  setSharedPendingManifestationId,
 }: WorkspaceViewProps) {
   const {
     datasetId,
@@ -259,6 +264,25 @@ export function WorkspaceView({
     isProtectedExpressionAnchor,
   })
 
+  const manifestationUprooting = useManifestationUprooting({
+    getById,
+    updateRecordIntermarc,
+    showToast,
+    t,
+    setContextMenu,
+    sharedPendingManifestationId,
+    setSharedPendingManifestationId,
+  })
+  const {
+    pendingManifestationRecord,
+    pendingAttach,
+    prepareManifestationForUprooting,
+    requestAttachToExpression,
+    toggleDetachSelection,
+    cancelPendingAttach,
+    confirmAttach,
+  } = manifestationUprooting
+
   const handleSelectWork = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
     const cluster = workspace.clusters.find(entry => entry.anchorId === workId) ?? null
     onStateChange(prev => ({
@@ -432,6 +456,7 @@ export function WorkspaceView({
       breadcrumbs={breadcrumbs}
       record={record}
       getById={getById}
+      getByArk={getByArk}
       renderListPanel={renderListPanel}
       listPanelRef={listPanelRef}
       detailsPanelRef={detailsPanelRef}
@@ -471,6 +496,10 @@ export function WorkspaceView({
       clusterWorkLabel={t('works.cluster.clusterWith', { defaultValue: 'Clustériser avec la sélection' })}
       prepareExpressionLabel={t('expressions.cluster.prepare', { defaultValue: 'Préparer pour clustering' })}
       clusterExpressionLabel={t('expressions.cluster.clusterWith', { defaultValue: 'Clustériser avec la sélection' })}
+      prepareUprootLabel={t('manifestations.uproot.prepareAction', { defaultValue: 'Prepare for uprooting' })}
+      attachManifestationLabel={t('manifestations.uproot.attachHere', {
+        defaultValue: 'Attach selected manifestation to this expression',
+      })}
       backlinksTitle={t('backlinks.title', { defaultValue: 'Backlinks' })}
       contextMenu={contextMenu}
       setContextMenu={setContextMenu}
@@ -496,6 +525,13 @@ export function WorkspaceView({
       cancelPendingWorkAnchorSwap={cancelWorkAnchorSwap}
       confirmPendingExpressionAnchorSwap={confirmExpressionAnchorSwap}
       cancelPendingExpressionAnchorSwap={cancelExpressionAnchorSwap}
+      pendingManifestationRecord={pendingManifestationRecord}
+      pendingManifestationAttach={pendingAttach}
+      prepareManifestationForUprooting={prepareManifestationForUprooting}
+      requestAttachToExpression={requestAttachToExpression}
+      toggleDetachSelection={toggleDetachSelection}
+      cancelPendingAttach={cancelPendingAttach}
+      confirmAttach={confirmAttach}
       setBacklinksExpandedLabel={t('backlinks.show', { defaultValue: 'Backlinks' })}
     />
   )

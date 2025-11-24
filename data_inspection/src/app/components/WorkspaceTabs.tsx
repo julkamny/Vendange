@@ -82,6 +82,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     addRecords(curatedRecords)
     return { byId, byArk }
   }, [curatedRecords])
+  const [pendingManifestationId, setPendingManifestationId] = useState<string | null>(null)
   const [tabs, setTabs] = useState<WorkspaceTabState[]>(() => [createWorkspaceTab(defaultWorkspaceTitle)])
   const [activeId, setActiveId] = useState(() => tabs[0]?.id ?? '')
   const [shortcutTargetId, setShortcutTargetId] = useState(() => tabs[0]?.id ?? '')
@@ -681,6 +682,8 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
                 onOpenDetachedTab={openDetachedTabWithState}
                 onOpenAgentTab={openAgentTabWithState}
                 onOpenAgentDetachedTab={openAgentDetachedTabWithState}
+                sharedPendingManifestationId={pendingManifestationId}
+                setSharedPendingManifestationId={setPendingManifestationId}
               />
             )
           ) : isSparqlTab(activeTab) ? (
@@ -912,6 +915,8 @@ function DetachedWorkspacePortal({
         onOpenDetachedTab={onOpenDetachedTab}
         onOpenAgentTab={onOpenAgentTab}
         onOpenAgentDetachedTab={onOpenAgentDetachedTab}
+        sharedPendingManifestationId={pendingManifestationId}
+        setSharedPendingManifestationId={setPendingManifestationId}
       />
     </div>,
     container,

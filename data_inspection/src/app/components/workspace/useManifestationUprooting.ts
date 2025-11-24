@@ -75,7 +75,7 @@ export function useManifestationUprooting({
         { tone: 'info' },
       )
     },
-    [setContextMenu, setPendingManifestationId, showToast, t],
+    [pendingManifestationId, setContextMenu, setPendingManifestationId, showToast, t],
   )
 
   const requestAttachToExpression = useCallback(

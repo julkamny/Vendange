@@ -1749,14 +1749,27 @@ button:focus-visible {
 }
 .modal-checkbox {
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  margin: 0.4rem 0;
+  gap: 0.65rem;
+  align-items: flex-start;
+  margin: 0.5rem 0;
 }
 .modal-checkbox input {
-  margin-right: 0.5rem;
+  margin-top: 0.1rem;
+}
+.modal-checkbox__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.modal-checkbox__label {
+  font-weight: 600;
+  color: var(--color-text);
 }
 .modal-checkbox small {
+  color: var(--color-text-muted);
+}
+.modal-note {
+  margin: 0.4rem 0 0;
   color: var(--color-text-muted);
 }
 

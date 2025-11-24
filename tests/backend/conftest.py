@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+# ruff: noqa: E402
 import pytest
 import sys
 from pathlib import Path

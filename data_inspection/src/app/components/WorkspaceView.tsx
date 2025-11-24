@@ -283,6 +283,34 @@ export function WorkspaceView({
     confirmAttach,
   } = manifestationUprooting
 
+  const activeOperation = useMemo<'work-cluster' | 'expression-cluster' | 'anchor-swap' | 'manifestation-uproot' | null>(
+    () => {
+      if (pendingManifestationRecord || pendingAttach) return 'manifestation-uproot'
+      if (
+        pendingWorkAnchorSwapSourceRecord ||
+        pendingWorkAnchorSwapTarget ||
+        pendingExpressionAnchorSwapSourceRecord ||
+        pendingExpressionAnchorSwapTarget
+      )
+        return 'anchor-swap'
+      if (pendingClusterSourceRecord || pendingClusterTarget) return 'work-cluster'
+      if (pendingExpressionClusterSourceRecord || pendingExpressionClusterTarget) return 'expression-cluster'
+      return null
+    },
+    [
+      pendingAttach,
+      pendingClusterSourceRecord,
+      pendingClusterTarget,
+      pendingExpressionAnchorSwapSourceRecord,
+      pendingExpressionAnchorSwapTarget,
+      pendingExpressionClusterSourceRecord,
+      pendingExpressionClusterTarget,
+      pendingManifestationRecord,
+      pendingWorkAnchorSwapSourceRecord,
+      pendingWorkAnchorSwapTarget,
+    ],
+  )
+
   const handleSelectWork = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
     const cluster = workspace.clusters.find(entry => entry.anchorId === workId) ?? null
     onStateChange(prev => ({
@@ -416,6 +444,7 @@ export function WorkspaceView({
       <ManifestationPanel
         cluster={workspace.activeCluster}
         state={state}
+        pendingManifestationId={pendingManifestationRecord?.id ?? null}
         onSelectManifestation={({
           manifestationId,
           expressionId,
@@ -453,6 +482,7 @@ export function WorkspaceView({
       mode={mode}
       state={state}
       workspaceClassName={workspaceClassName}
+       activeOperation={activeOperation}
       breadcrumbs={breadcrumbs}
       record={record}
       getById={getById}

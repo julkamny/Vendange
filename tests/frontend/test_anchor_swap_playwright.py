@@ -1,80 +1,56 @@
-import csv
-import io
-import json
+# ruff: noqa: E402
 import re
+import sys
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
 import requests
 from playwright.sync_api import expect
 
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tests.backend.utils import (
+    _cluster_zone,
+    _expression_intermarc,
+    _records_to_csv_bytes,
+    _work_intermarc,
+)
 
 API_BASE = "http://localhost:8000"
 APP_BASE = "http://localhost:5173"
 
 
-def _zone(code: str, subs):
-    return {"code": code, "sousZones": subs}
-
-
-def _cluster_zone(target: str):
-    return {
-        "code": "90F",
-        "affectedByCuration": "created",
-        "sousZones": [
-            {"code": "90F$q", "valeur": "Clusterisation manuelle", "affectedByCuration": "created"},
-            {"code": "90F$3", "valeur": target, "affectedByCuration": "created"},
-        ],
-    }
-
-
-def _work_im(ark: str, title: str, extra=None) -> str:
-    zones = [
-        _zone("001", [{"code": "001$a", "valeur": ark}]),
-        _zone("150", [{"code": "150$a", "valeur": title}]),
-    ]
-    zones.extend(extra or [])
-    return json.dumps({"zones": zones}, ensure_ascii=False)
-
-
-def _expr_im(ark: str, parent: str, extra=None) -> str:
-    zones = [
-        _zone("001", [{"code": "001$a", "valeur": ark}]),
-        _zone("140", [{"code": "140$m", "valeur": "m"}, {"code": "140$f", "valeur": "f"}, {"code": "140$3", "valeur": parent}]),
-        _zone("750", [{"code": "750$3", "valeur": parent}]),
-    ]
-    zones.extend(extra or [])
-    return json.dumps({"zones": zones}, ensure_ascii=False)
-
-
 def _build_dataset() -> str:
     dataset_title = f"anchor-swap-playwright-{uuid4().hex[:8]}"
     rows = [
-        {"id": "w1", "type": "Oeuvre", "intermarc": _work_im("ark:/w1", "Work One")},
-        {"id": "w2", "type": "Oeuvre", "intermarc": _work_im("ark:/w2", "Work Two")},
-        {"id": "w3", "type": "Oeuvre", "intermarc": _work_im("ark:/w3", "Work Three")},
-        {"id": "w4", "type": "Oeuvre", "intermarc": _work_im("ark:/w4", "Solo Work")},
+        {"id": "w1", "type": "Oeuvre", "intermarc": _work_intermarc("ark:/w1", "Work One")},
+        {"id": "w2", "type": "Oeuvre", "intermarc": _work_intermarc("ark:/w2", "Work Two")},
+        {"id": "w3", "type": "Oeuvre", "intermarc": _work_intermarc("ark:/w3", "Work Three")},
+        {"id": "w4", "type": "Oeuvre", "intermarc": _work_intermarc("ark:/w4", "Solo Work")},
         {
             "id": "e1",
             "type": "Expression",
-            "intermarc": _expr_im("ark:/e1", "ark:/w1", [_cluster_zone("ark:/e2"), _cluster_zone("ark:/e3")]),
+            "intermarc": _expression_intermarc(
+                "ark:/e1",
+                "ark:/w1",
+                extra_zones=[_cluster_zone("ark:/e2"), _cluster_zone("ark:/e3")],
+            ),
         },
-        {"id": "e2", "type": "Expression", "intermarc": _expr_im("ark:/e2", "ark:/w1")},
-        {"id": "e3", "type": "Expression", "intermarc": _expr_im("ark:/e3", "ark:/w1")},
+        {"id": "e2", "type": "Expression", "intermarc": _expression_intermarc("ark:/e2", "ark:/w1")},
+        {"id": "e3", "type": "Expression", "intermarc": _expression_intermarc("ark:/e3", "ark:/w1")},
     ]
 
     # Make w1 the initial anchor
-    rows[0]["intermarc"] = _work_im("ark:/w1", "Work One", [_cluster_zone("ark:/w2"), _cluster_zone("ark:/w3")])
+    rows[0]["intermarc"] = _work_intermarc("ark:/w1", "Work One", [_cluster_zone("ark:/w2"), _cluster_zone("ark:/w3")])
 
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(["id_entitelrm", "type_entite", "intermarc"])
-    for row in rows:
-        writer.writerow([row["id"], row["type"], row["intermarc"]])
+    payload = _records_to_csv_bytes(rows)
 
     resp = requests.post(
         f"{API_BASE}/api/datasets",
-        files={"file": ("dataset.csv", buf.getvalue().encode("utf-8"), "text/csv")},
+        files={"file": ("dataset.csv", payload, "text/csv")},
         data={"title": dataset_title},
         timeout=10,
     )

@@ -17,6 +17,7 @@ import { useBacklinks } from '../../hooks/useBacklinks'
 type ManifestationPanelProps = {
   cluster: Cluster | null
   state: WorkspaceTabStateWorkspace
+  pendingManifestationId?: string | null
   onSelectManifestation: (payload: {
     manifestationId: string
     expressionId?: string
@@ -30,6 +31,7 @@ type ExpressionWithMeta = ExpressionItem | ExpressionClusterItem
 export function ManifestationPanel({
   cluster,
   state,
+  pendingManifestationId,
   onSelectManifestation,
 }: ManifestationPanelProps) {
   const { t } = useTranslation()
@@ -82,6 +84,9 @@ export function ManifestationPanel({
       selectedEntity?.entityType === 'work' && selectedEntity.workArk === expression.workArk
     const matchesExpressionHighlight =
       highlightedExpressionArk && highlightedExpressionArk === manifestation.expressionArk
+    if (pendingManifestationId && pendingManifestationId === manifestation.id) {
+      rowClasses.push('pending-cluster-source')
+    }
     if (isSelectedManifestation) rowClasses.push('selected')
     else if (isExpressionSelection || isWorkSelection || matchesExpressionHighlight) {
       rowClasses.push('highlight')

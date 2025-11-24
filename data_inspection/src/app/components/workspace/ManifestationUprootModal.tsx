@@ -44,12 +44,12 @@ export function ManifestationUprootModal({
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="modal">
-        <h3>
+        <h2>
           {t('manifestations.uproot.modalTitle', {
             defaultValue: 'Attacher la manifestation à une expression',
           })}
-        </h3>
-        <p>
+        </h2>
+        <p className="modal-instructions">
           {t('manifestations.uproot.modalIntro', {
             defaultValue:
               'Quelle(s) expression(s) déraciner avant de rattacher « {{manifestation}} » à « {{target}} » ?',
@@ -63,17 +63,22 @@ export function ManifestationUprootModal({
               defaultValue: 'Expressions à déraciner (740$3)',
             })}
           </legend>
-          {expressionOptions.map(option => (
-            <label key={option.ark} className="modal-checkbox">
-              <input
-                type="checkbox"
-                checked={selectedArks.includes(option.ark)}
-                onChange={event => onToggle(option.ark, event.target.checked)}
-              />
-              <span>{option.label}</span>
-              <small className="muted">{option.ark}</small>
-            </label>
-          ))}
+          {expressionOptions.map(option => {
+            const checked = selectedArks.includes(option.ark)
+            return (
+              <label key={option.ark} className="modal-checkbox">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={event => onToggle(option.ark, event.target.checked)}
+                />
+                <div className="modal-checkbox__body">
+                  <span className="modal-checkbox__label">{option.label}</span>
+                  <small className="muted modal-checkbox__ark">{option.ark}</small>
+                </div>
+              </label>
+            )
+          })}
           {expressionOptions.length === 0 ? (
             <p className="modal-note">
               {t('manifestations.uproot.noExpressions', {

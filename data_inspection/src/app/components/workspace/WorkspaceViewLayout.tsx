@@ -16,6 +16,7 @@ type Props = {
   mode: 'inline' | 'detached'
   state: WorkspaceTabStateWorkspace
   workspaceClassName: string
+  activeOperation: 'work-cluster' | 'expression-cluster' | 'anchor-swap' | 'manifestation-uproot' | null
   breadcrumbs: string[]
   record: RecordRow | null
   getById: (id: string) => RecordRow | null
@@ -107,6 +108,7 @@ export function WorkspaceViewLayout(props: Props) {
     mode,
     state,
     workspaceClassName,
+    activeOperation,
     breadcrumbs,
     record,
     getById,
@@ -188,10 +190,15 @@ export function WorkspaceViewLayout(props: Props) {
   } = props
 
   const buildClusterAction = (target: RecordRow): MenuAction | null => {
+    const clusterLocked =
+      target.typeNorm === 'oeuvre'
+        ? Boolean(activeOperation && activeOperation !== 'work-cluster')
+        : Boolean(activeOperation && activeOperation !== 'expression-cluster')
     const disabled = Boolean(
-      (pendingClusterSourceRecord &&
-        pendingClusterSourceRecord.id !== target.id &&
-        pendingClusterSourceRecord.typeNorm !== target.typeNorm) ||
+      clusterLocked ||
+        (pendingClusterSourceRecord &&
+          pendingClusterSourceRecord.id !== target.id &&
+          pendingClusterSourceRecord.typeNorm !== target.typeNorm) ||
         (pendingExpressionClusterSourceRecord &&
           pendingExpressionClusterSourceRecord.id !== target.id &&
           pendingExpressionClusterSourceRecord.typeNorm !== target.typeNorm),
@@ -362,6 +369,10 @@ export function WorkspaceViewLayout(props: Props) {
             contextMenu.record.typeNorm === 'manifestation'
               ? {
                   label: prepareUprootLabel,
+                  disabled: Boolean(
+                    (activeOperation && activeOperation !== 'manifestation-uproot') ||
+                      (pendingManifestationRecord && pendingManifestationRecord.id !== contextMenu.record.id),
+                  ),
                   onSelect: () => prepareManifestationForUprooting(contextMenu.record),
                 }
               : null
@@ -370,19 +381,23 @@ export function WorkspaceViewLayout(props: Props) {
             pendingManifestationRecord && contextMenu.record.typeNorm === 'expression'
               ? {
                   label: attachManifestationLabel,
-                  disabled: !contextMenu.record.ark,
+                  disabled:
+                    !contextMenu.record.ark || Boolean(activeOperation && activeOperation !== 'manifestation-uproot'),
                   onSelect: () => requestAttachToExpression(contextMenu.record),
                 }
               : null
           if (attachAction) actions.push(attachAction)
           const clusterAction = buildClusterAction(contextMenu.record)
           if (clusterAction) actions.push(clusterAction)
-          const swapAction =
+          let swapAction =
             contextMenu.record.typeNorm === 'oeuvre'
               ? getWorkAnchorSwapAction(contextMenu.record)
               : contextMenu.record.typeNorm === 'expression'
                 ? getExpressionAnchorSwapAction(contextMenu.record)
                 : null
+          if (swapAction && activeOperation && activeOperation !== 'anchor-swap') {
+            swapAction = { ...swapAction, disabled: true }
+          }
           if (swapAction) actions.push(swapAction)
 
           return (

@@ -69,6 +69,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 
 ### Manifestation uprooting / reattachment
 - Right-click a manifestation row to “Prepare for uprooting”, then right-click any expression row to “Attach selected manifestation to this expression”. The confirmation modal lists the current 740$3 links (pre-selected when there is only one) so you can decide which expressions to uproot before adding a new 740 pointing to the target expression. The curated dataset and UI stay in sync and the action works from any workspace tab or detached window.
+- Only one manual operation (work/expression clustering, anchor swap, manifestation uprooting) can be active at a time: the pending entity is dimmed and other context-menu actions stay disabled until the current operation is confirmed or cancelled.
 
 ### Windows & tabs management
 - Workspace tabs can be “unmoored” into their own windows; Intermarc panes in those windows remain synced and offer a full-window toggle for multi-monitor comparisons.

@@ -1,67 +1,58 @@
-import csv
-import io
-import json
+# ruff: noqa: E402
 import re
+import sys
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
 import requests
 from playwright.sync_api import expect
 
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tests.backend.utils import (
+    _expression_intermarc,
+    _manifestation_intermarc,
+    _records_to_csv_bytes,
+    _work_intermarc,
+    create_zone,
+)
+
 API_BASE = "http://localhost:8000"
 APP_BASE = "http://localhost:5173"
-
-
-def _zone(code: str, subs):
-    return {"code": code, "sousZones": subs}
-
-
-def _work_im(ark: str, title: str):
-    zones = [
-        _zone("001", [{"code": "001$a", "valeur": ark}]),
-        _zone("150", [{"code": "150$a", "valeur": title}]),
-    ]
-    return json.dumps({"zones": zones}, ensure_ascii=False)
-
-
-def _expr_im(ark: str, parent_work_ark: str):
-    zones = [
-        _zone("001", [{"code": "001$a", "valeur": ark}]),
-        _zone("140", [{"code": "140$m", "valeur": "m"}, {"code": "140$3", "valeur": parent_work_ark}]),
-        _zone("750", [{"code": "750$3", "valeur": parent_work_ark}]),
-    ]
-    return json.dumps({"zones": zones}, ensure_ascii=False)
-
-
-def _mani_im(ark: str, expressions: list[str]):
-    zones = [
-        _zone("001", [{"code": "001$a", "valeur": ark}]),
-        _zone("245", [{"code": "245$a", "valeur": "Manifestation M1"}]),
-    ]
-    for expr in expressions:
-        zones.append(_zone("740", [{"code": "740$3", "valeur": expr}]))
-    return json.dumps({"zones": zones}, ensure_ascii=False)
 
 
 def _build_dataset() -> str:
     dataset_title = f"uproot-playwright-{uuid4().hex[:8]}"
     rows = [
-        {"id": "w1", "type": "Oeuvre", "intermarc": _work_im("ark:/w1", "Work One")},
-        {"id": "e1", "type": "Expression", "intermarc": _expr_im("ark:/e1", "ark:/w1")},
-        {"id": "e2", "type": "Expression", "intermarc": _expr_im("ark:/e2", "ark:/w1")},
-        {"id": "e3", "type": "Expression", "intermarc": _expr_im("ark:/e3", "ark:/w1")},
-        {"id": "m1", "type": "Manifestation", "intermarc": _mani_im("ark:/m1", ["ark:/e1", "ark:/e2"])},
+        {"id": "w1", "type": "Oeuvre", "intermarc": _work_intermarc("ark:/w1", "Work One")},
+        {"id": "e1", "type": "Expression", "intermarc": _expression_intermarc("ark:/e1", "ark:/w1")},
+        {"id": "e2", "type": "Expression", "intermarc": _expression_intermarc("ark:/e2", "ark:/w1")},
+        {"id": "e3", "type": "Expression", "intermarc": _expression_intermarc("ark:/e3", "ark:/w1")},
+        {
+            "id": "m1",
+            "type": "Manifestation",
+            "intermarc": _manifestation_intermarc(
+                "ark:/m1",
+                "ark:/e1",
+                "Manifestation M1",
+                extra_zones=[create_zone("740", [("3", "ark:/e2", None)])],
+            ),
+        },
+        {
+            "id": "m2",
+            "type": "Manifestation",
+            "intermarc": _manifestation_intermarc("ark:/m2", "ark:/e1", "Manifestation M2"),
+        },
     ]
 
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(["id_entitelrm", "type_entite", "intermarc"])
-    for row in rows:
-        writer.writerow([row["id"], row["type"], row["intermarc"]])
+    payload = _records_to_csv_bytes(rows)
 
     resp = requests.post(
         f"{API_BASE}/api/datasets",
-        files={"file": ("dataset.csv", buf.getvalue().encode("utf-8"), "text/csv")},
+        files={"file": ("dataset.csv", payload, "text/csv")},
         data={"title": dataset_title},
         timeout=10,
     )
@@ -154,3 +145,39 @@ def test_manifestation_uproot_and_attach_across_tabs(page):
         dataset_id,
     )
     assert links == ["ark:/e3"]
+
+
+@pytest.mark.e2e
+def test_operation_lock_disables_other_actions(page):
+    try:
+        requests.get(f"{API_BASE}/api/datasets", timeout=5).raise_for_status()
+    except Exception:
+        pytest.skip("Backend API not reachable")
+
+    dataset_id = _build_dataset()
+    page.goto(f"{APP_BASE}/{dataset_id}", wait_until="networkidle")
+    page.wait_for_selector('[data-work-id="w1"]')
+    buttons = page.locator('.cluster-open-expressions')
+    if buttons.count() > 0:
+        buttons.first.click()
+    else:
+        page.evaluate(
+            "(() => { const el = document.querySelector('[data-work-id=\"w1\"] .cluster-header'); if (el) el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); })();"
+        )
+    page.wait_for_selector('[data-expression-id="e1"]')
+    page.locator('[data-expression-id="e1"].expression-anchor').dblclick()
+    page.wait_for_selector('[data-manifestation-id="m1"]')
+
+    # Prepare uprooting for the manifestation
+    page.locator('[data-expression-id="e1"] [data-manifestation-id="m1"]').click(button="right")
+    menu = page.locator('.workspace-context-menu')
+    expect(menu).to_be_visible()
+    menu.get_by_role('menuitem', name=re.compile('déracinage|uproot', re.IGNORECASE)).click()
+
+    # While operation is pending, preparing another manifestation should be disabled
+    page.locator('[data-expression-id="e1"] [data-manifestation-id="m2"]').click(button="right")
+    menu = page.locator('.workspace-context-menu')
+    expect(menu).to_be_visible()
+    prepare_again = menu.get_by_role('menuitem').filter(has_text=re.compile('déracinage|uproot', re.IGNORECASE))
+    expect(prepare_again).to_have_count(1)
+    expect(prepare_again.first).to_be_disabled()

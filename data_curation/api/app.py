@@ -54,7 +54,12 @@ class AnchorSwapPayload(BaseModel):
     target_id: str = Field(..., alias="targetId")
 
 
-app = FastAPI(title="Vendange Search API")
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI):
+    db.initialize_storage()
+    yield
+
+app = FastAPI(title="Vendange Search API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -260,9 +265,7 @@ def _build_log_bundle_response(bundle: datasets.DatasetLogBundle) -> Response:
         "Cache-Control": "no-cache",
     }
     return Response(content=buffer.getvalue(), media_type="application/zip", headers=headers)
-@app.on_event("startup")
-def ensure_schema() -> None:
-    db.initialize_storage()
+
 
 
 def _ensure_dataset(dataset_id: str) -> DatasetMetadata:

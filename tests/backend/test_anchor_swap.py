@@ -5,22 +5,22 @@ import sys
 from pathlib import Path
 from uuid import uuid4
 
+# Ensure root is in path
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from data_curation.api import db, datasets  # noqa: E402
 
+from data_curation.api import db, datasets
+from .utils import (
+    _work_intermarc,
+    _expression_intermarc,
+    _cluster_zone,
+    _adaptation_zone,
+    create_zone,
+)
 
-def _zone(code: str, subfields, affected: str | None = None):
-    zone = {"code": code, "sousZones": []}
-    if affected:
-        zone["affectedByCuration"] = affected
-    for suffix, value, sub_aff in subfields:
-        entry = {"code": f"{code}${suffix}", "valeur": value}
-        if sub_aff:
-            entry["affectedByCuration"] = sub_aff
-        zone["sousZones"].append(entry)
-    return zone
+HAS_ADAPT_ARK = "ark:/cv/hasAdapt"
+IS_ADAPT_OF_ARK = "ark:/cv/isAdaptOf"
 
 
 def _records_to_csv_bytes(records) -> bytes:
@@ -32,44 +32,13 @@ def _records_to_csv_bytes(records) -> bytes:
     return buffer.getvalue().encode("utf-8")
 
 
-HAS_ADAPT_ARK = "ark:/cv/hasAdapt"
-IS_ADAPT_OF_ARK = "ark:/cv/isAdaptOf"
-
-
-def _work_intermarc(ark: str, title: str, extra_zones=None):
-    zones = [
-        _zone("001", [("a", ark, None)]),
-        _zone("150", [("a", title, None)]),
-    ]
-    zones.extend(extra_zones or [])
-    return json.dumps({"zones": zones}, ensure_ascii=False)
-
-
-def _expression_intermarc(ark: str, parent: str, mode: str = "mode", form: str = "form", extra_zones=None):
-    zones = [
-        _zone("001", [("a", ark, None)]),
-        _zone("140", [("m", mode, None), ("f", form, None), ("3", parent, None)]),
-        _zone("750", [("3", parent, None)]),
-    ]
-    zones.extend(extra_zones or [])
-    return json.dumps({"zones": zones}, ensure_ascii=False)
-
-
 def _controlled_value(ark: str, label: str):
     zones = [
-        _zone("001", [("a", ark, None)]),
-        _zone("169", [("a", label, None)]),
+        create_zone("001", [("a", ark, None)]),
+        create_zone("169", [("a", label, None)]),
     ]
-    return json.dumps({"zones": zones}, ensure_ascii=False)
-
-
-def _cluster_zone(target: str, *, note: str = "Clusterisation manuelle", affected: str = "created"):
-    suffix = "a" if note.strip().lower() == "clusterisation script" else "3"
-    return _zone("90F", [("q", note, affected), (suffix, target, affected)], affected)
-
-
-def _adaptation_zone(target: str, *, qualifier: str, affected: str = "created"):
-    return _zone("552", [("q", qualifier, affected), ("3", target, affected)], affected)
+    from data_curation.models import Intermarc
+    return Intermarc(zones=zones).to_json_string()
 
 
 def _build_dataset(records, name: str | None = None):
@@ -210,3 +179,48 @@ def test_anchor_swap_drops_self_adaptation():
         z.get("code") == "552" and any(sz.get("valeur") == HAS_ADAPT_ARK for sz in z.get("sousZones", []) if sz.get("code") == "552$q")
         for z in w2_zones
     )
+
+def test_expression_anchor_swap_moves_cluster_4_expressions():
+    records = [
+        {"id": "w1", "type": "Oeuvre", "intermarc": _work_intermarc("ark:/12148/w1", "Work One")},
+        {"id": "e1", "type": "Expression", "intermarc": _expression_intermarc("ark:/12148/e1", "ark:/12148/w1")},
+        {"id": "e2", "type": "Expression", "intermarc": _expression_intermarc("ark:/12148/e2", "ark:/12148/w1")},
+        {"id": "e3", "type": "Expression", "intermarc": _expression_intermarc("ark:/12148/e3", "ark:/12148/w1")},
+        {"id": "e4", "type": "Expression", "intermarc": _expression_intermarc("ark:/12148/e4", "ark:/12148/w1")},
+    ]
+    dataset_id = _build_dataset(records, "anchor-swap-expression-4")
+
+    # Cluster E2, E3, E4 under E1
+    anchor_extra = [
+        _cluster_zone("ark:/12148/e2"),
+        _cluster_zone("ark:/12148/e3"),
+        _cluster_zone("ark:/12148/e4"),
+    ]
+    anchor_im = _expression_intermarc("ark:/12148/e1", "ark:/12148/w1", extra_zones=anchor_extra)
+    db.update_record(dataset_id, "e1", type_raw="Expression", intermarc_json=anchor_im)
+
+    # Swap anchor from E1 to E2
+    db.swap_cluster_anchor(dataset_id, anchor_id="e1", target_id="e2")
+
+    records_after = {rec["id"]: rec for rec in db.load_records(dataset_id)}
+    e1_zones = json.loads(records_after["e1"]["intermarc"])["zones"]
+    e2_zones = json.loads(records_after["e2"]["intermarc"])["zones"]
+    e3_zones = json.loads(records_after["e3"]["intermarc"])["zones"]
+    e4_zones = json.loads(records_after["e4"]["intermarc"])["zones"]
+
+    # E1 should not have 90F
+    assert not any(z.get("code") == "90F" for z in e1_zones)
+    
+    # E3 and E4 should not have 90F (they are targets)
+    assert not any(z.get("code") == "90F" for z in e3_zones)
+    assert not any(z.get("code") == "90F" for z in e4_zones)
+
+    # E2 should be anchor and point to E1, E3, E4
+    targets = {
+        sz.get("valeur")
+        for z in e2_zones
+        if z.get("code") == "90F"
+        for sz in z.get("sousZones", [])
+        if sz.get("code") in {"90F$3", "90F$a"}
+    }
+    assert targets == {"ark:/12148/e1", "ark:/12148/e3", "ark:/12148/e4"}

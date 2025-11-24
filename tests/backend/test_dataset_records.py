@@ -8,9 +8,6 @@ if str(ROOT) not in sys.path:
 
 from data_curation.api import db, datasets  # noqa: E402
 
-pytest_plugins = ["data_curation.tests.test_cluster_guards"]
-
-
 def test_dataset_stats_and_records_have_intermarc(dataset_builder):
     dataset_id = dataset_builder("records-visible")
 

@@ -1,6 +1,6 @@
 """Facade exposing Oxigraph storage helpers for the Vendange API.
 
-This module now delegates to smaller modules:
+This module delegates to smaller modules:
 - db_store: low-level store/cache helpers
 - db_ingest: CSV ingestion and record quad builders
 - db_guards: clustering guardrails and record updates

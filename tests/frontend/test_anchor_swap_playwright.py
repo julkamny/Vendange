@@ -2,6 +2,7 @@ import csv
 import io
 import json
 import re
+from uuid import uuid4
 
 import pytest
 import requests
@@ -47,6 +48,7 @@ def _expr_im(ark: str, parent: str, extra=None) -> str:
 
 
 def _build_dataset() -> str:
+    dataset_title = f"anchor-swap-playwright-{uuid4().hex[:8]}"
     rows = [
         {"id": "w1", "type": "Oeuvre", "intermarc": _work_im("ark:/w1", "Work One")},
         {"id": "w2", "type": "Oeuvre", "intermarc": _work_im("ark:/w2", "Work Two")},
@@ -73,7 +75,7 @@ def _build_dataset() -> str:
     resp = requests.post(
         f"{API_BASE}/api/datasets",
         files={"file": ("dataset.csv", buf.getvalue().encode("utf-8"), "text/csv")},
-        data={"title": "anchor-swap-playwright"},
+        data={"title": dataset_title},
         timeout=10,
     )
     resp.raise_for_status()

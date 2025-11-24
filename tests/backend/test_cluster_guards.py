@@ -12,7 +12,7 @@ from .utils import (
     _work_intermarc as base_work_intermarc,
     _expression_intermarc as base_expression_intermarc,
     _cluster_zone,
-    WORKS, EXPRESSIONS, MANIFESTATIONS
+    WORKS, EXPRESSIONS
 )
 
 # Wrappers to keep test code concise and matching original structure

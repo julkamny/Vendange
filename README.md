@@ -38,6 +38,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - End-to-end guards between the React UI and FastAPI are covered in `data_curation/tests/test_cluster_guards.py`. Run them with `uv run pytest data_curation/tests/test_cluster_guards.py`.
 - The tests spin up fresh Oxigraph stores under `data_curation/api/datasets/<prefix>-<uuid>` (work/expression/manifestation fixtures with 150/140/245/750/740 fields) and **intentionally leave them on disk** for inspection after a run.
 - If you only need linting for the API layer while avoiding older exploratory notebooks, use `uv run ruff check data_curation/api data_curation/tests`.
+- Playwright E2E coverage includes agent right-click clustering (`tests/frontend/test_agent_context_menu.py`), which exercises the Agents tab on the `agent-lifecycle` dataset.
 
 4) Running data curation operations
 - To launch the FastAPI server in `data_curation/api`: `uv run fastapi dev data_curation/api/app.py`. See below for explanations.

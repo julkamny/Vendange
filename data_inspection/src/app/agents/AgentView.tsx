@@ -922,22 +922,24 @@ export function AgentView({
             })
           }
 
-        <WorkspaceContextMenu
-          position={contextMenu.position}
-          openLabel={t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })}
-          openDetachedLabel={t('workspace.openInDetachedWindow', {
-            defaultValue: 'Open in detached workspace window',
-          })}
-          extraActions={extraActions}
-          onOpen={() => {
-            openRecord(contextMenu.record)
-            setContextMenu(null)
-          }}
-          onOpenDetached={() => {
-            openRecord(contextMenu.record, { detach: true })
-            setContextMenu(null)
-          }}
-        />
+          return (
+            <WorkspaceContextMenu
+              position={contextMenu.position}
+              openLabel={t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })}
+              openDetachedLabel={t('workspace.openInDetachedWindow', {
+                defaultValue: 'Open in detached workspace window',
+              })}
+              extraActions={extraActions}
+              onOpen={() => {
+                openRecord(contextMenu.record)
+                setContextMenu(null)
+              }}
+              onOpenDetached={() => {
+                openRecord(contextMenu.record, { detach: true })
+                setContextMenu(null)
+              }}
+            />
+          )
         })()
       ) : null}
       {pendingClusterTarget ? (

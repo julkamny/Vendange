@@ -42,8 +42,9 @@ def _controlled_value(ark: str, label: str):
 
 
 def _build_dataset(records, name: str | None = None):
-    dataset_id = name or f"anchor-swap-{uuid4().hex[:8]}"
-    datasets.ensure_dataset(dataset_id, title=dataset_id)
+    suffix = uuid4().hex[:8]
+    dataset_id = f"{name}-{suffix}" if name else f"anchor-swap-{suffix}"
+    datasets.ensure_dataset(dataset_id, title=name)
     db.ingest_csv(_records_to_csv_bytes(records), dataset_id)
     return dataset_id
 

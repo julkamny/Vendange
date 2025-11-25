@@ -746,6 +746,8 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
                 onOpenDetachedTab={openDetachedTabWithState}
                 onOpenAgentTab={openAgentTabWithState}
                 onOpenAgentDetachedTab={openAgentDetachedTabWithState}
+                sharedPendingManifestationId={pendingManifestationId}
+                setSharedPendingManifestationId={setPendingManifestationId}
               />
             )
             : null,
@@ -883,6 +885,8 @@ type DetachedWorkspacePortalProps = {
   onOpenDetachedTab: (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
   onOpenAgentTab: (initializer: (base: AgentTabState) => AgentTabState) => void
   onOpenAgentDetachedTab: (initializer: (base: AgentTabState) => AgentTabState) => void
+  sharedPendingManifestationId?: string | null
+  setSharedPendingManifestationId?: (next: string | null) => void
 }
 
 function DetachedWorkspacePortal({
@@ -896,6 +900,8 @@ function DetachedWorkspacePortal({
   onOpenDetachedTab,
   onOpenAgentTab,
   onOpenAgentDetachedTab,
+  sharedPendingManifestationId,
+  setSharedPendingManifestationId,
 }: DetachedWorkspacePortalProps) {
   if (!container) return null
   return createPortal(
@@ -915,8 +921,8 @@ function DetachedWorkspacePortal({
         onOpenDetachedTab={onOpenDetachedTab}
         onOpenAgentTab={onOpenAgentTab}
         onOpenAgentDetachedTab={onOpenAgentDetachedTab}
-        sharedPendingManifestationId={pendingManifestationId}
-        setSharedPendingManifestationId={setPendingManifestationId}
+        sharedPendingManifestationId={sharedPendingManifestationId}
+        setSharedPendingManifestationId={setSharedPendingManifestationId}
       />
     </div>,
     container,

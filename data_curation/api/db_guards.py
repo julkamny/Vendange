@@ -17,19 +17,6 @@ from . import datasets
 from ..models import Intermarc
 from ..utils.text_norm import fold_diacritics
 
-
-def _ensure_manual_cluster_flags(intermarc: Intermarc) -> None:
-    for zone in intermarc.get_zone("90F"):
-        note = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$q"), None)
-        if not note or str(note).strip().lower() != "clusterisation manuelle":
-            continue
-        if not zone.affected_by_curation:
-            zone.affected_by_curation = "manual"
-        for sub in zone.sousZones:
-            if not sub.affected_by_curation:
-                sub.affected_by_curation = "manual"
-
-
 def _is_agent_type(type_raw: str) -> bool:
     normalized = fold_diacritics(type_raw).strip().lower()
     return normalized in {"identite publique de personne", "collectivite", "famille"}
@@ -37,7 +24,7 @@ def _is_agent_type(type_raw: str) -> bool:
 
 def _is_work_type(type_raw: str) -> bool:
     normalized = fold_diacritics(type_raw).strip().lower()
-    return normalized == "oeuvre" or normalized == "work"
+    return normalized in {"work","œuvre", "oeuvre"}
 
 
 def _is_expression_type(type_raw: str) -> bool:

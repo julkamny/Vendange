@@ -173,7 +173,7 @@ def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> L
 
         kind_anchor = anchor_entity.type_entite.strip().lower()
         kind_target = target_entity.type_entite.strip().lower()
-        if not (kind_anchor.startswith("oeuvre") or kind_anchor == "work" or kind_anchor.startswith("expression")):
+        if not (kind_anchor in {"œuvre","oeuvre","work","expression"}):
             raise ValueError("Le changement d'ancre n'est possible que pour les œuvres ou les expressions.")
         if kind_anchor != kind_target:
             raise ValueError("Ancre et cible doivent être du même type.")
@@ -195,7 +195,7 @@ def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> L
             _is_expression_anchor,
         )
 
-        if kind_anchor.startswith("oeuvre") or kind_anchor == "work":
+        if kind_anchor in {"œuvre","oeuvre","work"}:
             cluster_targets = _extract_work_cluster_targets(anchor_entity.intermarc)
             if target_ark not in cluster_targets:
                 raise ValueError("La cible n'appartient pas au cluster de l'ancre.")
@@ -211,7 +211,7 @@ def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> L
         updated_anchor, updated_target, adaptation_targets = _rewrite_cluster_fields(
             anchor_entity,
             target_entity,
-            link_has_adaptation_ark=link_has_adaptation_ark if kind_anchor.startswith("oeuvre") or kind_anchor == "work" else None,
+            link_has_adaptation_ark=link_has_adaptation_ark if kind_anchor in {"œuvre","oeuvre","work"} else None,
         )
 
         updated_backlinks: List[Entity] = []

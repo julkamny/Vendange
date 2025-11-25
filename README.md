@@ -7,7 +7,7 @@ _Vérification Experte, Nettoyage et Dédoublonnage des Arbres NOEMI par Grappag
 While the ideas behind Vendange's clustering operations and its UI are the result of human reflexion, the code was produced by gpt-5-codex in codex cli.
 
 ### Overview
-- Python CLI to run modular data-curation operations directly against the Oxigraph SPARQL store for IFLA-LRM entities (with an optional helper flag to ingest fixture CSVs during development).
+- Python CLI to run modular data-curation operations directly against the Oxigraph SPARQL store for IFLA-LRM entities.
 - Web UI to review, approve/reject/alter merges and export a curated dataset.
 
 ### Getting Started
@@ -45,11 +45,10 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - Deep-linking: `http://localhost:5173/<dataset_slug>` opens the inspection view directly for that dataset (dashboard is skipped). Opening a dataset from the dashboard also updates the URL to `/dataset_slug`; hitting back or clearing returns to `/`.
 
 ### Debug & Fixtures
-- **Interactive variant debugging** — set `TITLE_MATCH_DEBUGGER=1` when running the CLI (typically with `-vv`) to drop into `pdb` right before NLP cleaning.
 - **Styled debug logs** — use `-vv` to unlock Rich-powered logs: the CLI renders colourful panels, syntax-highlighted titles, and tables for matched variants and removed segments.
 
 ### Review in the Web UI
-- The inspection view keeps a single in-memory copy of the dataset; pristine snapshots are captured per record only when you edit it, keeping load time and memory footprint low while still allowing per-record reset.
+- Pristine snapshots are captured per record only when you edit it, keeping load time and memory footprint low while still allowing per-record reset.
 - Three tab kinds are available from the “+” dropdown: WEM workspace, Agents workspace (people/collectives/families), and SPARQL query tabs; the dropdown supports keyboard navigation (Enter/Space to open, arrows to move, Escape to close) and closes reliably on outside clicks.
 - The UI detects clusters by scanning for `90F$q = "Clusterisation script"` in works.
 - Key information about entities is displayed in badges:
@@ -87,9 +86,6 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - Sparnatural reads a SHACL profile. Update `data_inspection/src/app/sparql/sparnaturalConfig.ts` when you need to expose a new node/property.
 - The builder also surfaces agent entities (person / collective / famille) with the 700/701/702/710/711/712 links, lets you pick relator codes from the controlled lists, and hides ARKs for agents in favour of their Intermarc label.
 - Vendange stores each record in its own named graph. The builder (and manual execution) rewrite Sparnatural output into one `GRAPH` block per entity (`GRAPH ?g_manifestation { … }`, `GRAPH ?g_expression { … }`, etc.) so W–E–M traversals span the right graphs out of the box. For custom logic you can still provide explicit `GRAPH` clauses—auto-wrapping steps aside as soon as it detects one.
-
-### Design Notes
-- UI performs all actions client-side; no network dependencies, but relies on FastAPI for the SPARQL store and query endpoint.
 
 ### Installation
 On MacOS Monterey 12.6.7, use Python 3.11 to install spaCy:

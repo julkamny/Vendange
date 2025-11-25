@@ -10,6 +10,7 @@
 ## Tests
 
 - Built with Playwright Pytest, located in /tests, run them once you've finished working.
+- The FastAPI backend is running at `http://127.0.0.1:8000`, the frontend is available at `http://localhost:5173/`.
 
 ## Tips
 

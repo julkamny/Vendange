@@ -118,7 +118,6 @@ export function WorkspaceViewLayout(props: Props) {
     renderListPanel,
     listPanelRef,
     detailsPanelRef,
-    handleListScroll,
     handleDetailsScroll,
     handleRecordContextMenu,
     handleArkClick,
@@ -252,7 +251,16 @@ export function WorkspaceViewLayout(props: Props) {
         </header>
         <div className="workspace-view__body">
           {!listCollapsed ? (
-            <aside className="workspace-panel workspace-panel--list" ref={listPanelRef} onScroll={handleListScroll}>
+            <aside
+              className="workspace-panel workspace-panel--list"
+              ref={listPanelRef}
+              style={{
+                height: 'calc(100vh - var(--app-sticky-offset) - 1.5rem)',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
               {renderListPanel(state.viewMode)}
             </aside>
           ) : null}

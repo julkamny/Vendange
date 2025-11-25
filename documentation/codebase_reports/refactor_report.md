@@ -99,6 +99,72 @@ sortedEntries.map(entry => ( ... ))
 
 ## 4. Roadmap
 
-1.  **Immediate:** Install `react-virtuoso` and refactor `WorkListPanel` to use `<Virtuoso>`.
-2.  **Short-term:** Analyze `detectClusters` logic. If it depends purely on the graph structure (which it seems to), port it to Python.
-3.  **Medium-term:** Implement `GET /clusters` endpoint with pagination. Refactor `AppDataContext` to use React Query.
+
+
+### Phase 1: Stop the Bleeding (Frontend Rendering) - **COMPLETED**
+
+- [x] **Virtualization:** Implemented `react-virtuoso` in `WorkListPanel.tsx`.
+
+- [x] **Scroll Container Fix:** Modified `WorkspaceViewLayout` to handle virtualization scroll correctly.
+
+- [x] **Optimized Rendering:** The UI now handles 5,000+ items without DOM overload.
+
+
+
+### Phase 2: Architectural Shift (The "Real" Fix)
+
+*Goal: Enable scaling to 40k+ entities by moving clustering to the backend.*
+
+
+
+#### Step 1: Backend - Cluster-Oriented API
+
+Instead of sending raw records, the backend should serve pre-calculated clusters.
+
+
+
+1.  **Define Data Models (`data_curation/api/models.py`)**:
+
+    -   Create Pydantic models matching the frontend `Cluster`, `ClusterItem`, `ExpressionItem` structures.
+
+2.  **Implement Clustering Logic (`data_curation/api/clustering.py`)**:
+
+    -   **Strategy:** Do not replicate the $O(N)$ loop in Python. Use SPARQL to fetch "Top Level Works" (Anchors).
+
+    -   **Query 1 (Pagination):** Select distinct `?work` where `?work` is a Work AND `?work` is NOT a target of a clustering `90F` field. Apply `LIMIT` / `OFFSET`.
+
+    -   **Query 2 (Hydration):** For the retrieved works, fetch their `90F` targets (clustered works), their expressions (via `750` backlinks), and manifestations.
+
+3.  **New Endpoint**:
+
+    -   `GET /api/datasets/{id}/clusters?page=1&limit=50`
+
+    -   Returns: `{ items: Cluster[], total: number }`
+
+
+
+#### Step 2: Frontend - Data Fetching
+
+1.  **React Query Integration**:
+
+    -   Replace `useAppData`'s `curated` array with `useInfiniteQuery` calling the new endpoint.
+
+    -   Update `WorkListPanel` to use `Virtuoso`'s `endReached` prop to trigger `fetchNextPage`.
+
+
+
+#### Step 3: Detail View on Demand
+
+1.  **Single Record Fetch**:
+
+    -   When a user clicks a work/expression to view details, check if the full Intermarc is already loaded.
+
+    -   If not (or if only partial data is available), call `GET /api/datasets/{id}/records/{record_id}`.
+
+
+
+---
+
+
+
+## 3. Proposed Technology Stack

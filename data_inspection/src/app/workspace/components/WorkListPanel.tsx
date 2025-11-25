@@ -1,4 +1,5 @@
-import { useMemo, type MouseEvent, useCallback } from 'react'
+import { useMemo, type MouseEvent, useCallback, type UIEvent } from 'react'
+import { Virtuoso } from 'react-virtuoso'
 import type { Cluster, RecordRow } from '../../types'
 import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
@@ -18,6 +19,7 @@ type WorkListPanelProps = {
   onToggleWork: (payload: { clusterId: string; workArk: string; accepted: boolean }) => void
   pendingClusterSourceId?: string | null
   onCancelPendingCluster?: () => void
+  onScroll?: (event: UIEvent<HTMLElement>) => void
 }
 
 export function WorkListPanel({
@@ -29,6 +31,7 @@ export function WorkListPanel({
   onToggleWork,
   pendingClusterSourceId,
   onCancelPendingCluster,
+  onScroll,
 }: WorkListPanelProps) {
   const { t, language } = useTranslation()
   const { originalIndexes } = useAppData()
@@ -104,8 +107,12 @@ export function WorkListPanel({
   }
 
   return (
-    <div className="work-list-panel">
-      {sortedEntries.map(entry => {
+    <Virtuoso
+      style={{ height: '100%', width: '100%' }}
+      className="work-list-panel"
+      data={sortedEntries}
+      onScroll={(e) => onScroll?.(e as unknown as UIEvent<HTMLElement>)}
+      itemContent={(_, entry) => {
         if (entry.kind === 'cluster') {
           const { cluster } = entry
           const anchorCounts = computeWorkCounts(cluster, cluster.anchorArk)
@@ -270,7 +277,7 @@ export function WorkListPanel({
             </div>
           </div>
         )
-      })}
-    </div>
+      }}
+    />
   )
 }

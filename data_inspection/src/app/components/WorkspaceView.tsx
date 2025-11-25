@@ -386,98 +386,103 @@ export function WorkspaceView({
           onToggleWork={({ clusterId, workArk, accepted }) => setWorkAccepted(clusterId, workArk, accepted)}
           pendingClusterSourceId={pendingClusterSourceId}
           onCancelPendingCluster={cancelPendingCluster}
+          onScroll={handleListScroll}
         />
       )
     }
     if (viewMode === 'expressions') {
       return (
-        <ExpressionPanel
-          cluster={workspace.activeCluster}
-          state={state}
-          onSelectExpression={({
-            expressionId,
-            expressionArk,
-            workArk,
-            anchorId,
-          }: {
-            expressionId: string
-            expressionArk?: string
-            workArk?: string
-            anchorId?: string
-          }) =>
-            onStateChange(prev => {
-              return {
-                ...prev,
-                viewMode: 'expressions',
-                listScope: 'clusters',
-                activeExpressionAnchorId: anchorId ?? expressionId ?? null,
-                highlightedExpressionArk: expressionArk ?? null,
-                selectedEntity: {
-                  id: expressionId,
-                  source: 'curated',
-                  entityType: 'expression',
-                  workArk: workArk ?? undefined,
-                  expressionId,
-                  expressionArk,
-                },
-              }
-            })
-          }
-          onToggleExpression={({ anchorExpressionId, expressionArk, accepted }) => {
-            if (!workspace.activeCluster || workspace.activeClusterSource !== 'cluster') return
-            setExpressionAccepted(workspace.activeCluster.anchorId, anchorExpressionId, expressionArk, accepted)
-          }}
-          onOpenManifestations={({ expressionId, expressionArk, workArk, anchorId }) => {
-            onStateChange(prev => {
-              return {
-                ...prev,
-                viewMode: 'manifestations',
-                listScope: 'clusters',
-                activeExpressionAnchorId: anchorId ?? expressionId ?? null,
-                highlightedExpressionArk: expressionArk ?? null,
-                selectedEntity: {
-                  id: expressionId,
-                  source: 'curated',
-                  entityType: 'expression',
-                  workArk: workArk ?? undefined,
-                  expressionId,
-                  expressionArk,
-                },
-              }
-            })
-          }}
-          pendingClusterSourceId={pendingExpressionClusterSourceId}
-          onCancelPendingCluster={cancelPendingExpressionCluster}
-        />
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }} onScroll={handleListScroll}>
+          <ExpressionPanel
+            cluster={workspace.activeCluster}
+            state={state}
+            onSelectExpression={({
+              expressionId,
+              expressionArk,
+              workArk,
+              anchorId,
+            }: {
+              expressionId: string
+              expressionArk?: string
+              workArk?: string
+              anchorId?: string
+            }) =>
+              onStateChange(prev => {
+                return {
+                  ...prev,
+                  viewMode: 'expressions',
+                  listScope: 'clusters',
+                  activeExpressionAnchorId: anchorId ?? expressionId ?? null,
+                  highlightedExpressionArk: expressionArk ?? null,
+                  selectedEntity: {
+                    id: expressionId,
+                    source: 'curated',
+                    entityType: 'expression',
+                    workArk: workArk ?? undefined,
+                    expressionId,
+                    expressionArk,
+                  },
+                }
+              })
+            }
+            onToggleExpression={({ anchorExpressionId, expressionArk, accepted }) => {
+              if (!workspace.activeCluster || workspace.activeClusterSource !== 'cluster') return
+              setExpressionAccepted(workspace.activeCluster.anchorId, anchorExpressionId, expressionArk, accepted)
+            }}
+            onOpenManifestations={({ expressionId, expressionArk, workArk, anchorId }) => {
+              onStateChange(prev => {
+                return {
+                  ...prev,
+                  viewMode: 'manifestations',
+                  listScope: 'clusters',
+                  activeExpressionAnchorId: anchorId ?? expressionId ?? null,
+                  highlightedExpressionArk: expressionArk ?? null,
+                  selectedEntity: {
+                    id: expressionId,
+                    source: 'curated',
+                    entityType: 'expression',
+                    workArk: workArk ?? undefined,
+                    expressionId,
+                    expressionArk,
+                  },
+                }
+              })
+            }}
+            pendingClusterSourceId={pendingExpressionClusterSourceId}
+            onCancelPendingCluster={cancelPendingExpressionCluster}
+          />
+        </div>
       )
     }
     return (
-      <ManifestationPanel
-        cluster={workspace.activeCluster}
-        state={state}
-        pendingManifestationId={pendingManifestationRecord?.id ?? null}
-        onSelectManifestation={({
-          manifestationId,
-          expressionId,
-          expressionArk,
-        }: {
-          manifestationId: string
-          expressionId?: string
-          expressionArk?: string
-        }) =>
-          onStateChange(prev => ({
-            ...prev,
-            viewMode: 'manifestations',
-            selectedEntity: {
-              id: manifestationId,
-              source: 'curated',
-              entityType: 'manifestation',
-              expressionId,
-              expressionArk,
-            },
-          }))
-        }
-      />
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }} onScroll={handleListScroll}>
+        <ManifestationPanel
+          cluster={workspace.activeCluster}
+          state={state}
+          pendingManifestationId={pendingManifestationRecord?.id ?? null}
+          onSelectManifestation={({
+            manifestationId,
+            expressionId,
+            expressionArk,
+          }: {
+            manifestationId: string
+            expressionId?: string
+            expressionArk?: string
+          }) =>
+            onStateChange(prev => ({
+              ...prev,
+              viewMode: 'manifestations',
+              selectedEntity: {
+                id: manifestationId,
+                source: 'curated',
+                entityType: 'manifestation',
+                expressionId,
+                expressionArk,
+              },
+            }))
+          }
+        />
+      </div>
     )
   }
 

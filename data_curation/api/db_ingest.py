@@ -163,12 +163,10 @@ def _extract_rows(record: ParsedRecord) -> tuple[List[FieldRow], List[EdgeRow]]:
                         dst_id=None,
                     )
                 )
-        compact_value = None
-        if normalized_code in COMPACT_FIELD_CODES:
-            for sub in subfields:
-                if sub.raw_code == f"{zone_code}$a":
-                    compact_value = sub.value
-                    break
+        compact_value: Optional[str] = None
+        is_compact = normalized_code in COMPACT_FIELD_CODES
+        if is_compact:
+            compact_value = zone.field_compact_value
         fields.append(
             FieldRow(
                 node=field_node,

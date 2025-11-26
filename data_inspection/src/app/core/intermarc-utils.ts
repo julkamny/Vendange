@@ -4,6 +4,7 @@ export function cloneIntermarc(im: Intermarc): Intermarc {
   return {
     zones: im.zones.map(z => ({
       code: z.code,
+      fieldCompactValue: z.fieldCompactValue,
       affectedByCuration: z.affectedByCuration,
       sousZones: z.sousZones.map(sz => ({ code: sz.code, valeur: sz.valeur, affectedByCuration: sz.affectedByCuration })),
     })),

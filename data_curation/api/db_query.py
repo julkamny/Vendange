@@ -8,6 +8,7 @@ from pyoxigraph import BlankNode, Literal, NamedNode, QuerySolution, QuerySoluti
 from .db_shared import (
     AFFECTED_BY_CURATION_PROP,
     FIELD_CODE_PROP,
+    FIELD_COMPACT_VALUE_PROP,
     HAS_FIELD,
     HAS_SUBFIELD,
     PROP_RECORD_ID,
@@ -107,11 +108,13 @@ def _load_record_from_store(store: Store, subject: NamedNode, graph: NamedNode) 
     for quad in store.quads_for_pattern(subject, HAS_FIELD, None, None):
         field = quad.object
         fields.append(field)
-    fields = sorted(fields, key=lambda node: field_sort_key(record_id_from_subject(graph.value), node))
+    record_id_for_sort = record_id_from_subject(subject.value)
+    fields = sorted(fields, key=lambda node: field_sort_key(record_id_for_sort, node))
     zones = []
     for field in fields:
         code = literal_first_value(store, field, FIELD_CODE_PROP, None) or ""
         affected_by_curation = literal_first_value(store, field, AFFECTED_BY_CURATION_PROP, None)
+        compact_value = literal_first_value(store, field, FIELD_COMPACT_VALUE_PROP, None)
         subfields = []
         for sub_quad in store.quads_for_pattern(field, HAS_SUBFIELD, None, None):
             sub = sub_quad.object
@@ -133,6 +136,7 @@ def _load_record_from_store(store: Store, subject: NamedNode, graph: NamedNode) 
             {
                 "code": code,
                 "sousZones": zone_subs,
+                **({"fieldCompactValue": compact_value} if compact_value is not None else {}),
                 **({"affectedByCuration": affected_by_curation} if affected_by_curation else {}),
             }
         )

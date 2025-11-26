@@ -38,6 +38,7 @@ class SousZone:
 class Zone:
     code: str
     sousZones: List[SousZone] = field(default_factory=list)
+    field_compact_value: Optional[str] = None
     affected_by_curation: Optional[str] = None
 
     @staticmethod
@@ -52,6 +53,7 @@ class Zone:
                 )
                 for sz in d.get("sousZones", [])
             ],
+            field_compact_value=d.get("fieldCompactValue"),
             affected_by_curation=d.get("affectedByCuration"),
         )
 
@@ -67,6 +69,8 @@ class Zone:
                 for sz in self.sousZones
             ],
         }
+        if self.field_compact_value is not None:
+            data["fieldCompactValue"] = self.field_compact_value
         if self.affected_by_curation:
             data["affectedByCuration"] = self.affected_by_curation
         return data

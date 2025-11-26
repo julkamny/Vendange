@@ -12,12 +12,17 @@ if str(ROOT) not in sys.path:
 
 from data_curation.models import Intermarc, Zone, SousZone
 
-def create_zone(code: str, subfields: List[Tuple[str, str, Optional[str]]], affected: Optional[str] = None) -> Zone:
+def create_zone(
+    code: str,
+    subfields: List[Tuple[str, str, Optional[str]]],
+    affected: Optional[str] = None,
+    compact_value: Optional[str] = None,
+) -> Zone:
     sous_zones = []
     for suffix, value, sub_aff in subfields:
         sz = SousZone(code=f"{code}${suffix}", valeur=value, affected_by_curation=sub_aff)
         sous_zones.append(sz)
-    return Zone(code=code, sousZones=sous_zones, affected_by_curation=affected)
+    return Zone(code=code, sousZones=sous_zones, field_compact_value=compact_value, affected_by_curation=affected)
 
 def create_intermarc_json(zones: List[Zone]) -> str:
     im = Intermarc(zones=zones)

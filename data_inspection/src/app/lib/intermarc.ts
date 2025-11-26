@@ -2,8 +2,15 @@ import type { RecordRow } from '../types'
 import { CLUSTER_NOTE, MANUAL_CLUSTER_NOTE } from '../core/constants'
 
 export type SousZone = { code: string; valeur: string; affectedByCuration?: string }
-export type Zone = { code: string; sousZones: SousZone[]; affectedByCuration?: string }
+export type Zone = {
+  code: string
+  sousZones: SousZone[]
+  fieldCompactValue?: string
+  affectedByCuration?: string
+}
 export type Intermarc = { zones: Zone[] }
+
+export const COMPACT_FIELD_CODES = new Set(['990', '907', '90H', '901', '991'])
 
 const ARK_PREFIX = 'ark:/'
 
@@ -197,11 +204,17 @@ export function parseIntermarc(s: string): Intermarc {
     const obj = JSON.parse(cleaned)
     if (!obj || !Array.isArray(obj.zones)) throw new Error('Invalid intermarc')
     type RawSubZone = { code?: unknown; valeur?: unknown; affectedByCuration?: unknown }
-    type RawZone = { code?: unknown; sousZones?: RawSubZone[]; affectedByCuration?: unknown }
+    type RawZone = {
+      code?: unknown
+      sousZones?: RawSubZone[]
+      fieldCompactValue?: unknown
+      affectedByCuration?: unknown
+    }
     const rawZones = obj.zones as RawZone[]
     return {
       zones: rawZones.map(z => ({
         code: String(z.code ?? ''),
+        fieldCompactValue: z.fieldCompactValue != null ? String(z.fieldCompactValue) : undefined,
         affectedByCuration: typeof z.affectedByCuration === 'string' ? z.affectedByCuration : undefined,
         sousZones: (Array.isArray(z.sousZones) ? z.sousZones : []).map(sz => ({
           code: String(sz.code ?? ''),
@@ -241,6 +254,21 @@ export async function prettyPrintIntermarc(
     const marks: PrettyIntermarcLineMark[] = []
     if (lineText.length) {
       marks.push({ className: `intermarc-zone${curationClass(z.affectedByCuration)}`, from: 0, to: lineText.length })
+    }
+
+    const compactValue = z.fieldCompactValue
+    if (compactValue !== undefined && compactValue !== null) {
+      if (lineText.length) lineText += ' '
+      const compactStart = lineText.length
+      lineText += compactValue
+      const highlight = curationClass(z.affectedByCuration)
+      marks.push({
+        className: `intermarc-subfield intermarc-compact-value${highlight}`,
+        from: compactStart,
+        to: lineText.length,
+      })
+      lineEntries.push({ text: lineText, marks })
+      continue
     }
 
     for (const sz of z.sousZones) {
@@ -302,7 +330,10 @@ export function parsePrettyPrintedIntermarc(text: string): Intermarc {
     const zoneCode = match[1]
     const remainder = match[2]?.trim() ?? ''
     const sousZones: SousZone[] = []
-    if (remainder) {
+    let fieldCompactValue: string | undefined
+    if (remainder && COMPACT_FIELD_CODES.has(zoneCode) && !remainder.includes('$')) {
+      fieldCompactValue = remainder
+    } else if (remainder) {
       const segments = remainder.split(' $')
       segments.forEach((segment, index) => {
         const cleaned = (index === 0 ? segment : `$${segment}`).trim()
@@ -319,7 +350,7 @@ export function parsePrettyPrintedIntermarc(text: string): Intermarc {
         sousZones.push({ code: normalizedCode, valeur: valueSegment })
       })
     }
-    zones.push({ code: zoneCode, sousZones })
+    zones.push({ code: zoneCode, sousZones, ...(fieldCompactValue !== undefined ? { fieldCompactValue } : {}) })
   }
   return { zones }
 }

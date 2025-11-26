@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from datetime import date
 from pathlib import Path
 
+from data_curation.api.db_shared import get_controlled_ark
+from data_curation.api.db_store import get_store_locked
 from data_curation.authority.nes_service import NameExpansionService
 from data_curation.models import AgentResponsibility, Entity, Intermarc, Zone, SousZone
 from data_curation.curation.adaptation import (
@@ -114,22 +116,6 @@ def _existing_cluster_targets(intermarc: Intermarc) -> Set[str]:
         if ark:
             targets.add(ark)
     return targets
-
-
-def _build_controlled_value_lookup(entities: List[Entity] | None) -> Dict[str, str]:
-    lookup: Dict[str, str] = {}
-    if not entities:
-        return lookup
-    for entity in entities:
-        if entity.type_entite.strip().lower() != "valeur contrôlée":
-            continue
-        label_values = entity.intermarc.get_subfield_values("169", "a")
-        ark = entity.ark()
-        if not ark or not label_values:
-            continue
-        label = label_values[0]
-        lookup.setdefault(label, ark)
-    return lookup
 
 
 def _build_expression_and_manifestation_index(
@@ -257,6 +243,7 @@ def _normalized_title_key(entity: Entity, nes: NameExpansionService) -> str:
 
 
 def cluster_works_by_title_responsibilities(
+    dataset_id: str,
     works: List[Entity],
     all_entities: List[Entity] | None = None,
 ) -> Tuple[List[Entity], List[ClusterResult]]:
@@ -313,14 +300,19 @@ def cluster_works_by_title_responsibilities(
     dependency_graph_logged_manifestations: Set[str] = set()
     work_oldest_year_cache: Dict[str, Optional[int]] = {}
 
-    controlled_lookup = _build_controlled_value_lookup(all_entities)
+    source_creator_label = "Créateur de l'œuvre source (Auteur du texte) / Créatrice de l'œuvre source (Autrice du texte)"
+    store = get_store_locked(dataset_id)
+    adaptation_role_ark = get_controlled_ark(store, "Responsable de l'adaptation")
+    source_creator_role_ark = get_controlled_ark(store, source_creator_label)
+    link_has_adaptation_ark = get_controlled_ark(store, "A pour adaptation")
+    link_is_adaptation_of_ark = get_controlled_ark(store, "Est une adaptation de")
+
+    # Synthesize a minimal lookup for canonical relator builder
+    controlled_lookup: Dict[str, str] = {}
+    if source_creator_role_ark:
+        controlled_lookup[source_creator_label] = source_creator_role_ark
+    
     canonical_relator_lookup = build_canonical_relator_lookup(controlled_lookup)
-    adaptation_role_ark = controlled_lookup.get("Responsable de l'adaptation")
-    source_creator_role_ark = controlled_lookup.get(
-        "Créateur de l'œuvre source (Auteur du texte) / Créatrice de l'œuvre source (Autrice du texte)"
-    )
-    link_has_adaptation_ark = controlled_lookup.get("A pour adaptation")
-    link_is_adaptation_of_ark = controlled_lookup.get("Est une adaptation de")
 
     expressions_by_work, manifestations_by_expression = _build_expression_and_manifestation_index(all_entities)
 

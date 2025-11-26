@@ -53,7 +53,7 @@ def run_cluster_operation(
 ) -> List[ClusterResult]:
     entities = db.load_entities(dataset_id)
     works = [e for e in entities if _is_work(e)]
-    updated_works, clusters = cluster_works_by_title_responsibilities(works, entities)
+    updated_works, clusters = cluster_works_by_title_responsibilities(dataset_id, works, entities)
 
     _persist_entities(dataset_id, updated_works)
     db.compact_dataset(dataset_id)
@@ -74,7 +74,7 @@ def run_cluster_with_expression_operation(
     works = [e for e in entities if _is_work(e)]
     expressions = [e for e in entities if _is_expression(e)]
 
-    updated_works, work_clusters = cluster_works_by_title_responsibilities(works, entities)
+    updated_works, work_clusters = cluster_works_by_title_responsibilities(dataset_id, works, entities)
     _persist_entities(dataset_id, updated_works)
 
     updated_expressions, expression_clusters = cluster_expressions_by_051_and_041(expressions, work_clusters)

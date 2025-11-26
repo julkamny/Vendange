@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Iterable, List, Optional, Tuple
 from urllib.parse import quote
 
-from pyoxigraph import BlankNode, DefaultGraph, Literal, NamedNode, Quad
+from pyoxigraph import BlankNode, DefaultGraph, Literal, NamedNode, Quad, Store
 
 from ..models import Intermarc
 from ..utils.text_norm import fold_diacritics
@@ -223,3 +223,33 @@ def record_id_from_subject(subject_iri: str) -> str:
     if not subject_iri.startswith(BASE_ENTITY_NS):
         return subject_iri
     return subject_iri[len(BASE_ENTITY_NS) :]
+
+
+def get_controlled_ark(store: Store, label: str) -> Optional[str]:
+    label_literal = Literal(label)
+    for q_sub in store.quads_for_pattern(None, SUBFIELD_VALUE_PROP, label_literal, None):
+        sub_node = q_sub.subject
+        if literal_first_value(store, sub_node, SUBFIELD_CODE_PROP) != "169sa":
+            continue
+
+        q_field = next(store.quads_for_pattern(None, HAS_SUBFIELD, sub_node, None), None)
+        if not q_field:
+            continue
+        field_node = q_field.subject
+
+        if literal_first_value(store, field_node, FIELD_CODE_PROP) != "169":
+            continue
+
+        q_rec = next(store.quads_for_pattern(None, HAS_FIELD, field_node, None), None)
+        if not q_rec:
+            continue
+        subject_node = q_rec.subject
+
+        type_val = literal_first_value(store, subject_node, PROP_TYPE_RAW)
+        if not type_val or "valeur contrôlée" not in type_val.lower():
+            continue
+
+        ark = literal_first_value(store, subject_node, PROP_ARK)
+        if ark:
+            return ark
+    return None

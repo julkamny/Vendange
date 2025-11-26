@@ -14,6 +14,7 @@ from .db_shared import (
     PROP_TYPE_RAW,
     SUBFIELD_CODE_PROP,
     SUBFIELD_VALUE_PROP,
+    get_controlled_ark,
     literal_first_value,
 )
 from .db_store import _STORE_LOCK, clear_record_graph, get_store_locked, load_ark_index
@@ -170,36 +171,6 @@ def _rewrite_cluster_fields(
     return updated_anchor, updated_target, adaptation_targets
 
 
-def _get_controlled_ark(store: Store, label: str) -> Optional[str]:
-    label_literal = Literal(label)
-    for q_sub in store.quads_for_pattern(None, SUBFIELD_VALUE_PROP, label_literal, None):
-        sub_node = q_sub.subject
-        if literal_first_value(store, sub_node, SUBFIELD_CODE_PROP) != "169sa":
-            continue
-
-        q_field = next(store.quads_for_pattern(None, HAS_SUBFIELD, sub_node, None), None)
-        if not q_field:
-            continue
-        field_node = q_field.subject
-
-        if literal_first_value(store, field_node, FIELD_CODE_PROP) != "169":
-            continue
-
-        q_rec = next(store.quads_for_pattern(None, HAS_FIELD, field_node, None), None)
-        if not q_rec:
-            continue
-        subject_node = q_rec.subject
-
-        type_val = literal_first_value(store, subject_node, PROP_TYPE_RAW)
-        if not type_val or "valeur contrôlée" not in type_val.lower():
-            continue
-
-        ark = literal_first_value(store, subject_node, PROP_ARK)
-        if ark:
-            return ark
-    return None
-
-
 def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> List[dict[str, str]]:
     with _STORE_LOCK:
         store = get_store_locked(dataset_id)
@@ -225,8 +196,8 @@ def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> L
             raise ValueError("Ancre et cible doivent avoir un ARK.")
 
         ark_index = load_ark_index(store)
-        link_has_adaptation_ark = _get_controlled_ark(store, "A pour adaptation")
-        link_is_adaptation_of_ark = _get_controlled_ark(store, "Est une adaptation de")
+        link_has_adaptation_ark = get_controlled_ark(store, "A pour adaptation")
+        link_is_adaptation_of_ark = get_controlled_ark(store, "Est une adaptation de")
 
         from .db_guards import (
             _extract_work_cluster_targets,

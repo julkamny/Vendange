@@ -62,7 +62,7 @@ def _manifestation_intermarc(ark: str, expression: str, title: str, extra_zones:
     return create_intermarc_json(zones)
 
 def _cluster_zone(target: str, *, note: str = "Clusterisation manuelle", affected: str = "created", target_suffix: Optional[str] = None) -> Zone:
-    suffix = target_suffix or ("a" if note.strip().lower() == "clusterisation script" else "3")
+    suffix = "3"
     return create_zone("90F", [("q", note, affected), (suffix, target, affected)], affected)
 
 def _adaptation_zone(target: str, *, qualifier: str, affected: str = "created") -> Zone:

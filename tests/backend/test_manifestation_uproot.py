@@ -10,7 +10,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from data_curation.api import db, datasets
-from data_curation.curation.operations import _build_controlled_value_lookup
+from data_curation.api.db_shared import get_controlled_ark
+from data_curation.api.db_store import get_store_locked
 
 from .utils import (
     _expression_intermarc,
@@ -78,8 +79,8 @@ def test_manifestation_uproot_and_attach_updates_740_links():
     ]
     db.ingest_csv(_records_to_csv_bytes(rows), dataset_id)
 
-    lookup = _build_controlled_value_lookup(db.load_entities(dataset_id))
-    partial_ark = lookup.get("Partiellement")
+    store = get_store_locked(dataset_id)
+    partial_ark = get_controlled_ark(store, "Partiellement")
     assert partial_ark, "Expected controlled value for 'Partiellement'"
 
     current = next(rec for rec in db.load_records(dataset_id) if rec["id"] == "m1")

@@ -1,11 +1,12 @@
 ## Codebase hygiene & design
 
+- Strive to avoid introducing repetition in the codebase, reuse as much code as possible to implement what you've been asked.
 - We're not in production yet, we haven't deployed to users, so no need to handle legacy patterns, datasets and the like, just remove all dead code and abandoned implementations cautiously.
 - Update the README once you're done working to make sure it reflects the current state of the app.
-- Strive to avoid introducing repetition in the codebase, reuse as much code as possible to implement what you've been asked.
-- When a file gets too long (more than 500 LOC), break it down into smaller files. Don't allow a file to grow out of hand.
+- Strive not to add more LOC to a file if it's above the 500 ~ 600 limit, and whenever you have the occasion to extract from a large file (600 < LOC) pieces, chunks, functions, seize the opportunity to refactor.
+- Strive for DRY : don't repeat it yourself, better to import / refactor code to make it more general than to rewrite something that already exists.
 - Once you're done working, if you've touched files in the React app living in data_inspection, you need to execute `npm run lint`.
-- If you've touched files in the FastAPI Python back-end, use `uv run ruff check` and pytest.
+- If you've touched files in the FastAPI Python backend, use `uv run ruff check` and pytest tests/backend.
 
 ## Tests
 
@@ -18,8 +19,8 @@
 
 ## Databases
 
-- The searchable datasets uploaded by users are Oxigraph stores under `data_curation/api/datasets/`, created from user-provided CSVs of Intermarc records. A development sample lives in `sample_data/current_export.csv`.
-- The DB can be inspected with the Oxigraph CLI or `uv run pyoxigraph`, see [sparql_store.md](documentation/sparql_store.md)
+- The searchable datasets uploaded by users are Oxigraph stores under `data_curation/api/datasets/`, created from user-provided CSVs of Intermarc records.
+- Databases can be inspected with the Oxigraph CLI or `uv run pyoxigraph`, see [sparql_store.md](documentation/sparql_store.md)
 
 ## Intermarc
 
@@ -40,13 +41,3 @@
 		- Fields 501, 506, 509, 50N, 530, 531, 532, 533, 534, 535, 536, 537, 538, 53M in a manistation entity, pointing in subfield `$3` to the ark of another entity (any of work, expression, manifestation).
 - Agent to WEM :
 	- `$3` subfield in fields 700, 701, 702, as well as 710, 711, 712.
-
-## Adaptation heuristics
-
-Work A has 1 agent with relator code « Auteur du texte / Autrice du texte » and neither its title nor the title of its manifestations suggest it’s an adaptation:
-+ It can be **clustered** with works with the same title (after cleaning) and the same agent with relator code « Auteur du texte / Autrice du texte » + any number of other agents (0 or more), as long as none of these agents has as relator code « Responsable de l'adaptation » and neither the title of the work nor the title of its manifestations suggest it’s an adaptation.
-+ An adaptation link can be created between work A and a work analyzed as an adaptation (see below).
-
-Work B has been analyzed as an adaptation, either because of the relator code of one of its agents, or because of its title, or because of the title of its manifestations:
-+ An adaptation link can be created to work A if work A is not an adaptation and ALL the agents of work A are found in work B (although in work B their relator code might be different). Work A gets `552$q` "A pour adaptation", work B `552$q` "Est une adaptation de".
-+ Work B can be clustered with works with the same title and the same agents that are also considered as adaptations of the same original work. In this case, different relator codes should not block clustering, as long as we know both works are adaptations.

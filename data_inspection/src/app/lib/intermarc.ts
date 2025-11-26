@@ -256,22 +256,25 @@ export async function prettyPrintIntermarc(
       marks.push({ className: `intermarc-zone${curationClass(z.affectedByCuration)}`, from: 0, to: lineText.length })
     }
 
-    const compactValue = z.fieldCompactValue
-    if (compactValue !== undefined && compactValue !== null) {
-      if (lineText.length) lineText += ' '
-      const compactStart = lineText.length
-      lineText += compactValue
-      const highlight = curationClass(z.affectedByCuration)
-      marks.push({
-        className: `intermarc-subfield intermarc-compact-value${highlight}`,
-        from: compactStart,
-        to: lineText.length,
-      })
-      lineEntries.push({ text: lineText, marks })
-      continue
+    let subZones: SousZone[] = z.sousZones
+    if ((!subZones || subZones.length === 0) && z.fieldCompactValue) {
+      try {
+        type CompactEntry = { code?: unknown; valeur?: unknown; affectedByCuration?: unknown }
+        const parsed = JSON.parse(z.fieldCompactValue) as { sousZones?: CompactEntry[] }
+        if (parsed && Array.isArray(parsed.sousZones)) {
+          subZones = parsed.sousZones.map(entry => ({
+            code: String(entry.code ?? ''),
+            valeur: entry.valeur != null ? String(entry.valeur) : '',
+            affectedByCuration:
+              typeof entry.affectedByCuration === 'string' ? entry.affectedByCuration : z.affectedByCuration,
+          }))
+        }
+      } catch {
+        // fall back to empty
+      }
     }
 
-    for (const sz of z.sousZones) {
+    for (const sz of subZones) {
       const { text: shown, ark } = await displayValue(z.code, sz.code, sz.valeur, resolveLabels)
       const label = formatSubLabel(z.code, sz.code)
       const displayCode = label.startsWith('$') ? label : `$${label}`

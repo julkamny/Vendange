@@ -115,23 +115,43 @@ def _load_record_from_store(store: Store, subject: NamedNode, graph: NamedNode) 
         code = literal_first_value(store, field, FIELD_CODE_PROP, None) or ""
         affected_by_curation = literal_first_value(store, field, AFFECTED_BY_CURATION_PROP, None)
         compact_value = literal_first_value(store, field, FIELD_COMPACT_VALUE_PROP, None)
-        subfields = []
-        for sub_quad in store.quads_for_pattern(field, HAS_SUBFIELD, None, None):
-            sub = sub_quad.object
-            subfields.append(sub)
-        subfields = sorted(subfields, key=subfield_sort_key)
         zone_subs = []
-        for sub in subfields:
-            sub_code = literal_first_value(store, sub, SUBFIELD_CODE_PROP, None) or ""
-            sub_val = literal_first_value(store, sub, SUBFIELD_VALUE_PROP, None) or ""
-            sub_aff = literal_first_value(store, sub, AFFECTED_BY_CURATION_PROP, None)
-            zone_subs.append(
-                {
-                    "code": unsanitize_subfield_code(sub_code),
-                    "valeur": sub_val,
-                    **({"affectedByCuration": sub_aff} if sub_aff else {}),
-                }
-            )
+        if compact_value:
+            try:
+                payload = json.loads(compact_value)
+                if isinstance(payload, dict):
+                    for entry in payload.get("sousZones", []) or []:
+                        zone_subs.append(
+                            {
+                                "code": entry.get("code", ""),
+                                "valeur": entry.get("valeur", ""),
+                                **(
+                                    {"affectedByCuration": entry.get("affectedByCuration")}
+                                    if entry.get("affectedByCuration")
+                                    else {}
+                                ),
+                            }
+                        )
+                    affected_by_curation = payload.get("affectedByCuration", affected_by_curation) or affected_by_curation
+            except Exception:
+                pass
+        if not zone_subs:
+            subfields = []
+            for sub_quad in store.quads_for_pattern(field, HAS_SUBFIELD, None, None):
+                sub = sub_quad.object
+                subfields.append(sub)
+            subfields = sorted(subfields, key=subfield_sort_key)
+            for sub in subfields:
+                sub_code = literal_first_value(store, sub, SUBFIELD_CODE_PROP, None) or ""
+                sub_val = literal_first_value(store, sub, SUBFIELD_VALUE_PROP, None) or ""
+                sub_aff = literal_first_value(store, sub, AFFECTED_BY_CURATION_PROP, None)
+                zone_subs.append(
+                    {
+                        "code": unsanitize_subfield_code(sub_code),
+                        "valeur": sub_val,
+                        **({"affectedByCuration": sub_aff} if sub_aff else {}),
+                    }
+                )
         zones.append(
             {
                 "code": code,

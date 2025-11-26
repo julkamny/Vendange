@@ -166,7 +166,19 @@ def _extract_rows(record: ParsedRecord) -> tuple[List[FieldRow], List[EdgeRow]]:
         compact_value: Optional[str] = None
         is_compact = normalized_code in COMPACT_FIELD_CODES
         if is_compact:
-            compact_value = zone.field_compact_value
+            payload = {
+                "code": zone_code,
+                "sousZones": [
+                    {
+                        "code": sub.code or "",
+                        "valeur": str(sub.valeur),
+                        **({"affectedByCuration": sub.affected_by_curation} if sub.affected_by_curation else {}),
+                    }
+                    for sub in zone.sousZones
+                ],
+                **({"affectedByCuration": zone.affected_by_curation} if zone.affected_by_curation else {}),
+            }
+            compact_value = json.dumps(payload, ensure_ascii=False)
         fields.append(
             FieldRow(
                 node=field_node,

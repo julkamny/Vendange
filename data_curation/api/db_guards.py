@@ -143,13 +143,7 @@ def _extract_work_cluster_targets(intermarc: Intermarc) -> set[str]:
         norm_note = str(note).strip().lower()
         if norm_note not in {"clusterisation manuelle", "clusterisation script"}:
             continue
-        target = None
-        if norm_note == "clusterisation script":
-            target = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$a"), None)
-        else:
-            target = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$3"), None)
-            if target is None:
-                target = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$a"), None)
+        target = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$3"), None)
         if target:
             targets.add(str(target).strip())
     return targets
@@ -206,7 +200,7 @@ def _ensure_unique_work_clusters(store: Store, anchor_id: str, intermarc: Interm
         FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
         ?field <{HAS_SUBFIELD.value}> ?subT .
         ?subT <{SUBFIELD_CODE_PROP.value}> ?codeTarget .
-        FILTER(?codeTarget = "90Fs3" || ?codeTarget = "90Fsa")
+        FILTER(?codeTarget = "90Fs3")
         ?subT <{SUBFIELD_VALUE_PROP.value}> ?target .
       }}
     }}
@@ -345,7 +339,7 @@ def _works_clustered_together(store: Store, ark_index: dict[str, str], work_ark_
         FILTER(?note1 = "Clusterisation manuelle" || ?note1 = "Clusterisation script")
         ?field1 <{HAS_SUBFIELD.value}> ?subT1 .
         ?subT1 <{SUBFIELD_CODE_PROP.value}> ?codeTarget1 .
-        FILTER(?codeTarget1 = "90Fs3" || ?codeTarget1 = "90Fsa")
+        FILTER(?codeTarget1 = "90Fs3")
         ?subT1 <{SUBFIELD_VALUE_PROP.value}> "{work_ark_a}" .
 
         ?rec <{HAS_FIELD.value}> ?field2 .
@@ -356,7 +350,7 @@ def _works_clustered_together(store: Store, ark_index: dict[str, str], work_ark_
         FILTER(?note2 = "Clusterisation manuelle" || ?note2 = "Clusterisation script")
         ?field2 <{HAS_SUBFIELD.value}> ?subT2 .
         ?subT2 <{SUBFIELD_CODE_PROP.value}> ?codeTarget2 .
-        FILTER(?codeTarget2 = "90Fs3" || ?codeTarget2 = "90Fsa")
+        FILTER(?codeTarget2 = "90Fs3")
         ?subT2 <{SUBFIELD_VALUE_PROP.value}> "{work_ark_b}" .
       }}
     }}
@@ -383,7 +377,7 @@ def _works_clustered_together(store: Store, ark_index: dict[str, str], work_ark_
             FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
             ?field <{HAS_SUBFIELD.value}> ?subT .
             ?subT <{SUBFIELD_CODE_PROP.value}> ?codeTarget .
-            FILTER(?codeTarget = "90Fs3" || ?codeTarget = "90Fsa")
+            FILTER(?codeTarget = "90Fs3")
             ?subT <{SUBFIELD_VALUE_PROP.value}> "{work_ark_b}" .
           }}
         }}
@@ -407,7 +401,7 @@ def _works_clustered_together(store: Store, ark_index: dict[str, str], work_ark_
             FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
             ?field <{HAS_SUBFIELD.value}> ?subT .
             ?subT <{SUBFIELD_CODE_PROP.value}> ?codeTarget .
-            FILTER(?codeTarget = "90Fs3" || ?codeTarget = "90Fsa")
+            FILTER(?codeTarget = "90Fs3")
             ?subT <{SUBFIELD_VALUE_PROP.value}> "{work_ark_a}" .
           }}
         }}
@@ -439,7 +433,7 @@ def _ensure_unique_expression_clusters(store: Store, anchor_id: str, intermarc: 
         FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
         ?field <{HAS_SUBFIELD.value}> ?subT .
         ?subT <{SUBFIELD_CODE_PROP.value}> ?codeTarget .
-        FILTER(?codeTarget = "90Fs3" || ?codeTarget = "90Fsa")
+        FILTER(?codeTarget = "90Fs3")
         ?subT <{SUBFIELD_VALUE_PROP.value}> ?target .
       }}
     }}

@@ -77,3 +77,65 @@ def test_agent_right_click_menu_allows_clustering(page):
 
     # Dismiss menu to leave workspace clean for later tests
     page.keyboard.press("Escape")
+
+
+@pytest.mark.e2e
+def test_clustering_disabled_on_cluster_member(page):
+    try:
+        requests.get(f"{API_BASE}/api/datasets", timeout=5).raise_for_status()
+    except Exception:
+        pytest.skip("Backend API not reachable")
+
+    dataset_id = _build_dataset()
+    page.goto(f"{APP_BASE}/{dataset_id}", wait_until="networkidle")
+
+    page.locator("button.workspace-tab.add.add-toggle.workspace-add-toggle").click()
+    page.locator(
+        "button.workspace-add-menu__item",
+        has=page.locator("span.workspace-add-menu__label", has_text=re.compile("Agents", re.IGNORECASE)),
+    ).click()
+
+    agents = page.locator("div.entity-row.entity-row--person")
+    expect(agents).to_have_count(3)
+
+    # 1. Cluster A2 (index 1) into A1 (index 0)
+    # Prepare A2
+    agents.nth(1).click(button="right")
+    page.locator(".workspace-context-menu").get_by_role("menuitem", name=re.compile("Préparer|prepare", re.IGNORECASE)).click()
+    
+    # Cluster with A1
+    agents.nth(0).click(button="right")
+    page.locator(".workspace-context-menu").get_by_role("menuitem", name=re.compile("Clustériser|cluster", re.IGNORECASE)).click()
+    
+    # Confirm modal
+    page.locator(".modal-actions button.workspace-side-toolbar__button--primary").click()
+    
+    # Wait for cluster to appear (A1 should be header of a cluster)
+    # The structure changes: A1 becomes a cluster header row.
+    # We can wait for the cluster flag or structural change.
+    expect(page.locator("div[data-cluster-anchor-id]")).to_have_count(1)
+
+    # 2. Prepare A3 (index 2, but list might be reordered/grouped)
+    # A3 should be the only 'single' agent left or at least distinct from the cluster.
+    # The cluster will contain A1 and A2.
+    # Find A3 by text "Agent 3"
+    agent3 = page.locator("div.entity-row", has_text="Agent 3").first
+    agent3.click(button="right")
+    page.locator(".workspace-context-menu").get_by_role("menuitem", name=re.compile("Préparer|prepare", re.IGNORECASE)).click()
+
+    # 3. Right click A2 (member of cluster)
+    # A2 should be inside the cluster items.
+    # Find A2 by text "Agent 2" (it might be nested now)
+    agent2 = page.locator("div.entity-row", has_text="Agent 2").first
+    agent2.click(button="right")
+    
+    menu = page.locator(".workspace-context-menu")
+    expect(menu).to_be_visible()
+    cluster_btn = menu.get_by_role("menuitem", name=re.compile("Clustériser|cluster", re.IGNORECASE))
+    
+    # Assert it is visible but disabled
+    expect(cluster_btn).to_be_visible()
+    expect(cluster_btn).to_be_disabled()
+    
+    # Dismiss
+    page.keyboard.press("Escape")

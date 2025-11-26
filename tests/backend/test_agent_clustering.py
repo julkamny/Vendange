@@ -187,3 +187,36 @@ def test_agent_clustering_lifecycle():
         if sz.get("code") in {"90F$3", "90F$a"}
     }
     assert targets_a2 == {"ark:/12148/a3"}
+
+def test_cluster_with_already_clustered_member_is_forbidden():
+    # 1. Spawn agents A1, A2, A3
+    agents = [
+        {
+            "id": "a1",
+            "type": "Identite publique de personne",
+            "intermarc": _agent_intermarc("ark:/12148/a1", "Agent One"),
+        },
+        {
+            "id": "a2",
+            "type": "Identite publique de personne",
+            "intermarc": _agent_intermarc("ark:/12148/a2", "Agent Two"),
+        },
+        {
+            "id": "a3",
+            "type": "Identite publique de personne",
+            "intermarc": _agent_intermarc("ark:/12148/a3", "Agent Three"),
+        },
+    ]
+    dataset_id = _build_dataset(agents, "agent-nested-cluster-fail")
+
+    # 2. Cluster A2 under A1
+    a1_clustered = _agent_intermarc("ark:/12148/a1", "Agent One", extra_zones=[_cluster_zone("ark:/12148/a2")])
+    db.update_record(dataset_id, "a1", type_raw="Identite publique de personne", intermarc_json=a1_clustered)
+
+    # 3. Try to cluster A3 under A2
+    # This would make A2 an anchor for A3, while A2 is a member of A1
+    a2_as_anchor = _agent_intermarc("ark:/12148/a2", "Agent Two", extra_zones=[_cluster_zone("ark:/12148/a3")])
+    
+    import pytest
+    with pytest.raises(ValueError, match="est deja rattache au cluster"):
+        db.update_record(dataset_id, "a2", type_raw="Identite publique de personne", intermarc_json=a2_as_anchor)

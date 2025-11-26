@@ -903,7 +903,8 @@ export function AgentView({
           const clusterDisabled = Boolean(
             pendingSourceRecord &&
               pendingSourceRecord.id !== contextMenu.record.id &&
-              !sameAgentKind(pendingSourceRecord, contextMenu.record),
+              (!sameAgentKind(pendingSourceRecord, contextMenu.record) ||
+                (contextMenu.record.ark && manualClusterIndex.has(contextMenu.record.ark))),
           )
           if (clusterLabel) {
             extraActions.push({

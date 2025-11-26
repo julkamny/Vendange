@@ -82,6 +82,37 @@ def _ensure_unique_manual_agent_clusters(store: Store, anchor_id: str, intermarc
     if not new_targets:
         return
 
+    # Check if the anchor itself is already a member of another cluster
+    anchor_ark = _extract_ark(intermarc)
+    if anchor_ark:
+        query_is_member = f"""
+        SELECT ?parent
+        WHERE {{
+          GRAPH ?g {{
+            ?parent <{HAS_FIELD.value}> ?field .
+            ?field <{FIELD_CODE_PROP.value}> "90F" .
+            ?field <{HAS_SUBFIELD.value}> ?subQ .
+            ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
+            ?subQ <{SUBFIELD_VALUE_PROP.value}> "Clusterisation manuelle" .
+            ?field <{HAS_SUBFIELD.value}> ?subT .
+            ?subT <{SUBFIELD_CODE_PROP.value}> "90Fs3" .
+            ?subT <{SUBFIELD_VALUE_PROP.value}> "{anchor_ark}" .
+          }}
+        }}
+        """
+        solutions_member = store.query(query_is_member)
+        if isinstance(solutions_member, QuerySolutions):
+            for sol in solutions_member:
+                try:
+                    parent = sol["parent"]
+                except (KeyError, TypeError):
+                    parent = None
+                if parent:
+                    parent_iri = parent.value
+                    parent_id = parent_iri.split("/")[-1]
+                    if parent_id != anchor_id:
+                        raise ValueError(f"Impossible d'enregistrer : l'agent {anchor_ark} est deja rattache au cluster de {parent_id}.")
+
     query = f"""
     SELECT ?anchor ?target
     WHERE {{

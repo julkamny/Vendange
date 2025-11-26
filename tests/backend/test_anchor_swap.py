@@ -17,12 +17,11 @@ from .utils import (
     _expression_intermarc,
     _cluster_zone,
     _adaptation_zone,
-    create_zone,
+    controlled_value_intermarc,
 )
 
 HAS_ADAPT_ARK = "ark:/cv/hasAdapt"
 IS_ADAPT_OF_ARK = "ark:/cv/isAdaptOf"
-
 
 def _records_to_csv_bytes(records) -> bytes:
     buffer = io.StringIO()
@@ -31,15 +30,6 @@ def _records_to_csv_bytes(records) -> bytes:
     for row in records:
         writer.writerow([row["id"], row["type"], row["intermarc"]])
     return buffer.getvalue().encode("utf-8")
-
-
-def _controlled_value(ark: str, label: str):
-    zones = [
-        create_zone("001", [("a", ark, None)]),
-        create_zone("169", [("a", label, None)]),
-    ]
-    from data_curation.models import Intermarc
-    return Intermarc(zones=zones).to_json_string()
 
 
 def _build_dataset(records, name: str | None = None):
@@ -64,8 +54,16 @@ def test_work_anchor_swap_moves_cluster_and_adaptations():
                 [_adaptation_zone("ark:/12148/w1", qualifier=IS_ADAPT_OF_ARK)],
             ),
         },
-        {"id": "cv1", "type": "Valeur contrôlée", "intermarc": _controlled_value(HAS_ADAPT_ARK, "A pour adaptation")},
-        {"id": "cv2", "type": "Valeur contrôlée", "intermarc": _controlled_value(IS_ADAPT_OF_ARK, "Est une adaptation de")},
+        {
+            "id": "cv1",
+            "type": "Valeur contrôlée",
+            "intermarc": controlled_value_intermarc(HAS_ADAPT_ARK, "A pour adaptation"),
+        },
+        {
+            "id": "cv2",
+            "type": "Valeur contrôlée",
+            "intermarc": controlled_value_intermarc(IS_ADAPT_OF_ARK, "Est une adaptation de"),
+        },
     ]
     dataset_id = _build_dataset(records, "anchor-swap-work-adapt")
 
@@ -150,8 +148,16 @@ def test_anchor_swap_drops_self_adaptation():
         {"id": "w2", "type": "Oeuvre", "intermarc": _work_intermarc("ark:/12148/w2", "Work Two")},
         {"id": "w3", "type": "Oeuvre", "intermarc": _work_intermarc("ark:/12148/w3", "Work Three")},
         {"id": "w4", "type": "Oeuvre", "intermarc": _work_intermarc("ark:/12148/w4", "Work Four")},
-        {"id": "cv1", "type": "Valeur contrôlée", "intermarc": _controlled_value(HAS_ADAPT_ARK, "A pour adaptation")},
-        {"id": "cv2", "type": "Valeur contrôlée", "intermarc": _controlled_value(IS_ADAPT_OF_ARK, "Est une adaptation de")},
+        {
+            "id": "cv1",
+            "type": "Valeur contrôlée",
+            "intermarc": controlled_value_intermarc(HAS_ADAPT_ARK, "A pour adaptation"),
+        },
+        {
+            "id": "cv2",
+            "type": "Valeur contrôlée",
+            "intermarc": controlled_value_intermarc(IS_ADAPT_OF_ARK, "Est une adaptation de"),
+        },
     ]
     dataset_id = _build_dataset(records, "anchor-swap-self-adapt")
 

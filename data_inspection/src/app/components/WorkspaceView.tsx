@@ -15,6 +15,7 @@ import { useToast } from '../providers/ToastContext'
 import { deriveInternalIdFromArk } from '../lib/ark'
 import { useWorkspaceClustering } from './workspace/useWorkspaceClustering'
 import { useAnchorSwap } from './workspace/useAnchorSwap'
+import { useOriginalitySwap } from './workspace/useOriginalitySwap'
 import { useIntermarcSaveGuards } from './workspace/useIntermarcSaveGuards'
 import { useWorkspaceInteractions } from './workspace/useWorkspaceInteractions'
 import { WorkspaceViewLayout } from './workspace/WorkspaceViewLayout'
@@ -70,6 +71,15 @@ export function WorkspaceView({
   const { getById, getByArk } = useRecordLookup()
   const { getBacklinksForRecord } = useBacklinks()
   const { showToast } = useToast()
+  const findControlledValueArk = useCallback(
+    (label: string) => {
+      const target = curated?.records?.find(
+        rec => extractControlledValueLabel(rec)?.toLowerCase() === label.trim().toLowerCase(),
+      )
+      return target?.ark ?? target?.id ?? null
+    },
+    [curated?.records],
+  )
   const record = state.selectedEntity
     ? findRecord(state.selectedEntity.id, curated?.records ?? [])
     : null
@@ -248,6 +258,24 @@ export function WorkspaceView({
     setContextMenu,
   })
 
+  const {
+    getOriginalitySwapAction,
+    pendingOriginalitySourceRecord,
+    pendingOriginalityTarget,
+    confirmOriginalitySwap,
+    cancelOriginalitySwap,
+  } = useOriginalitySwap({
+    datasetId,
+    clusters,
+    workClusterIndex,
+    getById,
+    applyServerUpdates,
+    showToast,
+    t,
+    setContextMenu,
+    findControlledValueArk,
+  })
+
   const handleIntermarcSave = useIntermarcSaveGuards({
     clusters,
     getByArk,
@@ -271,15 +299,7 @@ export function WorkspaceView({
     showToast,
     t,
     setContextMenu,
-    findControlledValueArk: useCallback(
-      (label: string) => {
-        const target = curated?.records?.find(
-          rec => extractControlledValueLabel(rec)?.toLowerCase() === label.trim().toLowerCase(),
-        )
-        return target?.ark ?? target?.id ?? null
-      },
-      [curated?.records],
-    ),
+    findControlledValueArk,
     sharedPendingManifestationId,
     setSharedPendingManifestationId,
   })
@@ -294,9 +314,12 @@ export function WorkspaceView({
     confirmAttach,
   } = manifestationUprooting
 
-  const activeOperation = useMemo<'work-cluster' | 'expression-cluster' | 'anchor-swap' | 'manifestation-uproot' | null>(
+  const activeOperation = useMemo<
+    'work-cluster' | 'expression-cluster' | 'anchor-swap' | 'manifestation-uproot' | 'originality-swap' | null
+  >(
     () => {
       if (pendingManifestationRecord || pendingAttach) return 'manifestation-uproot'
+      if (pendingOriginalitySourceRecord || pendingOriginalityTarget) return 'originality-swap'
       if (
         pendingWorkAnchorSwapSourceRecord ||
         pendingWorkAnchorSwapTarget ||
@@ -317,6 +340,8 @@ export function WorkspaceView({
       pendingExpressionClusterSourceRecord,
       pendingExpressionClusterTarget,
       pendingManifestationRecord,
+      pendingOriginalitySourceRecord,
+      pendingOriginalityTarget,
       pendingWorkAnchorSwapSourceRecord,
       pendingWorkAnchorSwapTarget,
     ],
@@ -563,10 +588,15 @@ export function WorkspaceView({
       requestExpressionClusterWith={requestExpressionClusterWith}
       getWorkAnchorSwapAction={getWorkAnchorSwapAction}
       getExpressionAnchorSwapAction={getExpressionAnchorSwapAction}
+      getOriginalitySwapAction={getOriginalitySwapAction}
       pendingWorkAnchorSwapSourceRecord={pendingWorkAnchorSwapSourceRecord}
       pendingWorkAnchorSwapTarget={pendingWorkAnchorSwapTarget}
       pendingExpressionAnchorSwapSourceRecord={pendingExpressionAnchorSwapSourceRecord}
       pendingExpressionAnchorSwapTarget={pendingExpressionAnchorSwapTarget}
+      pendingOriginalitySourceRecord={pendingOriginalitySourceRecord}
+      pendingOriginalityTarget={pendingOriginalityTarget}
+      confirmPendingOriginalitySwap={confirmOriginalitySwap}
+      cancelPendingOriginalitySwap={cancelOriginalitySwap}
       confirmPendingWorkAnchorSwap={confirmWorkAnchorSwap}
       cancelPendingWorkAnchorSwap={cancelWorkAnchorSwap}
       confirmPendingExpressionAnchorSwap={confirmExpressionAnchorSwap}

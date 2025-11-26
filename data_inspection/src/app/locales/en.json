@@ -214,6 +214,19 @@
       "confirmBody": "Attach “{{source}}” ({{sourceArk}}) to the cluster of “{{anchor}}” ({{anchorArk}})?",
       "pendingAlreadySelected": "Cannot proceed: this work already belongs to another cluster.",
       "targetIsAnchor": "Cannot cluster: target is already a cluster anchor."
+    },
+    "originalitySwap": {
+      "prepare": "Remove originality from this work",
+      "graft": "Graft originality of selected work on to this one.",
+      "cancel": "Cancel originality transfer",
+      "prepared": "Work ready for originality transfer.",
+      "invalidTarget": "Choose an independent work or a cluster anchor.",
+      "noDataset": "Load a dataset before transferring originality.",
+      "missingAdaptations": "Cannot transfer: the selected work has no curated adaptation links.",
+      "success": "Originality moved to the target work.",
+      "failed": "Failed to transfer originality.",
+      "confirmTitle": "Confirm originality transfer",
+      "confirmBody": "Make “{{target}}” ({{targetArk}}) the original work and reattach its adaptations currently under “{{source}}” ({{sourceArk}})?"
     }
   },
   "expressions": {

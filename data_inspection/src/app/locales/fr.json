@@ -214,6 +214,19 @@
       "confirmBody": "Rattacher « {{source}} » ({{sourceArk}}) au cluster de « {{anchor}} » ({{anchorArk}}) ?",
       "pendingAlreadySelected": "Impossible : cette œuvre est déjà rattachée à un autre cluster.",
       "targetIsAnchor": "Impossible : la cible est déjà ancre d'un cluster."
+    },
+    "originalitySwap": {
+      "prepare": "Retrancher l'originalité de cette œuvre",
+      "graft": "Enter l'originalité de l'œuvre sélectionnée sur celle-ci.",
+      "cancel": "Annuler le transfert d'originalité",
+      "prepared": "Œuvre prête pour transfert d'originalité.",
+      "invalidTarget": "Impossible : choisir une œuvre indépendante ou l'ancre d'un cluster.",
+      "noDataset": "Aucune base chargée.",
+      "missingAdaptations": "Impossible : l'œuvre sélectionnée ne porte pas de liens d'adaptation manuels.",
+      "success": "Originalité transférée vers l'œuvre cible.",
+      "failed": "Échec du transfert.",
+      "confirmTitle": "Confirmer le transfert d'originalité",
+      "confirmBody": "Désigner « {{target}} » ({{targetArk}}) comme œuvre originale et rattacher ses adaptations depuis « {{source}} » ({{sourceArk}}) ?"
     }
   },
   "expressions": {

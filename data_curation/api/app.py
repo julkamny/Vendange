@@ -54,6 +54,11 @@ class AnchorSwapPayload(BaseModel):
     target_id: str = Field(..., alias="targetId")
 
 
+class OriginalitySwapPayload(BaseModel):
+    original_id: str = Field(..., alias="originalId")
+    target_id: str = Field(..., alias="targetId")
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     db.initialize_storage()
@@ -361,6 +366,20 @@ def swap_anchor(dataset_id: str, payload: AnchorSwapPayload) -> dict[str, object
     _ensure_dataset(dataset_id)
     try:
         updated = db.swap_cluster_anchor(dataset_id, anchor_id=payload.anchor_id, target_id=payload.target_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"updatedRecords": updated}
+
+
+@app.post("/api/datasets/{dataset_id}/swap_originality")
+def swap_originality(dataset_id: str, payload: OriginalitySwapPayload) -> dict[str, object]:
+    _ensure_dataset(dataset_id)
+    try:
+        updated = db.swap_work_originality(
+            dataset_id,
+            original_id=payload.original_id,
+            target_id=payload.target_id,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"updatedRecords": updated}

@@ -148,6 +148,24 @@ export async function swapClusterAnchor(
   return data.updatedRecords ?? []
 }
 
+export async function swapWorkOriginality(
+  datasetId: string,
+  payload: { originalId: string; targetId: string },
+): Promise<DatasetRecordPayload[]> {
+  const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/swap_originality`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ originalId: payload.originalId, targetId: payload.targetId }),
+  })
+  if (!response.ok) {
+    const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
+    throw new Error(detail.detail || 'Failed to swap originality')
+  }
+  const data = await parseJson<{ updatedRecords?: DatasetRecordPayload[] }>(response)
+  return data.updatedRecords ?? []
+}
+
 export type ClusterLogEvent = {
   type: 'log'
   datasetId: string

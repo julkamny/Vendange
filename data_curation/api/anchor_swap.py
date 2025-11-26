@@ -2,21 +2,9 @@ from __future__ import annotations
 
 from typing import List, Optional, Sequence, Set, Tuple
 
-from pyoxigraph import Literal, Store
-
 from .db_ingest import _build_record_from_payload, _build_record_quads
 from .db_query import _load_record_from_store, _record_subjects
-from .db_shared import (
-    FIELD_CODE_PROP,
-    HAS_FIELD,
-    HAS_SUBFIELD,
-    PROP_ARK,
-    PROP_TYPE_RAW,
-    SUBFIELD_CODE_PROP,
-    SUBFIELD_VALUE_PROP,
-    get_controlled_ark,
-    literal_first_value,
-)
+from .db_shared import get_controlled_ark
 from .db_store import _STORE_LOCK, clear_record_graph, get_store_locked, load_ark_index
 from . import datasets
 from ..models import Entity, Intermarc, SousZone, Zone

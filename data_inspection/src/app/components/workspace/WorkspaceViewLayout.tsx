@@ -6,6 +6,7 @@ import { WorkspaceContextMenu, type MenuAction } from '../../components/Workspac
 import { WorkspaceBreadcrumbs } from './WorkspaceBreadcrumbs'
 import { ConfirmExpressionClusterModal, ConfirmWorkClusterModal } from './ClusterModals'
 import { AnchorSwapModal } from './AnchorSwapModal'
+import { OriginalitySwapModal } from './OriginalitySwapModal'
 import { ManifestationUprootModal } from './ManifestationUprootModal'
 import type { WorkspaceTabStateWorkspace } from '../../workspace/types'
 import type { RecordRow } from '../../types'
@@ -16,7 +17,7 @@ type Props = {
   mode: 'inline' | 'detached'
   state: WorkspaceTabStateWorkspace
   workspaceClassName: string
-  activeOperation: 'work-cluster' | 'expression-cluster' | 'anchor-swap' | 'manifestation-uproot' | null
+  activeOperation: 'work-cluster' | 'expression-cluster' | 'anchor-swap' | 'manifestation-uproot' | 'originality-swap' | null
   breadcrumbs: string[]
   record: RecordRow | null
   getById: (id: string) => RecordRow | null
@@ -79,14 +80,19 @@ type Props = {
   requestExpressionClusterWith: (anchor: RecordRow) => void
   getWorkAnchorSwapAction: (record: RecordRow | null) => MenuAction | null
   getExpressionAnchorSwapAction: (record: RecordRow | null) => MenuAction | null
+  getOriginalitySwapAction: (record: RecordRow | null) => MenuAction | null
   pendingWorkAnchorSwapSourceRecord: RecordRow | null
   pendingWorkAnchorSwapTarget: { anchorId: string; sourceId: string } | null
   pendingExpressionAnchorSwapSourceRecord: RecordRow | null
   pendingExpressionAnchorSwapTarget: { anchorId: string; sourceId: string } | null
+  pendingOriginalitySourceRecord: RecordRow | null
+  pendingOriginalityTarget: { sourceId: string; targetId: string } | null
   confirmPendingWorkAnchorSwap: () => void
   cancelPendingWorkAnchorSwap: () => void
   confirmPendingExpressionAnchorSwap: () => void
   cancelPendingExpressionAnchorSwap: () => void
+  confirmPendingOriginalitySwap: () => void
+  cancelPendingOriginalitySwap: () => void
   setBacklinksExpandedLabel: string
   pendingManifestationRecord: RecordRow | null
   pendingManifestationAttach: {
@@ -172,14 +178,19 @@ export function WorkspaceViewLayout(props: Props) {
     requestExpressionClusterWith,
     getWorkAnchorSwapAction,
     getExpressionAnchorSwapAction,
+    getOriginalitySwapAction,
     pendingWorkAnchorSwapSourceRecord,
     pendingWorkAnchorSwapTarget,
     pendingExpressionAnchorSwapSourceRecord,
     pendingExpressionAnchorSwapTarget,
+    pendingOriginalitySourceRecord,
+    pendingOriginalityTarget,
     confirmPendingWorkAnchorSwap,
     cancelPendingWorkAnchorSwap,
     confirmPendingExpressionAnchorSwap,
     cancelPendingExpressionAnchorSwap,
+    confirmPendingOriginalitySwap,
+    cancelPendingOriginalitySwap,
     setBacklinksExpandedLabel,
     pendingManifestationRecord,
     pendingManifestationAttach,
@@ -411,6 +422,13 @@ export function WorkspaceViewLayout(props: Props) {
           }
           if (swapAction) actions.push(swapAction)
 
+          let originalityAction =
+            contextMenu.record.typeNorm === 'oeuvre' ? getOriginalitySwapAction(contextMenu.record) : null
+          if (originalityAction && activeOperation && activeOperation !== 'originality-swap') {
+            originalityAction = { ...originalityAction, disabled: true }
+          }
+          if (originalityAction) actions.push(originalityAction)
+
           return (
         <WorkspaceContextMenu
           position={contextMenu.position}
@@ -465,6 +483,15 @@ export function WorkspaceViewLayout(props: Props) {
           anchor={getById(pendingExpressionAnchorSwapTarget.anchorId)}
           onConfirm={confirmPendingExpressionAnchorSwap}
           onCancel={cancelPendingExpressionAnchorSwap}
+        />
+      ) : null}
+
+      {pendingOriginalityTarget ? (
+        <OriginalitySwapModal
+          source={pendingOriginalitySourceRecord}
+          target={getById(pendingOriginalityTarget.targetId)}
+          onConfirm={confirmPendingOriginalitySwap}
+          onCancel={cancelPendingOriginalitySwap}
         />
       ) : null}
 

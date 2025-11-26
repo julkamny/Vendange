@@ -34,6 +34,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
   1. The original work gets a `552$q` subfield with the ARK identifier of the controled value with `169$a` "A pour adaptation" and a `552$3` subfield pointing to the ARK identifier of the adaptation.
   2. The adaptation gets a `552$q` with the ARK identifier of the controled value with `169$a` "Est une adaptation de" and a `552$3` subfield pointing to the ARK identifier of the original work.
 - Manual anchor swap: `POST /api/datasets/<dataset_id>/swap_anchor` moves all curated `90F` fields (script or manual) from the current anchor to a clustered work/expression and retargets them as manual links. For works, curated `552$q = "A pour adaptation"` links move as well and the corresponding `"Est une adaptation de"` backlinks are rewritten to the new anchor.
+- Originality swap: `POST /api/datasets/<dataset_id>/swap_originality` retargets curated `552$q = "A pour adaptation"` links from a former original to a new one, rewrites the reciprocal `"Est une adaptation de"` backlinks on every adaptation, deletes the curated 552 fields from the former original, and recreates them as manual links on the new original.
 
 #### Running data curation operations
 - To launch the FastAPI server in `data_curation/api`: `uv run fastapi dev data_curation/api/app.py`. See below for explanations.
@@ -68,7 +69,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 
 ### Manifestation uprooting / reattachment
 - Right-click a manifestation row to “Prepare for uprooting”, then right-click any expression row to “Attach selected manifestation to this expression”. The confirmation modal lists the current 740$3 links (pre-selected when there is only one) so you can decide which expressions to uproot before adding a new 740 pointing to the target expression. The curated dataset and UI stay in sync and the action works from any workspace tab or detached window.
-- Only one manual operation (work/expression clustering, anchor swap, manifestation uprooting) can be active at a time: the pending entity is dimmed and other context-menu actions stay disabled until the current operation is confirmed or cancelled.
+- Only one manual operation (work/expression clustering, anchor swap, originality swap, manifestation uprooting) can be active at a time: the pending entity is dimmed and other context-menu actions stay disabled until the current operation is confirmed or cancelled.
 
 ### Windows & tabs management
 - Workspace tabs can be “unmoored” into their own windows; Intermarc panes in those windows remain synced and offer a full-window toggle for multi-monitor comparisons.

@@ -12,6 +12,16 @@ if str(ROOT) not in sys.path:
 
 from data_curation.models import Intermarc, Zone, SousZone
 
+
+def controlled_value_intermarc(ark: str, label: str) -> str:
+    """Build Intermarc JSON for a controlled value record with 001$a and 169$a."""
+
+    zones = [
+        create_zone("001", [("a", ark, None)]),
+        create_zone("169", [("a", label, None)]),
+    ]
+    return Intermarc(zones=zones).to_json_string()
+
 def create_zone(
     code: str,
     subfields: List[Tuple[str, str, Optional[str]]],

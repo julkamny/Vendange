@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from 'react'
+import { Virtuoso } from 'react-virtuoso'
 import type { AgentTabState, WorkspaceTabStateWorkspace } from '../workspace/types'
 import type { RecordRow, EntityBadgeSpec } from '../types'
 import { useAgentData, isAgentRecord } from './useAgentData'
@@ -271,6 +272,9 @@ export function AgentView({
   }, [agentClusters, buildAgentLabel, getById, pendingClusterTarget, persistManualAgentCluster, sameAgentKind, showToast, t])
 
   const listRef = useRef<HTMLElement | null>(null)
+  const setListRef = useCallback((node: HTMLElement | null) => {
+    listRef.current = node
+  }, [])
   const detailsRef = useRef<HTMLElement | null>(null)
   const lastScrollKeyRef = useRef<string>('')
   const [editing, setEditing] = useState(false)
@@ -587,15 +591,16 @@ export function AgentView({
     return ids
   }, [agentClusters])
 
-  const sortedEntries = useMemo(() => {
-    type Entry = { kind: 'cluster'; cluster: AgentCluster; title: string } | { kind: 'single'; agent: RecordRow; title: string }
-    const clusterEntries: Entry[] = agentClusters.map(cluster => ({
+  type AgentListEntry = { kind: 'cluster'; cluster: AgentCluster; title: string } | { kind: 'single'; agent: RecordRow; title: string }
+
+  const sortedEntries = useMemo<AgentListEntry[]>(() => {
+    const clusterEntries: AgentListEntry[] = agentClusters.map(cluster => ({
       kind: 'cluster',
       cluster,
       title: cluster.anchorLabel || cluster.anchorId,
     }))
 
-    const unclusteredEntries: Entry[] = agents
+    const unclusteredEntries: AgentListEntry[] = agents
       .filter(agent => !clusteredAgentIds.has(agent.id))
       .map(agent => ({ kind: 'single', agent, title: buildAgentLabel(agent) || agent.id }))
 
@@ -610,6 +615,127 @@ export function AgentView({
     ? t('workspace.collapseIntermarc', { defaultValue: 'Exit full Intermarc view' })
     : t('workspace.expandIntermarc', { defaultValue: 'Expand Intermarc view' })
 
+  const renderCluster = (cluster: AgentCluster) => {
+    const anchorRecord = getById(cluster.anchorId)
+    const clusterClasses = ['cluster']
+    const anchorClasses = ['cluster-header-row', 'entity-row', 'entity-row--person']
+    if (state.selectedAgentId === cluster.anchorId) anchorClasses.push('selected')
+    if (pendingClusterSourceId === cluster.anchorId) anchorClasses.push('pending-cluster-source')
+
+    return (
+      <div key={`cluster-${cluster.anchorId}`} className={clusterClasses.join(' ')} data-cluster-anchor-id={cluster.anchorId}>
+        <div
+          className={anchorClasses.join(' ')}
+          data-agent-id={cluster.anchorId}
+          data-agent-ark={cluster.anchorArk}
+          onClick={() => {
+            if (anchorRecord) handleRowClick(anchorRecord)
+          }}
+          onDoubleClick={() => {
+            if (pendingClusterSourceId === cluster.anchorId) cancelPendingCluster()
+          }}
+          onContextMenu={event => {
+            if (!anchorRecord) return
+            event.preventDefault()
+            setContextMenu({ position: { x: event.clientX, y: event.clientY }, record: anchorRecord })
+          }}
+        >
+          <div className="cluster-header">
+            <span className="cluster-anchor-marker">⚓︎</span>
+            {anchorRecord ? (
+              <EntityLabel
+                title={cluster.anchorLabel || cluster.anchorId}
+                titleSegments={agentTitleSegments(anchorRecord)}
+                badges={[
+                  {
+                    type:
+                      anchorRecord.typeNorm === 'collectivite'
+                        ? 'collective'
+                        : anchorRecord.typeNorm === 'famille'
+                          ? 'family'
+                          : 'person',
+                    text: anchorRecord.id,
+                    tooltip: anchorRecord.ark ?? anchorRecord.id,
+                  } satisfies EntityBadgeSpec,
+                ]}
+                counts={backlinkCounts(anchorRecord)}
+              />
+            ) : (
+              <span className="entity-title">{cluster.anchorLabel || cluster.anchorId}</span>
+            )}
+          </div>
+        </div>
+        <div className="cluster-items">
+          {cluster.items.map(item => {
+            const itemRecord = item.id ? getById(item.id) : null
+            const rowClasses = ['cluster-item', 'entity-row', 'entity-row--person']
+            if (itemRecord && state.selectedAgentId === itemRecord.id) rowClasses.push('selected')
+            if (pendingClusterSourceId === item.id) rowClasses.push('pending-cluster-source')
+
+            return (
+              <div
+                key={`${cluster.anchorId}-${item.ark}`}
+                className={rowClasses.join(' ')}
+                data-agent-id={item.id}
+                data-agent-ark={item.ark}
+                onClick={() => {
+                  if (itemRecord) handleRowClick(itemRecord)
+                }}
+                onDoubleClick={() => {
+                  if (pendingClusterSourceId === item.id) cancelPendingCluster()
+                }}
+                onContextMenu={event => {
+                  if (!itemRecord) return
+                  event.preventDefault()
+                  setContextMenu({ position: { x: event.clientX, y: event.clientY }, record: itemRecord })
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked
+                  onChange={event => {
+                    if (!event.target.checked) {
+                      removeClusterItem(cluster.anchorId, item.ark)
+                    }
+                  }}
+                  onDoubleClick={event => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    removeClusterItem(cluster.anchorId, item.ark)
+                  }}
+                />
+                {itemRecord ? (
+                  <EntityLabel
+                    title={item.label || item.ark}
+                    titleSegments={agentTitleSegments(itemRecord)}
+                    badges={[
+                      {
+                        type:
+                          itemRecord.typeNorm === 'collectivite'
+                            ? 'collective'
+                            : itemRecord.typeNorm === 'famille'
+                              ? 'family'
+                              : 'person',
+                        text: itemRecord.id,
+                        tooltip: itemRecord.ark ?? itemRecord.id,
+                      } satisfies EntityBadgeSpec,
+                    ]}
+                    counts={backlinkCounts(itemRecord)}
+                  />
+                ) : (
+                  <>
+                    <span className="entity-title">{item.label || item.ark}</span>
+                    <span className="entity-id">{item.ark}</span>
+                  </>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
       <div className={workspaceClassName}>
@@ -618,135 +744,27 @@ export function AgentView({
         </header>
         <div className="workspace-view__body">
           {!listCollapsed ? (
-            <aside className="workspace-panel workspace-panel--list" ref={listRef} onScroll={handleListScroll}>
-              <div className="work-list-panel">
-                {sortedEntries.map(entry => {
-                  if (entry.kind === 'single') {
-                    return renderRow(entry.agent)
+            <aside
+              className="workspace-panel workspace-panel--list"
+              style={{ height: 'calc(100vh - var(--app-sticky-offset) - 1.5rem)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+            >
+              {sortedEntries.length ? (
+                <Virtuoso
+                  style={{ height: '100%', width: '100%' }}
+                  className="work-list-panel"
+                  data={sortedEntries}
+                  scrollerRef={setListRef}
+                  onScroll={(event) => handleListScroll(event as unknown as UIEvent<HTMLElement>)}
+                  computeItemKey={(_, item) =>
+                    item.kind === 'cluster' ? `cluster-${item.cluster.anchorId}` : `agent-${item.agent.id}`
                   }
-
-                  const { cluster } = entry
-                  const anchorRecord = getById(cluster.anchorId)
-                  const clusterClasses = ['cluster']
-                  const anchorClasses = ['cluster-header-row', 'entity-row', 'entity-row--person']
-                  if (state.selectedAgentId === cluster.anchorId) anchorClasses.push('selected')
-                  if (pendingClusterSourceId === cluster.anchorId) anchorClasses.push('pending-cluster-source')
-
-                  return (
-                    <div key={`cluster-${cluster.anchorId}`} className={clusterClasses.join(' ')} data-cluster-anchor-id={cluster.anchorId}>
-                      <div
-                        className={anchorClasses.join(' ')}
-                        data-agent-id={cluster.anchorId}
-                        data-agent-ark={cluster.anchorArk}
-                        onClick={() => {
-                          if (anchorRecord) handleRowClick(anchorRecord)
-                        }}
-                        onDoubleClick={() => {
-                          if (pendingClusterSourceId === cluster.anchorId) cancelPendingCluster()
-                        }}
-                        onContextMenu={event => {
-                          if (!anchorRecord) return
-                          event.preventDefault()
-                          setContextMenu({ position: { x: event.clientX, y: event.clientY }, record: anchorRecord })
-                        }}
-                      >
-                        <div className="cluster-header">
-                          <span className="cluster-anchor-marker">⚓︎</span>
-                          {anchorRecord ? (
-                            <EntityLabel
-                              title={cluster.anchorLabel || cluster.anchorId}
-                              titleSegments={agentTitleSegments(anchorRecord)}
-                              badges={[
-                                {
-                                  type:
-                                    anchorRecord.typeNorm === 'collectivite'
-                                      ? 'collective'
-                                      : anchorRecord.typeNorm === 'famille'
-                                        ? 'family'
-                                        : 'person',
-                                  text: anchorRecord.id,
-                                  tooltip: anchorRecord.ark ?? anchorRecord.id,
-                                } satisfies EntityBadgeSpec,
-                              ]}
-                              counts={backlinkCounts(anchorRecord)}
-                            />
-                          ) : (
-                            <span className="entity-title">{cluster.anchorLabel || cluster.anchorId}</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="cluster-items">
-                        {cluster.items.map(item => {
-                          const itemRecord = item.id ? getById(item.id) : null
-                          const rowClasses = ['cluster-item', 'entity-row', 'entity-row--person']
-                          if (itemRecord && state.selectedAgentId === itemRecord.id) rowClasses.push('selected')
-                          if (pendingClusterSourceId === item.id) rowClasses.push('pending-cluster-source')
-
-                          return (
-                            <div
-                              key={`${cluster.anchorId}-${item.ark}`}
-                              className={rowClasses.join(' ')}
-                              data-agent-id={item.id}
-                              data-agent-ark={item.ark}
-                              onClick={() => {
-                                if (itemRecord) handleRowClick(itemRecord)
-                              }}
-                              onDoubleClick={() => {
-                                if (pendingClusterSourceId === item.id) cancelPendingCluster()
-                              }}
-                              onContextMenu={event => {
-                                if (!itemRecord) return
-                                event.preventDefault()
-                                setContextMenu({ position: { x: event.clientX, y: event.clientY }, record: itemRecord })
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked
-                                onChange={event => {
-                                  if (!event.target.checked) {
-                                    removeClusterItem(cluster.anchorId, item.ark)
-                                  }
-                                }}
-                                onDoubleClick={event => {
-                                  event.preventDefault()
-                                  event.stopPropagation()
-                                  removeClusterItem(cluster.anchorId, item.ark)
-                                }}
-                              />
-                              {itemRecord ? (
-                                <EntityLabel
-                                  title={item.label || item.ark}
-                                  titleSegments={agentTitleSegments(itemRecord)}
-                                  badges={[
-                                    {
-                                      type:
-                                        itemRecord.typeNorm === 'collectivite'
-                                          ? 'collective'
-                                          : itemRecord.typeNorm === 'famille'
-                                            ? 'family'
-                                            : 'person',
-                                      text: itemRecord.id,
-                                      tooltip: itemRecord.ark ?? itemRecord.id,
-                                    } satisfies EntityBadgeSpec,
-                                  ]}
-                                  counts={backlinkCounts(itemRecord)}
-                                />
-                              ) : (
-                                <>
-                                  <span className="entity-title">{item.label || item.ark}</span>
-                                  <span className="entity-id">{item.ark}</span>
-                                </>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })}
-                {!sortedEntries.length ? <em>{t('messages.noAgents', { defaultValue: 'No agents found.' })}</em> : null}
-              </div>
+                  itemContent={(_, entry) => (entry.kind === 'single' ? renderRow(entry.agent) : renderCluster(entry.cluster))}
+                />
+              ) : (
+                <div className="work-list-panel">
+                  <em>{t('messages.noAgents', { defaultValue: 'No agents found.' })}</em>
+                </div>
+              )}
             </aside>
           ) : null}
           <section

@@ -103,9 +103,11 @@ sortedEntries.map(entry => ( ... ))
 
 ### Phase 1: Stop the Bleeding (Frontend Rendering) - **COMPLETED**
 
-- [x] **Virtualization:** Implemented `react-virtuoso` in `WorkListPanel.tsx`.
+- [x] **Virtualization (works):** Implemented `react-virtuoso` in `WorkListPanel.tsx`.
 
-- [x] **Scroll Container Fix:** Modified `WorkspaceViewLayout` to handle virtualization scroll correctly.
+- [x] **Virtualization (agents):** `AgentView` now uses `react-virtuoso` for clustered/flat agent lists.
+
+- [x] **Scroll Container Fix:** Updated list panes to host the virtualized scroller while keeping side panels independent.
 
 - [x] **Optimized Rendering:** The UI now handles 5,000+ items without DOM overload.
 

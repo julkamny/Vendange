@@ -3,7 +3,16 @@
 - Strive to avoid introducing repetition in the codebase, reuse as much code as possible to implement what you've been asked.
 - We're not in production yet, we haven't deployed to users, so no need to handle legacy patterns, datasets and the like, just remove all dead code and abandoned implementations cautiously.
 - Update the README once you're done working to make sure it reflects the current state of the app.
-- Strive not to add more LOC to a file if it's above the 500 ~ 600 limit, and whenever you have the occasion to extract from a large file (600 < LOC) pieces, chunks, functions, seize the opportunity to refactor.
+- Strive not to add more LOC to a file if it's above the 500 ~ 600 limit, and whenever you have the occasion to extract from a large file (600 < LOC) pieces, chunks, functions, seize the opportunity to refactor. Before editing files, YOU MUST CHECK THE NUMBER OF LINES BY RUNNING THE FOLLOWING SNIPPET (supplyging pathToFolder:
+
+```bash
+find ${pathToFolder} \
+  -type f \( -name '*.ts' -o -name '*.tsx' \) \
+  -print0 |
+  xargs -0 wc -l | sort -n
+```
+
+
 - Strive for DRY : don't repeat it yourself, better to import / refactor code to make it more general than to rewrite something that already exists.
 - Once you're done working, if you've touched files in the React app living in data_inspection, you need to execute `npm run lint`.
 - If you've touched files in the FastAPI Python backend, use `uv run ruff check` and pytest tests/backend.

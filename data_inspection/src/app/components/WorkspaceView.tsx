@@ -411,6 +411,7 @@ export function WorkspaceView({
           onToggleWork={({ clusterId, workArk, accepted }) => setWorkAccepted(clusterId, workArk, accepted)}
           pendingClusterSourceId={pendingClusterSourceId}
           onCancelPendingCluster={cancelPendingCluster}
+          listRef={listPanelRef}
           onScroll={handleListScroll}
         />
       )

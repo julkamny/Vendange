@@ -112,7 +112,7 @@ def _existing_cluster_targets(intermarc: Intermarc) -> Set[str]:
         note = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$q"), None)
         if not note or note.lower() != "clusterisation script":
             continue
-        ark = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$a"), None)
+        ark = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$3"), None)
         if ark:
             targets.add(ark)
     return targets
@@ -964,7 +964,7 @@ def cluster_works_by_title_responsibilities(
                     zone = Zone(
                         code="90F",
                         sousZones=[
-                            SousZone(code="90F$a", valeur=ark, affected_by_curation="created"),
+                            SousZone(code="90F$3", valeur=ark, affected_by_curation="created"),
                             SousZone(code="90F$q", valeur="Clusterisation script", affected_by_curation="created"),
                             SousZone(code="90F$d", valeur=today, affected_by_curation="created"),
                         ],
@@ -1137,7 +1137,7 @@ def cluster_expressions_by_051_and_041(
                     new_zone = Zone(
                         code="90F",
                         sousZones=[
-                            SousZone(code="90F$a", valeur=candidate_ark, affected_by_curation="created"),
+                            SousZone(code="90F$3", valeur=candidate_ark, affected_by_curation="created"),
                             SousZone(code="90F$q", valeur="Clusterisation script", affected_by_curation="created"),
                             SousZone(code="90F$d", valeur=today, affected_by_curation="created"),
                         ],

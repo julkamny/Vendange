@@ -251,13 +251,7 @@ def _extract_expression_cluster_targets(intermarc: Intermarc) -> set[str]:
         norm_note = str(note).strip().lower()
         if norm_note not in {"clusterisation manuelle", "clusterisation script"}:
             continue
-        target = None
-        if norm_note == "clusterisation script":
-            target = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$a"), None)
-        else:
-            target = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$3"), None)
-            if target is None:
-                target = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$a"), None)
+        target = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$3"), None)
         if target:
             targets.add(str(target).strip())
     return targets

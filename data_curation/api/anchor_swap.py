@@ -45,7 +45,7 @@ def _has_curation_flag(zone: Zone) -> bool:
 
 
 def _extract_cluster_target(zone: Zone) -> Optional[str]:
-    target = next((sub.valeur for sub in zone.sousZones if sub.code in {"90F$3", "90F$a"}), None)
+    target = next((sub.valeur for sub in zone.sousZones if sub.code == "90F$3"), None)
     return target or None
 
 
@@ -153,12 +153,7 @@ def _rewrite_cluster_fields(
         if new_target_value in existing_targets:
             continue
 
-        other_subs = [
-            sub
-            for sub in zone.sousZones
-            if sub.code not in {"90F$q", "90F$a", "90F$3"}
-        ]
-        new_target_zones.append(_manual_cluster_zone(new_target_value, other_subs))
+        new_target_zones.append(_manual_cluster_zone(new_target_value))
         existing_targets.add(new_target_value)
 
     if link_has_adaptation_ark and adaptation_targets:

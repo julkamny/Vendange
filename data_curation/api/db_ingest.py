@@ -158,7 +158,7 @@ def _extract_rows(record: ParsedRecord) -> tuple[List[FieldRow], List[EdgeRow]]:
                 edges.append(
                     EdgeRow(
                         src_id=record.id,
-                        relation_code=sub.code,
+                        relation_code=sub.code.replace("$", "s"),
                         dst_ark=str(sub.valeur),
                         dst_id=None,
                     )

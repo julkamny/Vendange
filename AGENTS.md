@@ -15,12 +15,7 @@ find ${pathToFolder} \
 
 - Strive for DRY : don't repeat it yourself, better to import / refactor code to make it more general than to rewrite something that already exists.
 - Once you're done working, if you've touched files in the React app living in data_inspection, you need to execute `npm run lint`.
-- If you've touched files in the FastAPI Python backend, use `uv run ruff check` and pytest tests/backend.
-
-## Tests
-
-- Built with Playwright Pytest, located in /tests, run them once you've finished working.
-- The FastAPI backend is running at `http://127.0.0.1:8000`, the frontend is available at `http://localhost:5173/`.
+- If you've touched files in the FastAPI Python backend, use `uv run ruff check`.
 
 ## Tips
 

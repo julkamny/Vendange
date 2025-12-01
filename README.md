@@ -36,6 +36,12 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - Manual anchor swap: `POST /api/datasets/<dataset_id>/swap_anchor` moves all curated `90F` fields (script or manual) from the current anchor to a clustered work/expression and retargets them as manual links. For works, curated `552$q = "A pour adaptation"` links move as well and the corresponding `"Est une adaptation de"` backlinks are rewritten to the new anchor.
 - Originality swap: `POST /api/datasets/<dataset_id>/swap_originality` retargets curated `552$q = "A pour adaptation"` links from a former original to a new one, rewrites the reciprocal `"Est une adaptation de"` backlinks on every adaptation, deletes the curated 552 fields from the former original, and recreates them as manual links on the new original.
 
+#### Workspace & clustering API
+- `GET /api/datasets/{dataset_id}/workspace/works` returns work clusters plus pre-computed badges (counts, 5XX relationships, media kinds) and the sorted list of unclustered works as lightweight view models.
+- `GET /api/datasets/{dataset_id}/workspace/work/{anchor_id_or_ark}` resolves a single work cluster for focus-down views (expressions + manifestations included).
+- `GET /api/datasets/{dataset_id}/workspace/agents` exposes manual agent clusters (90F$q Clusterisation manuelle) and the remaining unclustered agents.
+- Cluster-affecting mutations (`swap_anchor`, `swap_originality`) now also return `updatedClusters`, `removedClusterIds`, and `updatedWorkRows` so the UI can patch caches without recomputing.
+
 #### Running data curation operations
 - To launch the FastAPI server in `data_curation/api`: `uv run fastapi dev data_curation/api/app.py`. See below for explanations.
 - The React UI opens on a dashboard that lets you upload CSV snapshots, launch clustering (with or without expression propagation) while streaming script logs, jump into the inspection workspace, or delete a dataset. Every upload becomes its own Oxigraph store.

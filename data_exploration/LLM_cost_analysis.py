@@ -7,8 +7,6 @@ app = marimo.App(width="large")
 @app.cell
 def _():
     import marimo as mo
-    import math
-    import pandas as pd
     import matplotlib.pyplot as plt
     return mo, plt
 

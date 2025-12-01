@@ -20,6 +20,8 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from data_curation.api import db, datasets
+from data_curation.api.schemas import WorkCluster, WorkspaceAgentsResponse, WorkspaceWorksResponse
+from data_curation.curation.cluster_views import WorkspaceViewBuilder
 from data_curation.api.datasets import DatasetMetadata
 from data_curation.curation.pipeline import (
     run_cluster_operation,
@@ -368,7 +370,28 @@ def swap_anchor(dataset_id: str, payload: AnchorSwapPayload) -> dict[str, object
         updated = db.swap_cluster_anchor(dataset_id, anchor_id=payload.anchor_id, target_id=payload.target_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"updatedRecords": updated}
+    builder = WorkspaceViewBuilder.from_dataset(dataset_id)
+    clusters = builder.build_work_clusters()
+    affected_arks = {rec.get("ark") for rec in updated if rec.get("ark")}
+    updated_clusters = [
+        cluster
+        for cluster in clusters
+        if (cluster.anchor_ark and cluster.anchor_ark in affected_arks)
+        or any(item.ark in affected_arks for item in cluster.items)
+    ]
+    updated_work_rows = []
+    for ark in affected_arks:
+        if not ark:
+            continue
+        row = builder.work_row_for_ark(ark)
+        if row:
+            updated_work_rows.append(row)
+    return {
+        "updatedRecords": updated,
+        "updatedClusters": updated_clusters,
+        "removedClusterIds": [],
+        "updatedWorkRows": updated_work_rows,
+    }
 
 
 @app.post("/api/datasets/{dataset_id}/swap_originality")
@@ -382,7 +405,28 @@ def swap_originality(dataset_id: str, payload: OriginalitySwapPayload) -> dict[s
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"updatedRecords": updated}
+    builder = WorkspaceViewBuilder.from_dataset(dataset_id)
+    clusters = builder.build_work_clusters()
+    affected_arks = {rec.get("ark") for rec in updated if rec.get("ark")}
+    updated_clusters = [
+        cluster
+        for cluster in clusters
+        if (cluster.anchor_ark and cluster.anchor_ark in affected_arks)
+        or any(item.ark in affected_arks for item in cluster.items)
+    ]
+    updated_work_rows = []
+    for ark in affected_arks:
+        if not ark:
+            continue
+        row = builder.work_row_for_ark(ark)
+        if row:
+            updated_work_rows.append(row)
+    return {
+        "updatedRecords": updated,
+        "updatedClusters": updated_clusters,
+        "removedClusterIds": [],
+        "updatedWorkRows": updated_work_rows,
+    }
 
 
 @app.post("/api/datasets/{dataset_id}/query")
@@ -447,3 +491,27 @@ def list_dataset_records(dataset_id: str) -> dict[str, object]:
             for record in records
         ],
     }
+
+
+@app.get("/api/datasets/{dataset_id}/workspace/works", response_model=WorkspaceWorksResponse)
+def workspace_works(dataset_id: str) -> WorkspaceWorksResponse:
+    _ensure_dataset(dataset_id)
+    builder = WorkspaceViewBuilder.from_dataset(dataset_id)
+    return builder.workspace_works_payload()
+
+
+@app.get("/api/datasets/{dataset_id}/workspace/work/{anchor_key}", response_model=WorkCluster)
+def workspace_work(dataset_id: str, anchor_key: str) -> WorkCluster:
+    _ensure_dataset(dataset_id)
+    builder = WorkspaceViewBuilder.from_dataset(dataset_id)
+    cluster = builder.cluster_for_anchor(anchor_key)
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found for the requested anchor.")
+    return cluster
+
+
+@app.get("/api/datasets/{dataset_id}/workspace/agents", response_model=WorkspaceAgentsResponse)
+def workspace_agents(dataset_id: str) -> WorkspaceAgentsResponse:
+    _ensure_dataset(dataset_id)
+    builder = WorkspaceViewBuilder.from_dataset(dataset_id)
+    return builder.build_agent_views()

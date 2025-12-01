@@ -38,7 +38,7 @@ from typing import Iterable, Optional
 try:
     # pyoxigraph >= 0.5
     from pyoxigraph import Store, Quad, NamedNode, BlankNode, Literal
-except Exception as e:  # pragma: no cover
+except Exception:  # pragma: no cover
     print("This script requires 'pyoxigraph' (>=0.5). Run `pip install pyoxigraph`.", file=sys.stderr)
     raise
 

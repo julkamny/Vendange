@@ -191,7 +191,6 @@ Add Pydantic models (either in a new `schemas.py` or in `app.py`) that mirror th
 
     * `id`, `ark`, `label`, `type_norm` (person/collective/family)
     * Backlink counts (for `EntityLabel` counts).
-    * Maybe media / other metrics if needed.
 
 ### 5.2. Port `detectClusters` & unclustered logic to Python
 
@@ -339,7 +338,7 @@ For existing mutation endpoints (`swap_work_anchor`, `swap_originality`, manifes
     "updated_clusters": [WorkCluster],       // only clusters that have changed
     "removed_cluster_ids": ["..."],          // if anchors changed or clusters collapsed
     "updated_work_rows": [WorkListRow],      // minimal list entries that changed
-    "updated_records": [RecordPayload]       // only if Intermarc details are still needed
+    "updated_records": [RecordPayload]
   }
   ```
 

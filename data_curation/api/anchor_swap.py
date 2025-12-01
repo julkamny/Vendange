@@ -168,7 +168,7 @@ def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> L
 
         kind_anchor = anchor_entity.type_entite.strip().lower()
         kind_target = target_entity.type_entite.strip().lower()
-        if not (kind_anchor in {"œuvre","oeuvre","work","expression"}):
+        if kind_anchor not in {"œuvre","oeuvre","work","expression"}:
             raise ValueError("Le changement d'ancre n'est possible que pour les œuvres ou les expressions.")
         if kind_anchor != kind_target:
             raise ValueError("Ancre et cible doivent être du même type.")

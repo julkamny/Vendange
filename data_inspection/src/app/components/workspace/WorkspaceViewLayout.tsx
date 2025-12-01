@@ -451,7 +451,7 @@ export function WorkspaceViewLayout(props: Props) {
       {pendingClusterTarget ? (
         <ConfirmWorkClusterModal
           source={pendingClusterSourceRecord}
-          anchor={contextMenu?.record ?? null}
+          anchor={pendingClusterTarget ? getById(pendingClusterTarget.anchorId) : null}
           onConfirm={confirmPendingCluster}
           onCancel={cancelPendingCluster}
         />
@@ -460,7 +460,7 @@ export function WorkspaceViewLayout(props: Props) {
       {pendingExpressionClusterTarget ? (
         <ConfirmExpressionClusterModal
           source={pendingExpressionClusterSourceRecord}
-          anchor={contextMenu?.record ?? null}
+          anchor={pendingExpressionClusterTarget ? getById(pendingExpressionClusterTarget.anchorId) : null}
           onConfirm={confirmPendingExpressionCluster}
           onCancel={cancelPendingExpressionCluster}
         />

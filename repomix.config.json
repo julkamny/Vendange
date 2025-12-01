@@ -20,7 +20,7 @@
   "ignore": {
     "useGitignore": true,
     "useDefaultPatterns": true,
-    "customPatterns": ["**/*.csv", "*.csv", "agent_interactions/"]
+    "customPatterns": ["**/*.csv", "*.csv", "agent_interactions/", "**/datasets/", "**/controlledListsData.ts", "**/*.css"]
   },
   "security": {
     "enableSecurityCheck": true

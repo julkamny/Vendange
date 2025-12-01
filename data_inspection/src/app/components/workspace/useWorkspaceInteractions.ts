@@ -14,12 +14,13 @@ type Params = {
 
 export function useWorkspaceInteractions({ state, onStateChange, getById, getByArk, openRecordForArk }: Params) {
   const listPanelRef = useRef<HTMLElement | null>(null)
+  const listScrollRef = useRef<HTMLElement | null>(null)
   const detailsPanelRef = useRef<HTMLElement | null>(null)
   const lastScrollKeyRef = useRef<string>('')
   const [contextMenu, setContextMenu] = useState<WorkspaceContextMenuState | null>(null)
 
   useLayoutEffect(() => {
-    const listNode = listPanelRef.current
+    const listNode = listScrollRef.current ?? listPanelRef.current
     if (!listNode) return
     if (Math.abs(listNode.scrollTop - state.listScrollTop) > 1) {
       listNode.scrollTop = state.listScrollTop
@@ -168,7 +169,7 @@ export function useWorkspaceInteractions({ state, onStateChange, getById, getByA
     }
     listNode.addEventListener('contextmenu', handleContextMenu)
     return () => listNode.removeEventListener('contextmenu', handleContextMenu)
-  }, [resolveRecordFromRow])
+  }, [resolveRecordFromRow, state.viewMode])
 
   const handleArkClick = useCallback(
     (ark: string, context: { zone: string; subfield: string }) => {
@@ -183,6 +184,7 @@ export function useWorkspaceInteractions({ state, onStateChange, getById, getByA
 
   return {
     listPanelRef,
+    listScrollRef,
     detailsPanelRef,
     contextMenu,
     setContextMenu,

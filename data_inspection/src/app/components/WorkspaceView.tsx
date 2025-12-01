@@ -197,6 +197,7 @@ export function WorkspaceView({
   })
   const {
     listPanelRef,
+    listScrollRef,
     detailsPanelRef,
     contextMenu,
     setContextMenu,
@@ -300,6 +301,7 @@ export function WorkspaceView({
     t,
     setContextMenu,
     findControlledValueArk,
+    listScrollRef,
     sharedPendingManifestationId,
     setSharedPendingManifestationId,
   })
@@ -411,7 +413,7 @@ export function WorkspaceView({
           onToggleWork={({ clusterId, workArk, accepted }) => setWorkAccepted(clusterId, workArk, accepted)}
           pendingClusterSourceId={pendingClusterSourceId}
           onCancelPendingCluster={cancelPendingCluster}
-          listRef={listPanelRef}
+          listRef={listScrollRef}
           onScroll={handleListScroll}
         />
       )

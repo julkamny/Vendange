@@ -9,10 +9,11 @@ import json
 import logging
 import shutil
 import zipfile
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, AsyncIterator, List, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional
+import threading
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,6 +29,7 @@ from data_curation.curation.pipeline import (
     run_cluster_with_expression_operation,
 )
 from data_curation.utils.log_bundle import LOG_TEXT_FORMAT, LogBundle, activate_log_bundle, reset_log_bundle
+from data_curation.models import Entity
 
 
 LOGGER = logging.getLogger(__name__)
@@ -299,6 +301,59 @@ def _serialize_dataset(meta: DatasetMetadata) -> dict[str, Any]:
     }
 
 
+# WorkspaceViewBuilder cache --------------------------------------------------
+
+
+@dataclass
+class _WorkspaceCacheEntry:
+    builder: WorkspaceViewBuilder
+    updated_at: str
+
+
+_WORKSPACE_CACHE: Dict[str, _WorkspaceCacheEntry] = {}
+_WORKSPACE_CACHE_LOCK = threading.RLock()
+
+
+def _invalidate_workspace_cache(dataset_id: str) -> None:
+    with _WORKSPACE_CACHE_LOCK:
+        _WORKSPACE_CACHE.pop(dataset_id, None)
+
+
+def _get_workspace_builder(dataset_id: str) -> WorkspaceViewBuilder:
+    meta = _ensure_dataset(dataset_id)
+    updated_at = meta.updated_at
+    with _WORKSPACE_CACHE_LOCK:
+        entry = _WORKSPACE_CACHE.get(dataset_id)
+        if entry and entry.updated_at == updated_at:
+            return entry.builder
+
+    builder = WorkspaceViewBuilder.from_dataset(dataset_id)
+    with _WORKSPACE_CACHE_LOCK:
+        _WORKSPACE_CACHE[dataset_id] = _WorkspaceCacheEntry(builder=builder, updated_at=updated_at)
+    return builder
+
+
+def _apply_workspace_updates(dataset_id: str, updated_records: List[dict[str, str]]) -> Optional[WorkspaceViewBuilder]:
+    if not updated_records:
+        _invalidate_workspace_cache(dataset_id)
+        return None
+
+    with _WORKSPACE_CACHE_LOCK:
+        entry = _WORKSPACE_CACHE.get(dataset_id)
+
+    if not entry:
+        return None
+
+    entities = [Entity(item["id"], item["type"], item["intermarc"]) for item in updated_records]
+    entry.builder.replace_entities(entities)
+    # Refresh cache timestamp to latest dataset update after db.touch_dataset
+    meta = datasets.get_dataset(dataset_id)
+    with _WORKSPACE_CACHE_LOCK:
+        _WORKSPACE_CACHE[dataset_id] = _WorkspaceCacheEntry(builder=entry.builder, updated_at=meta.updated_at)
+
+    return entry.builder
+
+
 @app.get("/api/datasets")
 def list_datasets() -> dict[str, List[dict[str, Any]]]:
     metas = datasets.list_datasets()
@@ -351,6 +406,7 @@ def delete_dataset(dataset_id: str) -> None:
     if dataset_dir.exists():
         shutil.rmtree(dataset_dir, ignore_errors=True)
     datasets.delete_dataset_entry(dataset_id)
+    _invalidate_workspace_cache(dataset_id)
 
 
 @app.post("/api/datasets/{dataset_id}/update_record")
@@ -360,6 +416,7 @@ async def update_record(dataset_id: str, payload: UpdateRecordPayload) -> dict[s
         db.update_record(dataset_id, payload.record_id, type_raw=payload.type_raw, intermarc_json=payload.intermarc_json)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _invalidate_workspace_cache(dataset_id)
     return {"status": "ok"}
 
 
@@ -370,7 +427,7 @@ def swap_anchor(dataset_id: str, payload: AnchorSwapPayload) -> dict[str, object
         updated = db.swap_cluster_anchor(dataset_id, anchor_id=payload.anchor_id, target_id=payload.target_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    builder = WorkspaceViewBuilder.from_dataset(dataset_id)
+    builder = _apply_workspace_updates(dataset_id, updated) or _get_workspace_builder(dataset_id)
     clusters = builder.build_work_clusters()
     affected_arks = {rec.get("ark") for rec in updated if rec.get("ark")}
     updated_clusters = [
@@ -405,7 +462,7 @@ def swap_originality(dataset_id: str, payload: OriginalitySwapPayload) -> dict[s
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    builder = WorkspaceViewBuilder.from_dataset(dataset_id)
+    builder = _apply_workspace_updates(dataset_id, updated) or _get_workspace_builder(dataset_id)
     clusters = builder.build_work_clusters()
     affected_arks = {rec.get("ark") for rec in updated if rec.get("ark")}
     updated_clusters = [
@@ -478,14 +535,14 @@ def download_cluster_log(dataset_id: str, log_name: str) -> Response:
 @app.get("/api/datasets/{dataset_id}/workspace/works", response_model=WorkspaceWorksResponse)
 def workspace_works(dataset_id: str) -> WorkspaceWorksResponse:
     _ensure_dataset(dataset_id)
-    builder = WorkspaceViewBuilder.from_dataset(dataset_id)
+    builder = _get_workspace_builder(dataset_id)
     return builder.workspace_works_payload()
 
 
 @app.get("/api/datasets/{dataset_id}/workspace/work/{anchor_key:path}", response_model=WorkCluster)
 def workspace_work(dataset_id: str, anchor_key: str) -> WorkCluster:
     _ensure_dataset(dataset_id)
-    builder = WorkspaceViewBuilder.from_dataset(dataset_id)
+    builder = _get_workspace_builder(dataset_id)
     cluster = builder.cluster_for_anchor(anchor_key)
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found for the requested anchor.")
@@ -495,14 +552,14 @@ def workspace_work(dataset_id: str, anchor_key: str) -> WorkCluster:
 @app.get("/api/datasets/{dataset_id}/workspace/agents", response_model=WorkspaceAgentsResponse)
 def workspace_agents(dataset_id: str) -> WorkspaceAgentsResponse:
     _ensure_dataset(dataset_id)
-    builder = WorkspaceViewBuilder.from_dataset(dataset_id)
+    builder = _get_workspace_builder(dataset_id)
     return builder.build_agent_views()
 
 
 @app.get("/api/datasets/{dataset_id}/workspace/record/{record_key:path}", response_model=RecordPayload)
 def workspace_record(dataset_id: str, record_key: str) -> RecordPayload:
     _ensure_dataset(dataset_id)
-    builder = WorkspaceViewBuilder.from_dataset(dataset_id)
+    builder = _get_workspace_builder(dataset_id)
     record = builder.record_payload_for_key(record_key)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found for the requested identifier.")

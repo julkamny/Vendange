@@ -244,6 +244,186 @@ class WorkspaceViewBuilder:
 
         self._build_indices()
 
+    # -------- cache-friendly incremental updates --------
+    def replace_entities(self, entities: Sequence[Entity]) -> None:
+        """Update cached indices with a handful of freshly written entities.
+
+        The builder was designed to be rebuilt wholesale; this method keeps the
+        cached instance hot by swapping the changed entities in place and
+        refreshing only the indices that depend on them.
+        """
+
+        work_arks_to_refresh: Set[str] = set()
+        expr_arks_to_refresh: Set[str] = set()
+
+        for entity in entities:
+            existing = self.entity_by_id.get(entity.id_entitelrm)
+            if existing:
+                work_arks_to_refresh.update(self._work_arks_for_entity(existing))
+                expr_ark = existing.ark() if _normalize_type(existing.type_entite) == "expression" else None
+                if expr_ark:
+                    expr_arks_to_refresh.add(expr_ark)
+                self._prune_entity_indexes(existing)
+                self._replace_entity_in_list(entity)
+            else:
+                self.entities.append(entity)
+
+            work_arks_to_refresh.update(self._work_arks_for_entity(entity))
+            expr_ark = entity.ark() if _normalize_type(entity.type_entite) == "expression" else None
+            if expr_ark:
+                expr_arks_to_refresh.add(expr_ark)
+
+            self._index_entity(entity)
+
+        for work_ark in work_arks_to_refresh:
+            self._recompute_work_counts_for(work_ark)
+
+        # When expressions move across works, refresh counts for the new parents too
+        for expr_ark in expr_arks_to_refresh:
+            for work_ark in self._work_arks_for_expression_ark(expr_ark):
+                self._recompute_work_counts_for(work_ark)
+
+    def _replace_entity_in_list(self, entity: Entity) -> None:
+        for idx, ent in enumerate(self.entities):
+            if ent.id_entitelrm == entity.id_entitelrm:
+                self.entities[idx] = entity
+                return
+
+    def _work_arks_for_expression_ark(self, expr_ark: str) -> Set[str]:
+        expr = self.expressions_by_ark.get(expr_ark)
+        if not expr:
+            return set()
+        return set(_expression_work_arks(expr))
+
+    def _work_arks_for_entity(self, entity: Entity) -> Set[str]:
+        norm = _normalize_type(entity.type_entite)
+        if norm == "oeuvre":
+            return {entity.ark()} if entity.ark() else set()
+        if norm == "expression":
+            return set(_expression_work_arks(entity))
+        if norm == "manifestation":
+            work_arks: Set[str] = set()
+            for expr_ark in _manifestation_expression_arks(entity):
+                work_arks.update(self._work_arks_for_expression_ark(expr_ark))
+            return work_arks
+        return set()
+
+    def _recompute_work_counts_for(self, work_ark: Optional[str]) -> None:
+        if not work_ark:
+            return
+        exprs = self.expressions_by_work_ark.get(work_ark, [])
+        manifests = 0
+        for expr in exprs:
+            expr_ark = expr.ark()
+            if not expr_ark:
+                continue
+            manifests += len(self.manifestations_by_expression_ark.get(expr_ark, []))
+        self.work_counts[work_ark] = CountStats(expressions=len(exprs), manifestations=manifests)
+
+    def _collect_relationship_targets(self, entity: Entity) -> Set[str]:
+        norm = _normalize_type(entity.type_entite)
+        zone_codes = GENERAL_RELATIONSHIP_CODES.get(norm, ())
+        targets: Set[str] = set()
+        for code in zone_codes:
+            for zone in entity.intermarc.get_zone(code):
+                for sub in zone.sousZones:
+                    if sub.code == f"{code}$3" and sub.valeur:
+                        targets.add(str(sub.valeur).strip())
+        return targets
+
+    def _prune_entity_indexes(self, entity: Entity) -> None:
+        entity_id = entity.id_entitelrm
+        entity_ark = entity.ark()
+        norm = _normalize_type(entity.type_entite)
+
+        self.entity_by_id.pop(entity_id, None)
+        self.type_by_id.pop(entity_id, None)
+        if entity_ark:
+            self.entity_by_ark.pop(entity_ark, None)
+            self.media_kinds_by_ark.pop(entity_ark, None)
+
+        if norm == "oeuvre" and entity_ark:
+            self.work_id_by_ark.pop(entity_ark, None)
+            self.work_title_by_ark.pop(entity_ark, None)
+            self.clustered_work_arks.discard(entity_ark)
+            self.work_counts.pop(entity_ark, None)
+
+        if norm == "expression":
+            expr_ark = entity.ark()
+            if expr_ark:
+                self.expressions_by_ark.pop(expr_ark, None)
+            for work_ark in _expression_work_arks(entity):
+                exprs = self.expressions_by_work_ark.get(work_ark)
+                if exprs:
+                    self.expressions_by_work_ark[work_ark] = [e for e in exprs if e.id_entitelrm != entity_id]
+                    if not self.expressions_by_work_ark[work_ark]:
+                        self.expressions_by_work_ark.pop(work_ark, None)
+
+        if norm == "manifestation":
+            for expr_ark in _manifestation_expression_arks(entity):
+                manifests = self.manifestations_by_expression_ark.get(expr_ark)
+                if manifests:
+                    self.manifestations_by_expression_ark[expr_ark] = [m for m in manifests if m.id_entitelrm != entity_id]
+                    if not self.manifestations_by_expression_ark[expr_ark]:
+                        self.manifestations_by_expression_ark.pop(expr_ark, None)
+
+        if entity_ark:
+            old_targets = self.relationship_outgoing.pop(entity_ark, set())
+            for target in old_targets:
+                incoming = self.relationship_incoming.get(target)
+                if incoming:
+                    incoming.discard(entity_ark)
+                    if not incoming:
+                        self.relationship_incoming.pop(target, None)
+
+    def _index_entity(self, entity: Entity) -> None:
+        entity_id = entity.id_entitelrm
+        entity_ark = entity.ark()
+        norm = _normalize_type(entity.type_entite)
+
+        self.entity_by_id[entity_id] = entity
+        self.type_by_id[entity_id] = norm
+        if entity_ark:
+            self.entity_by_ark[entity_ark] = entity
+
+        if norm == "oeuvre":
+            if entity_ark:
+                self.work_id_by_ark[entity_ark] = entity_id
+                title = _title_of(entity)
+                if title:
+                    self.work_title_by_ark[entity_ark] = title
+            for zone in entity.intermarc.get_zone("90F"):
+                note = next((sub.valeur for sub in zone.sousZones if sub.code == "90F$q"), None)
+                if note not in {CLUSTER_MANUAL_NOTE, CLUSTER_SCRIPT_NOTE}:
+                    continue
+                target = (
+                    next((sub.valeur for sub in zone.sousZones if sub.code == "90F$3"), None)
+                    if note == CLUSTER_MANUAL_NOTE
+                    else next((sub.valeur for sub in zone.sousZones if sub.code == "90F$a"), None)
+                )
+                if target:
+                    self.clustered_work_arks.add(str(target))
+
+        elif norm == "expression":
+            expr_ark = entity.ark()
+            if expr_ark:
+                self.expressions_by_ark[expr_ark] = entity
+            for work_ark in _expression_work_arks(entity):
+                self.expressions_by_work_ark.setdefault(work_ark, []).append(entity)
+
+        elif norm == "manifestation":
+            for expr_ark in _manifestation_expression_arks(entity):
+                self.manifestations_by_expression_ark.setdefault(expr_ark, []).append(entity)
+
+        if entity_ark:
+            targets = self._collect_relationship_targets(entity)
+            if targets:
+                self.relationship_outgoing[entity_ark] = targets
+                for target in targets:
+                    self.relationship_incoming.setdefault(target, set()).add(entity_ark)
+
+            self.media_kinds_by_ark[entity_ark] = _media_kinds(entity, self.entity_by_ark)
+
     @classmethod
     def from_dataset(cls, dataset_id: str) -> "WorkspaceViewBuilder":
         return cls(db.load_entities(dataset_id))

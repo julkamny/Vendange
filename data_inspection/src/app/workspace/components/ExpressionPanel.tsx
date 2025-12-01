@@ -1,15 +1,16 @@
-import { useMemo, useCallback, type MouseEvent } from 'react'
-import type { Cluster, ExpressionClusterItem, ExpressionItem } from '../../types'
+import { useMemo, type MouseEvent } from 'react'
+import type { WorkClusterDto, ExpressionClusterItemViewDto, ExpressionItemViewDto } from '../../types'
 import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
 import { EntityPill, CountBadge, AgentBadge, RelationshipBadge } from '../../components/EntityLabel'
-import { useRecordLookup } from '../../hooks/useRecordLookup'
-import { countExpressionWorkLinks } from '../../core/entities'
-import { useBacklinks } from '../../hooks/useBacklinks'
 import type { MediaKind } from '../../core/media'
 
+type SummaryLike = { mediaKinds?: MediaKind[]; media_kinds?: MediaKind[]; counts?: { manifestations?: number }; relationships?: { outgoing: number; incoming: number } }
+
+const pickMediaKinds = (summary?: SummaryLike | null) => summary?.mediaKinds ?? summary?.media_kinds
+
 type ExpressionPanelProps = {
-  cluster: Cluster | null
+  cluster: WorkClusterDto | null
   state: WorkspaceTabStateWorkspace
   onSelectExpression: (payload: {
     expressionId: string
@@ -33,7 +34,7 @@ type ExpressionPanelProps = {
 }
 
 type ExpressionGroupLabelProps = {
-  expression: ExpressionItem | ExpressionClusterItem
+  expression: ExpressionItemViewDto | ExpressionClusterItemViewDto
   isAnchor: boolean
   manifestationCount: number
   workLinkCount: number
@@ -61,7 +62,13 @@ export function ExpressionGroupLabel({
     >
       <span className="expression-marker">{isAnchor ? '⚓︎' : '🍇'}</span>
       <EntityPill type="expression" text={expression.id} tooltip={expression.ark} />
-      {expression.workId ? <EntityPill type="work" text={expression.workId} tooltip={expression.workArk} /> : null}
+      {'work_id' in expression && expression.work_id ? (
+        <EntityPill
+          type="work"
+          text={expression.work_id}
+          tooltip={expression.work_ark || undefined}
+        />
+      ) : null}
       {manifestationCount > 0 ? <CountBadge kind="manifestations" count={manifestationCount} /> : null}
       {workLinkCount > 1 ? <CountBadge kind="workLinks" count={workLinkCount} /> : null}
       {relationships.outgoing > 0 || relationships.incoming > 0 ? (
@@ -113,28 +120,11 @@ export function ExpressionPanel({
   onCancelPendingCluster,
 }: ExpressionPanelProps) {
   const { t } = useTranslation()
-  const { getById, getByArk, getAgentNames, getGeneralRelationshipCount, getMediaKinds } = useRecordLookup()
-  const { countIncomingRelationships } = useBacklinks()
-  const resolveExpressionRecord = useCallback(
-    (id?: string | null, ark?: string | null) => getById(id) ?? getByArk(ark),
-    [getByArk, getById],
-  )
-
-  const computeExpressionMetrics = useCallback(
-    (id?: string | null, ark?: string | null) => {
-      const record = resolveExpressionRecord(id, ark)
-      const workLinkCount = record ? countExpressionWorkLinks(record) : 0
-      const outgoing = getGeneralRelationshipCount(id, ark)
-      const incoming = record ? countIncomingRelationships(record) : 0
-      return { workLinkCount, relationships: { outgoing, incoming }, record }
-    },
-    [countIncomingRelationships, getGeneralRelationshipCount, resolveExpressionRecord],
-  )
 
   const groups = useMemo(() => {
     if (!cluster) return []
-    const base = cluster.expressionGroups
-    const independents = (cluster.independentExpressions ?? []).map(expr => ({
+    const base = cluster.expression_groups
+    const independents = (cluster.independent_expressions ?? []).map(expr => ({
       anchor: expr,
       clustered: [],
     }))
@@ -155,20 +145,18 @@ export function ExpressionPanel({
 
         const anchorClasses = ['expression-anchor', 'entity-row', 'entity-row--expression']
         if (pendingClusterSourceId && pendingClusterSourceId === group.anchor.id) anchorClasses.push('pending-cluster-source')
-        const anchorAgentNames = getAgentNames(group.anchor.id, group.anchor.ark)
-        const {
-          workLinkCount: anchorWorkLinks,
-          relationships: anchorRelationships,
-        } = computeExpressionMetrics(group.anchor.id, group.anchor.ark)
-        const anchorMediaKinds = getMediaKinds(group.anchor.id, group.anchor.ark)
+        const anchorAgentNames: string[] = []
+        const anchorWorkLinks = group.anchor.summary?.counts?.manifestations ?? 0
+        const anchorRelationships = group.anchor.summary?.relationships ?? { outgoing: 0, incoming: 0 }
+        const anchorMediaKinds = pickMediaKinds(group.anchor.summary)
 
         const anchorSelected =
           selectedEntity?.entityType === 'expression' && selectedEntity.expressionId === group.anchor.id
         const anchorFromManifestation =
           selectedEntity?.entityType === 'manifestation' && selectedEntity.expressionId === group.anchor.id
         const anchorFromWork =
-          selectedEntity?.entityType === 'work' && selectedEntity.workArk === group.anchor.workArk
-        const anchorMatchesHighlight = matchesFilter(group.anchor.workArk, highlightedWorkArk)
+          selectedEntity?.entityType === 'work' && selectedEntity.workArk === group.anchor.work_ark
+        const anchorMatchesHighlight = matchesFilter(group.anchor.work_ark, highlightedWorkArk)
 
         if (anchorSelected) anchorClasses.push('selected')
         else if (anchorFromManifestation || anchorFromWork || (highlightedWorkArk && anchorMatchesHighlight)) {
@@ -190,7 +178,7 @@ export function ExpressionPanel({
                 onSelectExpression({
                   expressionId: group.anchor.id,
                   expressionArk: group.anchor.ark,
-                  workArk: group.anchor.workArk,
+                  workArk: group.anchor.work_ark,
                   anchorId: group.anchor.id,
                 })
               }
@@ -203,14 +191,14 @@ export function ExpressionPanel({
                 onOpenManifestations({
                   expressionId: group.anchor.id,
                   expressionArk: group.anchor.ark,
-                  workArk: group.anchor.workArk,
+                  workArk: group.anchor.work_ark,
                   anchorId: group.anchor.id,
                 })
               }}
             >
               <ExpressionGroupLabel
                 expression={group.anchor}
-                isAnchor={group.anchor.workArk === cluster.anchorArk}
+                isAnchor={group.anchor.work_ark === cluster.anchor_ark}
                 manifestationCount={group.anchor.manifestations.length}
                 workLinkCount={anchorWorkLinks}
                 agentNames={anchorAgentNames}
@@ -224,15 +212,16 @@ export function ExpressionPanel({
                   const rowClasses = ['expression-item', 'entity-row', 'entity-row--expression']
                   if (!expr.accepted) rowClasses.push('unchecked')
                   if (pendingClusterSourceId && pendingClusterSourceId === expr.id) rowClasses.push('pending-cluster-source')
-                  const exprAgentNames = getAgentNames(expr.id, expr.ark)
-                  const exprMediaKinds = getMediaKinds(expr.id, expr.ark)
-                  const { workLinkCount, relationships } = computeExpressionMetrics(expr.id, expr.ark)
+                  const exprAgentNames: string[] = []
+                  const exprMediaKinds = pickMediaKinds(expr.summary)
+                  const workLinkCount = expr.summary?.counts?.manifestations ?? 0
+                  const relationships = expr.summary?.relationships ?? { outgoing: 0, incoming: 0 }
                   const isSelectedExpression =
                     (selectedEntity?.entityType === 'expression' && selectedEntity.expressionId === expr.id) ||
                     (selectedEntity?.entityType === 'manifestation' && selectedEntity.expressionId === expr.id)
                   const isWorkSelection =
-                    selectedEntity?.entityType === 'work' && selectedEntity.workArk === expr.workArk
-                  const matchesHighlight = matchesFilter(expr.workArk, highlightedWorkArk)
+                    selectedEntity?.entityType === 'work' && selectedEntity.workArk === expr.work_ark
+                  const matchesHighlight = matchesFilter(expr.work_ark, highlightedWorkArk)
                   if (isSelectedExpression) rowClasses.push('selected')
                   else if (isWorkSelection || (highlightedWorkArk && matchesHighlight)) rowClasses.push('highlight')
                   if (highlightedWorkArk && matchesHighlight) rowClasses.push('filter-match')
@@ -251,7 +240,7 @@ export function ExpressionPanel({
                         onSelectExpression({
                           expressionId: expr.id,
                           expressionArk: expr.ark,
-                          workArk: expr.workArk,
+                          workArk: expr.work_ark,
                           anchorId: group.anchor.id,
                         })
                       }

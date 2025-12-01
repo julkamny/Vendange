@@ -1,18 +1,13 @@
-import { useEffect, useMemo, useRef, type MouseEvent, useCallback, type UIEvent } from 'react'
+import { useEffect, useMemo, useRef, type MouseEvent, type UIEvent } from 'react'
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
-import type { Cluster, RecordRow } from '../../types'
+import type { WorkClusterDto, WorkListRowDto } from '../../types'
 import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
-import { computeWorkCounts, computeUnclusteredWorkCounts } from '../../core/workCounts'
-import { titleOf, workTitleSegments } from '../../core/entities'
 import { EntityLabel } from '../../components/EntityLabel'
-import { useAppData } from '../../providers/AppDataContext'
-import { useRecordLookup } from '../../hooks/useRecordLookup'
-import { useBacklinks } from '../../hooks/useBacklinks'
 
 type WorkListPanelProps = {
-  clusters: Cluster[]
-  unclusteredWorks: RecordRow[]
+  clusters: WorkClusterDto[]
+  unclusteredWorks: WorkListRowDto[]
   state: WorkspaceTabStateWorkspace
   onSelectWork: (payload: { workId: string; workArk?: string | null }) => void
   onOpenExpressions: (payload: { workId: string; workArk?: string | null }) => void
@@ -36,56 +31,43 @@ export function WorkListPanel({
   listRef,
 }: WorkListPanelProps) {
   const { t, language } = useTranslation()
-  const { originalIndexes } = useAppData()
-  const { getById, getByArk, getAgentNames, getGeneralRelationshipCount, getMediaKinds } =
-    useRecordLookup()
-  const { countIncomingRelationships } = useBacklinks()
+  const pickMediaKinds = (summary?: { mediaKinds?: unknown; media_kinds?: unknown }) =>
+    (summary?.mediaKinds as unknown as { emoji: string; label: string; kindCode: string }[] | undefined) ??
+    (summary?.media_kinds as unknown as { emoji: string; label: string; kindCode: string }[] | undefined)
 
-  const resolveWorkSegments = useCallback(
-    (id?: string | null, ark?: string | null) => {
-      const record = getById(id) ?? getByArk(ark)
-      return record ? workTitleSegments(record) : undefined
-    },
-    [getByArk, getById],
-  )
-
-  const relationshipsFor = useCallback(
-    (id?: string | null, ark?: string | null) => {
-      const record = getById(id) ?? getByArk(ark)
-      const outgoing = getGeneralRelationshipCount(id, ark)
-      const incoming = record ? countIncomingRelationships(record) : 0
-      return { outgoing, incoming }
-    },
-    [countIncomingRelationships, getByArk, getById, getGeneralRelationshipCount],
-  )
+  const simpleSegments = (title?: string | null, id?: string) =>
+    title || id ? [{ text: title ?? id ?? '', highlight: false }] : undefined
 
   const collator = useMemo(() => new Intl.Collator(language, { sensitivity: 'accent' }), [language])
   const sortedEntries = useMemo(() => {
     type ListEntry =
-      | { kind: 'cluster'; cluster: Cluster; title: string }
-      | { kind: 'unclustered'; work: RecordRow; title: string }
+      | { kind: 'cluster'; cluster: WorkClusterDto; title: string }
+      | { kind: 'unclustered'; work: WorkListRowDto; title: string }
 
     const sanitizeTitle = (value: string | undefined, fallback: string) => {
       const trimmed = value?.trim()
       return trimmed && trimmed.length > 0 ? trimmed : fallback
     }
 
-    const clusterEntries: ListEntry[] = clusters.map(cluster => ({
-      kind: 'cluster',
-      cluster,
-      title: sanitizeTitle(cluster.anchorTitle, cluster.anchorId),
-    }))
+    const clusterEntries: ListEntry[] = clusters.map(cluster => {
+      const anchorTitle = cluster.anchor_title ?? cluster.anchor_id
+      return {
+        kind: 'cluster',
+        cluster,
+        title: sanitizeTitle(anchorTitle, cluster.anchor_id),
+      }
+    })
     const orphanEntries: ListEntry[] = unclusteredWorks.map(work => ({
       kind: 'unclustered',
       work,
-      title: sanitizeTitle(titleOf(work), work.id),
+      title: sanitizeTitle(work.title ?? work.id, work.id),
     }))
 
     return [...clusterEntries, ...orphanEntries].sort((a, b) => {
       const comparison = collator.compare(a.title, b.title)
       if (comparison !== 0) return comparison
       if (a.kind === 'cluster' && b.kind === 'cluster') {
-        return a.cluster.anchorId.localeCompare(b.cluster.anchorId)
+        return a.cluster.anchor_id.localeCompare(b.cluster.anchor_id)
       }
       if (a.kind === 'unclustered' && b.kind === 'unclustered') {
         return a.work.id.localeCompare(b.work.id)
@@ -133,7 +115,7 @@ export function WorkListPanel({
     const index = sortedEntries.findIndex(entry => {
       if (entry.kind === 'cluster') {
         const { cluster } = entry
-        if (cluster.anchorId === targetId || cluster.anchorArk === targetArk) return true
+        if (cluster.anchor_id === targetId || cluster.anchor_ark === targetArk) return true
         return cluster.items.some(item => item.id === targetId || item.ark === targetArk)
       }
       return entry.work.id === targetId || entry.work.ark === targetArk
@@ -163,46 +145,44 @@ export function WorkListPanel({
         itemContent={(_, entry) => {
           if (entry.kind === 'cluster') {
             const { cluster } = entry
-            const anchorCounts = computeWorkCounts(cluster, cluster.anchorArk)
+            const anchorCounts = cluster.anchor_summary?.counts
             const clusterClasses = ['cluster']
-            if (state.activeWorkAnchorId === cluster.anchorId) clusterClasses.push('active')
+            if (state.activeWorkAnchorId === cluster.anchor_id) clusterClasses.push('active')
             const anchorRowClasses = ['cluster-header-row', 'entity-row', 'entity-row--work']
-            if (pendingClusterSourceId && pendingClusterSourceId === cluster.anchorId) anchorRowClasses.push('pending-cluster-source')
-            if (state.highlightedWorkArk && state.highlightedWorkArk === cluster.anchorArk) {
+            if (pendingClusterSourceId && pendingClusterSourceId === cluster.anchor_id) anchorRowClasses.push('pending-cluster-source')
+            if (state.highlightedWorkArk && state.highlightedWorkArk === cluster.anchor_ark) {
               anchorRowClasses.push('highlight')
             }
-            const anchorAgentNames = getAgentNames(cluster.anchorId, cluster.anchorArk)
-            const anchorSegments = resolveWorkSegments(cluster.anchorId, cluster.anchorArk)
-            const anchorMediaKinds = getMediaKinds(cluster.anchorId, cluster.anchorArk)
-            const anchorRelationships = relationshipsFor(cluster.anchorId, cluster.anchorArk)
+            const anchorSegments = simpleSegments(cluster.anchor_title, cluster.anchor_id)
+            const anchorMediaKinds = pickMediaKinds(cluster.anchor_summary)
+            const anchorRelationships = cluster.anchor_summary?.relationships
             return (
-              <div key={cluster.anchorId} className={clusterClasses.join(' ')} data-cluster-anchor-id={cluster.anchorId}>
+              <div key={cluster.anchor_id} className={clusterClasses.join(' ')} data-cluster-anchor-id={cluster.anchor_id}>
                 <div
                   className={anchorRowClasses.join(' ')}
-                  data-work-id={cluster.anchorId}
-                  data-work-ark={cluster.anchorArk}
+                  data-work-id={cluster.anchor_id}
+                  data-work-ark={cluster.anchor_ark}
                 >
                   <div
                     className="cluster-header"
                     onClick={event => {
                       if (shouldIgnoreAgentBadge(event)) return
-                      onSelectWork({ workId: cluster.anchorId, workArk: cluster.anchorArk })
+                      onSelectWork({ workId: cluster.anchor_id, workArk: cluster.anchor_ark })
                     }}
                     onDoubleClick={event => {
                       if (shouldIgnoreAgentBadge(event)) return
-                      if (pendingClusterSourceId && pendingClusterSourceId === cluster.anchorId) {
+                      if (pendingClusterSourceId && pendingClusterSourceId === cluster.anchor_id) {
                         onCancelPendingCluster?.()
                         return
                       }
-                      onOpenExpressions({ workId: cluster.anchorId, workArk: cluster.anchorArk })
+                      onOpenExpressions({ workId: cluster.anchor_id, workArk: cluster.anchor_ark })
                     }}
                   >
                     <span className="cluster-anchor-marker">⚓︎</span>
                     <EntityLabel
                       title={entry.title}
-                      badges={[{ type: 'work', text: cluster.anchorId, tooltip: cluster.anchorArk }]}
+                      badges={[{ type: 'work', text: cluster.anchor_id, tooltip: cluster.anchor_ark }]}
                       counts={anchorCounts}
-                      agentNames={anchorAgentNames}
                       relationships={anchorRelationships}
                       titleSegments={anchorSegments}
                       mediaKinds={anchorMediaKinds}
@@ -213,7 +193,7 @@ export function WorkListPanel({
                     className="cluster-open-expressions"
                     onClick={event => {
                       event.stopPropagation()
-                      onOpenExpressions({ workId: cluster.anchorId, workArk: cluster.anchorArk })
+                      onOpenExpressions({ workId: cluster.anchor_id, workArk: cluster.anchor_ark })
                     }}
                   >
                     {t('entity.viewExpressions', { defaultValue: 'Expressions' })}
@@ -221,20 +201,19 @@ export function WorkListPanel({
                 </div>
                 <div className="cluster-items">
                   {cluster.items.map(item => {
-                    const itemCounts = computeWorkCounts(cluster, item.ark)
+                    const itemCounts = item.summary?.counts
                     const rowClasses = ['cluster-item', 'entity-row', 'entity-row--work']
                     if (!item.accepted) rowClasses.push('unchecked')
                     if (pendingClusterSourceId && pendingClusterSourceId === item.id) rowClasses.push('pending-cluster-source')
                     if (state.highlightedWorkArk && state.highlightedWorkArk === item.ark) {
                       rowClasses.push('highlight')
                     }
-                    const agentNames = getAgentNames(item.id, item.ark)
-                    const itemSegments = resolveWorkSegments(item.id, item.ark)
-                    const mediaKinds = getMediaKinds(item.id, item.ark)
-                    const relationships = relationshipsFor(item.id, item.ark)
+                    const itemSegments = simpleSegments(item.title, item.id ?? undefined)
+                    const mediaKinds = pickMediaKinds(item.summary)
+                    const relationships = item.summary?.relationships
                     return (
                       <div
-                        key={`${cluster.anchorId}-${item.ark || item.id}`}
+                        key={`${cluster.anchor_id}-${item.ark || item.id}`}
                         className={rowClasses.join(' ')}
                         data-work-id={item.id}
                         data-work-ark={item.ark}
@@ -248,25 +227,25 @@ export function WorkListPanel({
                             onCancelPendingCluster?.()
                             return
                           }
-                          onOpenExpressions({ workId: cluster.anchorId, workArk: item.ark })
+                          onOpenExpressions({ workId: cluster.anchor_id, workArk: item.ark })
                         }}
                       >
                         <input
                           type="checkbox"
                           checked={item.accepted}
                           onChange={event =>
-                            onToggleWork({
-                              clusterId: cluster.anchorId,
-                              workArk: item.ark,
-                              accepted: event.target.checked,
-                            })
+                          onToggleWork({
+                            clusterId: cluster.anchor_id,
+                            workArk: item.ark,
+                            accepted: event.target.checked,
+                          })
                           }
                         />
                         <EntityLabel
                           title={item.title || item.id || item.ark || t('labels.workFallback')}
                           badges={item.id ? [{ type: 'work', text: item.id, tooltip: item.ark }] : undefined}
                           counts={itemCounts}
-                          agentNames={agentNames}
+                          agentNames={undefined}
                           relationships={relationships}
                           titleSegments={itemSegments}
                           mediaKinds={mediaKinds}
@@ -287,11 +266,10 @@ export function WorkListPanel({
             (!work.ark && state.selectedEntity?.entityType === 'work' && state.selectedEntity.id === work.id)
           if (highlight) headerClasses.push('highlight')
           if (pendingClusterSourceId && pendingClusterSourceId === work.id) headerClasses.push('pending-cluster-source')
-          const counts = computeUnclusteredWorkCounts(work, originalIndexes ?? null)
-          const agentNames = getAgentNames(work.id, work.ark)
-          const relationships = relationshipsFor(work.id, work.ark)
-          const segments = workTitleSegments(work)
-          const mediaKinds = getMediaKinds(work.id, work.ark)
+          const counts = work.summary?.counts
+          const relationships = work.summary?.relationships
+          const segments = simpleSegments(work.title, work.id)
+          const mediaKinds = pickMediaKinds(work.summary)
           return (
             <div key={`unclustered-${work.id}`} className={containerClasses.join(' ')} data-work-id={work.id} data-work-ark={work.ark}>
               <div
@@ -316,7 +294,7 @@ export function WorkListPanel({
                     title={title}
                     badges={[{ type: 'work', text: work.id, tooltip: work.ark }]}
                     counts={counts}
-                    agentNames={agentNames}
+                    agentNames={undefined}
                     relationships={relationships}
                     titleSegments={segments}
                     mediaKinds={mediaKinds}

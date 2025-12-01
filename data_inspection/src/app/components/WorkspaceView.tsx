@@ -1,15 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { RecordRow } from '../types'
+import type { RecordRow, Cluster, WorkClusterDto, WorkListRowDto, WorkRecordPayload } from '../types'
 import type { WorkspaceTabStateWorkspace, AgentTabState } from '../workspace/types'
 import { useAppData } from '../providers/AppDataContext'
 import { useTranslation } from '../hooks/useTranslation'
-import { useWorkspaceData } from '../workspace/useWorkspaceData'
 import { WorkListPanel } from '../workspace/components/WorkListPanel'
 import { ExpressionPanel } from '../workspace/components/ExpressionPanel'
 import { ManifestationPanel } from '../workspace/components/ManifestationPanel'
-import { useRecordLookup } from '../hooks/useRecordLookup'
 import { configureTabStateForRecord } from '../workspace/tabState'
-import { useBacklinks } from '../hooks/useBacklinks'
 import { isAgentRecord } from '../agents/useAgentData'
 import { useToast } from '../providers/ToastContext'
 import { deriveInternalIdFromArk } from '../lib/ark'
@@ -23,6 +20,81 @@ import { useWorkspaceBreadcrumbs } from './workspace/useWorkspaceBreadcrumbs'
 import { useSelectionMeta } from './workspace/useSelectionMeta'
 import { useManifestationUprooting } from './workspace/useManifestationUprooting'
 import { extractControlledValueLabel } from '../core/controlledValues'
+import { useWorkspaceWorks, useWorkCluster, useWorkspaceRecord } from '../hooks/useWorkspaceQueries'
+import { parseIntermarc } from '../lib/intermarc'
+import { normalizeType } from '../core/records'
+import { computeClusterCoverage } from '../core/clusterCoverage'
+
+function mapManifestation(view: WorkClusterDto['independent_expressions'][number]['manifestations'][number]) {
+  return {
+    id: view.id,
+    ark: view.ark || view.id,
+    title: view.title || view.id,
+    expressionArk: view.expression_ark || view.original_expression_ark || '',
+    expressionId: view.expression_id || undefined,
+    originalExpressionArk: view.original_expression_ark || view.expression_ark || '',
+  }
+}
+
+function mapExpression(view: WorkClusterDto['independent_expressions'][number]): import('../types').ExpressionItem {
+  const manifestations = (view.manifestations || []).map(mapManifestation)
+  return {
+    id: view.id,
+    ark: view.ark || view.id,
+    title: view.title || view.id,
+    workArk: view.work_ark || '',
+    workId: view.work_id || undefined,
+    manifestations,
+  }
+}
+
+function mapExpressionCluster(view: WorkClusterDto['expression_groups'][number]['clustered'][number]) {
+  const base = mapExpression(view)
+  return {
+    ...base,
+    anchorExpressionId: view.anchor_expression_id,
+    accepted: view.accepted,
+    date: view.date || undefined,
+    origin: view.origin,
+  }
+}
+
+function mapWorkCluster(dto: WorkClusterDto): Cluster {
+  const expressionGroups = (dto.expression_groups || []).map(group => ({
+    anchor: mapExpression(group.anchor),
+    clustered: (group.clustered || []).map(mapExpressionCluster),
+  }))
+  const independentExpressions = (dto.independent_expressions || []).map(mapExpression)
+  return {
+    anchorId: dto.anchor_id,
+    anchorArk: dto.anchor_ark || '',
+    anchorTitle: dto.anchor_title || dto.anchor_id,
+    items: (dto.items || []).map(item => ({
+      ark: item.ark,
+      id: item.id || undefined,
+      title: item.title || item.id || item.ark,
+      accepted: item.accepted,
+      date: item.date || undefined,
+      origin: item.origin,
+    })),
+    expressionGroups,
+    independentExpressions,
+  }
+}
+
+function buildRecordRowFromPayload(payload: WorkRecordPayload): RecordRow {
+  const intermarc = parseIntermarc(payload.intermarc)
+  return {
+    id: payload.id,
+    type: payload.type,
+    typeNorm: normalizeType(payload.type),
+    ark: payload.ark ?? undefined,
+    rowIndex: 0,
+    intermarcStr: payload.intermarc,
+    intermarc,
+    raw: [],
+  }
+}
 
 type WorkspaceViewProps = {
   state: WorkspaceTabStateWorkspace
@@ -37,11 +109,6 @@ type WorkspaceViewProps = {
   sharedPendingManifestationId?: string | null
   setSharedPendingManifestationId?: (next: string | null) => void
 }
-
-function findRecord(id: string, curated: RecordRow[]): RecordRow | null {
-  return curated.find(rec => rec.id === id) || null
-}
-
 
 export function WorkspaceView({
   state,
@@ -58,36 +125,67 @@ export function WorkspaceView({
 }: WorkspaceViewProps) {
   const {
     datasetId,
-    clusters,
-    curated,
     setWorkAccepted,
     setExpressionAccepted,
     updateRecordIntermarc,
     applyServerUpdates,
     getCuratedBaselineRecord,
   } = useAppData()
-  const workspace = useWorkspaceData(state)
   const { t } = useTranslation()
-  const { getById, getByArk } = useRecordLookup()
-  const { getBacklinksForRecord } = useBacklinks()
   const { showToast } = useToast()
+  const { data: workspaceWorks } = useWorkspaceWorks(datasetId)
+  const activeAnchorKey = useMemo(
+    () => state.activeWorkAnchorId ?? state.selectedEntity?.workArk ?? state.highlightedWorkArk ?? null,
+    [state.activeWorkAnchorId, state.selectedEntity?.workArk, state.highlightedWorkArk],
+  )
+  const { data: activeClusterDto } = useWorkCluster(datasetId, activeAnchorKey)
+
+  const mappedClusters: Cluster[] = useMemo(
+    () => (workspaceWorks?.clusters ? workspaceWorks.clusters.map(mapWorkCluster) : []),
+    [workspaceWorks?.clusters],
+  )
+  const coverage = useMemo(() => computeClusterCoverage(mappedClusters), [mappedClusters])
+  const unclusteredWorks: WorkListRowDto[] = workspaceWorks?.unclustered_works ?? []
+
+  const recordKey = useMemo(() => {
+    const selected = state.selectedEntity
+    if (!selected) return null
+    return selected.id || selected.workArk || selected.expressionArk || selected.expressionId || selected.id
+  }, [state.selectedEntity])
+  const { data: recordPayload } = useWorkspaceRecord(datasetId, recordKey)
+  const record = useMemo<RecordRow | null>(() => (recordPayload ? buildRecordRowFromPayload(recordPayload) : null), [recordPayload])
+
+  const recordCache = useMemo(() => {
+    const map = new Map<string, RecordRow>()
+    if (record) {
+      map.set(record.id, record)
+      if (record.ark) map.set(record.ark, record)
+    }
+    return map
+  }, [record])
+
+  const getById = useCallback((id: string) => recordCache.get(id) ?? null, [recordCache])
+  const getByArk = useCallback((ark: string) => recordCache.get(ark) ?? null, [recordCache])
+
   const findControlledValueArk = useCallback(
     (label: string) => {
-      const target = curated?.records?.find(
-        rec => extractControlledValueLabel(rec)?.toLowerCase() === label.trim().toLowerCase(),
-      )
+      const target = record && extractControlledValueLabel(record)?.toLowerCase() === label.trim().toLowerCase() ? record : null
       return target?.ark ?? target?.id ?? null
     },
-    [curated?.records],
+    [record],
   )
-  const record = state.selectedEntity
-    ? findRecord(state.selectedEntity.id, curated?.records ?? [])
-    : null
-  const backlinks = useMemo(
-    () => (record ? getBacklinksForRecord(record) : []),
-    [getBacklinksForRecord, record],
+  const backlinks: [] = useMemo(() => [], [])
+  const workspaceContext = useMemo(
+    () => ({ clusters: mappedClusters, coverage }),
+    [mappedClusters, coverage],
   )
-  const { canEditRecord, readOnlyReason } = useSelectionMeta({ state, record, workspace, curated, t })
+  const { canEditRecord, readOnlyReason } = useSelectionMeta({
+    state,
+    record,
+    workspace: workspaceContext,
+    curated: null,
+    t,
+  })
   const [editingRecord, setEditingRecord] = useState(false)
   const intermarcFullView = state.intermarcFullView
   const backlinksExpanded = state.backlinksExpanded
@@ -143,13 +241,26 @@ export function WorkspaceView({
     }
   }, [mode, state.intermarcFullView, onStateChange])
 
+  const emptyIndexes = useMemo(
+    () => ({
+      worksById: new Map<string, RecordRow>(),
+      worksByArk: new Map<string, RecordRow>(),
+      expressionsById: new Map<string, RecordRow>(),
+      expressionsByArk: new Map<string, RecordRow>(),
+      expressionsByWorkArk: new Map<string, RecordRow[]>(),
+      manifestationsById: new Map<string, RecordRow>(),
+      manifestationsByExpressionArk: new Map<string, RecordRow[]>(),
+    }),
+    [],
+  )
+
   const tabContext = useMemo(
     () => ({
-      clusters,
-      indexes: workspace.indexes,
-      curatedRecords: curated?.records ?? [],
+      clusters: mappedClusters,
+      indexes: emptyIndexes,
+      curatedRecords: record ? [record] : [],
     }),
-    [clusters, workspace.indexes, curated?.records],
+    [mappedClusters, emptyIndexes, record],
   )
 
   const breadcrumbs = useWorkspaceBreadcrumbs(state, record, id => getById(id) ?? null, ark => getByArk(ark) ?? null)
@@ -208,7 +319,7 @@ export function WorkspaceView({
   } = interactions
 
   const clustering = useWorkspaceClustering({
-    clusters,
+    clusters: mappedClusters,
     getById,
     updateRecordIntermarc,
     showToast,
@@ -267,7 +378,7 @@ export function WorkspaceView({
     cancelOriginalitySwap,
   } = useOriginalitySwap({
     datasetId,
-    clusters,
+    clusters: mappedClusters,
     workClusterIndex,
     getById,
     applyServerUpdates,
@@ -278,7 +389,7 @@ export function WorkspaceView({
   })
 
   const handleIntermarcSave = useIntermarcSaveGuards({
-    clusters,
+    clusters: mappedClusters,
     getByArk,
     getById,
     t,
@@ -350,10 +461,10 @@ export function WorkspaceView({
   )
 
   const handleSelectWork = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
-    const cluster = workspace.clusters.find(entry => entry.anchorId === workId) ?? null
+    const cluster = workspaceWorks?.clusters.find(entry => entry.anchor_id === workId || entry.anchor_ark === workArk) ?? null
     onStateChange(prev => ({
       ...prev,
-      activeWorkAnchorId: cluster?.anchorId ?? null,
+      activeWorkAnchorId: cluster?.anchor_id ?? null,
       highlightedWorkArk: workArk ?? null,
       viewMode: 'works',
       listScope: 'clusters',
@@ -367,11 +478,11 @@ export function WorkspaceView({
   }
 
   const handleOpenExpressions = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
-    const cluster = workspace.clusters.find(entry => entry.anchorId === workId) ?? null
+    const cluster = workspaceWorks?.clusters.find(entry => entry.anchor_id === workId || entry.anchor_ark === workArk) ?? null
     if (cluster) {
       onStateChange(prev => ({
         ...prev,
-        activeWorkAnchorId: cluster.anchorId,
+        activeWorkAnchorId: cluster.anchor_id,
         highlightedWorkArk: workArk ?? null,
         viewMode: 'expressions',
         listScope: 'clusters',
@@ -405,8 +516,8 @@ export function WorkspaceView({
     if (viewMode === 'works') {
       return (
         <WorkListPanel
-          clusters={workspace.clusters}
-          unclusteredWorks={workspace.unclusteredWorks}
+          clusters={workspaceWorks?.clusters ?? []}
+          unclusteredWorks={unclusteredWorks}
           state={state}
           onSelectWork={handleSelectWork}
           onOpenExpressions={handleOpenExpressions}
@@ -422,7 +533,7 @@ export function WorkspaceView({
       return (
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }} onScroll={handleListScroll}>
           <ExpressionPanel
-            cluster={workspace.activeCluster}
+            cluster={activeClusterDto ?? null}
             state={state}
             onSelectExpression={({
               expressionId,
@@ -454,8 +565,8 @@ export function WorkspaceView({
               })
             }
             onToggleExpression={({ anchorExpressionId, expressionArk, accepted }) => {
-              if (!workspace.activeCluster || workspace.activeClusterSource !== 'cluster') return
-              setExpressionAccepted(workspace.activeCluster.anchorId, anchorExpressionId, expressionArk, accepted)
+              if (!activeClusterDto) return
+              setExpressionAccepted(activeClusterDto.anchor_id, anchorExpressionId, expressionArk, accepted)
             }}
             onOpenManifestations={({ expressionId, expressionArk, workArk, anchorId }) => {
               onStateChange(prev => {
@@ -485,7 +596,7 @@ export function WorkspaceView({
     return (
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }} onScroll={handleListScroll}>
         <ManifestationPanel
-          cluster={workspace.activeCluster}
+          cluster={activeClusterDto ?? null}
           state={state}
           pendingManifestationId={pendingManifestationRecord?.id ?? null}
           onSelectManifestation={({

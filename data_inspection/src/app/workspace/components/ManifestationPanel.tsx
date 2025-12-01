@@ -1,21 +1,15 @@
-import { useCallback } from 'react'
-import type {
-  Cluster,
-  ManifestationItem,
-  ExpressionItem,
-  ExpressionClusterItem,
-  EntityBadgeSpec,
-} from '../../types'
+import type { WorkClusterDto, ExpressionItemViewDto, ExpressionClusterItemViewDto, ManifestationItemViewDto, EntityBadgeSpec } from '../../types'
 import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
-import { useRecordLookup } from '../../hooks/useRecordLookup'
 import { EntityLabel } from '../../components/EntityLabel'
 import { ExpressionGroupLabel } from './ExpressionPanel'
-import { countExpressionWorkLinks, countManifestationExpressionLinks, manifestationTitleSegments } from '../../core/entities'
-import { useBacklinks } from '../../hooks/useBacklinks'
+
+type SummaryLike = { mediaKinds?: MediaKind[]; media_kinds?: MediaKind[]; counts?: { expressions?: number; manifestations?: number }; relationships?: { outgoing: number; incoming: number } }
+
+const pickMediaKinds = (summary?: SummaryLike | null) => summary?.mediaKinds ?? summary?.media_kinds
 
 type ManifestationPanelProps = {
-  cluster: Cluster | null
+  cluster: WorkClusterDto | null
   state: WorkspaceTabStateWorkspace
   pendingManifestationId?: string | null
   onSelectManifestation: (payload: {
@@ -26,7 +20,7 @@ type ManifestationPanelProps = {
 }
 
 type ExpressionSectionKind = 'anchor' | 'clustered' | 'independent'
-type ExpressionWithMeta = ExpressionItem | ExpressionClusterItem
+type ExpressionWithMeta = ExpressionItemViewDto | ExpressionClusterItemViewDto
 
 export function ManifestationPanel({
   cluster,
@@ -35,45 +29,16 @@ export function ManifestationPanel({
   onSelectManifestation,
 }: ManifestationPanelProps) {
   const { t } = useTranslation()
-  const { getById, getByArk, getAgentNames, getGeneralRelationshipCount, getMediaKinds } = useRecordLookup()
-  const { countIncomingRelationships } = useBacklinks()
-  const resolveExpressionRecord = useCallback(
-    (id?: string | null, ark?: string | null) => getById(id) ?? getByArk(ark),
-    [getByArk, getById],
-  )
-  const computeExpressionMetrics = useCallback(
-    (id?: string | null, ark?: string | null) => {
-      const record = resolveExpressionRecord(id, ark)
-      const workLinkCount = record ? countExpressionWorkLinks(record) : 0
-      const outgoing = getGeneralRelationshipCount(id, ark)
-      const incoming = record ? countIncomingRelationships(record) : 0
-      return { workLinkCount, relationships: { outgoing, incoming } }
-    },
-    [countIncomingRelationships, getGeneralRelationshipCount, resolveExpressionRecord],
-  )
-  const computeManifestationMetrics = useCallback(
-    (manifestationId: string, manifestationArk?: string | null) => {
-      const record = getById(manifestationId) ?? getByArk(manifestationArk)
-      const expressionLinks = record ? countManifestationExpressionLinks(record) : 0
-      const outgoing = getGeneralRelationshipCount(manifestationId, manifestationArk)
-      const incoming = record ? countIncomingRelationships(record) : 0
-      const segments = record ? manifestationTitleSegments(record) : undefined
-      return {
-        expressionLinks,
-        relationships: { outgoing, incoming },
-        segments,
-      }
-    },
-    [countIncomingRelationships, getByArk, getById, getGeneralRelationshipCount],
-  )
   if (!cluster) return <em>{t('messages.noClusters')}</em>
+  const expressionGroups = cluster.expression_groups ?? []
+  const independentExpressions = cluster.independent_expressions ?? []
   const highlightedExpressionArk = state.highlightedExpressionArk ?? null
   const selectedEntity = state.selectedEntity
 
   const renderManifestationRow = (
     expression: ExpressionWithMeta,
     anchorExpressionId: string | null,
-    manifestation: ManifestationItem,
+    manifestation: ManifestationItemViewDto,
   ) => {
     const rowClasses = ['manifestation-item', 'entity-row', 'entity-row--manifestation']
     const isSelectedManifestation =
@@ -81,9 +46,9 @@ export function ManifestationPanel({
     const isExpressionSelection =
       selectedEntity?.entityType === 'expression' && selectedEntity.expressionId === expression.id
     const isWorkSelection =
-      selectedEntity?.entityType === 'work' && selectedEntity.workArk === expression.workArk
+      selectedEntity?.entityType === 'work' && selectedEntity.workArk === expression.work_ark
     const matchesExpressionHighlight =
-      highlightedExpressionArk && highlightedExpressionArk === manifestation.expressionArk
+      highlightedExpressionArk && highlightedExpressionArk === manifestation.expression_ark
     if (pendingManifestationId && pendingManifestationId === manifestation.id) {
       rowClasses.push('pending-cluster-source')
     }
@@ -91,7 +56,7 @@ export function ManifestationPanel({
     else if (isExpressionSelection || isWorkSelection || matchesExpressionHighlight) {
       rowClasses.push('highlight')
     }
-    if (manifestation.expressionArk !== manifestation.originalExpressionArk) {
+    if (manifestation.expression_ark !== manifestation.original_expression_ark) {
       rowClasses.push('changed')
     }
     const badges: EntityBadgeSpec[] = [
@@ -100,38 +65,37 @@ export function ManifestationPanel({
     if (expression.id) {
       badges.push({ type: 'expression', text: expression.id, tooltip: expression.ark })
     }
-    const agentNames = getAgentNames(manifestation.id, manifestation.ark)
-    const metrics = computeManifestationMetrics(manifestation.id, manifestation.ark)
-    const mediaKinds = getMediaKinds(manifestation.id, manifestation.ark)
-    const agentBadgeNames = agentNames.length ? agentNames : undefined
+    const mediaKinds = pickMediaKinds(manifestation.summary)
+    const relationships = manifestation.summary?.relationships ?? { outgoing: 0, incoming: 0 }
+    const expressionLinks = manifestation.summary?.counts?.expressions ?? 0
 
     return (
       <div
         key={manifestation.id}
         className={rowClasses.join(' ')}
         data-manifestation-id={manifestation.id}
-        data-expression-ark={manifestation.expressionArk}
+        data-expression-ark={manifestation.expression_ark ?? undefined}
         data-expression-id={expression.id}
         data-anchor-expression-id={anchorExpressionId ?? undefined}
       >
         <button
           type="button"
           className="manifestation-item__main"
-          onClick={() =>
-            onSelectManifestation({
-              manifestationId: manifestation.id,
-              expressionId: manifestation.expressionId,
-              expressionArk: manifestation.expressionArk,
-            })
-          }
-        >
+            onClick={() =>
+              onSelectManifestation({
+                manifestationId: manifestation.id,
+                expressionId: manifestation.expression_id ?? undefined,
+                expressionArk: manifestation.expression_ark ?? undefined,
+              })
+            }
+          >
           <EntityLabel
             title={manifestation.title || manifestation.id}
             badges={badges}
-            counts={{ expressionLinks: metrics.expressionLinks }}
-            agentNames={agentBadgeNames}
-            relationships={metrics.relationships}
-            titleSegments={metrics.segments}
+            counts={{ expressionLinks }}
+            agentNames={undefined}
+            relationships={relationships}
+            titleSegments={undefined}
             mediaKinds={mediaKinds}
           />
         </button>
@@ -173,9 +137,10 @@ export function ManifestationPanel({
     if (kind === 'clustered' && 'accepted' in expression && !expression.accepted) {
       sectionClasses.push('inactive')
     }
-    const agentNames = getAgentNames(expression.id, expression.ark)
-    const mediaKinds = getMediaKinds(expression.id, expression.ark)
-    const { workLinkCount, relationships } = computeExpressionMetrics(expression.id, expression.ark)
+    const agentNames: string[] = []
+    const mediaKinds = pickMediaKinds(expression.summary)
+    const workLinkCount = expression.summary?.counts?.manifestations ?? 0
+    const relationships = expression.summary?.relationships ?? { outgoing: 0, incoming: 0 }
     const meta =
       kind === 'anchor'
         ? t('entity.anchorExpression')
@@ -209,16 +174,16 @@ export function ManifestationPanel({
 
   return (
     <div className="manifestation-panel">
-      {cluster.expressionGroups.map(group => (
+      {expressionGroups.map(group => (
         <section key={group.anchor.id} className="manifestation-group">
           {renderExpressionSection(group.anchor, 'anchor', group.anchor.id)}
           {group.clustered.map(expr => renderExpressionSection(expr, 'clustered', group.anchor.id))}
         </section>
       ))}
-      {cluster.independentExpressions.length > 0 && (
+      {independentExpressions.length > 0 && (
         <section className="manifestation-group manifestation-group--independent">
           <header className="manifestation-group__header">{t('labels.independentExpressions')}</header>
-          {cluster.independentExpressions.map(expr =>
+          {independentExpressions.map(expr =>
             renderExpressionSection(expr, 'independent', null),
           )}
         </section>

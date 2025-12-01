@@ -116,7 +116,7 @@ export function EntityLabel({
     return values.join(' ')
   }, [className, onClick])
 
-  const segments = titleSegments?.filter(segment => segment && segment.value.trim().length > 0)
+  const segments = titleSegments?.filter(segment => segment?.value && segment.value.trim().length > 0)
   const media = useMemo(() => mediaKinds ?? [], [mediaKinds])
 
   return (

@@ -20,7 +20,7 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from data_curation.api import db, datasets
-from data_curation.api.schemas import WorkCluster, WorkspaceAgentsResponse, WorkspaceWorksResponse
+from data_curation.api.schemas import RecordPayload, WorkCluster, WorkspaceAgentsResponse, WorkspaceWorksResponse
 from data_curation.curation.cluster_views import WorkspaceViewBuilder
 from data_curation.api.datasets import DatasetMetadata
 from data_curation.curation.pipeline import (
@@ -475,24 +475,6 @@ def download_cluster_log(dataset_id: str, log_name: str) -> Response:
     return _build_log_bundle_response(bundle)
 
 
-@app.get("/api/datasets/{dataset_id}/records")
-def list_dataset_records(dataset_id: str) -> dict[str, object]:
-    meta = _ensure_dataset(dataset_id)
-    records = db.load_records(dataset_id)
-    return {
-        "dataset": _serialize_dataset(meta),
-        "records": [
-            {
-                "id": record["id"],
-                "type": record["type"],
-                "ark": record.get("ark"),
-                "intermarc": record["intermarc"],
-            }
-            for record in records
-        ],
-    }
-
-
 @app.get("/api/datasets/{dataset_id}/workspace/works", response_model=WorkspaceWorksResponse)
 def workspace_works(dataset_id: str) -> WorkspaceWorksResponse:
     _ensure_dataset(dataset_id)
@@ -515,3 +497,13 @@ def workspace_agents(dataset_id: str) -> WorkspaceAgentsResponse:
     _ensure_dataset(dataset_id)
     builder = WorkspaceViewBuilder.from_dataset(dataset_id)
     return builder.build_agent_views()
+
+
+@app.get("/api/datasets/{dataset_id}/workspace/record/{record_key}", response_model=RecordPayload)
+def workspace_record(dataset_id: str, record_key: str) -> RecordPayload:
+    _ensure_dataset(dataset_id)
+    builder = WorkspaceViewBuilder.from_dataset(dataset_id)
+    record = builder.record_payload_for_key(record_key)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found for the requested identifier.")
+    return record

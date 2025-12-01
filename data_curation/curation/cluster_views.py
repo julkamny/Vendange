@@ -16,6 +16,7 @@ from data_curation.api.schemas import (
     ExpressionItemView,
     ManifestationItemView,
     MediaKind,
+    RecordPayload,
     RelationshipStats,
     WorkCluster,
     WorkClusterItem,
@@ -620,3 +621,17 @@ class WorkspaceViewBuilder:
             if cluster.anchor_id == needle or cluster.anchor_ark == needle:
                 return cluster
         return None
+
+    def record_payload_for_key(self, record_key: str) -> Optional[RecordPayload]:
+        trimmed = record_key.strip()
+        entity = self.entity_by_id.get(trimmed)
+        if not entity and trimmed in self.entity_by_ark:
+            entity = self.entity_by_ark.get(trimmed)
+        if not entity:
+            return None
+        return RecordPayload(
+            id=entity.id_entitelrm,
+            type=entity.type_entite,
+            ark=entity.ark(),
+            intermarc=entity.intermarc_raw,
+        )

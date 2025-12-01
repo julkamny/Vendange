@@ -1,4 +1,10 @@
-import type { DatasetSummary, WorkspaceWorksResponse, WorkClusterDto } from '../types'
+import type {
+  DatasetSummary,
+  WorkspaceWorksResponse,
+  WorkClusterDto,
+  WorkspaceAgentsResponse,
+  WorkRecordPayload,
+} from '../types'
 import type { SparqlQueryResult } from '../workspace/types'
 
 const DEFAULT_API_BASE_URL = 'http://localhost:8000'
@@ -96,24 +102,6 @@ export async function deleteDataset(datasetId: string): Promise<void> {
   }
 }
 
-export type DatasetRecordPayload = {
-  id: string
-  type: string
-  ark?: string | null
-  intermarc: string
-}
-
-export async function fetchDatasetRecords(datasetId: string): Promise<{ dataset: DatasetSummary; records: DatasetRecordPayload[] }> {
-  const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/records`
-  const response = await fetch(url)
-  if (!response.ok) {
-    const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
-    throw new Error(detail.detail || 'Failed to load dataset records')
-  }
-  const data = await parseJson<{ dataset: DatasetSummary; records: DatasetRecordPayload[] }>(response)
-  return data
-}
-
 export async function syncRecordUpdate(
   datasetId: string,
   payload: { id: string; type: string; intermarc: string },
@@ -184,6 +172,26 @@ export async function fetchWorkCluster(datasetId: string, anchorKey: string): Pr
     throw new Error(detail.detail || 'Failed to load work cluster')
   }
   return parseJson<WorkClusterDto>(response)
+}
+
+export async function fetchWorkspaceAgents(datasetId: string): Promise<WorkspaceAgentsResponse> {
+  const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/workspace/agents`
+  const response = await fetch(url)
+  if (!response.ok) {
+    const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
+    throw new Error(detail.detail || 'Failed to load workspace agents')
+  }
+  return parseJson<WorkspaceAgentsResponse>(response)
+}
+
+export async function fetchWorkspaceRecord(datasetId: string, recordKey: string): Promise<WorkRecordPayload> {
+  const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/workspace/record/${encodeURIComponent(recordKey)}`
+  const response = await fetch(url)
+  if (!response.ok) {
+    const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
+    throw new Error(detail.detail || 'Failed to load record')
+  }
+  return parseJson<WorkRecordPayload>(response)
 }
 
 export type ClusterLogEvent = {

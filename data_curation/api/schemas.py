@@ -115,3 +115,10 @@ class WorkspaceWorksResponse(BaseModel):
 class WorkspaceAgentsResponse(BaseModel):
     clusters: List[AgentCluster] = Field(default_factory=list)
     unclustered_agents: List[AgentListRow] = Field(default_factory=list)
+
+
+class RecordPayload(BaseModel):
+    id: str
+    type: str
+    ark: Optional[str] = None
+    intermarc: str

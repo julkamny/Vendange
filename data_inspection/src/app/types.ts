@@ -174,6 +174,38 @@ export type WorkspaceWorksResponse = {
   unclustered_works: WorkListRowDto[]
 }
 
+export type AgentClusterItemDto = {
+  ark: string
+  id?: string | null
+  label?: string | null
+}
+
+export type AgentClusterDto = {
+  anchor_id: string
+  anchor_ark?: string | null
+  anchor_label?: string | null
+  items: AgentClusterItemDto[]
+}
+
+export type AgentListRowDto = {
+  id: string
+  ark?: string | null
+  label?: string | null
+  type_norm: string
+}
+
+export type WorkspaceAgentsResponse = {
+  clusters: AgentClusterDto[]
+  unclustered_agents: AgentListRowDto[]
+}
+
+export type WorkRecordPayload = {
+  id: string
+  type: string
+  ark?: string | null
+  intermarc: string
+}
+
 export type InventoryEntityType =
   | 'work'
   | 'expression'

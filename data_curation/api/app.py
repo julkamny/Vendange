@@ -482,7 +482,7 @@ def workspace_works(dataset_id: str) -> WorkspaceWorksResponse:
     return builder.workspace_works_payload()
 
 
-@app.get("/api/datasets/{dataset_id}/workspace/work/{anchor_key}", response_model=WorkCluster)
+@app.get("/api/datasets/{dataset_id}/workspace/work/{anchor_key:path}", response_model=WorkCluster)
 def workspace_work(dataset_id: str, anchor_key: str) -> WorkCluster:
     _ensure_dataset(dataset_id)
     builder = WorkspaceViewBuilder.from_dataset(dataset_id)
@@ -499,7 +499,7 @@ def workspace_agents(dataset_id: str) -> WorkspaceAgentsResponse:
     return builder.build_agent_views()
 
 
-@app.get("/api/datasets/{dataset_id}/workspace/record/{record_key}", response_model=RecordPayload)
+@app.get("/api/datasets/{dataset_id}/workspace/record/{record_key:path}", response_model=RecordPayload)
 def workspace_record(dataset_id: str, record_key: str) -> RecordPayload:
     _ensure_dataset(dataset_id)
     builder = WorkspaceViewBuilder.from_dataset(dataset_id)

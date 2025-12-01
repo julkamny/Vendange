@@ -615,10 +615,21 @@ class WorkspaceViewBuilder:
         return WorkspaceWorksResponse(clusters=clusters, unclustered_works=self.build_unclustered_work_rows(clusters))
 
     def cluster_for_anchor(self, anchor_id_or_ark: str) -> Optional[WorkCluster]:
-        needle = anchor_id_or_ark.strip()
         clusters = self.build_work_clusters()
+        if not anchor_id_or_ark:
+            return None
+
+        # Accept raw, URL-encoded, and loosely formatted ARKs ("ark:123" → "ark:/123").
+        needles = {anchor_id_or_ark.strip()}
+        from urllib.parse import unquote
+
+        decoded = unquote(anchor_id_or_ark)
+        needles.add(decoded.strip())
+        if decoded.startswith("ark:") and not decoded.startswith("ark:/"):
+            needles.add("ark:/" + decoded[len("ark:"):].lstrip("/"))
+
         for cluster in clusters:
-            if cluster.anchor_id == needle or cluster.anchor_ark == needle:
+            if cluster.anchor_id in needles or (cluster.anchor_ark and cluster.anchor_ark in needles):
                 return cluster
         return None
 

@@ -41,6 +41,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - `GET /api/datasets/{dataset_id}/workspace/work/{anchor_id_or_ark}` resolves a single work cluster for focus-down views (expressions + manifestations included).
 - `GET /api/datasets/{dataset_id}/workspace/agents` exposes manual agent clusters (90F$q Clusterisation manuelle) and the remaining unclustered agents.
 - Cluster-affecting mutations (`swap_anchor`, `swap_originality`) now also return `updatedClusters`, `removedClusterIds`, and `updatedWorkRows` so the UI can patch caches without recomputing.
+- `GET /api/datasets/{dataset_id}/workspace/record/{record_key}` returns a single record (id or ARK) for just-in-time Intermarc loading. The legacy `/records` bulk endpoint has been removed.
 
 #### Running data curation operations
 - To launch the FastAPI server in `data_curation/api`: `uv run fastapi dev data_curation/api/app.py`. See below for explanations.

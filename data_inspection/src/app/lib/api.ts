@@ -102,6 +102,13 @@ export async function deleteDataset(datasetId: string): Promise<void> {
   }
 }
 
+export type DatasetRecordPayload = {
+  id: string
+  type: string
+  ark?: string | null
+  intermarc: string
+}
+
 export async function syncRecordUpdate(
   datasetId: string,
   payload: { id: string; type: string; intermarc: string },

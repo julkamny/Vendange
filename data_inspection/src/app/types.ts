@@ -103,6 +103,77 @@ export type Cluster = {
   independentExpressions: ExpressionItem[]
 }
 
+export type EntitySummary = {
+  counts?: { expressions?: number; manifestations?: number }
+  relationships?: { outgoing: number; incoming: number }
+  mediaKinds?: { emoji: string; label: string; kindCode: string }[]
+}
+
+export type ManifestationItemViewDto = {
+  id: string
+  ark?: string | null
+  title?: string | null
+  expression_ark?: string | null
+  expression_id?: string | null
+  original_expression_ark?: string | null
+  summary?: EntitySummary | null
+}
+
+export type ExpressionItemViewDto = {
+  id: string
+  ark?: string | null
+  title?: string | null
+  work_ark?: string | null
+  work_id?: string | null
+  manifestations?: ManifestationItemViewDto[]
+  summary?: EntitySummary | null
+}
+
+export type ExpressionClusterItemViewDto = ExpressionItemViewDto & {
+  anchor_expression_id: string
+  accepted: boolean
+  date?: string | null
+  origin: 'script' | 'manual'
+}
+
+export type ExpressionAnchorGroupViewDto = {
+  anchor: ExpressionItemViewDto
+  clustered: ExpressionClusterItemViewDto[]
+}
+
+export type WorkClusterItemDto = {
+  ark: string
+  id?: string | null
+  title?: string | null
+  accepted: boolean
+  date?: string | null
+  origin: 'script' | 'manual'
+  summary?: EntitySummary | null
+}
+
+export type WorkClusterDto = {
+  anchor_id: string
+  anchor_ark?: string | null
+  anchor_title?: string | null
+  anchor_summary?: EntitySummary | null
+  items: WorkClusterItemDto[]
+  expression_groups: ExpressionAnchorGroupViewDto[]
+  independent_expressions: ExpressionItemViewDto[]
+}
+
+export type WorkListRowDto = {
+  id: string
+  ark?: string | null
+  title?: string | null
+  type_norm: string
+  summary?: EntitySummary | null
+}
+
+export type WorkspaceWorksResponse = {
+  clusters: WorkClusterDto[]
+  unclustered_works: WorkListRowDto[]
+}
+
 export type InventoryEntityType =
   | 'work'
   | 'expression'

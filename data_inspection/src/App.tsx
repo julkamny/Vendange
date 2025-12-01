@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { QueryClientProvider } from '@tanstack/react-query'
 import './App.css'
 import './app/style.css'
 import { AppDataProvider, useAppData } from './app/providers'
@@ -12,20 +13,23 @@ import { ShortcutProvider } from './app/providers'
 import { DatasetDashboard } from './app/components/DatasetDashboard'
 import type { DatasetSummary } from './app/types'
 import { DetachedWindowProvider } from './app/providers'
+import { queryClient } from './app/lib/queryClient'
 
 function App() {
   return (
-    <ThemeProvider>
-      <ShortcutProvider>
-        <ToastProvider>
-          <DetachedWindowProvider>
-            <AppDataProvider>
-              <AppRouter />
-            </AppDataProvider>
-          </DetachedWindowProvider>
-        </ToastProvider>
-      </ShortcutProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <ShortcutProvider>
+          <ToastProvider>
+            <DetachedWindowProvider>
+              <AppDataProvider>
+                <AppRouter />
+              </AppDataProvider>
+            </DetachedWindowProvider>
+          </ToastProvider>
+        </ShortcutProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   )
 }
 

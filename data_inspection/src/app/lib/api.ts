@@ -1,4 +1,4 @@
-import type { DatasetSummary } from '../types'
+import type { DatasetSummary, WorkspaceWorksResponse, WorkClusterDto } from '../types'
 import type { SparqlQueryResult } from '../workspace/types'
 
 const DEFAULT_API_BASE_URL = 'http://localhost:8000'
@@ -164,6 +164,26 @@ export async function swapWorkOriginality(
   }
   const data = await parseJson<{ updatedRecords?: DatasetRecordPayload[] }>(response)
   return data.updatedRecords ?? []
+}
+
+export async function fetchWorkspaceWorks(datasetId: string): Promise<WorkspaceWorksResponse> {
+  const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/workspace/works`
+  const response = await fetch(url)
+  if (!response.ok) {
+    const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
+    throw new Error(detail.detail || 'Failed to load workspace works')
+  }
+  return parseJson<WorkspaceWorksResponse>(response)
+}
+
+export async function fetchWorkCluster(datasetId: string, anchorKey: string): Promise<WorkClusterDto> {
+  const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/workspace/work/${encodeURIComponent(anchorKey)}`
+  const response = await fetch(url)
+  if (!response.ok) {
+    const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
+    throw new Error(detail.detail || 'Failed to load work cluster')
+  }
+  return parseJson<WorkClusterDto>(response)
 }
 
 export type ClusterLogEvent = {

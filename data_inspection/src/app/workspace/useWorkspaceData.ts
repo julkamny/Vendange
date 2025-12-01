@@ -6,6 +6,8 @@ import { useTranslation } from '../hooks/useTranslation'
 import { titleOf, expressionWorkArks, manifestationsForExpression, manifestationExpressionArks } from '../core/entities'
 import type { Cluster, RecordRow } from '../types'
 import type { WorkspaceTabStateWorkspace } from './types'
+import type { WorkClusterDto, WorkClusterItemDto, ExpressionItemViewDto, ExpressionClusterItemViewDto, ManifestationItemViewDto } from '../types'
+import { useWorkspaceWorks } from '../hooks/useWorkspaceQueries'
 
 export type WorkspaceDataIndexes = {
   worksById: Map<string, RecordRow>
@@ -17,15 +19,95 @@ export type WorkspaceDataIndexes = {
   manifestationsByExpressionArk: Map<string, RecordRow[]>
 }
 
+function mapManifestation(view: ManifestationItemViewDto): import('../types').ManifestationItem {
+  return {
+    id: view.id,
+    ark: view.ark || view.id,
+    title: view.title || view.id,
+    expressionArk: view.expression_ark || view.original_expression_ark || '',
+    expressionId: view.expression_id || undefined,
+    originalExpressionArk: view.original_expression_ark || view.expression_ark || '',
+  }
+}
+
+function mapExpression(view: ExpressionItemViewDto): import('../types').ExpressionItem {
+  const manifestations = (view.manifestations || []).map(mapManifestation)
+  return {
+    id: view.id,
+    ark: view.ark || view.id,
+    title: view.title || view.id,
+    workArk: view.work_ark || '',
+    workId: view.work_id || undefined,
+    manifestations,
+  }
+}
+
+function mapExpressionCluster(view: ExpressionClusterItemViewDto): import('../types').ExpressionClusterItem {
+  const base = mapExpression(view)
+  return {
+    ...base,
+    anchorExpressionId: view.anchor_expression_id,
+    accepted: view.accepted,
+    date: view.date || undefined,
+    origin: view.origin,
+  }
+}
+
+function mapClusterItem(view: WorkClusterItemDto): import('../types').ClusterItem {
+  return {
+    ark: view.ark,
+    id: view.id || undefined,
+    title: view.title || view.id || view.ark,
+    accepted: view.accepted,
+    date: view.date || undefined,
+    origin: view.origin,
+  }
+}
+
+function mapCluster(dto: WorkClusterDto): Cluster {
+  const expressionGroups = (dto.expression_groups || []).map(group => ({
+    anchor: mapExpression(group.anchor),
+    clustered: (group.clustered || []).map(mapExpressionCluster),
+  }))
+  const independentExpressions = (dto.independent_expressions || []).map(mapExpression)
+  return {
+    anchorId: dto.anchor_id,
+    anchorArk: dto.anchor_ark || '',
+    anchorTitle: dto.anchor_title || dto.anchor_id,
+    items: (dto.items || []).map(mapClusterItem),
+    expressionGroups,
+    independentExpressions,
+  }
+}
+
 export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
-  const { clusters, curated } = useAppData()
+  const { clusters: localClusters, curated, datasetId } = useAppData()
   const { language } = useTranslation()
+  const { data: workspaceData } = useWorkspaceWorks(datasetId)
+
+  const mappedClusters = useMemo(() => {
+    if (!workspaceData?.clusters) return null
+    return workspaceData.clusters.map(mapCluster)
+  }, [workspaceData?.clusters])
+
+  const clusters = mappedClusters ?? localClusters
 
   const coverage = useMemo(() => computeClusterCoverage(clusters), [clusters])
   const unclusteredWorks = useMemo(() => {
+    if (workspaceData?.unclustered_works && curated?.records) {
+      const byId = new Map<string, RecordRow>()
+      curated.records.forEach(rec => byId.set(rec.id, rec))
+      const byArk = new Map<string, RecordRow>()
+      curated.records.forEach(rec => {
+        if (rec.ark) byArk.set(rec.ark, rec)
+      })
+      return workspaceData.unclustered_works
+        .map(entry => byId.get(entry.id) ?? (entry.ark ? byArk.get(entry.ark) : undefined))
+        .filter((rec): rec is RecordRow => Boolean(rec))
+    }
     if (!curated) return []
     return getUnclusteredWorks(curated.records, coverage, language)
-  }, [curated, coverage, language])
+  }, [curated, coverage, language, workspaceData?.unclustered_works])
 
   const dataIndexes = useMemo<WorkspaceDataIndexes>(() => {
     const worksById = new Map<string, RecordRow>()

@@ -4,7 +4,7 @@ import type { AgentTabState, WorkspaceTabStateWorkspace } from '../workspace/typ
 import type { EntityBadgeSpec, RecordRow, WorkRecordPayload } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useAppData } from '../providers/AppDataContext'
-import { buildLabelFromIntermarc } from '../lib/intermarc'
+import { labelFromRecord } from '../lib/intermarc'
 import { IntermarcView } from '../components/IntermarcView'
 import { IntermarcEditor } from '../components/IntermarcEditor'
 import { BacklinksPanel } from '../components/BacklinksPanel'
@@ -357,7 +357,7 @@ export function AgentView({
             {selectedRecord ? (
               <div className="record-details" onContextMenu={handleContextMenu}>
                 <header className="record-details__header">
-                  <h3>{buildLabelFromIntermarc(selectedRecord.intermarc, selectedRecord.type) || selectedRecord.id}</h3>
+                  <h3>{labelFromRecord(selectedRecord) || selectedRecord.id}</h3>
                   <span>{selectedRecord.type}</span>
                 </header>
                 {editing ? (

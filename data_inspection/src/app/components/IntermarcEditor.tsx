@@ -5,7 +5,7 @@ import { autocompletion, CompletionContext } from '@codemirror/autocomplete'
 import { EditorState, RangeSetBuilder, StateField, type Extension, type Text } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import type { Intermarc } from '../lib/intermarc'
-import { prettyPrintIntermarc, parsePrettyPrintedIntermarc, buildLabelFromIntermarc } from '../lib/intermarc'
+import { prettyPrintIntermarc, parsePrettyPrintedIntermarc, labelFromRecord } from '../lib/intermarc'
 import type { RecordRow } from '../types'
 import { INTERMARC_THEME } from './intermarcTheme'
 import { useTranslation } from '../hooks/useTranslation'
@@ -198,18 +198,14 @@ function looksLikeArk(value: string): boolean {
 
 function recordDisplayLabel(record: RecordRow): string {
   const normalized = record.typeNorm.toLowerCase()
+  const providedLabel = labelFromRecord(record)
+  if (providedLabel) return providedLabel
   if (normalized === 'identite publique de personne' || normalized === 'collectivite') {
     const agentLabel = labelForAgentRecord(record)
     if (agentLabel) return agentLabel
   }
-  const intermarcLabel = buildLabelFromIntermarc(record.intermarc, record.type)
-  if (intermarcLabel) return intermarcLabel
-  if (normalized === 'manifestation') {
-    return manifestationTitle(record) || record.id
-  }
-  if (normalized === 'valeur controlee') {
-    return extractControlledValueLabel(record) || record.id
-  }
+  if (normalized === 'manifestation') return manifestationTitle(record) || record.id
+  if (normalized === 'valeur controlee') return extractControlledValueLabel(record) || record.id
   return titleOf(record) || record.id
 }
 

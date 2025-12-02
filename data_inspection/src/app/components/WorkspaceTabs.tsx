@@ -30,7 +30,7 @@ import { manifestationTitle, titleOf, expressionWorkArks } from '../core/entitie
 import { useArkDecoratedText } from '../hooks/useArkDecoratedText'
 import { useDetachedWindows } from '../providers'
 import { useToast } from '../providers'
-import { buildLabelFromIntermarc } from '../lib/intermarc'
+import { labelFromRecord } from '../lib/intermarc'
 import { AgentView } from '../agents/AgentView'
 
 let tabSequence = 0
@@ -180,10 +180,10 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   )
   const workspaceSource = isWorkspaceTab(shortcutTab) ? shortcutTab : firstWorkspaceTab
   const workspace = useWorkspaceData(workspaceSource)
-  const labelFromRecord = useCallback(
+  const labelForTabRecord = useCallback(
     (record: RecordRow | null) => {
       if (!record) return null
-      const intermarcLabel = buildLabelFromIntermarc(record.intermarc, record.type)
+      const intermarcLabel = labelFromRecord(record)
       return intermarcLabel || titleOf(record) || manifestationTitle(record) || record.id
     },
     [],
@@ -203,7 +203,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       if (isAgentTab(tab)) {
         const entityId = tab.selectedAgentId
         const record = entityId ? recordIndexes.byId.get(entityId) ?? null : null
-        const label = labelFromRecord(record)
+        const label = labelForTabRecord(record)
         if (label) return label
         return tab.title || defaultAgentTitle
       }
@@ -217,14 +217,14 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
 
       if (entity.entityType === 'manifestation') {
         const record = findById(entity.id)
-        const label = labelFromRecord(record)
+        const label = labelForTabRecord(record)
         if (label) return label
         return entity.id
       }
 
       if (entity.entityType === 'work') {
         const record = findById(entity.id)
-        const label = labelFromRecord(record)
+        const label = labelForTabRecord(record)
         if (label) return label
         return entity.id
       }
@@ -237,17 +237,17 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         if (candidates.length) workArk = candidates[0]
         }
         const workRecord = findByArk(workArk)
-        const label = labelFromRecord(workRecord) ?? labelFromRecord(expressionRecord)
+        const label = labelForTabRecord(workRecord) ?? labelForTabRecord(expressionRecord)
         if (label) return label
         return entity.expressionId ?? entity.id
       }
 
       const record = findById(entity.id)
-      const label = labelFromRecord(record)
+      const label = labelForTabRecord(record)
       if (label) return label
       return fallbackLabel
     },
-    [recordIndexes, defaultWorkspaceTitle, defaultSparqlTitle, labelFromRecord, defaultAgentTitle],
+    [recordIndexes, defaultWorkspaceTitle, defaultSparqlTitle, labelForTabRecord, defaultAgentTitle],
   )
 
   const openDetachedTabWithState = useCallback(

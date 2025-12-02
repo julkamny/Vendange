@@ -14,9 +14,6 @@ export const COMPACT_FIELD_CODES = new Set(['990', '907', '90H', '901', '991'])
 
 const ARK_PREFIX = 'ark:/'
 
-const arkLabelByIdCache = new Map<string, string>()
-const arkLabelByArkCache = new Map<string, string | null>()
-
 export type PrettyIntermarcLineMark = {
   from: number
   to: number
@@ -38,16 +35,6 @@ function looksLikeArk(value: string): boolean {
   return typeof value === 'string' && value.startsWith(ARK_PREFIX)
 }
 
-function arkToId(ark: string): string | null {
-  const lower = ark.toLowerCase()
-  const marker = '/cb'
-  const idx = lower.lastIndexOf(marker)
-  if (idx === -1) return null
-  const tail = ark.slice(idx + marker.length)
-  if (tail.length < 2) return null
-  return tail.slice(0, -1)
-}
-
 function stripBom(value: string): string {
   return value.replace(/^\uFEFF/, '')
 }
@@ -66,14 +53,6 @@ function getFirstSubZoneValue(im: Intermarc, zoneCode: string, subCode: string):
     const match = zone.sousZones.find(sz => sz.code === subCode)
     if (match && match.valeur) return match.valeur
   }
-  return undefined
-}
-
-function getCachedArkLabel(ark: string | undefined | null): string | undefined {
-  if (!ark) return undefined
-  if (arkLabelByArkCache.has(ark)) return arkLabelByArkCache.get(ark) ?? undefined
-  const normalized = ark.toLowerCase()
-  if (arkLabelByArkCache.has(normalized)) return arkLabelByArkCache.get(normalized) ?? undefined
   return undefined
 }
 
@@ -105,12 +84,8 @@ export function buildLabelFromIntermarc(im: Intermarc, type: string): string | u
       if (zone) {
         const parts: string[] = []
         zone.sousZones.forEach(sub => {
-          let value = typeof sub.valeur === 'string' ? sub.valeur.trim() : ''
+          const value = typeof sub.valeur === 'string' ? sub.valeur.trim() : ''
           if (!value) return
-          if (sub.code === '140$3') {
-            const resolved = getCachedArkLabel(value)
-            value = resolved ?? value
-          }
           parts.push(value)
         })
         if (parts.length) return parts.join(' — ')
@@ -140,26 +115,13 @@ export function buildLabelFromIntermarc(im: Intermarc, type: string): string | u
   }
 }
 
-export async function resolveArkLabel(ark: string): Promise<string | undefined> {
-  if (arkLabelByArkCache.has(ark)) {
-    const cached = arkLabelByArkCache.get(ark)
-    return cached === null ? undefined : cached
+export function labelFromRecord(record: RecordRow): string | undefined {
+  const ark = record.ark?.trim()
+  if (ark && record.arkLabels) {
+    const direct = record.arkLabels[ark] ?? record.arkLabels[ark.toLowerCase()]
+    if (direct) return direct
   }
-
-  const id = arkToId(ark)
-  if (!id) {
-    arkLabelByArkCache.set(ark, null)
-    return undefined
-  }
-
-  if (arkLabelByIdCache.has(id)) {
-    const cached = arkLabelByIdCache.get(id)!
-    arkLabelByArkCache.set(ark, cached)
-    return cached
-  }
-
-  arkLabelByArkCache.set(ark, null)
-  return undefined
+  return buildLabelFromIntermarc(record.intermarc, record.type)
 }
 
 type DisplayValueResult = { text: string; ark?: string; tooltip?: string }
@@ -181,17 +143,7 @@ async function displayValue(
     const tooltip = providedLabel === trimmed ? trimmed : `${providedLabel} — ${trimmed}`
     return { text: providedLabel, ark: trimmed, tooltip }
   }
-  try {
-    const resolved = await resolveArkLabel(trimmed)
-    if (resolved && resolved !== valeur) {
-      const tooltip = resolved === trimmed ? trimmed : `${resolved} — ${trimmed}`
-      return { text: resolved, ark: trimmed, tooltip }
-    }
-    return { text: trimmed }
-  } catch (err) {
-    console.error('Failed to resolve ARK label', { zoneCode, valeur, err })
-    return { text: trimmed }
-  }
+  return { text: trimmed }
 }
 
 function formatSubLabel(zoneCode: string, rawCode: string): string {
@@ -596,48 +548,5 @@ export function isClusterAnchorCreated(im: Intermarc): boolean {
 }
 
 export function resetArkLabelCache(): void {
-  arkLabelByIdCache.clear()
-  arkLabelByArkCache.clear()
-}
-
-export function registerArkLabelForRecord(record: RecordRow): void {
-  if (record.arkLabels) {
-    Object.entries(record.arkLabels).forEach(([ark, label]) => {
-      if (!label) return
-      arkLabelByArkCache.set(ark, label)
-      const normalizedArk = ark.toLowerCase()
-      if (normalizedArk !== ark) arkLabelByArkCache.set(normalizedArk, label)
-    })
-  }
-  const label = buildLabelFromIntermarc(record.intermarc, record.type)
-  if (!label) return
-  arkLabelByIdCache.set(record.id, label)
-  if (record.ark) {
-    const ark = record.ark
-    arkLabelByArkCache.set(ark, label)
-    const normalized = ark.toLowerCase()
-    if (normalized !== ark) arkLabelByArkCache.set(normalized, label)
-  } else {
-    const ark = getFirstSubZoneValue(record.intermarc, '001', '001$a')
-    if (ark) {
-      arkLabelByArkCache.set(ark, label)
-      const normalized = ark.toLowerCase()
-      if (normalized !== ark) arkLabelByArkCache.set(normalized, label)
-    }
-  }
-}
-
-export function primeArkLabelCache(records: RecordRow[]): void {
-  records.forEach(record => {
-    const normalized = record.typeNorm?.toLowerCase()
-    if (normalized === 'oeuvre') registerArkLabelForRecord(record)
-  })
-  records.forEach(record => {
-    const normalized = record.typeNorm?.toLowerCase()
-    if (normalized === 'expression') registerArkLabelForRecord(record)
-  })
-  records.forEach(record => {
-    const normalized = record.typeNorm?.toLowerCase()
-    if (normalized !== 'oeuvre' && normalized !== 'expression') registerArkLabelForRecord(record)
-  })
+  // Labels now come from the backend per-record payload; client cache cleared by replacing records.
 }

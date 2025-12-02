@@ -62,6 +62,12 @@ class OriginalitySwapPayload(BaseModel):
     original_id: str = Field(..., alias="originalId")
     target_id: str = Field(..., alias="targetId")
 
+class ManualClusterPayload(BaseModel):
+    anchor_id: str = Field(..., alias="anchorId")
+    target_id: Optional[str] = Field(None, alias="targetId")
+    target_ark: Optional[str] = Field(None, alias="targetArk")
+    accepted: bool = True
+
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -482,6 +488,66 @@ def swap_originality(dataset_id: str, payload: OriginalitySwapPayload) -> dict[s
         "updatedRecords": updated,
         "updatedClusters": updated_clusters,
         "removedClusterIds": [],
+        "updatedWorkRows": updated_work_rows,
+    }
+
+
+@app.post("/api/datasets/{dataset_id}/manual_cluster")
+def manual_cluster(dataset_id: str, payload: ManualClusterPayload) -> dict[str, object]:
+    _ensure_dataset(dataset_id)
+    try:
+        updated = db.update_manual_cluster(
+            dataset_id,
+            anchor_id=payload.anchor_id,
+            target_id=payload.target_id,
+            target_ark=payload.target_ark,
+            accepted=payload.accepted,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    builder = _apply_workspace_updates(dataset_id, updated) or _get_workspace_builder(dataset_id)
+    clusters = builder.build_work_clusters()
+
+    affected_ids = {item.get("id") for item in updated if item.get("id")}
+    affected_arks = {item.get("ark") for item in updated if item.get("ark")}
+    if payload.target_ark:
+        affected_arks.add(payload.target_ark)
+
+    def _cluster_matches(cluster: WorkCluster) -> bool:
+        if cluster.anchor_id in affected_ids or (cluster.anchor_ark and cluster.anchor_ark in affected_arks):
+            return True
+        for item in cluster.items:
+            if (item.id and item.id in affected_ids) or (item.ark and item.ark in affected_arks):
+                return True
+        for group in cluster.expression_groups:
+            if (group.anchor.id in affected_ids) or (group.anchor.ark and group.anchor.ark in affected_arks):
+                return True
+            for expr in group.clustered:
+                if (expr.id and expr.id in affected_ids) or (expr.ark and expr.ark in affected_arks):
+                    return True
+        for expr in cluster.independent_expressions:
+            if (expr.id and expr.id in affected_ids) or (expr.ark and expr.ark in affected_arks):
+                return True
+        return False
+
+    updated_clusters = [cluster for cluster in clusters if _cluster_matches(cluster)]
+    removed_cluster_ids: List[str] = []
+    if payload.accepted is False and not any(c.anchor_id == payload.anchor_id for c in clusters):
+        removed_cluster_ids.append(payload.anchor_id)
+
+    updated_work_rows = []
+    for ark in affected_arks:
+        if not ark:
+            continue
+        row = builder.work_row_for_ark(ark)
+        if row:
+            updated_work_rows.append(row)
+
+    return {
+        "updatedRecords": updated,
+        "updatedClusters": updated_clusters,
+        "removedClusterIds": removed_cluster_ids,
         "updatedWorkRows": updated_work_rows,
     }
 

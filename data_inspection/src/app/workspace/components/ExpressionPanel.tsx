@@ -21,6 +21,7 @@ type ExpressionPanelProps = {
   onToggleExpression: (payload: {
     anchorExpressionId: string
     expressionArk: string
+    expressionId?: string
     accepted: boolean
   }) => void
   onOpenManifestations: (payload: {
@@ -266,6 +267,7 @@ export function ExpressionPanel({
                             onToggleExpression({
                               anchorExpressionId: group.anchor.id,
                               expressionArk: expr.ark!,
+                              expressionId: expr.id,
                               accepted: event.target.checked,
                             })
                           }

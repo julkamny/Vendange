@@ -135,8 +135,6 @@ export function WorkspaceView({
 }: WorkspaceViewProps) {
   const {
     datasetId,
-    setWorkAccepted,
-    setExpressionAccepted,
     updateRecordIntermarc,
     applyServerUpdates,
     applyServerWorkspaceUpdates,
@@ -391,9 +389,11 @@ export function WorkspaceView({
   } = interactions
 
   const clustering = useWorkspaceClustering({
+    datasetId,
     clusters: mappedClusters,
     getById,
-    updateRecordIntermarc,
+    applyServerUpdates,
+    applyServerWorkspaceUpdates,
     showToast,
     t,
     setContextMenu,
@@ -417,6 +417,8 @@ export function WorkspaceView({
     prepareForClustering,
     requestClusterWith,
     requestExpressionClusterWith,
+    toggleWorkClusterMembership,
+    toggleExpressionClusterMembership,
     workClusterIndex,
   } = clustering
 
@@ -598,7 +600,9 @@ export function WorkspaceView({
           state={state}
           onSelectWork={handleSelectWork}
           onOpenExpressions={handleOpenExpressions}
-          onToggleWork={({ clusterId, workArk, accepted }) => setWorkAccepted(clusterId, workArk, accepted)}
+          onToggleWork={({ clusterId, workArk, workId, accepted }) =>
+            toggleWorkClusterMembership({ clusterId, workArk, workId, accepted })
+          }
           pendingClusterSourceId={pendingClusterSourceId}
           onCancelPendingCluster={cancelPendingCluster}
           listRef={listScrollRef}
@@ -641,9 +645,14 @@ export function WorkspaceView({
                 }
               })
             }
-            onToggleExpression={({ anchorExpressionId, expressionArk, accepted }) => {
+            onToggleExpression={({ anchorExpressionId, expressionArk, expressionId, accepted }) => {
               if (!activeClusterDto) return
-              setExpressionAccepted(activeClusterDto.anchor_id, anchorExpressionId, expressionArk, accepted)
+              toggleExpressionClusterMembership({
+                anchorExpressionId,
+                expressionArk,
+                expressionId,
+                accepted,
+              })
             }}
             onOpenManifestations={({ expressionId, expressionArk, workArk, anchorId }) => {
               onStateChange(prev => {

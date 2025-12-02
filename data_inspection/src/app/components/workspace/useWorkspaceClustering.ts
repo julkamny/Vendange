@@ -1,24 +1,30 @@
 import { useCallback, useMemo, useState } from 'react'
 import { expressionsShareParentWork, expressionWorkArks, worksClusteredTogether } from '../../core/entities'
-import { addManualWork90FEntries, addManualExpression90FEntries, isClusterAnchorCreated } from '../../lib/intermarc'
+import { isClusterAnchorCreated } from '../../lib/intermarc'
+import { updateManualCluster } from '../../lib/api'
 import type { Cluster, RecordRow } from '../../types'
+import type { DatasetRecordPayload, WorkspaceUpdatePayload } from '../../lib/api'
 import type { WorkspaceContextMenuState } from './types'
 
 type TranslationFn = ReturnType<typeof import('../../hooks/useTranslation')['useTranslation']>['t']
 
 type UseWorkspaceClusteringArgs = {
+  datasetId: string | null
   clusters: Cluster[]
   getById: (id: string) => RecordRow | null
-  updateRecordIntermarc: (id: string, intermarc: import('../../lib/intermarc').Intermarc) => void
+  applyServerUpdates: (updates: DatasetRecordPayload[]) => void
+  applyServerWorkspaceUpdates: (payload: WorkspaceUpdatePayload) => void
   showToast: (message: string, options?: { tone: 'error' | 'info' | 'success' }) => void
   t: TranslationFn
   setContextMenu: (next: WorkspaceContextMenuState | null) => void
 }
 
 export function useWorkspaceClustering({
+  datasetId,
   clusters,
   getById,
-  updateRecordIntermarc,
+  applyServerUpdates,
+  applyServerWorkspaceUpdates,
   showToast,
   t,
   setContextMenu,
@@ -154,11 +160,17 @@ export function useWorkspaceClustering({
     [isProtectedWorkAnchor, pendingClusterSourceRecord, setContextMenu, showToast, t],
   )
 
-  const confirmPendingCluster = useCallback(() => {
+  const confirmPendingCluster = useCallback(async () => {
     if (!pendingClusterTarget) return
     const source = getById(pendingClusterTarget.sourceId)
     const anchor = getById(pendingClusterTarget.anchorId)
     if (!source || !anchor) {
+      setPendingClusterTarget(null)
+      setPendingClusterSourceId(null)
+      return
+    }
+    if (!datasetId) {
+      showToast(t('works.cluster.noDataset', { defaultValue: 'Aucune base chargée.' }), { tone: 'error' })
       setPendingClusterTarget(null)
       setPendingClusterSourceId(null)
       return
@@ -194,29 +206,31 @@ export function useWorkspaceClustering({
       return
     }
 
-    const manualTargets = new Set<string>()
-    const anchorCluster = clusters.find(c => c.anchorId === anchor.id)
-    anchorCluster?.items.forEach(item => {
-      if (item.origin === 'manual' && item.ark) manualTargets.add(item.ark)
-    })
-    manualTargets.add(source.ark)
-
-    const nextIntermarc = addManualWork90FEntries(
-      anchor.intermarc,
-      [...manualTargets].map(ark => ({ ark })),
-    )
-    updateRecordIntermarc(anchor.id, nextIntermarc)
-    setPendingClusterSourceId(null)
-    setPendingClusterTarget(null)
-    showToast(t('works.cluster.success', { defaultValue: 'Œuvre ajoutée au cluster.' }), { tone: 'success' })
+    try {
+      const updates = await updateManualCluster(datasetId, {
+        anchorId: anchor.id,
+        targetId: source.id,
+        accepted: true,
+      })
+      applyServerWorkspaceUpdates(updates)
+      applyServerUpdates(updates.updatedRecords ?? [])
+      showToast(t('works.cluster.success', { defaultValue: 'Œuvre ajoutée au cluster.' }), { tone: 'success' })
+    } catch (error) {
+      console.error(error)
+      showToast(t('works.cluster.failed', { defaultValue: 'Échec de la clusterisation.' }), { tone: 'error' })
+    } finally {
+      setPendingClusterSourceId(null)
+      setPendingClusterTarget(null)
+    }
   }, [
-    clusters,
+    applyServerUpdates,
+    applyServerWorkspaceUpdates,
+    datasetId,
     getById,
     isProtectedWorkAnchor,
     pendingClusterTarget,
     showToast,
     t,
-    updateRecordIntermarc,
     workClusterIndex,
   ])
 
@@ -335,11 +349,17 @@ export function useWorkspaceClustering({
     ],
   )
 
-  const confirmPendingExpressionCluster = useCallback(() => {
+  const confirmPendingExpressionCluster = useCallback(async () => {
     if (!pendingExpressionClusterTarget) return
     const source = getById(pendingExpressionClusterTarget.sourceId)
     const anchor = getById(pendingExpressionClusterTarget.anchorId)
     if (!source || !anchor) {
+      setPendingExpressionClusterTarget(null)
+      setPendingExpressionClusterSourceId(null)
+      return
+    }
+    if (!datasetId) {
+      showToast(t('expressions.cluster.noDataset', { defaultValue: 'Aucune base chargée.' }), { tone: 'error' })
       setPendingExpressionClusterTarget(null)
       setPendingExpressionClusterSourceId(null)
       return
@@ -418,22 +438,32 @@ export function useWorkspaceClustering({
       return
     }
 
-    const manualTargets = new Set<string>()
-    const anchorGroup = clusters
-      .find(c => c.expressionGroups.some(g => g.anchor.id === anchor.id))
-      ?.expressionGroups.find(g => g.anchor.id === anchor.id)
-    anchorGroup?.clustered.forEach(item => {
-      if (item.origin === 'manual' && item.ark) manualTargets.add(item.ark)
-    })
-    manualTargets.add(source.ark)
-
-    const nextIntermarc = addManualExpression90FEntries(anchor.intermarc, [...manualTargets].map(ark => ({ ark })))
-    updateRecordIntermarc(anchor.id, nextIntermarc)
-    setPendingExpressionClusterSourceId(null)
-    setPendingExpressionClusterTarget(null)
-    showToast(t('expressions.cluster.success', { defaultValue: 'Expression ajoutée au cluster.' }), { tone: 'success' })
+    try {
+      const updates = await updateManualCluster(datasetId, {
+        anchorId: anchor.id,
+        targetId: source.id,
+        accepted: true,
+      })
+      applyServerWorkspaceUpdates(updates)
+      applyServerUpdates(updates.updatedRecords ?? [])
+      showToast(t('expressions.cluster.success', { defaultValue: 'Expression ajoutée au cluster.' }), {
+        tone: 'success',
+      })
+    } catch (error) {
+      console.error(error)
+      showToast(
+        t('expressions.cluster.failed', { defaultValue: 'Échec de la clusterisation.' }),
+        { tone: 'error' },
+      )
+    } finally {
+      setPendingExpressionClusterSourceId(null)
+      setPendingExpressionClusterTarget(null)
+    }
   }, [
+    applyServerUpdates,
+    applyServerWorkspaceUpdates,
     clusters,
+    datasetId,
     expressionClusterIndex,
     getById,
     getExpressionClusterMembership,
@@ -441,8 +471,97 @@ export function useWorkspaceClustering({
     pendingExpressionClusterTarget,
     showToast,
     t,
-    updateRecordIntermarc,
   ])
+
+  const toggleWorkClusterMembership = useCallback(
+    async ({
+      clusterId,
+      workArk,
+      workId,
+      accepted,
+    }: {
+      clusterId: string
+      workArk: string
+      workId?: string | null
+      accepted: boolean
+    }) => {
+      if (!datasetId) {
+        showToast(t('works.cluster.noDataset', { defaultValue: 'Aucune base chargée.' }), { tone: 'error' })
+        return
+      }
+      if (!workArk) return
+      try {
+        const updates = await updateManualCluster(datasetId, {
+          anchorId: clusterId,
+          targetArk: workArk,
+          targetId: accepted ? workId ?? undefined : undefined,
+          accepted,
+        })
+        applyServerWorkspaceUpdates(updates)
+        applyServerUpdates(updates.updatedRecords ?? [])
+        showToast(
+          accepted
+            ? t('works.cluster.success', { defaultValue: 'Œuvre ajoutée au cluster.' })
+            : t('works.cluster.removed', { defaultValue: 'Œuvre retirée du cluster.' }),
+          { tone: 'success' },
+        )
+      } catch (error) {
+        console.error(error)
+        showToast(
+          accepted
+            ? t('works.cluster.failed', { defaultValue: 'Échec de la clusterisation.' })
+            : t('works.cluster.removeFailed', { defaultValue: 'Échec du retrait du cluster.' }),
+          { tone: 'error' },
+        )
+      }
+    },
+    [applyServerUpdates, applyServerWorkspaceUpdates, datasetId, showToast, t],
+  )
+
+  const toggleExpressionClusterMembership = useCallback(
+    async ({
+      anchorExpressionId,
+      expressionArk,
+      expressionId,
+      accepted,
+    }: {
+      anchorExpressionId: string
+      expressionArk: string
+      expressionId?: string | null
+      accepted: boolean
+    }) => {
+      if (!datasetId) {
+        showToast(t('expressions.cluster.noDataset', { defaultValue: 'Aucune base chargée.' }), { tone: 'error' })
+        return
+      }
+      if (!expressionArk) return
+      try {
+        const updates = await updateManualCluster(datasetId, {
+          anchorId: anchorExpressionId,
+          targetArk: expressionArk,
+          targetId: accepted ? expressionId ?? undefined : undefined,
+          accepted,
+        })
+        applyServerWorkspaceUpdates(updates)
+        applyServerUpdates(updates.updatedRecords ?? [])
+        showToast(
+          accepted
+            ? t('expressions.cluster.success', { defaultValue: 'Expression ajoutée au cluster.' })
+            : t('expressions.cluster.removed', { defaultValue: 'Expression retirée du cluster.' }),
+          { tone: 'success' },
+        )
+      } catch (error) {
+        console.error(error)
+        showToast(
+          accepted
+            ? t('expressions.cluster.failed', { defaultValue: 'Échec de la clusterisation.' })
+            : t('expressions.cluster.removeFailed', { defaultValue: 'Échec du retrait du cluster.' }),
+          { tone: 'error' },
+        )
+      }
+    },
+    [applyServerUpdates, applyServerWorkspaceUpdates, datasetId, showToast, t],
+  )
 
   return {
     cancelPendingCluster,
@@ -463,6 +582,8 @@ export function useWorkspaceClustering({
     prepareForClustering,
     requestClusterWith,
     requestExpressionClusterWith,
+    toggleWorkClusterMembership,
+    toggleExpressionClusterMembership,
     workClusterIndex,
   }
 }

@@ -35,6 +35,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
   2. The adaptation gets a `552$q` with the ARK identifier of the controled value with `169$a` "Est une adaptation de" and a `552$3` subfield pointing to the ARK identifier of the original work.
 - Manual anchor swap: `POST /api/datasets/<dataset_id>/swap_anchor` moves all curated `90F` fields (script or manual) from the current anchor to a clustered work/expression and retargets them as manual links. For works, curated `552$q = "A pour adaptation"` links move as well and the corresponding `"Est une adaptation de"` backlinks are rewritten to the new anchor.
 - Originality swap: `POST /api/datasets/<dataset_id>/swap_originality` retargets curated `552$q = "A pour adaptation"` links from a former original to a new one, rewrites the reciprocal `"Est une adaptation de"` backlinks on every adaptation, deletes the curated 552 fields from the former original, and recreates them as manual links on the new original.
+- Manual clustering: `POST /api/datasets/<dataset_id>/manual_cluster` toggles a work/expression membership under an anchor (payload: `anchorId`, optional `targetId`, `targetArk`, `accepted`) and returns `updatedRecords`, `updatedClusters`, `removedClusterIds`, and `updatedWorkRows` for cache patching.
 
 #### Workspace & clustering API
 - `GET /api/datasets/{dataset_id}/workspace/works` returns work clusters plus pre-computed badges (counts, 5XX relationships, media kinds) and the sorted list of unclustered works as lightweight view models.

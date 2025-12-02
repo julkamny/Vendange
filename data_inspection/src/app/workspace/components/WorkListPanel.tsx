@@ -11,7 +11,7 @@ type WorkListPanelProps = {
   state: WorkspaceTabStateWorkspace
   onSelectWork: (payload: { workId: string; workArk?: string | null }) => void
   onOpenExpressions: (payload: { workId: string; workArk?: string | null }) => void
-  onToggleWork: (payload: { clusterId: string; workArk: string; accepted: boolean }) => void
+  onToggleWork: (payload: { clusterId: string; workArk: string; workId?: string | null; accepted: boolean }) => void
   pendingClusterSourceId?: string | null
   onCancelPendingCluster?: () => void
   onScroll?: (event: UIEvent<HTMLElement>) => void
@@ -209,6 +209,7 @@ export function WorkListPanel({
                           onToggleWork({
                             clusterId: cluster.anchor_id,
                             workArk: item.ark,
+                            workId: item.id ?? null,
                             accepted: event.target.checked,
                           })
                           }

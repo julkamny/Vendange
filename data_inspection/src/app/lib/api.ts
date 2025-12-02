@@ -168,6 +168,28 @@ export async function swapWorkOriginality(
   return parseJson<WorkspaceUpdatePayload>(response)
 }
 
+export async function updateManualCluster(
+  datasetId: string,
+  payload: { anchorId: string; targetId?: string; targetArk?: string; accepted: boolean },
+): Promise<WorkspaceUpdatePayload> {
+  const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/manual_cluster`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      anchorId: payload.anchorId,
+      targetId: payload.targetId,
+      targetArk: payload.targetArk,
+      accepted: payload.accepted,
+    }),
+  })
+  if (!response.ok) {
+    const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
+    throw new Error(detail.detail || 'Failed to update manual cluster')
+  }
+  return parseJson<WorkspaceUpdatePayload>(response)
+}
+
 export async function fetchWorkspaceWorks(datasetId: string): Promise<WorkspaceWorksResponse> {
   const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/workspace/works`
   const response = await fetch(url)

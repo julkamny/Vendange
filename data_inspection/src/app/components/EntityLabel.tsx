@@ -166,7 +166,7 @@ export function EntityLabel({
 function TitleSegmentChip({ segment }: { segment: EntityTitleSegment }) {
   const value = useArkDecoratedText(segment.value)
   return (
-    <span className="entity-title-segment" data-subfield={segment.code}>
+    <span className="entity-title-segment" data-subfield={segment.code} title={segment.ark ?? undefined}>
       <span className="entity-title-segment-label">{segment.label}</span>
       <span className="entity-title-segment-value">{value}</span>
     </span>

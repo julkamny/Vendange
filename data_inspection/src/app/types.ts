@@ -151,6 +151,7 @@ export type WorkClusterItemDto = {
   ark: string
   id?: string | null
   title?: string | null
+  title_segments?: EntityTitleSegment[]
   accepted: boolean
   date?: string | null
   origin: 'script' | 'manual'
@@ -161,6 +162,7 @@ export type WorkClusterDto = {
   anchor_id: string
   anchor_ark?: string | null
   anchor_title?: string | null
+  anchor_title_segments?: EntityTitleSegment[]
   anchor_summary?: EntitySummary | null
   items: WorkClusterItemDto[]
   expression_groups: ExpressionAnchorGroupViewDto[]
@@ -171,6 +173,7 @@ export type WorkListRowDto = {
   id: string
   ark?: string | null
   title?: string | null
+  title_segments?: EntityTitleSegment[]
   type_norm: string
   summary?: EntitySummary | null
 }
@@ -249,6 +252,7 @@ export type EntityTitleSegment = {
   code: string
   label: string
   value: string
+  ark?: string | null
 }
 
 export type CountBadgeKind = 'expressions' | 'manifestations' | 'works' | 'workLinks' | 'expressionLinks'

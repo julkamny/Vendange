@@ -30,51 +30,20 @@ export function WorkListPanel({
   onScroll,
   listRef,
 }: WorkListPanelProps) {
-  const { t, language } = useTranslation()
+  const { t } = useTranslation()
   const pickMediaKinds = (summary?: { mediaKinds?: unknown; media_kinds?: unknown }) =>
     (summary?.mediaKinds as unknown as { emoji: string; label: string; kindCode: string }[] | undefined) ??
     (summary?.media_kinds as unknown as { emoji: string; label: string; kindCode: string }[] | undefined)
 
-  const simpleSegments = (title?: string | null, id?: string) =>
-    title || id ? [{ text: title ?? id ?? '', highlight: false }] : undefined
-
-  const collator = useMemo(() => new Intl.Collator(language, { sensitivity: 'accent' }), [language])
   const sortedEntries = useMemo(() => {
     type ListEntry =
-      | { kind: 'cluster'; cluster: WorkClusterDto; title: string }
-      | { kind: 'unclustered'; work: WorkListRowDto; title: string }
-
-    const sanitizeTitle = (value: string | undefined, fallback: string) => {
-      const trimmed = value?.trim()
-      return trimmed && trimmed.length > 0 ? trimmed : fallback
-    }
-
-    const clusterEntries: ListEntry[] = clusters.map(cluster => {
-      const anchorTitle = cluster.anchor_title ?? cluster.anchor_id
-      return {
-        kind: 'cluster',
-        cluster,
-        title: sanitizeTitle(anchorTitle, cluster.anchor_id),
-      }
-    })
-    const orphanEntries: ListEntry[] = unclusteredWorks.map(work => ({
-      kind: 'unclustered',
-      work,
-      title: sanitizeTitle(work.title ?? work.id, work.id),
-    }))
-
-    return [...clusterEntries, ...orphanEntries].sort((a, b) => {
-      const comparison = collator.compare(a.title, b.title)
-      if (comparison !== 0) return comparison
-      if (a.kind === 'cluster' && b.kind === 'cluster') {
-        return a.cluster.anchor_id.localeCompare(b.cluster.anchor_id)
-      }
-      if (a.kind === 'unclustered' && b.kind === 'unclustered') {
-        return a.work.id.localeCompare(b.work.id)
-      }
-      return a.kind === 'cluster' ? -1 : 1
-    })
-  }, [clusters, unclusteredWorks, collator])
+      | { kind: 'cluster'; cluster: WorkClusterDto }
+      | { kind: 'unclustered'; work: WorkListRowDto }
+    return [
+      ...clusters.map(cluster => ({ kind: 'cluster', cluster }) as const),
+      ...unclusteredWorks.map(work => ({ kind: 'unclustered', work }) as const),
+    ] as ListEntry[]
+  }, [clusters, unclusteredWorks])
 
   const isEmpty = !clusters.length && !unclusteredWorks.length
 
@@ -153,7 +122,10 @@ export function WorkListPanel({
             if (state.highlightedWorkArk && state.highlightedWorkArk === cluster.anchor_ark) {
               anchorRowClasses.push('highlight')
             }
-            const anchorSegments = simpleSegments(cluster.anchor_title, cluster.anchor_id)
+            const anchorSegments =
+              cluster.anchor_title_segments && cluster.anchor_title_segments.length
+                ? cluster.anchor_title_segments
+                : undefined
             const anchorMediaKinds = pickMediaKinds(cluster.anchor_summary)
             const anchorRelationships = cluster.anchor_summary?.relationships
             return (
@@ -208,7 +180,7 @@ export function WorkListPanel({
                     if (state.highlightedWorkArk && state.highlightedWorkArk === item.ark) {
                       rowClasses.push('highlight')
                     }
-                    const itemSegments = simpleSegments(item.title, item.id ?? undefined)
+                    const itemSegments = item.title_segments && item.title_segments.length ? item.title_segments : undefined
                     const mediaKinds = pickMediaKinds(item.summary)
                     const relationships = item.summary?.relationships
                     return (
@@ -268,7 +240,7 @@ export function WorkListPanel({
           if (pendingClusterSourceId && pendingClusterSourceId === work.id) headerClasses.push('pending-cluster-source')
           const counts = work.summary?.counts
           const relationships = work.summary?.relationships
-          const segments = simpleSegments(work.title, work.id)
+          const segments = work.title_segments && work.title_segments.length ? work.title_segments : undefined
           const mediaKinds = pickMediaKinds(work.summary)
           return (
             <div key={`unclustered-${work.id}`} className={containerClasses.join(' ')} data-work-id={work.id} data-work-ark={work.ark}>

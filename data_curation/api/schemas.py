@@ -27,6 +27,13 @@ class EntitySummary(BaseModel):
     media_kinds: List[MediaKind] = Field(default_factory=list)
 
 
+class TitleSegment(BaseModel):
+    code: str
+    label: str
+    value: str
+    ark: Optional[str] = None
+
+
 class ManifestationItemView(BaseModel):
     id: str
     ark: Optional[str] = None
@@ -63,6 +70,7 @@ class WorkClusterItem(BaseModel):
     ark: str
     id: Optional[str] = None
     title: Optional[str] = None
+    title_segments: List[TitleSegment] = Field(default_factory=list)
     accepted: bool = True
     date: Optional[str] = None
     origin: str = "script"
@@ -73,6 +81,7 @@ class WorkCluster(BaseModel):
     anchor_id: str
     anchor_ark: Optional[str] = None
     anchor_title: Optional[str] = None
+    anchor_title_segments: List[TitleSegment] = Field(default_factory=list)
     anchor_summary: Optional[EntitySummary] = None
     items: List[WorkClusterItem] = Field(default_factory=list)
     expression_groups: List[ExpressionAnchorGroupView] = Field(default_factory=list)
@@ -83,6 +92,7 @@ class WorkListRow(BaseModel):
     id: str
     ark: Optional[str] = None
     title: Optional[str] = None
+    title_segments: List[TitleSegment] = Field(default_factory=list)
     type_norm: str
     summary: Optional[EntitySummary] = None
 

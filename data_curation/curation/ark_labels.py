@@ -153,3 +153,11 @@ def build_ark_label_map(entity: Entity, lookup_by_ark: Dict[str, Entity]) -> Dic
         if label:
             labels[ark] = label
     return labels
+
+
+def label_for_ark(ark: str, lookup_by_ark: Dict[str, Entity]) -> Optional[str]:
+    entity = _lookup_by_ark(ark, lookup_by_ark)
+    if not entity:
+        return None
+    labels = build_ark_label_map(entity, lookup_by_ark)
+    return labels.get(ark) or labels.get(ark.lower())

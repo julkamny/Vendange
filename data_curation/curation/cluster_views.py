@@ -213,6 +213,49 @@ def _sort_key(text: str) -> str:
     return unicodedata.normalize("NFKD", text or "").casefold()
 
 
+def _strip_pipes(value: str) -> str:
+    return value.replace("|", "")
+
+
+def _segment_label(sub_code: str) -> str:
+    if "$" in sub_code:
+        suffix = sub_code.split("$", 1)[1]
+        return suffix.upper() or sub_code
+    return sub_code.upper()
+
+
+def _work_title_segments(entity: Entity, lookup_by_ark: Dict[str, Entity]) -> List[Dict[str, str]]:
+    segments: List[Dict[str, str]] = []
+    zone = entity.intermarc.get_zone("150")
+    if not zone:
+        return segments
+    labels = build_ark_label_map(entity, lookup_by_ark)
+    for sub in zone[0].sousZones:
+        raw_value = str(sub.valeur or "").strip()
+        if not raw_value:
+            continue
+        value = labels.get(raw_value) if raw_value.lower().startswith("ark:/") else raw_value
+        segment: Dict[str, str] = {
+            "code": sub.code,
+            "label": _segment_label(sub.code),
+            "value": value or raw_value,
+        }
+        if raw_value.lower().startswith("ark:/"):
+            segment["ark"] = raw_value
+        segments.append(segment)
+    return segments
+
+
+def _work_title_a_value(entity: Optional[Entity]) -> str:
+    if not entity:
+        return ""
+    for zone in entity.intermarc.get_zone("150"):
+        for sub in zone.sousZones:
+            if sub.code == "150$a" and isinstance(sub.valeur, str):
+                return _strip_pipes(sub.valeur).strip()
+    return ""
+
+
 def _manual_agent_targets(entity: Entity) -> List[str]:
     targets: Set[str] = set()
     for zone in entity.intermarc.get_zone("90F"):
@@ -539,6 +582,8 @@ class WorkspaceViewBuilder:
     # Clusters -----------------------------------------------------------
     def _build_work_cluster(self, work: Entity, *, include_empty: bool = False) -> Optional[WorkCluster]:
         work_ark = work.ark() or ""
+        anchor_segments = _work_title_segments(work, self.entity_by_ark)
+        anchor_title = " ".join(seg["value"] for seg in anchor_segments) or _title_of(work) or work.id_entitelrm
         cluster_items: List[WorkClusterItem] = []
         seen_targets: Set[str] = set()
         for zone in work.intermarc.get_zone("90F"):
@@ -557,11 +602,14 @@ class WorkspaceViewBuilder:
             date = next((sub.valeur for sub in zone.sousZones if sub.code == "90F$d"), None)
             target_ent = self.entity_by_ark.get(str(target))
             summary = self._summary_for_ark(str(target), counts=self.work_counts.get(str(target), CountStats()))
+            segments = _work_title_segments(target_ent, self.entity_by_ark) if target_ent else []
+            item_title = " ".join(seg["value"] for seg in segments) if segments else (_title_of(target_ent) if target_ent else str(target))
             cluster_items.append(
                 WorkClusterItem(
                     ark=str(target),
                     id=target_ent.id_entitelrm if target_ent else None,
-                    title=_title_of(target_ent) if target_ent else str(target),
+                    title=item_title,
+                    title_segments=segments,
                     accepted=True,
                     date=date,
                     origin=origin,
@@ -652,7 +700,8 @@ class WorkspaceViewBuilder:
         return WorkCluster(
             anchor_id=work.id_entitelrm,
             anchor_ark=work_ark or None,
-            anchor_title=_title_of(work) or work.id_entitelrm,
+            anchor_title=anchor_title,
+            anchor_title_segments=anchor_segments,
             anchor_summary=anchor_summary,
             items=cluster_items,
             expression_groups=expression_groups,
@@ -667,6 +716,11 @@ class WorkspaceViewBuilder:
             cluster = self._build_work_cluster(ent)
             if cluster:
                 clusters.append(cluster)
+        clusters.sort(
+            key=lambda c: _sort_key(
+                _strip_pipes(_work_title_a_value(self.entity_by_id.get(c.anchor_id))) or c.anchor_title or c.anchor_id
+            )
+        )
         return clusters
 
     # Coverage / unclustered --------------------------------------------
@@ -713,15 +767,22 @@ class WorkspaceViewBuilder:
             if ark and ark in coverage["work_arks"]:
                 continue
             counts = self.work_counts.get(ark or "", CountStats())
+            segments = _work_title_segments(ent, self.entity_by_ark)
+            title_value = " ".join(seg["value"] for seg in segments) if segments else _title_of(ent)
             row = WorkListRow(
                 id=ent.id_entitelrm,
                 ark=ark,
-                title=_title_of(ent) or ent.id_entitelrm,
+                title=title_value or ent.id_entitelrm,
+                title_segments=segments,
                 type_norm="oeuvre",
                 summary=self._summary_for_ark(ark, counts=counts),
             )
             rows.append(row)
-        rows.sort(key=lambda r: _sort_key(r.title or r.id))
+        rows.sort(
+            key=lambda r: _sort_key(
+                _strip_pipes(_work_title_a_value(self.entity_by_id.get(r.id))) or r.title or r.id
+            )
+        )
         return rows
 
     def work_row_for_ark(self, ark: str) -> Optional[WorkListRow]:

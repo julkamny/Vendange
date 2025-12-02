@@ -38,7 +38,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 
 #### Workspace & clustering API
 - `GET /api/datasets/{dataset_id}/workspace/works` returns work clusters plus pre-computed badges (counts, 5XX relationships, media kinds) and the sorted list of unclustered works as lightweight view models.
-- `GET /api/datasets/{dataset_id}/workspace/work/{anchor_id_or_ark}` resolves a single work cluster for focus-down views (expressions + manifestations included). The path parameter now accepts full ARKs with slashes and colons, whether raw or URL-encoded, and it now resolves clusters even when you pass the ARK/ID of a clustered member instead of the anchor.
+- `GET /api/datasets/{dataset_id}/workspace/work/{anchor_id_or_ark}` resolves a single work cluster for focus-down views (expressions + manifestations included). The path parameter now accepts full ARKs with slashes and colons, whether raw or URL-encoded, and it now resolves clusters when you pass the ARK/ID of a clustered member or even an unclustered standalone work.
 - `GET /api/datasets/{dataset_id}/workspace/agents` exposes manual agent clusters (90F$q Clusterisation manuelle) and the remaining unclustered agents.
 - Cluster-affecting mutations (`swap_anchor`, `swap_originality`) now also return `updatedClusters`, `removedClusterIds`, and `updatedWorkRows` so the UI can patch caches without recomputing.
 - Workspace endpoints reuse an in-memory `WorkspaceViewBuilder` cache keyed per dataset; anchor/originality swaps patch the cached builder in place so follow-up requests avoid a full rebuild.

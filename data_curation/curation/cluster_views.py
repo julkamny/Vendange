@@ -536,7 +536,7 @@ class WorkspaceViewBuilder:
         )
 
     # Clusters -----------------------------------------------------------
-    def _build_work_cluster(self, work: Entity) -> Optional[WorkCluster]:
+    def _build_work_cluster(self, work: Entity, *, include_empty: bool = False) -> Optional[WorkCluster]:
         work_ark = work.ark() or ""
         cluster_items: List[WorkClusterItem] = []
         seen_targets: Set[str] = set()
@@ -643,7 +643,7 @@ class WorkspaceViewBuilder:
                 used_expr_arks.add(expr_ark)
 
         has_expression_cluster = any(group.clustered for group in expression_groups) or bool(independent)
-        if not cluster_items and not has_expression_cluster:
+        if not include_empty and not cluster_items and not has_expression_cluster:
             return None
 
         anchor_counts = self.work_counts.get(work_ark, CountStats())
@@ -817,6 +817,11 @@ class WorkspaceViewBuilder:
                     return cluster
                 if item.ark and item.ark in needles:
                     return cluster
+
+        # Fallback: return a minimal cluster for independent works (neither anchor nor clustered).
+        candidate = self.entity_by_id.get(anchor_id_or_ark) or self.entity_by_ark.get(anchor_id_or_ark)
+        if candidate and _normalize_type(candidate.type_entite) == "oeuvre":
+            return self._build_work_cluster(candidate, include_empty=True)
         return None
 
     def record_payload_for_key(self, record_key: str) -> Optional[RecordPayload]:

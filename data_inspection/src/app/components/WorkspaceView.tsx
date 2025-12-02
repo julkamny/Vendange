@@ -524,10 +524,12 @@ export function WorkspaceView({
   )
 
   const handleSelectWork = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
-    const cluster = workspaceWorks?.clusters.find(entry => entry.anchor_id === workId || entry.anchor_ark === workArk) ?? null
+    const cluster =
+      workspaceWorks?.clusters.find(entry => entry.anchor_id === workId || entry.anchor_ark === workArk) ?? null
+    const nextAnchorId = cluster?.anchor_id ?? workId ?? workArk ?? null
     onStateChange(prev => ({
       ...prev,
-      activeWorkAnchorId: cluster?.anchor_id ?? null,
+      activeWorkAnchorId: nextAnchorId,
       highlightedWorkArk: workArk ?? null,
       viewMode: 'works',
       listScope: 'clusters',
@@ -542,10 +544,11 @@ export function WorkspaceView({
 
   const handleOpenExpressions = ({ workId, workArk }: { workId: string; workArk?: string | null }) => {
     const cluster = workspaceWorks?.clusters.find(entry => entry.anchor_id === workId || entry.anchor_ark === workArk) ?? null
+    const nextAnchorId = cluster?.anchor_id ?? workId ?? workArk ?? null
     if (cluster) {
       onStateChange(prev => ({
         ...prev,
-        activeWorkAnchorId: cluster.anchor_id,
+        activeWorkAnchorId: nextAnchorId,
         highlightedWorkArk: workArk ?? null,
         viewMode: 'expressions',
         listScope: 'clusters',
@@ -561,7 +564,7 @@ export function WorkspaceView({
 
     onStateChange(prev => ({
       ...prev,
-      activeWorkAnchorId: null,
+      activeWorkAnchorId: nextAnchorId,
       highlightedWorkArk: workArk ?? null,
       viewMode: 'expressions',
       listScope: 'clusters',

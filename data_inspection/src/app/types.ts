@@ -7,6 +7,7 @@ export type RecordRow = {
   type: string
   typeNorm: string
   ark?: string
+  arkLabels?: Record<string, string>
   rowIndex: number
   intermarcStr: string
   intermarc: Intermarc
@@ -209,6 +210,8 @@ export type WorkRecordPayload = {
   type: string
   ark?: string | null
   intermarc: string
+  arkLabels?: Record<string, string>
+  ark_labels?: Record<string, string>
 }
 
 export type InventoryEntityType =

@@ -33,7 +33,7 @@ export function IntermarcView({ record, onArkClick }: IntermarcViewProps) {
     let cancelled = false
     setResult(null)
     setError(null)
-    prettyPrintIntermarc(record.intermarc)
+    prettyPrintIntermarc(record.intermarc, { arkLabels: record.arkLabels })
       .then(res => {
         if (!cancelled) {
           setResult(res)

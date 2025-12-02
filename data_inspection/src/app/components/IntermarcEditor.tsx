@@ -89,8 +89,9 @@ class ArkLabelWidget extends WidgetType {
     span.className = 'ark-link has-tooltip'
     span.textContent = this.label
     span.setAttribute('data-ark', this.ark)
-    span.setAttribute('data-tooltip', this.ark)
-    span.setAttribute('aria-label', this.ark)
+    const tooltip = this.label === this.ark ? this.ark : `${this.label} — ${this.ark}`
+    span.setAttribute('data-tooltip', tooltip)
+    span.setAttribute('aria-label', tooltip)
     span.setAttribute('data-tooltip-placement', 'above')
     span.setAttribute('tabindex', '0')
     span.setAttribute('role', 'button')
@@ -212,7 +213,10 @@ function recordDisplayLabel(record: RecordRow): string {
   return titleOf(record) || record.id
 }
 
-function buildDecorations(doc: Text, options: { getLabelForArk: (ark: string) => string | undefined }): DecorationSet {
+function buildDecorations(
+  doc: Text,
+  options: { getLabelForArk: (ark: string) => string | undefined; arkLabels?: Record<string, string> },
+): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>()
   const lines = parseIntermarcLines(doc)
   for (const line of lines) {
@@ -228,21 +232,26 @@ function buildDecorations(doc: Text, options: { getLabelForArk: (ark: string) =>
       )
       const rawValue = subfield.value.trim()
       if (looksLikeArk(rawValue)) {
-        const label = options.getLabelForArk(rawValue)
+        const normalizedArk = rawValue
+        const mappedLabel =
+          options.arkLabels?.[normalizedArk] ??
+          (normalizedArk.toLowerCase() !== normalizedArk ? options.arkLabels?.[normalizedArk.toLowerCase()] : undefined)
+        const label = options.getLabelForArk(normalizedArk) ?? mappedLabel
         if (label) {
           const widget = Decoration.replace({
-            widget: new ArkLabelWidget(label, rawValue, line.zone, subfield.code),
+            widget: new ArkLabelWidget(label, normalizedArk, line.zone, subfield.code),
             inclusive: false,
           })
           builder.add(subfield.valueStart, subfield.valueEnd, widget)
           continue
         }
+        const tooltipLabel = mappedLabel ? `${mappedLabel} — ${normalizedArk}` : normalizedArk
         const fallback = Decoration.mark({
           class: 'ark-link has-tooltip',
           attributes: {
-            'data-ark': rawValue.trim(),
-            'data-tooltip': rawValue.trim(),
-            'aria-label': rawValue.trim(),
+            'data-ark': normalizedArk,
+            'data-tooltip': tooltipLabel,
+            'aria-label': tooltipLabel,
             'data-tooltip-placement': 'above',
             'data-zone': line.zone,
             'data-subfield': subfield.code,
@@ -257,6 +266,7 @@ function buildDecorations(doc: Text, options: { getLabelForArk: (ark: string) =>
 
 function createIntermarcDecorationField(options: {
   getLabelForArk: (ark: string) => string | undefined
+  arkLabels?: Record<string, string>
 }): StateField<DecorationSet> {
   return StateField.define<DecorationSet>({
     create(state) {
@@ -401,16 +411,20 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave }: In
 
   const getLabelForArk = useCallback(
     (ark: string) => {
-      const target = getByArk(ark)
-      if (!target) return undefined
-      return recordDisplayLabel(target)
+      const normalized = ark.trim()
+      const target = getByArk(normalized)
+      if (target) return recordDisplayLabel(target)
+      return (
+        record.arkLabels?.[normalized] ??
+        (normalized.toLowerCase() !== normalized ? record.arkLabels?.[normalized.toLowerCase()] : undefined)
+      )
     },
-    [getByArk],
+    [getByArk, record.arkLabels],
   )
 
   const decorationExtension = useMemo<Extension>(
-    () => createIntermarcDecorationField({ getLabelForArk }),
-    [getLabelForArk],
+    () => createIntermarcDecorationField({ getLabelForArk, arkLabels: record.arkLabels }),
+    [getLabelForArk, record.arkLabels],
   )
 
   const completionSource = useMemo(() => createIntermarcCompletionSource({ suggestions }), [suggestions])
@@ -426,7 +440,7 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave }: In
 
   useEffect(() => {
     let cancelled = false
-    prettyPrintIntermarc(record.intermarc, { resolveLabels: false })
+    prettyPrintIntermarc(record.intermarc, { resolveLabels: false, arkLabels: record.arkLabels })
       .then(res => {
         if (!cancelled) {
           setDoc(res.text)
@@ -452,7 +466,10 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave }: In
       }
     }
 
-    prettyPrintIntermarc(baselineRecord.intermarc, { resolveLabels: false })
+    prettyPrintIntermarc(baselineRecord.intermarc, {
+      resolveLabels: false,
+      arkLabels: baselineRecord.arkLabels,
+    })
       .then(res => {
         if (!cancelled) setBaselineDoc(res.text)
       })

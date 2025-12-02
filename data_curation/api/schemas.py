@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -122,3 +122,4 @@ class RecordPayload(BaseModel):
     type: str
     ark: Optional[str] = None
     intermarc: str
+    ark_labels: Dict[str, str] = Field(default_factory=dict)

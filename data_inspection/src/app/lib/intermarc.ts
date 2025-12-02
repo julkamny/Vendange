@@ -162,25 +162,35 @@ export async function resolveArkLabel(ark: string): Promise<string | undefined> 
   return undefined
 }
 
-type DisplayValueResult = { text: string; ark?: string }
+type DisplayValueResult = { text: string; ark?: string; tooltip?: string }
 
 async function displayValue(
   zoneCode: string,
   _subCode: string,
   valeur: string,
   resolveLabels: boolean,
+  arkLabels?: Record<string, string>,
 ): Promise<DisplayValueResult> {
   if (!resolveLabels) return { text: valeur }
   if (!looksLikeArk(valeur)) return { text: valeur }
+  const trimmed = valeur.trim()
+  const providedLabel =
+    arkLabels?.[trimmed] ??
+    (trimmed.toLowerCase() !== trimmed ? arkLabels?.[trimmed.toLowerCase()] : undefined)
+  if (providedLabel) {
+    const tooltip = providedLabel === trimmed ? trimmed : `${providedLabel} — ${trimmed}`
+    return { text: providedLabel, ark: trimmed, tooltip }
+  }
   try {
-    const resolved = await resolveArkLabel(valeur)
+    const resolved = await resolveArkLabel(trimmed)
     if (resolved && resolved !== valeur) {
-      return { text: resolved, ark: valeur }
+      const tooltip = resolved === trimmed ? trimmed : `${resolved} — ${trimmed}`
+      return { text: resolved, ark: trimmed, tooltip }
     }
-    return { text: valeur }
+    return { text: trimmed }
   } catch (err) {
     console.error('Failed to resolve ARK label', { zoneCode, valeur, err })
-    return { text: valeur }
+    return { text: trimmed }
   }
 }
 
@@ -231,6 +241,7 @@ export function parseIntermarc(s: string): Intermarc {
 
 type PrettyPrintOptions = {
   resolveLabels?: boolean
+  arkLabels?: Record<string, string>
 }
 
 function curationClass(flag?: string): string {
@@ -275,7 +286,13 @@ export async function prettyPrintIntermarc(
     }
 
     for (const sz of subZones) {
-      const { text: shown, ark } = await displayValue(z.code, sz.code, sz.valeur, resolveLabels)
+      const { text: shown, ark, tooltip } = await displayValue(
+        z.code,
+        sz.code,
+        sz.valeur,
+        resolveLabels,
+        options.arkLabels,
+      )
       const label = formatSubLabel(z.code, sz.code)
       const displayCode = label.startsWith('$') ? label : `$${label}`
       const subfieldStart = lineText.length
@@ -291,14 +308,15 @@ export async function prettyPrintIntermarc(
         const valueStart = lineText.length
         lineText += shown
         if (ark) {
+          const tooltipText = tooltip ?? ark
           marks.push({
             className: `ark-link has-tooltip${highlight}`,
             from: valueStart,
             to: lineText.length,
             attributes: {
               'data-ark': ark,
-              'data-tooltip': ark,
-              'aria-label': ark,
+              'data-tooltip': tooltipText,
+              'aria-label': tooltipText,
               'data-tooltip-placement': 'above',
               tabindex: '0',
               'data-zone': z.code,
@@ -583,6 +601,14 @@ export function resetArkLabelCache(): void {
 }
 
 export function registerArkLabelForRecord(record: RecordRow): void {
+  if (record.arkLabels) {
+    Object.entries(record.arkLabels).forEach(([ark, label]) => {
+      if (!label) return
+      arkLabelByArkCache.set(ark, label)
+      const normalizedArk = ark.toLowerCase()
+      if (normalizedArk !== ark) arkLabelByArkCache.set(normalizedArk, label)
+    })
+  }
   const label = buildLabelFromIntermarc(record.intermarc, record.type)
   if (!label) return
   arkLabelByIdCache.set(record.id, label)

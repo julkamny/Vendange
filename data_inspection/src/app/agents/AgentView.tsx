@@ -39,6 +39,7 @@ function buildRecordRowFromPayload(payload: WorkRecordPayload): RecordRow {
     type: payload.type,
     typeNorm: normalizeType(payload.type),
     ark: payload.ark ?? undefined,
+    arkLabels: payload.arkLabels ?? payload.ark_labels ?? {},
     rowIndex: 0,
     intermarcStr: payload.intermarc,
     intermarc,

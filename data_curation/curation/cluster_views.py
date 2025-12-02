@@ -24,6 +24,7 @@ from data_curation.api.schemas import (
     WorkspaceAgentsResponse,
     WorkspaceWorksResponse,
 )
+from data_curation.curation.ark_labels import build_ark_label_map
 from data_curation.models import Entity
 
 CLUSTER_SCRIPT_NOTE = "Clusterisation script"
@@ -831,9 +832,11 @@ class WorkspaceViewBuilder:
             entity = self.entity_by_ark.get(trimmed)
         if not entity:
             return None
+        ark_labels = build_ark_label_map(entity, self.entity_by_ark)
         return RecordPayload(
             id=entity.id_entitelrm,
             type=entity.type_entite,
             ark=entity.ark(),
             intermarc=entity.intermarc_raw,
+            ark_labels=ark_labels,
         )

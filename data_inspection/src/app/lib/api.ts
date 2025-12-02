@@ -107,6 +107,8 @@ export type DatasetRecordPayload = {
   type: string
   ark?: string | null
   intermarc: string
+  arkLabels?: Record<string, string>
+  ark_labels?: Record<string, string>
 }
 
 export async function syncRecordUpdate(

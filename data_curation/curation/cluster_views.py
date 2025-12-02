@@ -555,7 +555,7 @@ class WorkspaceViewBuilder:
             seen_targets.add(target)
             date = next((sub.valeur for sub in zone.sousZones if sub.code == "90F$d"), None)
             target_ent = self.entity_by_ark.get(str(target))
-            summary = self._summary_for_ark(str(target))
+            summary = self._summary_for_ark(str(target), counts=self.work_counts.get(str(target), CountStats()))
             cluster_items.append(
                 WorkClusterItem(
                     ark=str(target),

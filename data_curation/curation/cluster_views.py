@@ -132,8 +132,6 @@ def _expression_cluster_targets(expr: Entity) -> List[Tuple[str, Optional[str], 
             continue
         target = (
             next((sub.valeur for sub in zone.sousZones if sub.code == "90F$3"), None)
-            if origin == "manual"
-            else next((sub.valeur for sub in zone.sousZones if sub.code == "90F$a"), None)
         )
         if not target:
             continue
@@ -442,8 +440,6 @@ class WorkspaceViewBuilder:
                     continue
                 target = (
                     next((sub.valeur for sub in zone.sousZones if sub.code == "90F$3"), None)
-                    if note == CLUSTER_MANUAL_NOTE
-                    else next((sub.valeur for sub in zone.sousZones if sub.code == "90F$a"), None)
                 )
                 if target:
                     self.clustered_work_arks.add(str(target))
@@ -488,8 +484,6 @@ class WorkspaceViewBuilder:
                         continue
                     target = (
                         next((sub.valeur for sub in zone.sousZones if sub.code == "90F$3"), None)
-                        if note == CLUSTER_MANUAL_NOTE
-                        else next((sub.valeur for sub in zone.sousZones if sub.code == "90F$a"), None)
                     )
                     if target:
                         self.clustered_work_arks.add(str(target))
@@ -593,8 +587,6 @@ class WorkspaceViewBuilder:
                 continue
             target = (
                 next((sub.valeur for sub in zone.sousZones if sub.code == "90F$3"), None)
-                if origin == "manual"
-                else next((sub.valeur for sub in zone.sousZones if sub.code == "90F$a"), None)
             )
             if not target or target in seen_targets:
                 continue

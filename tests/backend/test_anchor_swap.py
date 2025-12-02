@@ -88,7 +88,7 @@ def test_work_anchor_swap_moves_cluster_and_adaptations():
     assert not w1_90f, "Former anchor should no longer carry curated 90F fields"
 
     targets = {
-        next((sz["valeur"] for sz in z["sousZones"] if sz["code"] in {"90F$3", "90F$a"}), None)
+        next((sz["valeur"] for sz in z["sousZones"] if sz["code"] == "90F$3"), None)
         for z in w2_im["zones"]
         if z.get("code") == "90F"
     }
@@ -136,7 +136,7 @@ def test_expression_anchor_swap_moves_cluster():
         for z in e2_zones
         if z.get("code") == "90F"
         for sz in z.get("sousZones", [])
-        if sz.get("code") in {"90F$3", "90F$a"}
+        if sz.get("code") == "90F$3"
     ]
     assert "ark:/12148/e1" in targets
 
@@ -229,6 +229,6 @@ def test_expression_anchor_swap_moves_cluster_4_expressions():
         for z in e2_zones
         if z.get("code") == "90F"
         for sz in z.get("sousZones", [])
-        if sz.get("code") in {"90F$3", "90F$a"}
+        if sz.get("code") == "90F$3"
     }
     assert targets == {"ark:/12148/e1", "ark:/12148/e3", "ark:/12148/e4"}

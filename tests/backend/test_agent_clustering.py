@@ -111,7 +111,7 @@ def test_agent_clustering_lifecycle():
         for z in a1_im["zones"]
         if z.get("code") == "90F"
         for sz in z.get("sousZones", [])
-        if sz.get("code") in {"90F$3", "90F$a"}
+        if sz.get("code") == "90F$3"
     }
     assert targets_a1 == {"ark:/12148/a2", "ark:/12148/a3", "ark:/12148/a4"}
 
@@ -132,7 +132,7 @@ def test_agent_clustering_lifecycle():
         for z in a1_im["zones"]
         if z.get("code") == "90F"
         for sz in z.get("sousZones", [])
-        if sz.get("code") in {"90F$3", "90F$a"}
+        if sz.get("code") == "90F$3"
     }
     assert targets_a1 == {"ark:/12148/a3", "ark:/12148/a4"}
 
@@ -151,7 +151,7 @@ def test_agent_clustering_lifecycle():
         for z in a1_im["zones"]
         if z.get("code") == "90F"
         for sz in z.get("sousZones", [])
-        if sz.get("code") in {"90F$3", "90F$a"}
+        if sz.get("code") == "90F$3"
     }
     assert targets_a1 == {"ark:/12148/a4"}
 
@@ -173,7 +173,7 @@ def test_agent_clustering_lifecycle():
         for z in a1_im["zones"]
         if z.get("code") == "90F"
         for sz in z.get("sousZones", [])
-        if sz.get("code") in {"90F$3", "90F$a"}
+        if sz.get("code") == "90F$3"
     }
     assert targets_a1 == {"ark:/12148/a4"}
 
@@ -184,7 +184,7 @@ def test_agent_clustering_lifecycle():
         for z in a2_im["zones"]
         if z.get("code") == "90F"
         for sz in z.get("sousZones", [])
-        if sz.get("code") in {"90F$3", "90F$a"}
+        if sz.get("code") == "90F$3"
     }
     assert targets_a2 == {"ark:/12148/a3"}
 

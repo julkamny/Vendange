@@ -341,7 +341,7 @@ export function add90FEntries(im: Intermarc, entries: { ark: string; date: strin
       code: '90F',
       affectedByCuration: 'created',
       sousZones: [
-        { code: '90F$a', valeur: e.ark, affectedByCuration: 'created' },
+        { code: '90F$3', valeur: e.ark, affectedByCuration: 'created' },
         { code: '90F$q', valeur: e.note, affectedByCuration: 'created' },
         { code: '90F$d', valeur: e.date, affectedByCuration: 'created' },
       ],
@@ -415,7 +415,7 @@ export function rebuildWorkCluster90FEntries(
         code: '90F',
         affectedByCuration: 'created',
         sousZones: [
-          { code: '90F$a', valeur: item.ark, affectedByCuration: 'created' },
+          { code: '90F$3', valeur: item.ark, affectedByCuration: 'created' },
           { code: '90F$q', valeur: CLUSTER_NOTE, affectedByCuration: 'created' },
           { code: '90F$d', valeur: date, affectedByCuration: 'created' },
         ],
@@ -481,7 +481,7 @@ export function rebuildExpressionCluster90FEntries(
         code: '90F',
         affectedByCuration: 'created',
         sousZones: [
-          { code: '90F$a', valeur: item.ark, affectedByCuration: 'created' },
+          { code: '90F$3', valeur: item.ark, affectedByCuration: 'created' },
           { code: '90F$q', valeur: CLUSTER_NOTE, affectedByCuration: 'created' },
           { code: '90F$d', valeur: date, affectedByCuration: 'created' },
         ],
@@ -508,10 +508,7 @@ export function extractWorkClusterTargets(im: Intermarc): string[] {
   zones.forEach(zone => {
     const note = zone.sousZones.find(sz => sz.code === '90F$q')?.valeur?.trim()
     if (!note || (note !== CLUSTER_NOTE && note !== MANUAL_CLUSTER_NOTE)) return
-    const target =
-      zone.sousZones.find(sz => sz.code === (note === CLUSTER_NOTE ? '90F$a' : '90F$3'))?.valeur?.trim() ||
-      zone.sousZones.find(sz => sz.code === '90F$a')?.valeur?.trim() ||
-      zone.sousZones.find(sz => sz.code === '90F$3')?.valeur?.trim()
+    const target = zone.sousZones.find(sz => sz.code === '90F$3')?.valeur?.trim()
     if (target) targets.add(target)
   })
   return [...targets]
@@ -523,11 +520,7 @@ export function extractExpressionClusterTargets(im: Intermarc): string[] {
   zones.forEach(zone => {
     const note = zone.sousZones.find(sz => sz.code === '90F$q')?.valeur?.trim()
     if (!note || (note !== CLUSTER_NOTE && note !== MANUAL_CLUSTER_NOTE)) return
-    const target =
-      note === CLUSTER_NOTE
-        ? zone.sousZones.find(sz => sz.code === '90F$a')?.valeur?.trim()
-        : zone.sousZones.find(sz => sz.code === '90F$3')?.valeur?.trim() ||
-          zone.sousZones.find(sz => sz.code === '90F$a')?.valeur?.trim()
+    const target = zone.sousZones.find(sz => sz.code === '90F$3')?.valeur?.trim()
     if (target) targets.add(target)
   })
   return [...targets]

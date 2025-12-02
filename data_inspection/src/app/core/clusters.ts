@@ -32,10 +32,7 @@ export function detectClusters(curated: RecordRow[], originalIdxByArk: Map<strin
       for (const z of zones) {
         const note = z.sousZones.find(sz => sz.code === '90F$q')?.valeur
         if (!note || (note !== CLUSTER_NOTE && note !== MANUAL_CLUSTER_NOTE)) continue
-        const target =
-          note === CLUSTER_NOTE
-            ? z.sousZones.find(sz => sz.code === '90F$a')?.valeur
-            : z.sousZones.find(sz => sz.code === '90F$3')?.valeur || z.sousZones.find(sz => sz.code === '90F$a')?.valeur
+        const target = z.sousZones.find(sz => sz.code === '90F$3')?.valeur
         if (target) clusteredWorkArks.add(target)
       }
     } else if (rec.typeNorm === 'expression') {
@@ -64,11 +61,7 @@ export function detectClusters(curated: RecordRow[], originalIdxByArk: Map<strin
       const note = z.sousZones.find(sz => sz.code === '90F$q')?.valeur
       const origin = note === CLUSTER_NOTE ? 'script' : note === MANUAL_CLUSTER_NOTE ? 'manual' : null
       if (!origin) continue
-      const ark =
-        origin === 'script'
-          ? z.sousZones.find(sz => sz.code === '90F$a')?.valeur
-          : z.sousZones.find(sz => sz.code === '90F$3')?.valeur ??
-            z.sousZones.find(sz => sz.code === '90F$a')?.valeur
+      const ark = z.sousZones.find(sz => sz.code === '90F$3')?.valeur
       if (!ark || seenTargets.has(ark)) continue
       seenTargets.add(ark)
       const date = z.sousZones.find(sz => sz.code === '90F$d')?.valeur
@@ -147,6 +140,21 @@ export function detectClusters(curated: RecordRow[], originalIdxByArk: Map<strin
           manifestationsByExpressionArk,
           expressionsByArk,
         )
+        const origin =
+          (() => {
+            const zones = findZones(expr.intermarc, '90F')
+            for (const z of zones) {
+              const targetMatch = z.sousZones.some(
+          sz => (sz.code === '90F$3') && sz.valeur === targetArk,
+              )
+              if (!targetMatch) continue
+              const note = z.sousZones.find(sz => sz.code === '90F$q')?.valeur
+              if (note === MANUAL_CLUSTER_NOTE) return 'manual'
+              if (note === CLUSTER_NOTE) return 'script'
+            }
+            return 'script'
+          })()
+
         clustered.push({
           id: target?.id || targetArk,
           ark: targetArk,
@@ -156,14 +164,7 @@ export function detectClusters(curated: RecordRow[], originalIdxByArk: Map<strin
           anchorExpressionId: expr.id,
           accepted: true,
           date,
-          origin:
-            findZones(expr.intermarc, '90F').some(
-              z =>
-                z.sousZones.some(sz => sz.code === '90F$q' && sz.valeur === MANUAL_CLUSTER_NOTE) &&
-                z.sousZones.some(sz => (sz.code === '90F$3' || sz.code === '90F$a') && sz.valeur === targetArk),
-            )
-              ? 'manual'
-              : 'script',
+          origin,
           manifestations: targetManifestations,
         })
         usedExpressionArks.add(targetArk)

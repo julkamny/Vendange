@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { RecordRow, Cluster, WorkClusterDto, WorkListRowDto, WorkRecordPayload } from '../types'
 import type { WorkspaceTabStateWorkspace, AgentTabState } from '../workspace/types'
 import { useAppData } from '../providers/AppDataContext'
@@ -24,6 +25,7 @@ import { useWorkspaceWorks, useWorkCluster, useWorkspaceRecord } from '../hooks/
 import { parseIntermarc } from '../lib/intermarc'
 import { normalizeType } from '../core/records'
 import { computeClusterCoverage } from '../core/clusterCoverage'
+import { fetchWorkspaceRecord } from '../lib/api'
 
 function mapManifestation(view: WorkClusterDto['independent_expressions'][number]['manifestations'][number]) {
   return {
@@ -133,11 +135,45 @@ export function WorkspaceView({
   } = useAppData()
   const { t } = useTranslation()
   const { showToast } = useToast()
+  const queryClient = useQueryClient()
+  const recordCacheRef = useRef<Map<string, RecordRow>>(new Map())
   const { data: workspaceWorks } = useWorkspaceWorks(datasetId)
-  const activeAnchorKey = useMemo(
-    () => state.activeWorkAnchorId ?? state.selectedEntity?.workArk ?? state.highlightedWorkArk ?? null,
-    [state.activeWorkAnchorId, state.selectedEntity?.workArk, state.highlightedWorkArk],
-  )
+  const anchorLookup = useMemo(() => {
+    const map = new Map<string, string>()
+    workspaceWorks?.clusters?.forEach(cluster => {
+      map.set(cluster.anchor_id, cluster.anchor_id)
+      if (cluster.anchor_ark) map.set(cluster.anchor_ark, cluster.anchor_id)
+      cluster.items.forEach(item => {
+        if (item.ark) map.set(item.ark, cluster.anchor_id)
+        if (item.id) map.set(item.id, cluster.anchor_id)
+      })
+    })
+    return map
+  }, [workspaceWorks?.clusters])
+
+  const inferredAnchorFromSelection = useMemo(() => {
+    const selected = state.selectedEntity
+    if (!selected) return null
+    const candidates = [
+      selected.workArk,
+      selected.id,
+      selected.expressionArk,
+      selected.expressionId,
+    ].filter(Boolean) as string[]
+    for (const key of candidates) {
+      const anchorId = anchorLookup.get(key)
+      if (anchorId) return anchorId
+    }
+    return null
+  }, [anchorLookup, state.selectedEntity])
+
+  const activeAnchorKey = useMemo(() => {
+    if (state.activeWorkAnchorId) return state.activeWorkAnchorId
+    if (inferredAnchorFromSelection) return inferredAnchorFromSelection
+    const highlighted = state.highlightedWorkArk ? anchorLookup.get(state.highlightedWorkArk) : null
+    if (highlighted) return highlighted
+    return state.selectedEntity?.workArk ?? state.highlightedWorkArk ?? null
+  }, [anchorLookup, inferredAnchorFromSelection, state.activeWorkAnchorId, state.highlightedWorkArk, state.selectedEntity])
   const { data: activeClusterDto } = useWorkCluster(datasetId, activeAnchorKey)
 
   const mappedClusters: Cluster[] = useMemo(
@@ -155,17 +191,40 @@ export function WorkspaceView({
   const { data: recordPayload } = useWorkspaceRecord(datasetId, recordKey)
   const record = useMemo<RecordRow | null>(() => (recordPayload ? buildRecordRowFromPayload(recordPayload) : null), [recordPayload])
 
-  const recordCache = useMemo(() => {
-    const map = new Map<string, RecordRow>()
-    if (record) {
-      map.set(record.id, record)
-      if (record.ark) map.set(record.ark, record)
-    }
-    return map
-  }, [record])
+  const rememberRecord = useCallback((entry: RecordRow | null) => {
+    if (!entry) return
+    recordCacheRef.current.set(entry.id, entry)
+    if (entry.ark) recordCacheRef.current.set(entry.ark, entry)
+  }, [])
 
-  const getById = useCallback((id: string) => recordCache.get(id) ?? null, [recordCache])
-  const getByArk = useCallback((ark: string) => recordCache.get(ark) ?? null, [recordCache])
+  useEffect(() => {
+    rememberRecord(record)
+  }, [record, rememberRecord])
+
+  const getById = useCallback((id: string) => recordCacheRef.current.get(id) ?? null, [])
+  const getByArk = useCallback((ark: string) => recordCacheRef.current.get(ark) ?? null, [])
+
+  const ensureRecord = useCallback(
+    async (key: string | null | undefined) => {
+      if (!key) return null
+      const cached = recordCacheRef.current.get(key)
+      if (cached) return cached
+      if (!datasetId) return null
+      try {
+        const payload = await queryClient.fetchQuery({
+          queryKey: ['workspace', 'record', datasetId, key],
+          queryFn: () => fetchWorkspaceRecord(datasetId, key),
+        })
+        const entry = buildRecordRowFromPayload(payload)
+        rememberRecord(entry)
+        return entry
+      } catch (error) {
+        console.error('Failed to load record for key', key, error)
+        return null
+      }
+    },
+    [datasetId, queryClient, rememberRecord],
+  )
 
   const findControlledValueArk = useCallback(
     (label: string) => {
@@ -285,7 +344,7 @@ export function WorkspaceView({
   )
 
   const openRecordForArk = useCallback(
-    (ark: string, options?: { detach?: boolean }) => {
+    async (ark: string, options?: { detach?: boolean }) => {
       const trimmed = ark.trim()
       if (!trimmed) return
       let targetRecord = getByArk(trimmed)
@@ -293,10 +352,13 @@ export function WorkspaceView({
         const fallbackId = deriveInternalIdFromArk(trimmed)
         if (fallbackId) targetRecord = getById(fallbackId)
       }
+      if (!targetRecord) {
+        targetRecord = await ensureRecord(trimmed)
+      }
       if (!targetRecord) return
       openRecordInWorkspace(targetRecord, options)
     },
-    [getByArk, getById, openRecordInWorkspace],
+    [ensureRecord, getByArk, getById, openRecordInWorkspace],
   )
 
   const interactions = useWorkspaceInteractions({
@@ -304,6 +366,7 @@ export function WorkspaceView({
     onStateChange,
     getById,
     getByArk,
+    ensureRecord,
     openRecordForArk,
   })
   const {

@@ -38,7 +38,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 
 #### Workspace & clustering API
 - `GET /api/datasets/{dataset_id}/workspace/works` returns work clusters plus pre-computed badges (counts, 5XX relationships, media kinds) and the sorted list of unclustered works as lightweight view models.
-- `GET /api/datasets/{dataset_id}/workspace/work/{anchor_id_or_ark}` resolves a single work cluster for focus-down views (expressions + manifestations included). The path parameter now accepts full ARKs with slashes and colons, whether raw or URL-encoded.
+- `GET /api/datasets/{dataset_id}/workspace/work/{anchor_id_or_ark}` resolves a single work cluster for focus-down views (expressions + manifestations included). The path parameter now accepts full ARKs with slashes and colons, whether raw or URL-encoded, and it now resolves clusters even when you pass the ARK/ID of a clustered member instead of the anchor.
 - `GET /api/datasets/{dataset_id}/workspace/agents` exposes manual agent clusters (90F$q Clusterisation manuelle) and the remaining unclustered agents.
 - Cluster-affecting mutations (`swap_anchor`, `swap_originality`) now also return `updatedClusters`, `removedClusterIds`, and `updatedWorkRows` so the UI can patch caches without recomputing.
 - Workspace endpoints reuse an in-memory `WorkspaceViewBuilder` cache keyed per dataset; anchor/originality swaps patch the cached builder in place so follow-up requests avoid a full rebuild.
@@ -74,6 +74,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - Bottom-right hover toolbar: unfold it to access the pop-out/dock/full-width Intermarc controls and a backlinks toggle. Expanded backlinks reshape the workspace into three equal columns; folding tucks the backlinks panel back under the record. A fourth button hides or shows the list of entities on the left.
 
 ### Manual clustering
+- Right-click menus now lazy-load record data so both the “prepare” and “cluster here” steps work even if the target record was not already open; the browser context menu no longer appears on the second click.
 - Works, agents, expressions support the same manual clustering workflow: add `90F$q Clusterisation manuelle` + `90F$3` in a entity's Intermarc (or right-click an entity then “Prepare for clustering” → “Cluster selected {entity} here”) to group it under an anchor. Checkboxes are binary: unchecking removes the entity from the cluster and rewrites the anchor’s 90F entries. An entity ARK can belong to only one cluster, and any entity already an anchor (90F marked created/manual) cannot be targeted.
 - Expressions are constrained to siblings sharing the same parent work (750$3). Right-click or edit Intermarc with `90F$q Clusterisation manuelle` + `90F$3`; anchors marked created/manual are protected, an expression ARK can belong to only one cluster, and any expression already clustered under another anchor cannot itself be queued or used as an anchor (distinct toasts for anchor vs clustered members).
 - The clustering confirmation modal now opens immediately after choosing an anchor, and right-click context menus stay available after navigating focus down to expressions or manifestations and back up to works.

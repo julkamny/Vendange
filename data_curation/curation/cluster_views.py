@@ -811,6 +811,12 @@ class WorkspaceViewBuilder:
         for cluster in clusters:
             if cluster.anchor_id in needles or (cluster.anchor_ark and cluster.anchor_ark in needles):
                 return cluster
+            # Allow requests keyed by any clustered work (not only anchors).
+            for item in cluster.items:
+                if item.id and item.id in needles:
+                    return cluster
+                if item.ark and item.ark in needles:
+                    return cluster
         return None
 
     def record_payload_for_key(self, record_key: str) -> Optional[RecordPayload]:

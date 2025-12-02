@@ -9,10 +9,18 @@ type Params = {
   onStateChange: (updater: (prev: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
   getById: (id: string) => RecordRow | null
   getByArk: (ark: string) => RecordRow | null
-  openRecordForArk: (ark: string, options?: { detach?: boolean }) => void
+  ensureRecord: (key: string | null | undefined) => Promise<RecordRow | null>
+  openRecordForArk: (ark: string, options?: { detach?: boolean }) => void | Promise<void>
 }
 
-export function useWorkspaceInteractions({ state, onStateChange, getById, getByArk, openRecordForArk }: Params) {
+export function useWorkspaceInteractions({
+  state,
+  onStateChange,
+  getById,
+  getByArk,
+  ensureRecord,
+  openRecordForArk,
+}: Params) {
   const listPanelRef = useRef<HTMLElement | null>(null)
   const listScrollRef = useRef<HTMLElement | null>(null)
   const detailsPanelRef = useRef<HTMLElement | null>(null)
@@ -157,19 +165,33 @@ export function useWorkspaceInteractions({ state, onStateChange, getById, getByA
   useEffect(() => {
     const listNode = listPanelRef.current
     if (!listNode) return undefined
-    const handleContextMenu = (event: MouseEvent) => {
+    const handleContextMenu = async (event: MouseEvent) => {
       const target = event.target as HTMLElement | null
       const row = target?.closest<HTMLElement>('.entity-row')
       if (!row) return
-      const record = resolveRecordFromRow(row)
-      if (!record) return
+      const { clientX, clientY } = event
       event.preventDefault()
       event.stopPropagation()
-      setContextMenu({ position: { x: event.clientX, y: event.clientY }, record })
+      const record = resolveRecordFromRow(row)
+      if (record) {
+        setContextMenu({ position: { x: clientX, y: clientY }, record })
+        return
+      }
+      const key =
+        row.dataset.workId ||
+        row.dataset.workArk ||
+        row.dataset.expressionId ||
+        row.dataset.expressionArk ||
+        row.dataset.manifestationId
+      if (!key) return
+      const fetched = await ensureRecord(key)
+      if (fetched) {
+        setContextMenu({ position: { x: clientX, y: clientY }, record: fetched })
+      }
     }
     listNode.addEventListener('contextmenu', handleContextMenu)
     return () => listNode.removeEventListener('contextmenu', handleContextMenu)
-  }, [resolveRecordFromRow, state.viewMode])
+  }, [ensureRecord, resolveRecordFromRow, state.viewMode])
 
   const handleArkClick = useCallback(
     (ark: string, context: { zone: string; subfield: string }) => {

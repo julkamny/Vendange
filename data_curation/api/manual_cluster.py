@@ -75,6 +75,7 @@ def update_manual_cluster(
         if not anchor_ark:
             raise ValueError("Ancre sans ARK : impossible de clustériser.")
 
+        ark_index = load_ark_index(store)
         target_entity: Optional[Entity] = None
         if accepted:
             if not target_id:
@@ -100,6 +101,10 @@ def update_manual_cluster(
                 target_ark = target_entity.ark()
             if not target_ark:
                 raise ValueError("ARK cible manquant pour retirer du cluster.")
+            if not target_entity:
+                target_id_from_ark = ark_index.get(target_ark)
+                if target_id_from_ark and target_id_from_ark in subjects:
+                    target_entity = _load_record_from_store(store, *subjects[target_id_from_ark])
 
         next_intermarc = (
             _add_cluster_target(anchor_entity.intermarc, target_ark)
@@ -133,7 +138,7 @@ def update_manual_cluster(
 
         datasets.touch_dataset(dataset_id)
 
-        return [
+        updated_entities = [
             {
                 "id": anchor_entity.id_entitelrm,
                 "type": anchor_entity.type_entite,
@@ -141,3 +146,14 @@ def update_manual_cluster(
                 "intermarc": next_intermarc.to_json_string(),
             }
         ]
+        if target_entity:
+            updated_entities.append(
+                {
+                    "id": target_entity.id_entitelrm,
+                    "type": target_entity.type_entite,
+                    "ark": target_entity.ark(),
+                    "intermarc": target_entity.intermarc.to_json_string(),
+                }
+            )
+
+        return updated_entities

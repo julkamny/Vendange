@@ -389,6 +389,15 @@ class WorkspaceViewBuilder:
             self.work_title_by_ark.pop(entity_ark, None)
             self.clustered_work_arks.discard(entity_ark)
             self.work_counts.pop(entity_ark, None)
+            # Remove previous clustered targets tied to this anchor so a reindex
+            # can rebuild the set accurately.
+            for zone in entity.intermarc.get_zone("90F"):
+                note = next((sub.valeur for sub in zone.sousZones if sub.code == "90F$q"), None)
+                if note not in {CLUSTER_MANUAL_NOTE, CLUSTER_SCRIPT_NOTE}:
+                    continue
+                target = next((sub.valeur for sub in zone.sousZones if sub.code == "90F$3"), None)
+                if target:
+                    self.clustered_work_arks.discard(str(target))
 
         if norm == "expression":
             expr_ark = entity.ark()

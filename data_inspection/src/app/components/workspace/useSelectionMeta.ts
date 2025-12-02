@@ -16,7 +16,8 @@ type Params = {
 
 export function useSelectionMeta({ state, record, workspace, curated, t }: Params) {
   const recordInCurated = useMemo(() => {
-    if (!record || !curated) return false
+    if (!record) return false
+    if (!curated || !curated.records || curated.records.length === 0) return true
     return curated.records.some(r => r.id === record.id)
   }, [record, curated])
 

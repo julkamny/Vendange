@@ -102,7 +102,6 @@ export function expressionClusterTargets(rec: RecordRow): { ark: string; date: s
       ),
     )
     .map(z => {
-      const note = z.sousZones.find(sz => sz.code === '90F$q')?.valeur
       const ark = z.sousZones.find(sz => sz.code === '90F$3')?.valeur
       if (!ark) return null
       const date = z.sousZones.find(sz => sz.code === '90F$d')?.valeur

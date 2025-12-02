@@ -55,17 +55,15 @@ export function useOriginalitySwap({
     return flags.some(flag => typeof flag === 'string' && ['manual', 'created'].includes(flag.toLowerCase()))
   }, [])
 
-  const hasQualifier = useCallback(
-    (zone: Zone, qualifier: string | null, label: string) => {
-      const fallbackLabel = label.trim().toLowerCase()
-      return zone.sousZones?.some(sub => {
-        if (sub.code !== '552$q') return false
-        if (qualifier && sub.valeur === qualifier) return true
-        return typeof sub.valeur === 'string' && sub.valeur.trim().toLowerCase() === fallbackLabel
-      })
-    },
-    [],
-  )
+  const hasQualifier = useCallback((zone: Zone, qualifier: string | null, label: string) => {
+    if (!qualifier) return true
+    const fallbackLabel = label.trim().toLowerCase()
+    return zone.sousZones?.some(sub => {
+      if (sub.code !== '552$q') return false
+      if (qualifier && sub.valeur === qualifier) return true
+      return typeof sub.valeur === 'string' && sub.valeur.trim().toLowerCase() === fallbackLabel
+    })
+  }, [])
 
   const extractOutgoingAdaptations = useCallback(
     (record: RecordRow | null): string[] => {

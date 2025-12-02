@@ -139,6 +139,7 @@ export function WorkspaceView({
     setExpressionAccepted,
     updateRecordIntermarc,
     applyServerUpdates,
+    applyServerWorkspaceUpdates,
     getCuratedBaselineRecord,
   } = useAppData()
   const { t } = useTranslation()
@@ -436,6 +437,7 @@ export function WorkspaceView({
     expressionClusterIndex,
     getById,
     applyServerUpdates,
+    applyServerWorkspaceUpdates,
     showToast,
     t,
     setContextMenu,
@@ -453,6 +455,7 @@ export function WorkspaceView({
     workClusterIndex,
     getById,
     applyServerUpdates,
+    applyServerWorkspaceUpdates,
     showToast,
     t,
     setContextMenu,

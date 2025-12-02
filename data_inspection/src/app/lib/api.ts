@@ -127,10 +127,17 @@ export async function syncRecordUpdate(
   }
 }
 
+export type WorkspaceUpdatePayload = {
+  updatedRecords?: DatasetRecordPayload[]
+  updatedClusters?: unknown[]
+  removedClusterIds?: string[]
+  updatedWorkRows?: unknown[]
+}
+
 export async function swapClusterAnchor(
   datasetId: string,
   payload: { anchorId: string; targetId: string },
-): Promise<DatasetRecordPayload[]> {
+): Promise<WorkspaceUpdatePayload> {
   const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/swap_anchor`
   const response = await fetch(url, {
     method: 'POST',
@@ -141,14 +148,13 @@ export async function swapClusterAnchor(
     const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
     throw new Error(detail.detail || 'Failed to swap cluster anchor')
   }
-  const data = await parseJson<{ updatedRecords?: DatasetRecordPayload[] }>(response)
-  return data.updatedRecords ?? []
+  return parseJson<WorkspaceUpdatePayload>(response)
 }
 
 export async function swapWorkOriginality(
   datasetId: string,
   payload: { originalId: string; targetId: string },
-): Promise<DatasetRecordPayload[]> {
+): Promise<WorkspaceUpdatePayload> {
   const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/swap_originality`
   const response = await fetch(url, {
     method: 'POST',
@@ -159,8 +165,7 @@ export async function swapWorkOriginality(
     const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
     throw new Error(detail.detail || 'Failed to swap originality')
   }
-  const data = await parseJson<{ updatedRecords?: DatasetRecordPayload[] }>(response)
-  return data.updatedRecords ?? []
+  return parseJson<WorkspaceUpdatePayload>(response)
 }
 
 export async function fetchWorkspaceWorks(datasetId: string): Promise<WorkspaceWorksResponse> {

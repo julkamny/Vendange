@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { swapClusterAnchor, type DatasetRecordPayload } from '../../lib/api'
+import { swapClusterAnchor, type WorkspaceUpdatePayload } from '../../lib/api'
 import type { RecordRow } from '../../types'
 import type { WorkspaceContextMenuState } from './types'
 import type { MenuAction } from '../WorkspaceContextMenu'
@@ -12,6 +12,7 @@ type AnchorSwapHookArgs = {
   expressionClusterIndex: Map<string, { anchorId: string; anchorExpressionId: string; anchorLabel?: string | null }>
   getById: (id: string) => RecordRow | null
   applyServerUpdates: (updates: DatasetRecordPayload[]) => void
+  applyServerWorkspaceUpdates: (payload: WorkspaceUpdatePayload) => void
   showToast: (message: string, options?: { tone: 'error' | 'info' | 'success' }) => void
   t: TranslationFn
   setContextMenu: (next: WorkspaceContextMenuState | null) => void
@@ -23,6 +24,7 @@ export function useAnchorSwap({
   expressionClusterIndex,
   getById,
   applyServerUpdates,
+  applyServerWorkspaceUpdates,
   showToast,
   t,
   setContextMenu,
@@ -216,7 +218,8 @@ export function useAnchorSwap({
         anchorId: pendingWorkTarget.anchorId,
         targetId: pendingWorkTarget.sourceId,
       })
-      applyServerUpdates(updates)
+      applyServerWorkspaceUpdates(updates)
+      applyServerUpdates(updates.updatedRecords ?? [])
       showToast(t('works.anchorSwap.success', { defaultValue: "Ancre du cluster mise à jour." }), {
         tone: 'success',
       })
@@ -229,7 +232,7 @@ export function useAnchorSwap({
     } finally {
       resetWorkSwap()
     }
-  }, [applyServerUpdates, datasetId, pendingWorkTarget, resetWorkSwap, showToast, t])
+  }, [applyServerUpdates, applyServerWorkspaceUpdates, datasetId, pendingWorkTarget, resetWorkSwap, showToast, t])
 
   const confirmExpressionAnchorSwap = useCallback(async () => {
     if (!pendingExpressionTarget) return
@@ -243,7 +246,8 @@ export function useAnchorSwap({
         anchorId: pendingExpressionTarget.anchorId,
         targetId: pendingExpressionTarget.sourceId,
       })
-      applyServerUpdates(updates)
+      applyServerWorkspaceUpdates(updates)
+      applyServerUpdates(updates.updatedRecords ?? [])
       showToast(
         t('expressions.anchorSwap.success', { defaultValue: "Ancre du cluster d'expressions mise à jour." }),
         { tone: 'success' },
@@ -257,7 +261,15 @@ export function useAnchorSwap({
     } finally {
       resetExpressionSwap()
     }
-  }, [applyServerUpdates, datasetId, pendingExpressionTarget, resetExpressionSwap, showToast, t])
+  }, [
+    applyServerUpdates,
+    applyServerWorkspaceUpdates,
+    datasetId,
+    pendingExpressionTarget,
+    resetExpressionSwap,
+    showToast,
+    t,
+  ])
 
   const getWorkAnchorSwapAction = useCallback(
     (record: RecordRow | null): MenuAction | null => {

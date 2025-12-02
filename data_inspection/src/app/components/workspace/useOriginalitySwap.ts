@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { swapWorkOriginality, type DatasetRecordPayload } from '../../lib/api'
+import { swapWorkOriginality, type DatasetRecordPayload, type WorkspaceUpdatePayload } from '../../lib/api'
 import type { Cluster, RecordRow } from '../../types'
 import type { Intermarc, Zone } from '../../lib/intermarc'
 import type { WorkspaceContextMenuState } from './types'
@@ -12,6 +12,7 @@ type UseOriginalitySwapArgs = {
   workClusterIndex: Map<string, { anchorId: string; anchorLabel?: string | null }>
   getById: (id: string) => RecordRow | null
   applyServerUpdates: (updates: DatasetRecordPayload[]) => void
+  applyServerWorkspaceUpdates: (payload: WorkspaceUpdatePayload) => void
   showToast: (message: string, options?: { tone: 'error' | 'info' | 'success' }) => void
   t: TranslationFn
   setContextMenu: (next: WorkspaceContextMenuState | null) => void
@@ -26,6 +27,7 @@ export function useOriginalitySwap({
   workClusterIndex,
   getById,
   applyServerUpdates,
+  applyServerWorkspaceUpdates,
   showToast,
   t,
   setContextMenu,
@@ -173,7 +175,8 @@ export function useOriginalitySwap({
         originalId: source.id,
         targetId: target.id,
       })
-      applyServerUpdates(updates)
+      applyServerWorkspaceUpdates(updates)
+      applyServerUpdates(updates.updatedRecords ?? [])
       showToast(
         t('works.originalitySwap.success', { defaultValue: "Originalité transférée vers l'œuvre cible." }),
         { tone: 'success' },
@@ -184,7 +187,17 @@ export function useOriginalitySwap({
     } finally {
       reset()
     }
-  }, [applyServerUpdates, datasetId, extractOutgoingAdaptations, getById, pendingTarget, reset, showToast, t])
+  }, [
+    applyServerUpdates,
+    applyServerWorkspaceUpdates,
+    datasetId,
+    extractOutgoingAdaptations,
+    getById,
+    pendingTarget,
+    reset,
+    showToast,
+    t,
+  ])
 
   const cancelOriginalitySwap = useCallback(() => reset(), [reset])
 

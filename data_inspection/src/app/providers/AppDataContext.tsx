@@ -1,9 +1,16 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useMemo, useRef, useState, useCallback, useEffect, type ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { Cluster, RecordRow } from '../types'
 import type { Intermarc } from '../lib/intermarc'
 import { resetArkLabelCache } from '../lib/intermarc'
-import { fetchDatasets, syncRecordUpdate, type DatasetSummary, type DatasetRecordPayload } from '../lib/api'
+import {
+  fetchDatasets,
+  syncRecordUpdate,
+  type DatasetSummary,
+  type DatasetRecordPayload,
+  type WorkspaceUpdatePayload,
+} from '../lib/api'
 import { useToast } from './ToastContext'
 import { getBroadcastClientId, postBroadcastEvent, subscribeToBroadcast } from '../lib/broadcast'
 
@@ -24,6 +31,7 @@ type AppDataContextValue = AppDataState & {
   refreshDataset: () => Promise<void>
   updateRecordIntermarc: (recordId: string, intermarc: Intermarc) => void
   applyServerUpdates: (_updates: DatasetRecordPayload[]) => void
+  applyServerWorkspaceUpdates: (_payload: WorkspaceUpdatePayload) => void
   getCuratedBaselineRecord: (_recordId: string) => null
   setWorkAccepted: (_clusterId: string, _workArk: string, _accepted: boolean) => void
   setExpressionAccepted: (_clusterId: string, _anchorExpressionId: string, _expressionArk: string, _accepted: boolean) => void
@@ -58,6 +66,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const { showToast } = useToast()
   const [state, setState] = useState<AppDataState>(INITIAL_STATE)
   const datasetIdRef = useRef<string | null>(null)
+  const queryClient = useQueryClient()
   const clientId = getBroadcastClientId()
 
   useEffect(() => {
@@ -120,13 +129,35 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [showToast],
   )
 
+  const applyServerWorkspaceUpdates = useCallback(
+    async (payload: WorkspaceUpdatePayload) => {
+      const datasetId = datasetIdRef.current
+      if (!datasetId) return
+      void payload
+      resetArkLabelCache()
+      await queryClient.invalidateQueries({
+        predicate: query => {
+          console.log(query)
+          const key = query.queryKey
+          return Array.isArray(key) && key[0] === 'workspace' && key[2] === datasetId
+        },
+      })
+    },
+    [queryClient],
+  )
+
+  const applyServerUpdates = useCallback((updates: DatasetRecordPayload[]) => {
+    void updates
+  }, [])
+
   const value = useMemo<AppDataContextValue>(
     () => ({
       ...state,
       loadDataset,
       refreshDataset,
       updateRecordIntermarc,
-      applyServerUpdates: () => {},
+      applyServerUpdates,
+      applyServerWorkspaceUpdates,
       getCuratedBaselineRecord: () => null,
       setWorkAccepted: () => console.warn('setWorkAccepted deprecated; use backend mutations.'),
       setExpressionAccepted: () => console.warn('setExpressionAccepted deprecated; use backend mutations.'),
@@ -139,7 +170,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         setState({ ...INITIAL_STATE, pristineRecords: new Map() })
       },
     }),
-    [state, loadDataset, refreshDataset, updateRecordIntermarc, showToast],
+    [
+      state,
+      loadDataset,
+      refreshDataset,
+      updateRecordIntermarc,
+      applyServerUpdates,
+      applyServerWorkspaceUpdates,
+      showToast,
+    ],
   )
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>

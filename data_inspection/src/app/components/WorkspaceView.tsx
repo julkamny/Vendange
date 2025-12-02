@@ -35,6 +35,7 @@ function mapManifestation(view: WorkClusterDto['independent_expressions'][number
     expressionArk: view.expression_ark || view.original_expression_ark || '',
     expressionId: view.expression_id || undefined,
     originalExpressionArk: view.original_expression_ark || view.expression_ark || '',
+    summary: view.summary ?? null,
   }
 }
 
@@ -47,6 +48,7 @@ function mapExpression(view: WorkClusterDto['independent_expressions'][number]):
     workArk: view.work_ark || '',
     workId: view.work_id || undefined,
     manifestations,
+    summary: view.summary ?? null,
   }
 }
 
@@ -58,6 +60,7 @@ function mapExpressionCluster(view: WorkClusterDto['expression_groups'][number][
     accepted: view.accepted,
     date: view.date || undefined,
     origin: view.origin,
+    summary: view.summary ?? base.summary ?? null,
   }
 }
 
@@ -67,10 +70,13 @@ function mapWorkCluster(dto: WorkClusterDto): Cluster {
     clustered: (group.clustered || []).map(mapExpressionCluster),
   }))
   const independentExpressions = (dto.independent_expressions || []).map(mapExpression)
+  const anchorSummary = dto.anchor_summary ?? null
   return {
     anchorId: dto.anchor_id,
     anchorArk: dto.anchor_ark || '',
     anchorTitle: dto.anchor_title || dto.anchor_id,
+    anchor_summary: anchorSummary,
+    anchorSummary,
     items: (dto.items || []).map(item => ({
       ark: item.ark,
       id: item.id || undefined,
@@ -78,6 +84,7 @@ function mapWorkCluster(dto: WorkClusterDto): Cluster {
       accepted: item.accepted,
       date: item.date || undefined,
       origin: item.origin,
+      summary: item.summary ?? null,
     })),
     expressionGroups,
     independentExpressions,

@@ -7,7 +7,7 @@ import { titleOf, expressionWorkArks, manifestationsForExpression, manifestation
 import type { Cluster, RecordRow } from '../types'
 import type { WorkspaceTabStateWorkspace } from './types'
 import type { WorkClusterDto, WorkClusterItemDto, ExpressionItemViewDto, ExpressionClusterItemViewDto, ManifestationItemViewDto } from '../types'
-import { useWorkspaceWorks } from '../hooks/useWorkspaceQueries'
+import { useWorkCluster, useWorkspaceWorks } from '../hooks/useWorkspaceQueries'
 
 export type WorkspaceDataIndexes = {
   worksById: Map<string, RecordRow>
@@ -27,6 +27,7 @@ function mapManifestation(view: ManifestationItemViewDto): import('../types').Ma
     expressionArk: view.expression_ark || view.original_expression_ark || '',
     expressionId: view.expression_id || undefined,
     originalExpressionArk: view.original_expression_ark || view.expression_ark || '',
+    summary: view.summary ?? null,
   }
 }
 
@@ -39,6 +40,7 @@ function mapExpression(view: ExpressionItemViewDto): import('../types').Expressi
     workArk: view.work_ark || '',
     workId: view.work_id || undefined,
     manifestations,
+    summary: view.summary ?? null,
   }
 }
 
@@ -61,6 +63,7 @@ function mapClusterItem(view: WorkClusterItemDto): import('../types').ClusterIte
     accepted: view.accepted,
     date: view.date || undefined,
     origin: view.origin,
+    summary: view.summary ?? null,
   }
 }
 
@@ -70,10 +73,13 @@ function mapCluster(dto: WorkClusterDto): Cluster {
     clustered: (group.clustered || []).map(mapExpressionCluster),
   }))
   const independentExpressions = (dto.independent_expressions || []).map(mapExpression)
+  const anchorSummary = dto.anchor_summary ?? null
   return {
     anchorId: dto.anchor_id,
     anchorArk: dto.anchor_ark || '',
     anchorTitle: dto.anchor_title || dto.anchor_id,
+    anchor_summary: anchorSummary,
+    anchorSummary,
     items: (dto.items || []).map(mapClusterItem),
     expressionGroups,
     independentExpressions,
@@ -84,6 +90,9 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
   const { clusters: localClusters, curated, datasetId } = useAppData()
   const { language } = useTranslation()
   const { data: workspaceData } = useWorkspaceWorks(datasetId)
+  const anchorKey = state.activeWorkAnchorId ?? state.highlightedWorkArk ?? null
+  const { data: activeClusterDto } = useWorkCluster(datasetId, anchorKey)
+  const activeClusterOverride = useMemo(() => (activeClusterDto ? mapCluster(activeClusterDto) : null), [activeClusterDto])
 
   const mappedClusters = useMemo(() => {
     if (!workspaceData?.clusters) return null
@@ -171,6 +180,15 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
       (selectedWorkId ? dataIndexes.worksById.get(selectedWorkId) ?? null : null) ||
       (state.highlightedWorkArk ? dataIndexes.worksByArk.get(state.highlightedWorkArk) ?? null : null)
 
+    if (activeClusterOverride) {
+      const matchesAnchor =
+        (state.activeWorkAnchorId && activeClusterOverride.anchorId === state.activeWorkAnchorId) ||
+        (state.highlightedWorkArk && activeClusterOverride.anchorArk === state.highlightedWorkArk)
+      if (matchesAnchor) {
+        return { cluster: activeClusterOverride, source: 'cluster' as const, inventoryWork: null as RecordRow | null }
+      }
+    }
+
     if (state.activeWorkAnchorId) {
       const cluster = clusters.find(entry => entry.anchorId === state.activeWorkAnchorId) ?? null
       if (cluster) {
@@ -213,6 +231,8 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
         anchorId: candidateWorkRecord.id,
         anchorArk: workArk,
         anchorTitle: titleOf(candidateWorkRecord),
+        anchor_summary: null,
+        anchorSummary: null,
         items: [],
         expressionGroups: [],
         independentExpressions,
@@ -220,13 +240,13 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
       return { cluster: pseudoCluster, source: 'inventory' as const, inventoryWork: candidateWorkRecord }
     }
 
-    const fallbackCluster = clusters[0] ?? null
-    if (fallbackCluster) {
-      return { cluster: fallbackCluster, source: 'cluster' as const, inventoryWork: null as RecordRow | null }
+    if (activeClusterOverride) {
+      return { cluster: activeClusterOverride, source: 'cluster' as const, inventoryWork: null as RecordRow | null }
     }
 
     return { cluster: null, source: 'none' as const, inventoryWork: null as RecordRow | null }
   }, [
+    activeClusterOverride,
     clusters,
     dataIndexes.expressionsByArk,
     dataIndexes.expressionsByWorkArk,

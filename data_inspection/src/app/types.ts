@@ -36,6 +36,7 @@ export type ClusterItem = {
   accepted: boolean
   date?: string
   origin: 'script' | 'manual'
+  summary?: EntitySummary | null
 }
 export type ManifestationItem = {
   id: string
@@ -44,6 +45,7 @@ export type ManifestationItem = {
   expressionArk: string
   expressionId?: string
   originalExpressionArk: string
+  summary?: EntitySummary | null
 }
 
 export type ExpressionItem = {
@@ -53,6 +55,7 @@ export type ExpressionItem = {
   workArk: string
   workId?: string
   manifestations: ManifestationItem[]
+  summary?: EntitySummary | null
 }
 
 export type ExpressionClusterItem = ExpressionItem & {
@@ -98,6 +101,8 @@ export type Cluster = {
   anchorId: string
   anchorArk: string
   anchorTitle?: string
+  anchor_summary?: EntitySummary | null
+  anchorSummary?: EntitySummary | null
   items: ClusterItem[]
   expressionGroups: ExpressionAnchorGroup[]
   independentExpressions: ExpressionItem[]

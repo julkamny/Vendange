@@ -120,6 +120,8 @@ export function AgentView({
     if (!agentsDto) return [] as Array<{ kind: 'cluster'; anchorId: string } | { kind: 'single'; agentId: string }>
     const clusterEntries = agentsDto.clusters.map(cluster => ({ kind: 'cluster' as const, anchorId: cluster.anchor_id }))
     const singleEntries = agentsDto.unclustered_agents.map(agent => ({ kind: 'single' as const, agentId: agent.id }))
+    console.log('entries', [...clusterEntries, ...singleEntries])
+    console.log('agentsDto', agentsDto)
     return [...clusterEntries, ...singleEntries]
   }, [agentsDto])
 
@@ -303,6 +305,7 @@ export function AgentView({
 
   const renderCluster = useCallback(
     (anchorId: string) => {
+      console.log('renderCluster', anchorId)
       if (!agentsDto) return null
       const cluster = agentsDto.clusters.find(c => c.anchor_id === anchorId)
       if (!cluster) return null

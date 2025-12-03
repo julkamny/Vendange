@@ -91,9 +91,9 @@ def _normalize_type(value: str) -> str:
         return "expression"
     if norm.startswith("manifestation"):
         return "manifestation"
-    if "identite publique de personne" in norm or "personne" == norm:
+    if norm in {"personne", "identité publique de personne", "identite publique de personne"}:
         return "personne"
-    if "collectivite" in norm:
+    if norm in {"collectivite", "collectivité", "collective"}:
         return "collectivite"
     if "famille" in norm:
         return "famille"

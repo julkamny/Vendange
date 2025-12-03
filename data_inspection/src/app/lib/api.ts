@@ -244,6 +244,7 @@ export async function fetchWorkCluster(datasetId: string, anchorKey: string): Pr
 export async function fetchWorkspaceAgents(datasetId: string): Promise<WorkspaceAgentsResponse> {
   const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/workspace/agents`
   const response = await fetch(url)
+  console.log('fetchWorkspaceAgents response', response)
   if (!response.ok) {
     const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
     throw new Error(detail.detail || 'Failed to load workspace agents')

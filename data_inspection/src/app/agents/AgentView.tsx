@@ -59,7 +59,6 @@ export function AgentView({
 }: AgentViewProps) {
   const { t } = useTranslation()
   const { datasetId, updateRecordIntermarc, getCuratedBaselineRecord } = useAppData()
-  const { getBacklinksForRecord } = useBacklinks()
   const { data: agentsDto } = useWorkspaceAgents(datasetId)
 
   const selectedAgentKey = state.selectedAgentId ?? null
@@ -69,7 +68,9 @@ export function AgentView({
     [selectedPayload],
   )
 
-  const backlinks = useMemo(() => (selectedRecord ? getBacklinksForRecord(selectedRecord) : []), [getBacklinksForRecord, selectedRecord])
+  const backlinksQuery = useBacklinks(datasetId, selectedAgentKey)
+  const backlinks = backlinksQuery.backlinks
+  const backlinksLoading = backlinksQuery.isFetching || backlinksQuery.isLoading
 
   const listRef = useRef<HTMLElement | null>(null)
   const detailsRef = useRef<HTMLElement | null>(null)
@@ -378,7 +379,7 @@ export function AgentView({
                   </>
                 )}
                 {!backlinksExpanded ? (
-                  <BacklinksPanel backlinks={backlinks} onOpenArk={ark => openArk(ark)} lookupWorkByArk={() => null} />
+                  <BacklinksPanel backlinks={backlinks} loading={backlinksLoading} onOpenArk={ark => openArk(ark)} />
                 ) : null}
               </div>
             ) : (
@@ -390,7 +391,7 @@ export function AgentView({
               className="workspace-panel workspace-panel--backlinks"
               aria-label={t('backlinks.title', { defaultValue: 'Backlinks' })}
             >
-              <BacklinksPanel backlinks={backlinks} onOpenArk={ark => openArk(ark)} lookupWorkByArk={() => null} />
+              <BacklinksPanel backlinks={backlinks} loading={backlinksLoading} onOpenArk={ark => openArk(ark)} />
             </section>
           ) : null}
         </div>

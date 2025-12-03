@@ -21,7 +21,7 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from data_curation.api import db, datasets
-from data_curation.api.schemas import RecordPayload, WorkCluster, WorkspaceAgentsResponse, WorkspaceWorksResponse
+from data_curation.api.schemas import BacklinksPayload, RecordPayload, WorkCluster, WorkspaceAgentsResponse, WorkspaceWorksResponse
 from data_curation.curation.cluster_views import WorkspaceViewBuilder
 from data_curation.api.datasets import DatasetMetadata
 from data_curation.curation.pipeline import (
@@ -704,3 +704,13 @@ def workspace_record(dataset_id: str, record_key: str) -> RecordPayload:
     if not record:
         raise HTTPException(status_code=404, detail="Record not found for the requested identifier.")
     return record
+
+
+@app.get("/api/datasets/{dataset_id}/workspace/backlinks/{record_key:path}", response_model=BacklinksPayload)
+def workspace_backlinks(dataset_id: str, record_key: str) -> BacklinksPayload:
+    _ensure_dataset(dataset_id)
+    builder = _get_workspace_builder(dataset_id)
+    payload = builder.backlinks_payload_for_key(record_key)
+    if not payload:
+        raise HTTPException(status_code=404, detail="Record not found for the requested identifier.")
+    return payload

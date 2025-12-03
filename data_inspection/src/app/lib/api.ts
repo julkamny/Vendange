@@ -4,6 +4,7 @@ import type {
   WorkClusterDto,
   WorkspaceAgentsResponse,
   WorkRecordPayload,
+  BacklinksResponse,
 } from '../types'
 import type { SparqlQueryResult } from '../workspace/types'
 
@@ -258,6 +259,16 @@ export async function fetchWorkspaceRecord(datasetId: string, recordKey: string)
     throw new Error(detail.detail || 'Failed to load record')
   }
   return parseJson<WorkRecordPayload>(response)
+}
+
+export async function fetchWorkspaceBacklinks(datasetId: string, recordKey: string): Promise<BacklinksResponse> {
+  const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/workspace/backlinks/${encodeURIComponent(recordKey)}`
+  const response = await fetch(url)
+  if (!response.ok) {
+    const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
+    throw new Error(detail.detail || 'Failed to load backlinks')
+  }
+  return parseJson<BacklinksResponse>(response)
 }
 
 export type ClusterLogEvent = {

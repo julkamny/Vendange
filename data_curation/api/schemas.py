@@ -133,3 +133,19 @@ class RecordPayload(BaseModel):
     ark: Optional[str] = None
     intermarc: str
     ark_labels: Dict[str, str] = Field(default_factory=dict)
+
+
+class BacklinkItem(BaseModel):
+    id: str
+    ark: Optional[str] = None
+    type: str
+    type_norm: Optional[str] = None
+    title: Optional[str] = None
+    title_segments: List[TitleSegment] = Field(default_factory=list)
+    fields: List[str] = Field(default_factory=list)
+
+
+class BacklinksPayload(BaseModel):
+    target_id: str
+    target_ark: Optional[str] = None
+    backlinks: List[BacklinkItem] = Field(default_factory=list)

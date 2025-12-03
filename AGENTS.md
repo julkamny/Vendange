@@ -31,5 +31,5 @@
 	- Clustering: 
 		- Entity has a `90F` field in the 'intermarc as json' with a subfield `90F$a` that contains the ark of the clustered entity. Entities can only be clustered with entities of the same nature (œuvre → œuvre, expression → expression, manifestation → manifestation).
 - General relationship: see cluster_views.py if needed.
-- Agent to WEM :
+- Agent (identité publique de personne, collectivité, famille) to WEM :
 	- `$3` subfield in fields 700, 701, 702, as well as 710, 711, 712.

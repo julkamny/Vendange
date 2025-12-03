@@ -1,42 +1,26 @@
-import type { BacklinkInfo } from '../hooks/useBacklinks'
-import type { RecordRow, EntityTitleSegment } from '../types'
+import type { BacklinkItem } from '../types'
 import { EntityLabel } from './EntityLabel'
-import { workTitleSegments, manifestationTitleSegments, expression140Segments, titleOf, manifestationTitle } from '../core/entities'
 import { useTranslation } from '../hooks/useTranslation'
 
 type BacklinksPanelProps = {
-  backlinks: BacklinkInfo[]
+  backlinks: BacklinkItem[]
+  loading?: boolean
   onOpenArk: (ark: string) => void
-  lookupWorkByArk: (ark: string) => RecordRow | undefined
 }
 
-function segmentsForRecord(
-  record: RecordRow,
-  lookupWorkByArk: (ark: string) => RecordRow | undefined,
-): { title: string; segments?: EntityTitleSegment[] } {
-  const type = record.typeNorm.toLowerCase()
-  if (type === 'oeuvre') {
-    return {
-      title: titleOf(record) || record.id,
-      segments: workTitleSegments(record),
-    }
-  }
-  if (type === 'expression') {
-    const segments = expression140Segments(record, { lookupWorkByArk })
-    const title = segments.length ? titleOf(record) || record.id : titleOf(record) || record.id
-    return { title, segments: segments.length ? segments : undefined }
-  }
-  if (type === 'manifestation') {
-    return {
-      title: manifestationTitle(record) || record.id,
-      segments: manifestationTitleSegments(record),
-    }
-  }
-  return { title: titleOf(record) || record.id }
-}
-
-export function BacklinksPanel({ backlinks, onOpenArk, lookupWorkByArk }: BacklinksPanelProps) {
+export function BacklinksPanel({ backlinks, loading, onOpenArk }: BacklinksPanelProps) {
   const { t } = useTranslation()
+
+  if (loading) {
+    return (
+      <section className="backlinks-panel">
+        <header className="backlinks-panel__header">
+          <h4>{t('backlinks.title')}</h4>
+        </header>
+        <p className="backlinks-panel__empty">{t('messages.loadingIntermarc')}</p>
+      </section>
+    )
+  }
 
   if (!backlinks.length) {
     return (
@@ -65,13 +49,11 @@ export function BacklinksPanel({ backlinks, onOpenArk, lookupWorkByArk }: Backli
         </thead>
         <tbody>
           {backlinks.map(entry => {
-            const { record, fields } = entry
-            const { title, segments } = segmentsForRecord(record, lookupWorkByArk)
-            const arkValue = record.ark
+            const arkValue = entry.ark
             return (
-              <tr key={record.id}>
+              <tr key={entry.id}>
                 <td>
-                  <EntityLabel title={title} titleSegments={segments} />
+                  <EntityLabel title={entry.title} titleSegments={entry.titleSegments} />
                 </td>
                 <td>
                   {arkValue ? (
@@ -88,7 +70,7 @@ export function BacklinksPanel({ backlinks, onOpenArk, lookupWorkByArk }: Backli
                   )}
                 </td>
                 <td>
-                  <span className="backlinks-panel__fields">{fields.join(', ')}</span>
+                  <span className="backlinks-panel__fields">{entry.fields.join(', ')}</span>
                 </td>
               </tr>
             )

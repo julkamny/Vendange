@@ -11,6 +11,9 @@ from data_curation.api.schemas import (
     AgentListRow,
     CountStats,
     EntitySummary,
+    BacklinkItem,
+    BacklinksPayload,
+    TitleSegment,
     ExpressionAnchorGroupView,
     ExpressionClusterItemView,
     ExpressionItemView,
@@ -24,6 +27,7 @@ from data_curation.api.schemas import (
     WorkspaceAgentsResponse,
     WorkspaceWorksResponse,
 )
+from data_curation.curation.backlinks import build_backlink_index, normalize_ark_value
 from data_curation.curation.ark_labels import build_ark_label_map
 from data_curation.models import Entity
 
@@ -283,8 +287,10 @@ class WorkspaceViewBuilder:
         self.relationship_outgoing: Dict[str, Set[str]] = defaultdict(set)
         self.relationship_incoming: Dict[str, Set[str]] = defaultdict(set)
         self.media_kinds_by_ark: Dict[str, List[MediaKind]] = {}
+        self.backlink_index: Dict[str, Dict[str, Set[str]]] = {}
 
         self._build_indices()
+        self._rebuild_backlink_index()
 
     # -------- cache-friendly incremental updates --------
     def replace_entities(self, entities: Sequence[Entity]) -> None:
@@ -324,6 +330,8 @@ class WorkspaceViewBuilder:
         for expr_ark in expr_arks_to_refresh:
             for work_ark in self._work_arks_for_expression_ark(expr_ark):
                 self._recompute_work_counts_for(work_ark)
+
+        self._rebuild_backlink_index()
 
     def _replace_entity_in_list(self, entity: Entity) -> None:
         for idx, ent in enumerate(self.entities):
@@ -533,6 +541,9 @@ class WorkspaceViewBuilder:
 
         for ark, entity in self.entity_by_ark.items():
             self.media_kinds_by_ark[ark] = _media_kinds(entity, self.entity_by_ark)
+
+    def _rebuild_backlink_index(self) -> None:
+        self.backlink_index = build_backlink_index(self.entities)
 
     # Summaries ----------------------------------------------------------
     def _summary_for_ark(self, ark: Optional[str], *, counts: Optional[CountStats] = None) -> EntitySummary:
@@ -902,3 +913,53 @@ class WorkspaceViewBuilder:
             intermarc=entity.intermarc_raw,
             ark_labels=ark_labels,
         )
+
+    def _backlink_view_for(self, entity: Entity, fields: Set[str]) -> BacklinkItem:
+        norm = _normalize_type(entity.type_entite)
+        title_segments: List[TitleSegment] = []
+        if norm == "oeuvre":
+            title_segments = _work_title_segments(entity, self.entity_by_ark)
+            title_value = (
+                " ".join(seg["value"] for seg in title_segments) or _title_of(entity) or entity.id_entitelrm
+            )
+        elif norm == "manifestation":
+            title_value = _manifestation_title(entity) or entity.id_entitelrm
+        else:
+            title_value = _title_of(entity) or entity.id_entitelrm
+
+        return BacklinkItem(
+            id=entity.id_entitelrm,
+            ark=entity.ark(),
+            type=entity.type_entite,
+            type_norm=norm,
+            title=title_value,
+            title_segments=title_segments,
+            fields=sorted(fields),
+        )
+
+    def backlinks_payload_for_key(self, record_key: str) -> Optional[BacklinksPayload]:
+        trimmed = (record_key or "").strip()
+        if not trimmed:
+            return None
+        entity = self.entity_by_id.get(trimmed) or self.entity_by_ark.get(trimmed)
+        if not entity:
+            return None
+
+        target_id = entity.id_entitelrm
+        target_ark = entity.ark()
+        normalized_target = normalize_ark_value(target_ark) if target_ark else None
+        if not normalized_target:
+            return BacklinksPayload(target_id=target_id, target_ark=target_ark, backlinks=[])
+
+        sources = self.backlink_index.get(normalized_target, {})
+        backlinks: List[BacklinkItem] = []
+        for source_id, fields in sources.items():
+            if source_id == target_id:
+                continue
+            source_entity = self.entity_by_id.get(source_id)
+            if not source_entity:
+                continue
+            backlinks.append(self._backlink_view_for(source_entity, fields))
+
+        backlinks.sort(key=lambda item: (item.type_norm or "", item.title or item.id, item.id))
+        return BacklinksPayload(target_id=target_id, target_ark=target_ark, backlinks=backlinks)

@@ -22,6 +22,7 @@ import { useSelectionMeta } from './workspace/useSelectionMeta'
 import { useManifestationUprooting } from './workspace/useManifestationUprooting'
 import { extractControlledValueLabel } from '../core/controlledValues'
 import { useWorkspaceWorks, useWorkCluster, useWorkspaceRecord } from '../hooks/useWorkspaceQueries'
+import { useBacklinks } from '../hooks/useBacklinks'
 import { parseIntermarc } from '../lib/intermarc'
 import { normalizeType } from '../core/records'
 import { computeClusterCoverage } from '../core/clusterCoverage'
@@ -197,6 +198,7 @@ export function WorkspaceView({
   }, [state.selectedEntity])
   const { data: recordPayload } = useWorkspaceRecord(datasetId, recordKey)
   const record = useMemo<RecordRow | null>(() => (recordPayload ? buildRecordRowFromPayload(recordPayload) : null), [recordPayload])
+  const backlinksQuery = useBacklinks(datasetId, recordKey)
 
   const rememberRecord = useCallback((entry: RecordRow | null) => {
     if (!entry) return
@@ -240,7 +242,8 @@ export function WorkspaceView({
     },
     [record],
   )
-  const backlinks: [] = useMemo(() => [], [])
+  const backlinks = backlinksQuery.backlinks
+  const backlinksLoading = backlinksQuery.isFetching || backlinksQuery.isLoading
   const workspaceContext = useMemo(
     () => ({ clusters: mappedClusters, coverage }),
     [mappedClusters, coverage],
@@ -742,9 +745,9 @@ export function WorkspaceView({
       canEditRecord={canEditRecord}
       readOnlyReason={readOnlyReason}
       backlinks={backlinks}
+      backlinksLoading={backlinksLoading}
       openRecordForArk={openRecordForArk}
       getCuratedBaselineRecord={getCuratedBaselineRecord}
-      lookupWorkByArk={getByArk}
       listCollapsed={listCollapsed}
       intermarcFullView={intermarcFullView}
       backlinksExpanded={backlinksExpanded}

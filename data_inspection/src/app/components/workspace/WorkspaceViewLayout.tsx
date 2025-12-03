@@ -9,8 +9,7 @@ import { AnchorSwapModal } from './AnchorSwapModal'
 import { OriginalitySwapModal } from './OriginalitySwapModal'
 import { ManifestationUprootModal } from './ManifestationUprootModal'
 import type { WorkspaceTabStateWorkspace } from '../../workspace/types'
-import type { RecordRow } from '../../types'
-import type { BacklinkInfo } from '../../hooks/useBacklinks'
+import type { RecordRow, BacklinkItem } from '../../types'
 import type { WorkspaceContextMenuState } from './types'
 
 type Props = {
@@ -34,10 +33,10 @@ type Props = {
   setEditingRecord: (next: boolean) => void
   canEditRecord: boolean
   readOnlyReason: string | null
-  backlinks: BacklinkInfo[]
+  backlinks: BacklinkItem[]
+  backlinksLoading?: boolean
   openRecordForArk: (ark: string, options?: { detach?: boolean }) => void
   getCuratedBaselineRecord: (id: string) => RecordRow | null
-  lookupWorkByArk: (ark: string) => RecordRow | undefined
   listCollapsed: boolean
   intermarcFullView: boolean
   backlinksExpanded: boolean
@@ -133,9 +132,9 @@ export function WorkspaceViewLayout(props: Props) {
     canEditRecord,
     readOnlyReason,
     backlinks,
+    backlinksLoading,
     openRecordForArk,
     getCuratedBaselineRecord,
-    lookupWorkByArk,
     listCollapsed,
     intermarcFullView,
     backlinksExpanded,
@@ -309,7 +308,7 @@ export function WorkspaceViewLayout(props: Props) {
                   )}
                 </div>
                 {!backlinksExpanded ? (
-                  <BacklinksPanel backlinks={backlinks} onOpenArk={openRecordForArk} lookupWorkByArk={lookupWorkByArk} />
+                  <BacklinksPanel backlinks={backlinks} loading={backlinksLoading} onOpenArk={openRecordForArk} />
                 ) : null}
               </>
             ) : (
@@ -318,7 +317,7 @@ export function WorkspaceViewLayout(props: Props) {
           </section>
           {record && backlinksExpanded ? (
             <section className="workspace-panel workspace-panel--backlinks" aria-label={backlinksTitle}>
-              <BacklinksPanel backlinks={backlinks} onOpenArk={openRecordForArk} lookupWorkByArk={lookupWorkByArk} />
+              <BacklinksPanel backlinks={backlinks} loading={backlinksLoading} onOpenArk={openRecordForArk} />
             </section>
           ) : null}
         </div>

@@ -217,6 +217,32 @@ export type WorkRecordPayload = {
   ark_labels?: Record<string, string>
 }
 
+export type BacklinkItemDto = {
+  id: string
+  ark?: string | null
+  type: string
+  type_norm?: string | null
+  title?: string | null
+  title_segments?: EntityTitleSegment[]
+  fields: string[]
+}
+
+export type BacklinksResponse = {
+  target_id: string
+  target_ark?: string | null
+  backlinks: BacklinkItemDto[]
+}
+
+export type BacklinkItem = {
+  id: string
+  ark?: string
+  type: string
+  typeNorm: string
+  title: string
+  titleSegments?: EntityTitleSegment[]
+  fields: string[]
+}
+
 export type InventoryEntityType =
   | 'work'
   | 'expression'

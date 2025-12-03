@@ -100,6 +100,61 @@ def _normalize_type(value: str) -> str:
     return norm or value
 
 
+def _agent_zone_code(norm_type: str) -> Optional[str]:
+    if norm_type == "personne":
+        return "100"
+    if norm_type == "collectivite":
+        return "110"
+    if norm_type == "famille":
+        return "120"
+    return None
+
+
+def _agent_title_segments(entity: Entity) -> List[TitleSegment]:
+    norm = _normalize_type(entity.type_entite)
+    zone_code = _agent_zone_code(norm)
+    if not zone_code:
+        return []
+    zones = entity.intermarc.get_zone(zone_code)
+    if not zones:
+        return []
+    zone = zones[0]
+    allowed = {f"{zone_code}$a", f"{zone_code}$m", f"{zone_code}$e"}
+    segments: List[TitleSegment] = []
+    for sub in zone.sousZones:
+        if sub.code not in allowed or not isinstance(sub.valeur, str):
+            continue
+        value = sub.valeur.strip()
+        if not value:
+            continue
+        segments.append(
+            TitleSegment(
+                code=sub.code,
+                label=_segment_label(sub.code),
+                value=_strip_pipes(value),
+            )
+        )
+    return segments
+
+
+def _agent_primary_label(entity: Entity) -> str:
+    segments = _agent_title_segments(entity)
+    if segments:
+        return " ".join(seg.value for seg in segments if seg.value)
+    return _title_of(entity) or entity.id_entitelrm
+
+
+def _agent_sort_value(entity: Entity) -> str:
+    norm = _normalize_type(entity.type_entite)
+    zone_code = _agent_zone_code(norm)
+    if zone_code:
+        for zone in entity.intermarc.get_zone(zone_code):
+            for sub in zone.sousZones:
+                if sub.code == f"{zone_code}$a" and isinstance(sub.valeur, str) and sub.valeur.strip():
+                    return _strip_pipes(sub.valeur)
+    return _agent_primary_label(entity)
+
+
 def _zone_text(entity: Entity, zone_code: str) -> Optional[str]:
     for zone in entity.intermarc.get_zone(zone_code):
         parts = [sub.valeur.strip() for sub in zone.sousZones if isinstance(sub.valeur, str) and sub.valeur.strip()]
@@ -844,17 +899,21 @@ class WorkspaceViewBuilder:
                 continue
             if ark and ark in coverage_arks:
                 continue
+            sort_val = _agent_sort_value(ent)
+            segments = _agent_title_segments(ent)
             unclustered.append(
                 AgentListRow(
                     id=ent.id_entitelrm,
                     ark=ark,
-                    label=_title_of(ent) or ent.id_entitelrm,
+                    label=_agent_primary_label(ent),
                     type_norm=_normalize_type(ent.type_entite),
+                    title_segments=segments,
+                    sort_key=_sort_key(sort_val),
                 )
             )
 
-        clusters.sort(key=lambda c: _sort_key(c.anchor_label or c.anchor_id))
-        unclustered.sort(key=lambda r: _sort_key(r.label or r.id))
+        clusters.sort(key=lambda c: c.sort_key or _sort_key(c.anchor_label or c.anchor_id))
+        unclustered.sort(key=lambda r: r.sort_key or _sort_key(r.label or r.id))
         return WorkspaceAgentsResponse(clusters=clusters, unclustered_agents=unclustered)
 
     def _build_agent_cluster(self, agent: Entity) -> Optional[AgentCluster]:
@@ -863,6 +922,8 @@ class WorkspaceViewBuilder:
             return None
 
         anchor_ark = agent.ark()
+        anchor_segments = _agent_title_segments(agent)
+        anchor_sort_key = _sort_key(_agent_sort_value(agent))
         targets = _cluster_targets(agent)
         seen: Set[str] = set()
         items: List[AgentClusterItem] = []
@@ -873,17 +934,22 @@ class WorkspaceViewBuilder:
             target_ent = self.entity_by_ark.get(target)
             if target_ent and _normalize_type(target_ent.type_entite) not in {"personne", "collectivite", "famille"}:
                 continue
+            target_segments = _agent_title_segments(target_ent) if target_ent else []
             items.append(
                 AgentClusterItem(
                     ark=target,
                     id=target_ent.id_entitelrm if target_ent else None,
-                    label=_title_of(target_ent) if target_ent else target,
+                    label=_agent_primary_label(target_ent) if target_ent else target,
                     origin=origin,
                     date=date,
                     type_norm=_normalize_type(target_ent.type_entite) if target_ent else None,
                     accepted=True,
+                    title_segments=target_segments,
+                    sort_key=_sort_key(_agent_sort_value(target_ent)) if target_ent else _sort_key(target),
                 )
             )
+
+        items.sort(key=lambda item: item.sort_key or _sort_key(item.label or item.ark))
 
         if not items:
             return None
@@ -891,8 +957,10 @@ class WorkspaceViewBuilder:
         return AgentCluster(
             anchor_id=agent.id_entitelrm,
             anchor_ark=anchor_ark,
-            anchor_label=_title_of(agent) or agent.id_entitelrm,
+            anchor_label=_agent_primary_label(agent),
             anchor_type_norm=norm,
+            anchor_title_segments=anchor_segments,
+            sort_key=anchor_sort_key,
             items=items,
         )
 

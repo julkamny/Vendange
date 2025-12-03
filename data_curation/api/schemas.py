@@ -105,6 +105,8 @@ class AgentClusterItem(BaseModel):
     date: Optional[str] = None
     type_norm: Optional[str] = None
     accepted: bool = True
+    title_segments: List[TitleSegment] = Field(default_factory=list)
+    sort_key: Optional[str] = None
 
 
 class AgentCluster(BaseModel):
@@ -112,6 +114,8 @@ class AgentCluster(BaseModel):
     anchor_ark: Optional[str] = None
     anchor_label: Optional[str] = None
     anchor_type_norm: Optional[str] = None
+    anchor_title_segments: List[TitleSegment] = Field(default_factory=list)
+    sort_key: Optional[str] = None
     items: List[AgentClusterItem] = Field(default_factory=list)
 
 
@@ -120,6 +124,8 @@ class AgentListRow(BaseModel):
     ark: Optional[str] = None
     label: Optional[str] = None
     type_norm: str
+    title_segments: List[TitleSegment] = Field(default_factory=list)
+    sort_key: Optional[str] = None
 
 
 class WorkspaceWorksResponse(BaseModel):

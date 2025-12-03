@@ -191,6 +191,8 @@ export type AgentClusterItemDto = {
   date?: string | null
   type_norm?: string | null
   accepted?: boolean | null
+  title_segments?: EntityTitleSegment[]
+  sort_key?: string | null
 }
 
 export type AgentClusterDto = {
@@ -198,6 +200,8 @@ export type AgentClusterDto = {
   anchor_ark?: string | null
   anchor_label?: string | null
   anchor_type_norm?: string | null
+  anchor_title_segments?: EntityTitleSegment[]
+  sort_key?: string | null
   items: AgentClusterItemDto[]
 }
 
@@ -206,6 +210,8 @@ export type AgentListRowDto = {
   ark?: string | null
   label?: string | null
   type_norm: string
+  title_segments?: EntityTitleSegment[]
+  sort_key?: string | null
 }
 
 export type WorkspaceAgentsResponse = {

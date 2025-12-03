@@ -117,12 +117,18 @@ export function AgentView({
   const [contextMenu, setContextMenu] = useState<AgentContextMenuState | null>(null)
 
   const entries = useMemo(() => {
-    if (!agentsDto) return [] as Array<{ kind: 'cluster'; anchorId: string } | { kind: 'single'; agentId: string }>
-    const clusterEntries = agentsDto.clusters.map(cluster => ({ kind: 'cluster' as const, anchorId: cluster.anchor_id }))
-    const singleEntries = agentsDto.unclustered_agents.map(agent => ({ kind: 'single' as const, agentId: agent.id }))
-    console.log('entries', [...clusterEntries, ...singleEntries])
-    console.log('agentsDto', agentsDto)
-    return [...clusterEntries, ...singleEntries]
+    if (!agentsDto)
+      return [] as Array<{ kind: 'cluster'; anchorId: string; sortKey: string } | { kind: 'single'; agentId: string; sortKey: string }>
+    const list: Array<{ kind: 'cluster'; anchorId: string; sortKey: string } | { kind: 'single'; agentId: string; sortKey: string }> = []
+    agentsDto.clusters.forEach(cluster => {
+      const sortKey = cluster.sort_key ?? cluster.anchor_label ?? cluster.anchor_id
+      list.push({ kind: 'cluster', anchorId: cluster.anchor_id, sortKey })
+    })
+    agentsDto.unclustered_agents.forEach(agent => {
+      const sortKey = agent.sort_key ?? agent.label ?? agent.id
+      list.push({ kind: 'single', agentId: agent.id, sortKey })
+    })
+    return list.sort((a, b) => a.sortKey.localeCompare(b.sortKey, 'fr', { sensitivity: 'accent' }))
   }, [agentsDto])
 
   useEffect(() => {
@@ -311,6 +317,7 @@ export function AgentView({
       if (!cluster) return null
       const anchorSelected = state.selectedAgentId === anchorId
       const anchorLabel = cluster.anchor_label || cluster.anchor_id
+      const anchorSegments = cluster.anchor_title_segments || []
       const anchorArk = cluster.anchor_ark ?? undefined
       const rowClasses = ['entity-row', 'entity-row--person']
       if (anchorSelected) rowClasses.push('selected')
@@ -328,7 +335,7 @@ export function AgentView({
             onContextMenu={event => openContextMenuForAgent(event, cluster.anchor_id, anchorArk)}
           >
             <span className="cluster-anchor-marker">⚓︎</span>
-            <EntityLabel title={anchorLabel} badges={badges} />
+            <EntityLabel title={anchorLabel} badges={badges} titleSegments={anchorSegments} />
           </div>
           <div className="cluster-items">
             {cluster.items.map(item => {
@@ -337,6 +344,7 @@ export function AgentView({
               const itemClasses = ['cluster-item', 'entity-row', 'entity-row--person']
               if (itemSelected) itemClasses.push('selected')
               if (pendingSourceId && pendingSourceId === itemKey) itemClasses.push('pending-cluster-source')
+              const itemSegments = item.title_segments ?? []
               return (
                 <div
                   key={`${cluster.anchor_id}-${item.ark}`}
@@ -345,11 +353,11 @@ export function AgentView({
                   data-agent-ark={item.ark}
                   onClick={() => itemKey && handleRowClick(itemKey)}
                   onContextMenu={event => itemKey && openContextMenuForAgent(event, itemKey, item.ark)}
-                >
-                  <input
-                    type="checkbox"
-                    checked={item.accepted !== false}
-                    onChange={event =>
+                  >
+                    <input
+                      type="checkbox"
+                      checked={item.accepted !== false}
+                      onChange={event =>
                       toggleAgentClusterMembership({
                         anchorId: cluster.anchor_id,
                         targetArk: item.ark,
@@ -358,10 +366,11 @@ export function AgentView({
                       })
                     }
                   />
-                  <EntityLabel
-                    title={item.label || item.ark}
-                    badges={[{ type: 'person', text: item.id ?? item.ark, tooltip: item.ark }]}
-                  />
+                    <EntityLabel
+                      title={item.label || item.ark}
+                      titleSegments={itemSegments}
+                      badges={[{ type: 'person', text: item.id ?? item.ark, tooltip: item.ark }]}
+                    />
                 </div>
               )
             })}
@@ -381,6 +390,7 @@ export function AgentView({
       const rowClasses = ['entity-row', 'entity-row--person']
       if (isSelected) rowClasses.push('selected')
       if (pendingSourceId && pendingSourceId === agent.id) rowClasses.push('pending-cluster-source')
+      const segments = agent.title_segments ?? []
       return (
         <div
           key={`agent-${agent.id}`}
@@ -391,6 +401,7 @@ export function AgentView({
         >
           <EntityLabel
             title={agent.label || agent.id}
+            titleSegments={segments}
             badges={[{ type: 'person', text: agent.id, tooltip: agent.ark ?? agent.id }]}
           />
         </div>

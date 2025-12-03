@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { manifestationExpressionArks, manifestationTitle } from '../../core/entities'
-import { rewriteManifestationExpressionLinks } from '../../core/intermarc-utils'
+import { uprootManifestation, type WorkspaceUpdatePayload } from '../../lib/api'
 import type { RecordRow } from '../../types'
 import type { WorkspaceContextMenuState } from './types'
 
@@ -16,8 +16,10 @@ type AttachRequest = {
 }
 
 type UseManifestationUprootingArgs = {
+  datasetId: string | null
   getById: (id: string) => RecordRow | null
-  updateRecordIntermarc: (recordId: string, intermarc: import('../../lib/intermarc').Intermarc) => void
+  applyServerUpdates: (updates: import('../../lib/api').DatasetRecordPayload[]) => void
+  applyServerWorkspaceUpdates: (payload: WorkspaceUpdatePayload) => void
   showToast: (message: string, options?: { tone: 'error' | 'info' | 'success' }) => void
   t: TranslationFn
   setContextMenu: (next: WorkspaceContextMenuState | null) => void
@@ -27,8 +29,10 @@ type UseManifestationUprootingArgs = {
 }
 
 export function useManifestationUprooting({
+  datasetId,
   getById,
-  updateRecordIntermarc,
+  applyServerUpdates,
+  applyServerWorkspaceUpdates,
   showToast,
   t,
   setContextMenu,
@@ -154,8 +158,12 @@ export function useManifestationUprooting({
     setPendingAttach(prev => (prev ? { ...prev, partial: checked } : prev))
   }, [])
 
-  const confirmAttach = useCallback(() => {
+  const confirmAttach = useCallback(async () => {
     if (!pendingAttach) return
+    if (!datasetId) {
+      showToast(t('manifestations.uproot.noDataset', { defaultValue: 'Aucune base chargée.' }), { tone: 'error' })
+      return
+    }
     const manifestation = getById(pendingAttach.manifestationId)
     if (!manifestation) {
       setPendingAttach(null)
@@ -177,25 +185,45 @@ export function useManifestationUprooting({
       )
       return
     }
-    if (!pendingAttach.selectedArks.length) {
-      // No detach selected: keep existing links, just add the new one
-    }
 
-    const nextIntermarc = rewriteManifestationExpressionLinks(manifestation.intermarc, {
-      remove: pendingAttach.selectedArks,
-      add: pendingAttach.targetExpressionArk,
-      partialArk: pendingAttach.partial ? findControlledValueArk('Partiellement') ?? undefined : undefined,
-    })
-    updateRecordIntermarc(manifestation.id, nextIntermarc)
-    setPendingAttach(null)
-    setPendingManifestationId(null)
-    showToast(
-      t('manifestations.uproot.success', {
-        defaultValue: 'Manifestation rattachée à la nouvelle expression.',
-      }),
-      { tone: 'success' },
-    )
-  }, [findControlledValueArk, getById, pendingAttach, setPendingManifestationId, showToast, t, updateRecordIntermarc])
+    try {
+      const partialArk = pendingAttach.partial ? findControlledValueArk('Partiellement') ?? undefined : undefined
+      const updates = await uprootManifestation(datasetId, {
+        manifestationId: manifestation.id,
+        targetExpressionId: pendingAttach.targetExpressionId ?? undefined,
+        targetExpressionArk: pendingAttach.targetExpressionArk,
+        detachArks: pendingAttach.selectedArks,
+        partialArk,
+      })
+      applyServerWorkspaceUpdates(updates)
+      applyServerUpdates(updates.updatedRecords ?? [])
+      showToast(
+        t('manifestations.uproot.success', {
+          defaultValue: 'Manifestation rattachée à la nouvelle expression.',
+        }),
+        { tone: 'success' },
+      )
+    } catch (error) {
+      console.error(error)
+      showToast(
+        t('manifestations.uproot.failed', { defaultValue: "Échec du rattachement de la manifestation." }),
+        { tone: 'error' },
+      )
+    } finally {
+      setPendingAttach(null)
+      setPendingManifestationId(null)
+    }
+  }, [
+    applyServerUpdates,
+    applyServerWorkspaceUpdates,
+    datasetId,
+    findControlledValueArk,
+    getById,
+    pendingAttach,
+    setPendingManifestationId,
+    showToast,
+    t,
+  ])
 
   return {
     pendingManifestationRecord,

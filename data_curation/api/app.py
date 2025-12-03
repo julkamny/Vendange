@@ -28,6 +28,7 @@ from data_curation.curation.pipeline import (
     run_cluster_operation,
     run_cluster_with_expression_operation,
 )
+from data_curation.api.manifestation_uproot import ManifestationUprootResult, uproot_manifestation
 from data_curation.utils.log_bundle import LOG_TEXT_FORMAT, LogBundle, activate_log_bundle, reset_log_bundle
 from data_curation.models import Entity
 
@@ -67,6 +68,14 @@ class ManualClusterPayload(BaseModel):
     target_id: Optional[str] = Field(None, alias="targetId")
     target_ark: Optional[str] = Field(None, alias="targetArk")
     accepted: bool = True
+
+
+class ManifestationUprootPayload(BaseModel):
+    manifestation_id: str = Field(..., alias="manifestationId")
+    target_expression_id: Optional[str] = Field(None, alias="targetExpressionId")
+    target_expression_ark: Optional[str] = Field(None, alias="targetExpressionArk")
+    detach_arks: List[str] = Field(default_factory=list, alias="detachArks")
+    partial_ark: Optional[str] = Field(None, alias="partialArk")
 
 
 @contextlib.asynccontextmanager
@@ -548,6 +557,49 @@ def manual_cluster(dataset_id: str, payload: ManualClusterPayload) -> dict[str, 
         "updatedRecords": updated,
         "updatedClusters": updated_clusters,
         "removedClusterIds": removed_cluster_ids,
+        "updatedWorkRows": updated_work_rows,
+    }
+
+
+@app.post("/api/datasets/{dataset_id}/manifestations/uproot")
+def uproot_manifestation_endpoint(dataset_id: str, payload: ManifestationUprootPayload) -> dict[str, object]:
+    _ensure_dataset(dataset_id)
+    try:
+        result: ManifestationUprootResult = uproot_manifestation(
+            dataset_id,
+            manifestation_id=payload.manifestation_id,
+            target_expression_id=payload.target_expression_id,
+            target_expression_ark=payload.target_expression_ark,
+            detach_arks=payload.detach_arks,
+            partial_ark=payload.partial_ark,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    builder = _apply_workspace_updates(dataset_id, result.updated_records) or _get_workspace_builder(dataset_id)
+    clusters = builder.build_work_clusters()
+
+    related_work_arks = result.previous_work_arks | result.next_work_arks
+
+    def _cluster_matches(cluster: WorkCluster) -> bool:
+        if cluster.anchor_ark and cluster.anchor_ark in related_work_arks:
+            return True
+        return any(item.ark in related_work_arks for item in cluster.items)
+
+    updated_clusters = [cluster for cluster in clusters if _cluster_matches(cluster)]
+
+    updated_work_rows = []
+    for ark in related_work_arks:
+        if not ark:
+            continue
+        row = builder.work_row_for_ark(ark)
+        if row:
+            updated_work_rows.append(row)
+
+    return {
+        "updatedRecords": result.updated_records,
+        "updatedClusters": updated_clusters,
+        "removedClusterIds": [],
         "updatedWorkRows": updated_work_rows,
     }
 

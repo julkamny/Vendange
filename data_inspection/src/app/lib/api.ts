@@ -190,6 +190,35 @@ export async function updateManualCluster(
   return parseJson<WorkspaceUpdatePayload>(response)
 }
 
+export async function uprootManifestation(
+  datasetId: string,
+  payload: {
+    manifestationId: string
+    targetExpressionId?: string
+    targetExpressionArk: string
+    detachArks: string[]
+    partialArk?: string | null
+  },
+): Promise<WorkspaceUpdatePayload> {
+  const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/manifestations/uproot`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      manifestationId: payload.manifestationId,
+      targetExpressionId: payload.targetExpressionId,
+      targetExpressionArk: payload.targetExpressionArk,
+      detachArks: payload.detachArks,
+      partialArk: payload.partialArk,
+    }),
+  })
+  if (!response.ok) {
+    const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
+    throw new Error(detail.detail || 'Failed to uproot manifestation')
+  }
+  return parseJson<WorkspaceUpdatePayload>(response)
+}
+
 export async function fetchWorkspaceWorks(datasetId: string): Promise<WorkspaceWorksResponse> {
   const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/workspace/works`
   const response = await fetch(url)

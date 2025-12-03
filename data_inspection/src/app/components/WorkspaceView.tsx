@@ -482,13 +482,14 @@ export function WorkspaceView({
   })
 
   const manifestationUprooting = useManifestationUprooting({
+    datasetId,
     getById,
-    updateRecordIntermarc,
+    applyServerUpdates,
+    applyServerWorkspaceUpdates,
     showToast,
     t,
     setContextMenu,
     findControlledValueArk,
-    listScrollRef,
     sharedPendingManifestationId,
     setSharedPendingManifestationId,
   })

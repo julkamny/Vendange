@@ -114,7 +114,7 @@ export type DatasetRecordPayload = {
 export async function syncRecordUpdate(
   datasetId: string,
   payload: { id: string; type: string; intermarc: string },
-): Promise<void> {
+): Promise<WorkspaceUpdatePayload> {
   const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/update_record`
   const response = await fetch(url, {
     method: 'POST',
@@ -125,6 +125,7 @@ export async function syncRecordUpdate(
     const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
     throw new Error(detail.detail || 'Failed to synchronise record update')
   }
+  return parseJson<WorkspaceUpdatePayload>(response)
 }
 
 export type WorkspaceUpdatePayload = {

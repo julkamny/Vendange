@@ -116,19 +116,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     })
   }, [clientId, refreshDataset, state.datasetId])
 
-  const updateRecordIntermarc = useCallback(
-    (recordId: string, intermarc: Intermarc) => {
-      const datasetId = datasetIdRef.current
-      if (!datasetId) return
-      syncRecordUpdate(datasetId, { id: recordId, type: '', intermarc: JSON.stringify(intermarc) }).catch(err => {
-        console.error('Failed to synchronise record', err)
-        showToast('Synchronisation avec la base impossible.', { tone: 'error' })
-      })
-      postBroadcastEvent({ type: 'dataset-update', datasetId, recordIds: [recordId] })
-    },
-    [showToast],
-  )
-
   const applyServerWorkspaceUpdates = useCallback(
     async (payload: WorkspaceUpdatePayload) => {
       const datasetId = datasetIdRef.current
@@ -149,6 +136,23 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const applyServerUpdates = useCallback((updates: DatasetRecordPayload[]) => {
     void updates
   }, [])
+
+  const updateRecordIntermarc = useCallback(
+    async (recordId: string, intermarc: Intermarc) => {
+      const datasetId = datasetIdRef.current
+      if (!datasetId) return
+      try {
+        const updates = await syncRecordUpdate(datasetId, { id: recordId, type: '', intermarc: JSON.stringify(intermarc) })
+        applyServerWorkspaceUpdates(updates)
+        applyServerUpdates(updates.updatedRecords ?? [])
+        postBroadcastEvent({ type: 'dataset-update', datasetId, recordIds: [recordId] })
+      } catch (err) {
+        console.error('Failed to synchronise record', err)
+        showToast('Synchronisation avec la base impossible.', { tone: 'error' })
+      }
+    },
+    [applyServerUpdates, applyServerWorkspaceUpdates, showToast],
+  )
 
   const value = useMemo<AppDataContextValue>(
     () => ({

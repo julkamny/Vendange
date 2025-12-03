@@ -46,6 +46,16 @@ def _clone_zone_preserve(zone: Zone) -> Zone:
 
 def _merge_zone(new_zone: Zone, previous: Optional[Zone]) -> Zone:
     """Keep previous curation flags when unchanged, mark manual when altered."""
+    if previous and not new_zone.field_compact_value and previous.field_compact_value:
+        new_zone = Zone(
+            code=new_zone.code,
+            field_compact_value=previous.field_compact_value,
+            sousZones=[
+                SousZone(code=sub.code, valeur=sub.valeur, affected_by_curation=sub.affected_by_curation)
+                for sub in new_zone.sousZones
+            ],
+            affected_by_curation=new_zone.affected_by_curation,
+        )
     if previous and _zone_signature(previous) == _zone_signature(new_zone):
         return _clone_zone_preserve(previous)
 
@@ -167,12 +177,23 @@ def _merge_non_special_zones(
         prev_pool.setdefault(_zone_signature(zone), []).append(zone)
 
     merged: List[Zone] = []
+
+    def _pop_prior(zone: Zone) -> Optional[Zone]:
+        sig = _zone_signature(zone)
+        bucket = prev_pool.get(sig, [])
+        if bucket:
+            return bucket.pop(0)
+        if zone.field_compact_value is None:
+            fallback_sig = (zone.code, None, tuple((sub.code, sub.valeur) for sub in zone.sousZones))
+            for key, bucket in prev_pool.items():
+                if key[0] == fallback_sig[0] and key[2] == fallback_sig[2] and bucket:
+                    return bucket.pop(0)
+        return None
+
     for zone in new_im.zones:
         if zone.code in special_codes:
             continue
-        sig = _zone_signature(zone)
-        candidates = prev_pool.get(sig, [])
-        prior = candidates.pop(0) if candidates else None
+        prior = _pop_prior(zone)
         merged.append(_merge_zone(zone, prior))
     return merged
 

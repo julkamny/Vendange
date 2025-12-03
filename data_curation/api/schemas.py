@@ -101,12 +101,17 @@ class AgentClusterItem(BaseModel):
     ark: str
     id: Optional[str] = None
     label: Optional[str] = None
+    origin: Optional[str] = None
+    date: Optional[str] = None
+    type_norm: Optional[str] = None
+    accepted: bool = True
 
 
 class AgentCluster(BaseModel):
     anchor_id: str
     anchor_ark: Optional[str] = None
     anchor_label: Optional[str] = None
+    anchor_type_norm: Optional[str] = None
     items: List[AgentClusterItem] = Field(default_factory=list)
 
 

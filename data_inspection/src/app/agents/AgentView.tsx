@@ -4,17 +4,20 @@ import type { AgentTabState, WorkspaceTabStateWorkspace } from '../workspace/typ
 import type { EntityBadgeSpec, RecordRow, WorkRecordPayload } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useAppData } from '../providers/AppDataContext'
+import { useToast } from '../providers/ToastContext'
 import { labelFromRecord } from '../lib/intermarc'
 import { IntermarcView } from '../components/IntermarcView'
 import { IntermarcEditor } from '../components/IntermarcEditor'
 import { BacklinksPanel } from '../components/BacklinksPanel'
-import { WorkspaceContextMenu } from '../components/WorkspaceContextMenu'
+import { WorkspaceContextMenu, type MenuAction } from '../components/WorkspaceContextMenu'
 import { EntityLabel } from '../components/EntityLabel'
 import { configureTabStateForRecord } from '../workspace/tabState'
 import { useWorkspaceAgents, useWorkspaceRecord } from '../hooks/useWorkspaceQueries'
 import { normalizeType } from '../core/records'
 import { parseIntermarc } from '../lib/intermarc'
 import { useBacklinks } from '../hooks/useBacklinks'
+import { ConfirmAgentClusterModal } from '../components/workspace/ClusterModals'
+import { useAgentClustering } from './useAgentClustering'
 
 type AgentViewProps = {
   state: AgentTabState
@@ -29,7 +32,8 @@ type AgentViewProps = {
 
 type AgentContextMenuState = {
   position: { x: number; y: number }
-  record: RecordRow
+  agentId: string
+  agentArk?: string | null
 }
 
 function buildRecordRowFromPayload(payload: WorkRecordPayload): RecordRow {
@@ -58,14 +62,45 @@ export function AgentView({
   onRequestDock,
 }: AgentViewProps) {
   const { t } = useTranslation()
-  const { datasetId, updateRecordIntermarc, getCuratedBaselineRecord } = useAppData()
+  const { showToast } = useToast()
+  const { datasetId, updateRecordIntermarc, getCuratedBaselineRecord, applyServerWorkspaceUpdates } = useAppData()
   const { data: agentsDto } = useWorkspaceAgents(datasetId)
+  const clustering = useAgentClustering({
+    datasetId,
+    agentsDto,
+    applyServerWorkspaceUpdates,
+    showToast,
+    t,
+    closeContextMenu: () => setContextMenu(null),
+  })
+  const {
+    pendingSourceId,
+    pendingTarget,
+    prepareForClustering,
+    requestClusterWith,
+    confirmPendingCluster,
+    cancelPendingCluster,
+    toggleAgentClusterMembership,
+    getEntry,
+  } = clustering
 
   const selectedAgentKey = state.selectedAgentId ?? null
   const { data: selectedPayload } = useWorkspaceRecord(datasetId, selectedAgentKey)
   const selectedRecord = useMemo<RecordRow | null>(
     () => (selectedPayload ? buildRecordRowFromPayload(selectedPayload) : null),
     [selectedPayload],
+  )
+
+  const { data: pendingSourcePayload } = useWorkspaceRecord(datasetId, pendingTarget?.sourceId ?? null)
+  const { data: pendingAnchorPayload } = useWorkspaceRecord(datasetId, pendingTarget?.anchorId ?? null)
+
+  const pendingSourceRecord = useMemo<RecordRow | null>(
+    () => (pendingSourcePayload ? buildRecordRowFromPayload(pendingSourcePayload) : null),
+    [pendingSourcePayload],
+  )
+  const pendingAnchorRecord = useMemo<RecordRow | null>(
+    () => (pendingAnchorPayload ? buildRecordRowFromPayload(pendingAnchorPayload) : null),
+    [pendingAnchorPayload],
   )
 
   const backlinksQuery = useBacklinks(datasetId, selectedAgentKey)
@@ -183,6 +218,15 @@ export function AgentView({
     [onStateChange],
   )
 
+  const openContextMenuForAgent = useCallback(
+    (event: React.MouseEvent<HTMLElement>, agentId: string, agentArk?: string | null) => {
+      event.preventDefault()
+      handleRowClick(agentId)
+      setContextMenu({ position: { x: event.clientX, y: event.clientY }, agentId, agentArk })
+    },
+    [handleRowClick],
+  )
+
   const setIntermarcFullView = useCallback(
     (next: boolean | ((prev: boolean) => boolean)) =>
       onStateChange(prev => {
@@ -204,6 +248,31 @@ export function AgentView({
         }
       }),
     [onStateChange],
+  )
+
+  const buildContextMenuActions = useCallback(
+    (agentId: string): MenuAction[] => {
+      const entry = getEntry(agentId)
+      if (!entry) return []
+      if (!pendingSourceId) {
+        return [
+          {
+            label: t('agents.cluster.prepare', { defaultValue: 'Prepare for clustering' }),
+            onSelect: () => prepareForClustering(entry),
+          },
+        ]
+      }
+      if (pendingSourceId !== agentId) {
+        return [
+          {
+            label: t('agents.cluster.clusterWith', { defaultValue: 'Cluster selected agent here' }),
+            onSelect: () => requestClusterWith(entry),
+          },
+        ]
+      }
+      return []
+    },
+    [getEntry, pendingSourceId, prepareForClustering, requestClusterWith, t],
   )
   const setListCollapsed = useCallback(
     (next: boolean | ((prev: boolean) => boolean)) =>
@@ -227,7 +296,7 @@ export function AgentView({
       const raw = arkLink.getAttribute('data-ark')
       if (!raw || !selectedRecord || selectedRecord.ark !== raw) return
       event.preventDefault()
-      setContextMenu({ position: { x: event.clientX, y: event.clientY }, record: selectedRecord })
+      setContextMenu({ position: { x: event.clientX, y: event.clientY }, agentId: selectedRecord.id, agentArk: selectedRecord.ark })
     },
     [selectedRecord],
   )
@@ -242,6 +311,7 @@ export function AgentView({
       const anchorArk = cluster.anchor_ark ?? undefined
       const rowClasses = ['entity-row', 'entity-row--person']
       if (anchorSelected) rowClasses.push('selected')
+      if (pendingSourceId && pendingSourceId === cluster.anchor_id) rowClasses.push('pending-cluster-source')
       const badges: EntityBadgeSpec[] = [
         { type: 'person', text: cluster.anchor_id, tooltip: anchorArk ?? cluster.anchor_id },
       ]
@@ -252,24 +322,39 @@ export function AgentView({
             data-agent-id={cluster.anchor_id}
             data-agent-ark={anchorArk}
             onClick={() => handleRowClick(cluster.anchor_id)}
+            onContextMenu={event => openContextMenuForAgent(event, cluster.anchor_id, anchorArk)}
           >
             <span className="cluster-anchor-marker">⚓︎</span>
             <EntityLabel title={anchorLabel} badges={badges} />
           </div>
           <div className="cluster-items">
             {cluster.items.map(item => {
-              const itemSelected = state.selectedAgentId === item.id
+              const itemKey = item.id ?? item.ark
+              const itemSelected = state.selectedAgentId === itemKey
               const itemClasses = ['cluster-item', 'entity-row', 'entity-row--person']
               if (itemSelected) itemClasses.push('selected')
+              if (pendingSourceId && pendingSourceId === itemKey) itemClasses.push('pending-cluster-source')
               return (
                 <div
                   key={`${cluster.anchor_id}-${item.ark}`}
                   className={itemClasses.join(' ')}
-                  data-agent-id={item.id ?? item.ark}
+                  data-agent-id={itemKey ?? ''}
                   data-agent-ark={item.ark}
-                  onClick={() => handleRowClick(item.id ?? item.ark)}
+                  onClick={() => itemKey && handleRowClick(itemKey)}
+                  onContextMenu={event => itemKey && openContextMenuForAgent(event, itemKey, item.ark)}
                 >
-                  <input type="checkbox" checked readOnly />
+                  <input
+                    type="checkbox"
+                    checked={item.accepted !== false}
+                    onChange={event =>
+                      toggleAgentClusterMembership({
+                        anchorId: cluster.anchor_id,
+                        targetArk: item.ark,
+                        targetId: item.id ?? undefined,
+                        accepted: event.currentTarget.checked,
+                      })
+                    }
+                  />
                   <EntityLabel
                     title={item.label || item.ark}
                     badges={[{ type: 'person', text: item.id ?? item.ark, tooltip: item.ark }]}
@@ -281,7 +366,7 @@ export function AgentView({
         </div>
       )
     },
-    [agentsDto, handleRowClick, state.selectedAgentId],
+    [agentsDto, handleRowClick, openContextMenuForAgent, pendingSourceId, state.selectedAgentId, toggleAgentClusterMembership],
   )
 
   const renderUnclustered = useCallback(
@@ -292,12 +377,14 @@ export function AgentView({
       const isSelected = state.selectedAgentId === agent.id
       const rowClasses = ['entity-row', 'entity-row--person']
       if (isSelected) rowClasses.push('selected')
+      if (pendingSourceId && pendingSourceId === agent.id) rowClasses.push('pending-cluster-source')
       return (
         <div
           key={`agent-${agent.id}`}
           className={rowClasses.join(' ')}
           data-agent-id={agent.id}
           onClick={() => handleRowClick(agent.id)}
+          onContextMenu={event => openContextMenuForAgent(event, agent.id, agent.ark)}
         >
           <EntityLabel
             title={agent.label || agent.id}
@@ -306,7 +393,7 @@ export function AgentView({
         </div>
       )
     },
-    [agentsDto, handleRowClick, state.selectedAgentId],
+    [agentsDto, handleRowClick, openContextMenuForAgent, pendingSourceId, state.selectedAgentId],
   )
 
   const workspaceClassName = `workspace-view${intermarcFullView ? ' is-intermarc-full' : ''}${backlinksExpanded && selectedRecord ? ' has-backlinks-expanded' : ''
@@ -500,15 +587,34 @@ export function AgentView({
           openDetachedLabel={t('workspace.openInDetachedWindow', {
             defaultValue: 'Open in detached workspace window',
           })}
-          extraActions={[]}
+          extraActions={buildContextMenuActions(contextMenu.agentId)}
           onOpen={() => {
-            if (contextMenu.record) openRecord(contextMenu.record)
+            const targetRecord =
+              selectedRecord &&
+              (selectedRecord.id === contextMenu.agentId || selectedRecord.ark === contextMenu.agentArk)
+                ? selectedRecord
+                : null
+            if (targetRecord) openRecord(targetRecord)
             setContextMenu(null)
           }}
           onOpenDetached={() => {
-            if (contextMenu.record) openRecord(contextMenu.record, { detach: true })
+            const targetRecord =
+              selectedRecord &&
+              (selectedRecord.id === contextMenu.agentId || selectedRecord.ark === contextMenu.agentArk)
+                ? selectedRecord
+                : null
+            if (targetRecord) openRecord(targetRecord, { detach: true })
             setContextMenu(null)
           }}
+        />
+      ) : null}
+
+      {pendingTarget ? (
+        <ConfirmAgentClusterModal
+          source={pendingSourceRecord}
+          anchor={pendingAnchorRecord}
+          onConfirm={confirmPendingCluster}
+          onCancel={cancelPendingCluster}
         />
       ) : null}
     </>

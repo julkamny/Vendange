@@ -7,7 +7,12 @@ from .db_query import _load_record_from_store, _record_subjects
 from .db_store import _STORE_LOCK, clear_record_graph, get_store_locked, load_ark_index
 from . import datasets
 from .anchor_swap import _clone_intermarc, _clone_zone, _manual_cluster_zone
-from .db_guards import _ensure_unique_expression_clusters, _ensure_unique_work_clusters
+from .db_guards import (
+    _ensure_unique_expression_clusters,
+    _ensure_unique_work_clusters,
+    _ensure_unique_manual_agent_clusters,
+    _is_agent_type,
+)
 from ..models import Entity, Intermarc
 
 CLUSTER_NOTES: Set[str] = {"Clusterisation manuelle", "Clusterisation script"}
@@ -53,9 +58,9 @@ def update_manual_cluster(
 ) -> List[dict[str, str]]:
     """Add or remove a clustered work/expression from an anchor.
 
-    The anchor must be a work or expression. Addition requires ``target_id`` so we
-    can validate types and retrieve the ARK; removal may be driven by ``target_ark``
-    directly (as used by the checkbox UI).
+    The anchor must be a work, expression, or agent. Addition requires ``target_id``
+    so we can validate types and retrieve the ARK; removal may be driven by
+    ``target_ark`` directly (as used by the checkbox UI).
     """
 
     with _STORE_LOCK:
@@ -68,8 +73,11 @@ def update_manual_cluster(
         anchor_norm = anchor_entity.type_entite.strip().lower()
         is_work = anchor_norm in {"work", "oeuvre", "œuvre"}
         is_expression = anchor_norm.startswith("expression")
-        if not (is_work or is_expression):
-            raise ValueError("Clusterisation manuelle disponible uniquement pour les œuvres et les expressions.")
+        is_agent = _is_agent_type(anchor_entity.type_entite)
+        if not (is_work or is_expression or is_agent):
+            raise ValueError(
+                "Clusterisation manuelle disponible uniquement pour les œuvres, les expressions ou les agents."
+            )
 
         anchor_ark = anchor_entity.ark()
         if not anchor_ark:
@@ -87,7 +95,11 @@ def update_manual_cluster(
             if is_work and target_norm not in {"work", "oeuvre", "œuvre"}:
                 raise ValueError("Cible incompatible : seules les œuvres peuvent être rattachées à une œuvre.")
             if is_expression and not target_norm.startswith("expression"):
-                raise ValueError("Cible incompatible : seules les expressions peuvent être rattachées à une expression.")
+                raise ValueError(
+                    "Cible incompatible : seules les expressions peuvent être rattachées à une expression."
+                )
+            if is_agent and not _is_agent_type(target_entity.type_entite):
+                raise ValueError("Cible incompatible : seules des entités de type agent peuvent être rattachées.")
             target_ark = target_entity.ark()
             if not target_ark:
                 raise ValueError("La cible doit avoir un ARK.")
@@ -117,8 +129,10 @@ def update_manual_cluster(
 
         if is_work:
             _ensure_unique_work_clusters(store, anchor_id, next_intermarc)
-        else:
+        elif is_expression:
             _ensure_unique_expression_clusters(store, anchor_id, next_intermarc)
+        else:
+            _ensure_unique_manual_agent_clusters(store, anchor_id, next_intermarc)
 
         clear_record_graph(store, anchor_id)
 

@@ -187,12 +187,17 @@ export type AgentClusterItemDto = {
   ark: string
   id?: string | null
   label?: string | null
+  origin?: string | null
+  date?: string | null
+  type_norm?: string | null
+  accepted?: boolean | null
 }
 
 export type AgentClusterDto = {
   anchor_id: string
   anchor_ark?: string | null
   anchor_label?: string | null
+  anchor_type_norm?: string | null
   items: AgentClusterItemDto[]
 }
 

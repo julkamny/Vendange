@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from data_curation.api import db, datasets
 from data_curation.api.schemas import BacklinksPayload, RecordPayload, WorkCluster, WorkspaceAgentsResponse, WorkspaceWorksResponse
-from data_curation.curation.cluster_views import WorkspaceViewBuilder
+from data_curation.curation.cluster_views import AgentViewBuilder, WorkspaceViewBuilder
 from data_curation.api.datasets import DatasetMetadata
 from data_curation.curation.pipeline import (
     run_cluster_operation,
@@ -692,8 +692,9 @@ def workspace_work(dataset_id: str, anchor_key: str) -> WorkCluster:
 @app.get("/api/datasets/{dataset_id}/workspace/agents", response_model=WorkspaceAgentsResponse)
 def workspace_agents(dataset_id: str) -> WorkspaceAgentsResponse:
     _ensure_dataset(dataset_id)
-    builder = _get_workspace_builder(dataset_id)
-    return builder.build_agent_views()
+    workspace = _get_workspace_builder(dataset_id)
+    builder = AgentViewBuilder.from_workspace(workspace)
+    return builder.workspace_agents_payload()
 
 
 @app.get("/api/datasets/{dataset_id}/workspace/record/{record_key:path}", response_model=RecordPayload)

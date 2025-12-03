@@ -127,21 +127,24 @@ def _manifestation_expression_arks(manifestation: Entity) -> List[str]:
     return manifestation.intermarc.get_subfield_values("740", "3")
 
 
-def _expression_cluster_targets(expr: Entity) -> List[Tuple[str, Optional[str], str]]:
+def _cluster_targets(entity: Entity) -> List[Tuple[str, Optional[str], str]]:
     targets: List[Tuple[str, Optional[str], str]] = []
-    for zone in expr.intermarc.get_zone("90F"):
+    for zone in entity.intermarc.get_zone("90F"):
         note = next((sub.valeur for sub in zone.sousZones if sub.code == "90F$q"), None)
         origin = "manual" if note == CLUSTER_MANUAL_NOTE else "script" if note == CLUSTER_SCRIPT_NOTE else None
         if not origin:
             continue
-        target = (
-            next((sub.valeur for sub in zone.sousZones if sub.code == "90F$3"), None)
-        )
+        target_val = next((sub.valeur for sub in zone.sousZones if sub.code == "90F$3"), None)
+        target = str(target_val).strip() if target_val else ""
         if not target:
             continue
         date = next((sub.valeur for sub in zone.sousZones if sub.code == "90F$d"), None)
         targets.append((target, date, origin))
     return targets
+
+
+def _expression_cluster_targets(expr: Entity) -> List[Tuple[str, Optional[str], str]]:
+    return _cluster_targets(expr)
 
 
 def _normalize_label(text: str) -> str:
@@ -258,23 +261,14 @@ def _work_title_a_value(entity: Optional[Entity]) -> str:
     return ""
 
 
-def _manual_agent_targets(entity: Entity) -> List[str]:
-    targets: Set[str] = set()
-    for zone in entity.intermarc.get_zone("90F"):
-        note = next((sub.valeur for sub in zone.sousZones if sub.code == "90F$q"), None)
-        if note and str(note).strip().lower() == CLUSTER_MANUAL_NOTE.lower():
-            target = next((sub.valeur for sub in zone.sousZones if sub.code == "90F$3"), None)
-            if target and isinstance(target, str) and target.strip():
-                targets.add(target.strip())
-    return list(targets)
-
-
 class WorkspaceViewBuilder:
     def __init__(self, entities: Sequence[Entity]):
         self.entities = list(entities)
         self.entity_by_id: Dict[str, Entity] = {e.id_entitelrm: e for e in entities}
         self.entity_by_ark: Dict[str, Entity] = {ark: e for e in entities if (ark := e.ark())}
         self.type_by_id: Dict[str, str] = {e.id_entitelrm: _normalize_type(e.type_entite) for e in entities}
+
+        self.clustered_agent_arks: Set[str] = set()
 
         self.work_id_by_ark: Dict[str, str] = {}
         self.work_title_by_ark: Dict[str, str] = {}
@@ -435,6 +429,10 @@ class WorkspaceViewBuilder:
                     if not incoming:
                         self.relationship_incoming.pop(target, None)
 
+        if norm in {"personne", "collectivite", "famille"}:
+            for target in _cluster_targets(entity):
+                self.clustered_agent_arks.discard(target[0])
+
     def _index_entity(self, entity: Entity) -> None:
         entity_id = entity.id_entitelrm
         entity_ark = entity.ark()
@@ -444,6 +442,10 @@ class WorkspaceViewBuilder:
         self.type_by_id[entity_id] = norm
         if entity_ark:
             self.entity_by_ark[entity_ark] = entity
+
+        if norm in {"personne", "collectivite", "famille"}:
+            for target, _, _ in _cluster_targets(entity):
+                self.clustered_agent_arks.add(str(target))
 
         if norm == "oeuvre":
             if entity_ark:
@@ -490,6 +492,9 @@ class WorkspaceViewBuilder:
         for ent in self.entities:
             norm = _normalize_type(ent.type_entite)
             ark = ent.ark()
+            if norm in {"personne", "collectivite", "famille"}:
+                for target, _, _ in _cluster_targets(ent):
+                    self.clustered_agent_arks.add(str(target))
             if norm == "oeuvre" and ark:
                 self.work_id_by_ark[ark] = ent.id_entitelrm
                 title = _title_of(ent)
@@ -815,42 +820,29 @@ class WorkspaceViewBuilder:
         agents: List[Entity] = [
             e for e in self.entities if _normalize_type(e.type_entite) in {"personne", "collectivite", "famille"}
         ]
-        by_ark: Dict[str, Entity] = {e.ark(): e for e in agents if e.ark()}
         clusters: List[AgentCluster] = []
         coverage_arks: Set[str] = set()
         coverage_ids: Set[str] = set()
-        for ent in agents:
-            targets = _manual_agent_targets(ent)
-            if not targets:
+
+        for agent in agents:
+            cluster = self._build_agent_cluster(agent)
+            if not cluster:
                 continue
-            items: List[AgentClusterItem] = []
-            for target in targets:
-                target_ent = by_ark.get(target)
-                items.append(
-                    AgentClusterItem(
-                        ark=target,
-                        id=target_ent.id_entitelrm if target_ent else None,
-                        label=_title_of(target_ent) if target_ent else target,
-                    )
-                )
-                coverage_arks.add(target)
-                if target_ent:
-                    coverage_ids.add(target_ent.id_entitelrm)
-            clusters.append(
-                AgentCluster(
-                    anchor_id=ent.id_entitelrm,
-                    anchor_ark=ent.ark(),
-                    anchor_label=_title_of(ent) or ent.id_entitelrm,
-                    items=items,
-                )
-            )
-            coverage_arks.add(ent.ark() or "")
-            coverage_ids.add(ent.id_entitelrm)
+            clusters.append(cluster)
+            if cluster.anchor_ark:
+                coverage_arks.add(cluster.anchor_ark)
+            coverage_ids.add(cluster.anchor_id)
+            for item in cluster.items:
+                coverage_arks.add(item.ark)
+                if item.id:
+                    coverage_ids.add(item.id)
 
         unclustered: List[AgentListRow] = []
         for ent in agents:
             ark = ent.ark()
-            if ent.id_entitelrm in coverage_ids or (ark and ark in coverage_arks):
+            if ent.id_entitelrm in coverage_ids:
+                continue
+            if ark and ark in coverage_arks:
                 continue
             unclustered.append(
                 AgentListRow(
@@ -860,13 +852,57 @@ class WorkspaceViewBuilder:
                     type_norm=_normalize_type(ent.type_entite),
                 )
             )
+
+        clusters.sort(key=lambda c: _sort_key(c.anchor_label or c.anchor_id))
         unclustered.sort(key=lambda r: _sort_key(r.label or r.id))
         return WorkspaceAgentsResponse(clusters=clusters, unclustered_agents=unclustered)
+
+    def _build_agent_cluster(self, agent: Entity) -> Optional[AgentCluster]:
+        norm = _normalize_type(agent.type_entite)
+        if norm not in {"personne", "collectivite", "famille"}:
+            return None
+
+        anchor_ark = agent.ark()
+        targets = _cluster_targets(agent)
+        seen: Set[str] = set()
+        items: List[AgentClusterItem] = []
+        for target, date, origin in targets:
+            if target in seen:
+                continue
+            seen.add(target)
+            target_ent = self.entity_by_ark.get(target)
+            if target_ent and _normalize_type(target_ent.type_entite) not in {"personne", "collectivite", "famille"}:
+                continue
+            items.append(
+                AgentClusterItem(
+                    ark=target,
+                    id=target_ent.id_entitelrm if target_ent else None,
+                    label=_title_of(target_ent) if target_ent else target,
+                    origin=origin,
+                    date=date,
+                    type_norm=_normalize_type(target_ent.type_entite) if target_ent else None,
+                    accepted=True,
+                )
+            )
+
+        if not items:
+            return None
+
+        return AgentCluster(
+            anchor_id=agent.id_entitelrm,
+            anchor_ark=anchor_ark,
+            anchor_label=_title_of(agent) or agent.id_entitelrm,
+            anchor_type_norm=norm,
+            items=items,
+        )
 
     # Public API ---------------------------------------------------------
     def workspace_works_payload(self) -> WorkspaceWorksResponse:
         clusters = self.build_work_clusters()
         return WorkspaceWorksResponse(clusters=clusters, unclustered_works=self.build_unclustered_work_rows(clusters))
+
+    def workspace_agents_payload(self) -> WorkspaceAgentsResponse:
+        return self.build_agent_views()
 
     def cluster_for_anchor(self, anchor_id_or_ark: str) -> Optional[WorkCluster]:
         clusters = self.build_work_clusters()
@@ -963,3 +999,21 @@ class WorkspaceViewBuilder:
 
         backlinks.sort(key=lambda item: (item.type_norm or "", item.title or item.id, item.id))
         return BacklinksPayload(target_id=target_id, target_ark=target_ark, backlinks=backlinks)
+
+
+class AgentViewBuilder:
+    """Thin wrapper exposing only the agent workspace payload."""
+
+    def __init__(self, workspace: WorkspaceViewBuilder):
+        self.workspace = workspace
+
+    @classmethod
+    def from_dataset(cls, dataset_id: str) -> "AgentViewBuilder":
+        return cls(WorkspaceViewBuilder.from_dataset(dataset_id))
+
+    @classmethod
+    def from_workspace(cls, workspace: WorkspaceViewBuilder) -> "AgentViewBuilder":
+        return cls(workspace)
+
+    def workspace_agents_payload(self) -> WorkspaceAgentsResponse:
+        return self.workspace.workspace_agents_payload()

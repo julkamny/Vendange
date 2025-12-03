@@ -87,3 +87,43 @@ export function ConfirmExpressionClusterModal({
     </div>
   )
 }
+
+export type ConfirmAgentClusterModalProps = {
+  source: RecordRow | null
+  anchor: RecordRow | null
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+export function ConfirmAgentClusterModal({ source, anchor, onConfirm, onCancel }: ConfirmAgentClusterModalProps) {
+  const { t } = useTranslation()
+  if (!source || !anchor) return null
+
+  const sourceLabel = titleOf(source) || source.id
+  const anchorLabel = titleOf(anchor) || anchor.id
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="modal">
+        <h3>{t('agents.cluster.confirmTitle', { defaultValue: 'Confirm clustering' })}</h3>
+        <p>
+          {t('agents.cluster.confirmBody', {
+            defaultValue: 'Attach “{{source}}” ({{sourceArk}}) to the cluster of “{{anchor}}” ({{anchorArk}})?',
+            source: sourceLabel,
+            anchor: anchorLabel,
+            sourceArk: source.ark ?? source.id,
+            anchorArk: anchor.ark ?? anchor.id,
+          })}
+        </p>
+        <div className="modal-actions">
+          <button type="button" onClick={onCancel}>
+            {t('buttons.cancel', { defaultValue: 'Annuler' })}
+          </button>
+          <button type="button" className="workspace-side-toolbar__button--primary" onClick={onConfirm}>
+            {t('buttons.confirm', { defaultValue: 'Confirmer' })}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -5,6 +5,7 @@ from typing import List, Optional, Sequence, Set
 
 from .db_ingest import _build_record_from_payload, _build_record_quads
 from .db_query import _load_record_from_store, _record_subjects
+from .db_shared import get_controlled_ark
 from .db_store import _STORE_LOCK, clear_record_graph, get_store_locked, load_ark_index
 from . import datasets
 from .anchor_swap import _clone_zone
@@ -73,6 +74,7 @@ def uproot_manifestation(
     target_expression_ark: Optional[str],
     detach_arks: Sequence[str],
     partial_ark: Optional[str],
+    partial_requested: bool = False,
 ) -> ManifestationUprootResult:
     with _STORE_LOCK:
         store = get_store_locked(dataset_id)
@@ -103,6 +105,10 @@ def uproot_manifestation(
 
         previous_expr_arks = set(_manifestation_expression_arks(manifestation))
         previous_work_arks = _work_arks_for_expression_arks(store, ark_index, previous_expr_arks)
+
+        wants_partial = partial_requested or bool(partial_ark)
+        if wants_partial and not partial_ark:
+            partial_ark = get_controlled_ark(store, "Partiellement") or "Partiellement"
 
         next_intermarc = _rewrite_manifestation_links(
             manifestation.intermarc, detach=detach_arks, target_ark=target_ark, partial_ark=partial_ark

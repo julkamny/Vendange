@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pyoxigraph import Literal, QuerySolutions, Store
 
-from .db_ingest import _build_record_from_payload, _build_record_quads, _extract_ark
+from .db_ingest import _extract_ark
 from .db_shared import (
     AFFECTED_BY_CURATION_PROP,
     FIELD_CODE_PROP,
@@ -12,8 +12,7 @@ from .db_shared import (
     SUBFIELD_VALUE_PROP,
     record_graph,
 )
-from .db_store import _STORE_LOCK, clear_record_graph, get_store_locked, load_ark_index
-from . import datasets
+from .db_store import load_ark_index
 from ..models import Intermarc
 from ..utils.text_norm import fold_diacritics
 
@@ -522,25 +521,3 @@ def _ensure_unique_expression_clusters(store: Store, anchor_id: str, intermarc: 
             raise ValueError(
                 f"Impossible d'enregistrer : l'expression {target} n'a pas le même parent 750$3 ou des parents déjà en cluster que l'ancre."
             )
-
-
-def update_record(dataset_id: str, record_id: str, *, type_raw: str, intermarc_json: str) -> None:
-    record = _build_record_from_payload(record_id, type_raw, intermarc_json)
-
-    with _STORE_LOCK:
-        store = get_store_locked(dataset_id)
-        if _is_agent_type(record.type_raw):
-            _ensure_unique_manual_agent_clusters(store, record.id, record.intermarc)
-        if _is_work_type(record.type_raw):
-            _ensure_unique_work_clusters(store, record.id, record.intermarc)
-        if _is_expression_type(record.type_raw):
-            _ensure_unique_expression_clusters(store, record.id, record.intermarc)
-        ark_index = load_ark_index(store)
-        if record.ark:
-            ark_index[record.ark] = record.id
-        clear_record_graph(store, record.id)
-        quads = list(_build_record_quads(record, ark_index))
-        if quads:
-            store.extend(quads)
-        store.flush()
-    datasets.touch_dataset(dataset_id)

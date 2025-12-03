@@ -76,6 +76,7 @@ class ManifestationUprootPayload(BaseModel):
     target_expression_ark: Optional[str] = Field(None, alias="targetExpressionArk")
     detach_arks: List[str] = Field(default_factory=list, alias="detachArks")
     partial_ark: Optional[str] = Field(None, alias="partialArk")
+    partial: Optional[bool] = Field(False, alias="partial")
 
 
 @contextlib.asynccontextmanager
@@ -425,14 +426,34 @@ def delete_dataset(dataset_id: str) -> None:
 
 
 @app.post("/api/datasets/{dataset_id}/update_record")
-async def update_record(dataset_id: str, payload: UpdateRecordPayload) -> dict[str, str]:
+async def update_record(dataset_id: str, payload: UpdateRecordPayload) -> dict[str, object]:
     _ensure_dataset(dataset_id)
     try:
-        db.update_record(dataset_id, payload.record_id, type_raw=payload.type_raw, intermarc_json=payload.intermarc_json)
+        updated = db.update_record(dataset_id, payload.record_id, type_raw=payload.type_raw, intermarc_json=payload.intermarc_json)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    _invalidate_workspace_cache(dataset_id)
-    return {"status": "ok"}
+    builder = _apply_workspace_updates(dataset_id, updated) or _get_workspace_builder(dataset_id)
+    clusters = builder.build_work_clusters()
+    affected_arks = {rec.get("ark") for rec in updated if rec.get("ark")}
+    updated_clusters = [
+        cluster
+        for cluster in clusters
+        if (cluster.anchor_ark and cluster.anchor_ark in affected_arks)
+        or any(item.ark in affected_arks for item in cluster.items)
+    ]
+    updated_work_rows = []
+    for ark in affected_arks:
+        if not ark:
+            continue
+        row = builder.work_row_for_ark(ark)
+        if row:
+            updated_work_rows.append(row)
+    return {
+        "updatedRecords": updated,
+        "updatedClusters": updated_clusters,
+        "removedClusterIds": [],
+        "updatedWorkRows": updated_work_rows,
+    }
 
 
 @app.post("/api/datasets/{dataset_id}/swap_anchor")
@@ -572,6 +593,7 @@ def uproot_manifestation_endpoint(dataset_id: str, payload: ManifestationUprootP
             target_expression_ark=payload.target_expression_ark,
             detach_arks=payload.detach_arks,
             partial_ark=payload.partial_ark,
+            partial_requested=bool(payload.partial or payload.partial_ark),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

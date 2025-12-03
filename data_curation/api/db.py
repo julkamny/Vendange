@@ -22,7 +22,7 @@ from .db_ingest import ingest_csv
 from .anchor_swap import swap_cluster_anchor
 from .originality_swap import swap_work_originality
 from .manual_cluster import update_manual_cluster
-from .db_guards import update_record
+from .record_update import update_record
 from .db_query import compact_dataset, dataset_stats, load_entities, load_records, run_sparql_query
 
 __all__ = [

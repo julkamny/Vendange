@@ -12,39 +12,18 @@ if str(ROOT) not in sys.path:
 from data_curation.api import db, datasets
 from data_curation.api.db_shared import get_controlled_ark
 from data_curation.api.db_store import get_store_locked
+from data_curation.api.manifestation_uproot import uproot_manifestation
+import pytest
 
 from .utils import (
     _expression_intermarc,
     _manifestation_intermarc,
     _records_to_csv_bytes,
     _work_intermarc,
+    controlled_value_intermarc,
     create_intermarc_json,
     create_zone,
 )
-
-
-def _rewrite_manifestation_links(intermarc_json: str, *, remove: list[str], add: str, partial_ark: str | None = None) -> str:
-    payload = json.loads(intermarc_json)
-    next_zones = []
-    for zone in payload.get("zones", []):
-        if zone.get("code") != "740":
-            next_zones.append(zone)
-            continue
-        remaining = [
-            sz
-            for sz in zone.get("sousZones", [])
-            if not (sz.get("code") == "740$3" and sz.get("valeur") in remove)
-        ]
-        if remaining:
-            next_zones.append({**zone, "sousZones": remaining})
-    new_zone = {
-        "code": "740",
-        "sousZones": [{"code": "740$3", "valeur": add}],
-    }
-    if partial_ark:
-        new_zone["sousZones"].append({"code": "740$q", "valeur": partial_ark})
-    next_zones.append(new_zone)
-    return json.dumps({"zones": next_zones}, ensure_ascii=False)
 
 
 def test_manifestation_uproot_and_attach_updates_740_links():
@@ -83,11 +62,15 @@ def test_manifestation_uproot_and_attach_updates_740_links():
     partial_ark = get_controlled_ark(store, "Partiellement")
     assert partial_ark, "Expected controlled value for 'Partiellement'"
 
-    current = next(rec for rec in db.load_records(dataset_id) if rec["id"] == "m1")
-    rewritten = _rewrite_manifestation_links(
-        current["intermarc"], remove=["ark:/e1", "ark:/e2"], add="ark:/e3", partial_ark=partial_ark
+    uproot_manifestation(
+        dataset_id,
+        manifestation_id="m1",
+        target_expression_id=None,
+        target_expression_ark="ark:/e3",
+        detach_arks=["ark:/e1", "ark:/e2"],
+        partial_ark=None,
+        partial_requested=True,
     )
-    db.update_record(dataset_id, "m1", type_raw="Manifestation", intermarc_json=rewritten)
 
     stored = json.loads(next(rec for rec in db.load_records(dataset_id) if rec["id"] == "m1")["intermarc"])
     targets = [
@@ -106,3 +89,61 @@ def test_manifestation_uproot_and_attach_updates_740_links():
         for sz in zone.get("sousZones", [])
     )
     assert has_partial
+
+
+def test_update_record_rejects_740_removal():
+    dataset_id = f"manifestation-uproot-{uuid4().hex[:8]}"
+    datasets.ensure_dataset(dataset_id, title="manifestation uproot rejection")
+
+    rows = [
+        {"id": "w1", "type": "Oeuvre", "intermarc": _work_intermarc("ark:/w1", "Work One")},
+        {"id": "e1", "type": "Expression", "intermarc": _expression_intermarc("ark:/e1", "ark:/w1")},
+        {"id": "m1", "type": "Manifestation", "intermarc": _manifestation_intermarc("ark:/m1", "ark:/e1", "M1")},
+    ]
+    db.ingest_csv(_records_to_csv_bytes(rows), dataset_id)
+
+    payload = create_intermarc_json(
+        [
+            create_zone("001", [("a", "ark:/m1", None)]),
+            create_zone("245", [("a", "M1", None)]),
+        ]
+    )
+    # drop 740 to simulate removal
+    with pytest.raises(ValueError):
+        db.update_record(dataset_id, "m1", type_raw="Manifestation", intermarc_json=payload)
+
+
+def test_update_record_adds_740_and_keeps_existing_links():
+    dataset_id = f"manifestation-uproot-{uuid4().hex[:8]}"
+    datasets.ensure_dataset(dataset_id, title="manifestation uproot addition")
+
+    rows = [
+        {"id": "w1", "type": "Oeuvre", "intermarc": _work_intermarc("ark:/w1", "Work One")},
+        {"id": "w2", "type": "Oeuvre", "intermarc": _work_intermarc("ark:/w2", "Work Two")},
+        {"id": "e1", "type": "Expression", "intermarc": _expression_intermarc("ark:/e1", "ark:/w1")},
+        {"id": "e2", "type": "Expression", "intermarc": _expression_intermarc("ark:/e2", "ark:/w2")},
+        {"id": "m1", "type": "Manifestation", "intermarc": _manifestation_intermarc("ark:/m1", "ark:/e1", "M1")},
+        {
+            "id": "cv-partial",
+            "type": "Valeur contrôlée",
+            "intermarc": controlled_value_intermarc("ark:/cv/partiellement", "Partiellement"),
+        },
+    ]
+    db.ingest_csv(_records_to_csv_bytes(rows), dataset_id)
+
+    store = get_store_locked(dataset_id)
+    partial_ark = get_controlled_ark(store, "Partiellement") or "Partiellement"
+
+    payload_zones = [
+        create_zone("001", [("a", "ark:/m1", None)]),
+        create_zone("245", [("a", "M1", None)]),
+        create_zone("740", [("3", "ark:/e1", None)]),
+        create_zone("740", [("3", "ark:/e2", None), ("q", "placeholder", None)]),
+    ]
+    payload = create_intermarc_json(payload_zones)
+    db.update_record(dataset_id, "m1", type_raw="Manifestation", intermarc_json=payload)
+
+    stored = next(rec for rec in db.load_records(dataset_id) if rec["id"] == "m1")
+    assert "ark:/e1" in stored["intermarc"]
+    assert "ark:/e2" in stored["intermarc"]
+    assert partial_ark in stored["intermarc"]

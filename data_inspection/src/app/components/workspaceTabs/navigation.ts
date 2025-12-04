@@ -1,5 +1,5 @@
-import type { AgentTabState, WorkspaceTabState, WorkspaceTabStateWorkspace } from '../workspace/types'
-import { isAgentTab } from '../workspace/types'
+import type { AgentTabState, WorkspaceTabState, WorkspaceTabStateWorkspace } from '../../workspace/types'
+import { isAgentTab } from '../../workspace/types'
 
 type NavigationDirection = 'up' | 'down'
 
@@ -50,7 +50,7 @@ export function navigateAgentList(
   rootDocument: Document,
 ) {
   if (typeof document === 'undefined') return
-  const panel = rootDocument.querySelector('.work-list-panel')
+  const panel = rootDocument.querySelector(`.workspace-tab-panel[data-tab-id="${state.id}"] .work-list-panel`)
   if (!panel) return
   const rows = Array.from(panel.querySelectorAll<HTMLElement>('.entity-row'))
   if (!rows.length) return
@@ -83,7 +83,7 @@ export function navigateWorkList(
   rootDocument: Document,
 ) {
   if (typeof document === 'undefined') return
-  const panel = rootDocument.querySelector('.work-list-panel')
+  const panel = rootDocument.querySelector(`.workspace-tab-panel[data-tab-id="${state.id}"] .work-list-panel`)
   if (!panel) return
   const rows = Array.from(panel.querySelectorAll<HTMLElement>('.entity-row--work'))
   if (!rows.length) return
@@ -127,7 +127,9 @@ export function navigateExpressionList(
   rootDocument: Document,
 ) {
   if (typeof document === 'undefined') return
-  const panel = rootDocument.querySelector('.expression-groups')
+  const panel = rootDocument.querySelector(
+    `.workspace-tab-panel[data-tab-id="${state.id}"] .expression-groups`,
+  )
   if (!panel) return
   const rows = Array.from(panel.querySelectorAll<HTMLElement>('.entity-row--expression'))
   if (!rows.length) return
@@ -173,7 +175,9 @@ export function navigateManifestationList(
   rootDocument: Document,
 ) {
   if (typeof document === 'undefined') return
-  const panel = rootDocument.querySelector('.manifestation-panel')
+  const panel = rootDocument.querySelector(
+    `.workspace-tab-panel[data-tab-id="${state.id}"] .manifestation-panel`,
+  )
   if (!panel) return
   const rows = Array.from(panel.querySelectorAll<HTMLElement>('.entity-row--manifestation'))
   if (!rows.length) return

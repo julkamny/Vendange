@@ -7,7 +7,7 @@ import {
   type AgentTabState,
   type WorkspaceTabState,
   type WorkspaceTabStateWorkspace,
-} from '../workspace/types'
+} from '../../workspace/types'
 import type { RecordRow } from '../../types'
 import type { useWorkspaceData } from '../../workspace/useWorkspaceData'
 import { navigateAgentList, navigateList } from './navigation'

@@ -1,13 +1,8 @@
 import { useCallback, useMemo, useState } from 'react'
 import { WorkspaceView } from './WorkspaceView'
 import { SparqlWorkspaceView } from './SparqlWorkspaceView'
-import type { WorkspaceTabState, WorkspaceTabStateWorkspace, AgentTabState } from './workspace/types'
-import {
-  createDefaultSparqlState,
-  isSparqlTab,
-  isWorkspaceTab,
-  isAgentTab,
-} from './workspace/types'
+import type { WorkspaceTabState, WorkspaceTabStateWorkspace, AgentTabState } from '../workspace/types'
+import { createDefaultSparqlState, isSparqlTab, isWorkspaceTab, isAgentTab } from '../workspace/types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useShortcuts } from '../providers'
 import { useWorkspaceData } from '../workspace/useWorkspaceData'
@@ -329,6 +324,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
               hidden={!isActive}
               aria-hidden={!isActive}
               className="workspace-tab-panel"
+              data-tab-id={tab.id}
             >
               {isWorkspaceTab(tab) ? (
                 tab.mode === 'detached' ? (

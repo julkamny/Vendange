@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { WorkspaceView } from '../WorkspaceView'
-import type { AgentTabState, WorkspaceTabStateWorkspace } from '../workspace/types'
+import type { AgentTabState, WorkspaceTabStateWorkspace } from '../../workspace/types'
 
 type DetachedWorkspacePortalProps = {
   tab: WorkspaceTabStateWorkspace

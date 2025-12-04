@@ -1,5 +1,5 @@
-import type { AgentTabState, WorkspaceTabStateWorkspace } from '../workspace/types'
-import { DEFAULT_AGENT_STATE, DEFAULT_WORKSPACE_STATE } from '../workspace/types'
+import type { AgentTabState, WorkspaceTabStateWorkspace } from '../../workspace/types'
+import { DEFAULT_AGENT_STATE, DEFAULT_WORKSPACE_STATE } from '../../workspace/types'
 
 let tabSequence = 0
 

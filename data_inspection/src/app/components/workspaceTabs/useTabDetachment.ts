@@ -1,6 +1,6 @@
 import { useCallback, type Dispatch, type SetStateAction } from 'react'
-import type { AgentTabState, WorkspaceTabState, WorkspaceTabStateWorkspace } from '../workspace/types'
-import { isAgentTab, isWorkspaceTab } from '../workspace/types'
+import type { AgentTabState, WorkspaceTabState, WorkspaceTabStateWorkspace } from '../../workspace/types'
+import { isAgentTab, isWorkspaceTab } from '../../workspace/types'
 import { createAgentTab, createWorkspaceTab } from './tabFactories'
 
 type UseTabDetachmentParams = {

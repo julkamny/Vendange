@@ -10,7 +10,7 @@ from .db_store import _STORE_LOCK, clear_record_graph, get_store_locked, load_ar
 from . import datasets
 from .anchor_swap import _clone_zone
 from ..models import Entity, Intermarc, SousZone, Zone
-from data_curation.curation.cluster_views import _expression_work_arks, _manifestation_expression_arks
+from data_curation.api.cluster_views import _expression_work_arks, _manifestation_expression_arks
 
 
 @dataclass

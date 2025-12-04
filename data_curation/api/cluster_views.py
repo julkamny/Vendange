@@ -27,8 +27,15 @@ from data_curation.api.schemas import (
     WorkspaceAgentsResponse,
     WorkspaceWorksResponse,
 )
-from data_curation.curation.backlinks import build_backlink_index, normalize_ark_value
-from data_curation.curation.ark_labels import build_ark_label_map
+from data_curation.api.backlinks import build_backlink_index, normalize_ark_value
+from data_curation.api.ark_labels import build_ark_label_map
+from data_curation.api.entity_labels import (
+    agent_primary_label,
+    extract_controlled_value_label,
+    manifestation_title,
+    normalize_type,
+    title_of,
+)
 from data_curation.models import Entity
 
 CLUSTER_SCRIPT_NOTE = "Clusterisation script"
@@ -83,23 +90,6 @@ AGGREGATE_LABEL_NORM = "agregat editorial"
 AGGREGATE_KIND = MediaKind(kind_code=AGGREGATE_LABEL_NORM, emoji="🧺", label="Agrégat éditorial")
 
 
-def _normalize_type(value: str) -> str:
-    norm = (value or "").strip().lower()
-    if norm in {"œuvre", "oeuvre", "work"}:
-        return "oeuvre"
-    if norm.startswith("expression"):
-        return "expression"
-    if norm.startswith("manifestation"):
-        return "manifestation"
-    if norm in {"personne", "identité publique de personne", "identite publique de personne"}:
-        return "personne"
-    if norm in {"collectivite", "collectivité", "collective"}:
-        return "collectivite"
-    if "famille" in norm:
-        return "famille"
-    return norm or value
-
-
 def _agent_zone_code(norm_type: str) -> Optional[str]:
     if norm_type == "personne":
         return "100"
@@ -111,7 +101,7 @@ def _agent_zone_code(norm_type: str) -> Optional[str]:
 
 
 def _agent_title_segments(entity: Entity) -> List[TitleSegment]:
-    norm = _normalize_type(entity.type_entite)
+    norm = normalize_type(entity.type_entite)
     zone_code = _agent_zone_code(norm)
     if not zone_code:
         return []
@@ -137,38 +127,15 @@ def _agent_title_segments(entity: Entity) -> List[TitleSegment]:
     return segments
 
 
-def _agent_primary_label(entity: Entity) -> str:
-    segments = _agent_title_segments(entity)
-    if segments:
-        return " ".join(seg.value for seg in segments if seg.value)
-    return _title_of(entity) or entity.id_entitelrm
-
-
 def _agent_sort_value(entity: Entity) -> str:
-    norm = _normalize_type(entity.type_entite)
+    norm = normalize_type(entity.type_entite)
     zone_code = _agent_zone_code(norm)
     if zone_code:
         for zone in entity.intermarc.get_zone(zone_code):
             for sub in zone.sousZones:
                 if sub.code == f"{zone_code}$a" and isinstance(sub.valeur, str) and sub.valeur.strip():
                     return _strip_pipes(sub.valeur)
-    return _agent_primary_label(entity)
-
-
-def _zone_text(entity: Entity, zone_code: str) -> Optional[str]:
-    for zone in entity.intermarc.get_zone(zone_code):
-        parts = [sub.valeur.strip() for sub in zone.sousZones if isinstance(sub.valeur, str) and sub.valeur.strip()]
-        if parts:
-            return " ".join(parts)
-    return None
-
-
-def _title_of(entity: Entity) -> Optional[str]:
-    return _zone_text(entity, "150")
-
-
-def _manifestation_title(entity: Entity) -> Optional[str]:
-    return _zone_text(entity, "245")
+    return agent_primary_label(entity)
 
 
 def _expression_work_arks(expr: Entity) -> List[str]:
@@ -214,21 +181,11 @@ def _normalize_label(text: str) -> str:
     return normalized
 
 
-def _extract_controlled_value_label(entity: Optional[Entity]) -> Optional[str]:
-    if not entity:
-        return None
-    for zone in entity.intermarc.get_zone("169"):
-        label = next((sub.valeur for sub in zone.sousZones if sub.code == "169$a"), None)
-        if label and isinstance(label, str) and label.strip():
-            return label.strip()
-    return None
-
-
 def _media_kinds(entity: Entity, lookup_by_ark: Dict[str, Entity]) -> List[MediaKind]:
     kinds: List[MediaKind] = []
 
     def _record_label(ark: str) -> Optional[str]:
-        return _extract_controlled_value_label(lookup_by_ark.get(ark))
+        return extract_controlled_value_label(lookup_by_ark.get(ark))
 
     def _append_from_label(label: str) -> None:
         norm = _normalize_label(label)
@@ -321,7 +278,7 @@ class WorkspaceViewBuilder:
         self.entities = list(entities)
         self.entity_by_id: Dict[str, Entity] = {e.id_entitelrm: e for e in entities}
         self.entity_by_ark: Dict[str, Entity] = {ark: e for e in entities if (ark := e.ark())}
-        self.type_by_id: Dict[str, str] = {e.id_entitelrm: _normalize_type(e.type_entite) for e in entities}
+        self.type_by_id: Dict[str, str] = {e.id_entitelrm: normalize_type(e.type_entite) for e in entities}
 
         self.clustered_agent_arks: Set[str] = set()
 
@@ -357,7 +314,7 @@ class WorkspaceViewBuilder:
             existing = self.entity_by_id.get(entity.id_entitelrm)
             if existing:
                 work_arks_to_refresh.update(self._work_arks_for_entity(existing))
-                expr_ark = existing.ark() if _normalize_type(existing.type_entite) == "expression" else None
+                expr_ark = existing.ark() if normalize_type(existing.type_entite) == "expression" else None
                 if expr_ark:
                     expr_arks_to_refresh.add(expr_ark)
                 self._prune_entity_indexes(existing)
@@ -366,7 +323,7 @@ class WorkspaceViewBuilder:
                 self.entities.append(entity)
 
             work_arks_to_refresh.update(self._work_arks_for_entity(entity))
-            expr_ark = entity.ark() if _normalize_type(entity.type_entite) == "expression" else None
+            expr_ark = entity.ark() if normalize_type(entity.type_entite) == "expression" else None
             if expr_ark:
                 expr_arks_to_refresh.add(expr_ark)
 
@@ -395,7 +352,7 @@ class WorkspaceViewBuilder:
         return set(_expression_work_arks(expr))
 
     def _work_arks_for_entity(self, entity: Entity) -> Set[str]:
-        norm = _normalize_type(entity.type_entite)
+        norm = normalize_type(entity.type_entite)
         if norm == "oeuvre":
             return {entity.ark()} if entity.ark() else set()
         if norm == "expression":
@@ -420,7 +377,7 @@ class WorkspaceViewBuilder:
         self.work_counts[work_ark] = CountStats(expressions=len(exprs), manifestations=manifests)
 
     def _collect_relationship_targets(self, entity: Entity) -> Set[str]:
-        norm = _normalize_type(entity.type_entite)
+        norm = normalize_type(entity.type_entite)
         zone_codes = GENERAL_RELATIONSHIP_CODES.get(norm, ())
         targets: Set[str] = set()
         for code in zone_codes:
@@ -433,7 +390,7 @@ class WorkspaceViewBuilder:
     def _prune_entity_indexes(self, entity: Entity) -> None:
         entity_id = entity.id_entitelrm
         entity_ark = entity.ark()
-        norm = _normalize_type(entity.type_entite)
+        norm = normalize_type(entity.type_entite)
 
         self.entity_by_id.pop(entity_id, None)
         self.type_by_id.pop(entity_id, None)
@@ -491,7 +448,7 @@ class WorkspaceViewBuilder:
     def _index_entity(self, entity: Entity) -> None:
         entity_id = entity.id_entitelrm
         entity_ark = entity.ark()
-        norm = _normalize_type(entity.type_entite)
+        norm = normalize_type(entity.type_entite)
 
         self.entity_by_id[entity_id] = entity
         self.type_by_id[entity_id] = norm
@@ -505,7 +462,7 @@ class WorkspaceViewBuilder:
         if norm == "oeuvre":
             if entity_ark:
                 self.work_id_by_ark[entity_ark] = entity_id
-                title = _title_of(entity)
+                title = title_of(entity)
                 if title:
                     self.work_title_by_ark[entity_ark] = title
             for zone in entity.intermarc.get_zone("90F"):
@@ -545,14 +502,14 @@ class WorkspaceViewBuilder:
     # Index building -----------------------------------------------------
     def _build_indices(self) -> None:
         for ent in self.entities:
-            norm = _normalize_type(ent.type_entite)
+            norm = normalize_type(ent.type_entite)
             ark = ent.ark()
             if norm in {"personne", "collectivite", "famille"}:
                 for target, _, _ in _cluster_targets(ent):
                     self.clustered_agent_arks.add(str(target))
             if norm == "oeuvre" and ark:
                 self.work_id_by_ark[ark] = ent.id_entitelrm
-                title = _title_of(ent)
+                title = title_of(ent)
                 if title:
                     self.work_title_by_ark[ark] = title
                 for zone in ent.intermarc.get_zone("90F"):
@@ -579,7 +536,7 @@ class WorkspaceViewBuilder:
             ark = ent.ark()
             if not ark:
                 continue
-            norm = _normalize_type(ent.type_entite)
+            norm = normalize_type(ent.type_entite)
             zone_codes = GENERAL_RELATIONSHIP_CODES.get(norm, ())
             for code in zone_codes:
                 for zone in ent.intermarc.get_zone(code):
@@ -626,7 +583,7 @@ class WorkspaceViewBuilder:
                 ManifestationItemView(
                     id=man.id_entitelrm,
                     ark=man_ark or man.id_entitelrm,
-                    title=_manifestation_title(man) or man.id_entitelrm,
+                    title=manifestation_title(man) or man.id_entitelrm,
                     expression_ark=expression_ark,
                     expression_id=expression_id,
                     original_expression_ark=expression_ark,
@@ -646,7 +603,7 @@ class WorkspaceViewBuilder:
         return ExpressionItemView(
             id=expr.id_entitelrm,
             ark=expr_ark or expr.id_entitelrm,
-            title=_title_of(expr) or expr.id_entitelrm,
+            title=title_of(expr) or expr.id_entitelrm,
             work_ark=work_ark,
             work_id=work_id,
             manifestations=manifestations,
@@ -657,7 +614,7 @@ class WorkspaceViewBuilder:
     def _build_work_cluster(self, work: Entity, *, include_empty: bool = False) -> Optional[WorkCluster]:
         work_ark = work.ark() or ""
         anchor_segments = _work_title_segments(work, self.entity_by_ark)
-        anchor_title = " ".join(seg["value"] for seg in anchor_segments) or _title_of(work) or work.id_entitelrm
+        anchor_title = " ".join(seg["value"] for seg in anchor_segments) or title_of(work) or work.id_entitelrm
         cluster_items: List[WorkClusterItem] = []
         seen_targets: Set[str] = set()
         for zone in work.intermarc.get_zone("90F"):
@@ -675,7 +632,7 @@ class WorkspaceViewBuilder:
             target_ent = self.entity_by_ark.get(str(target))
             summary = self._summary_for_ark(str(target), counts=self.work_counts.get(str(target), CountStats()))
             segments = _work_title_segments(target_ent, self.entity_by_ark) if target_ent else []
-            item_title = " ".join(seg["value"] for seg in segments) if segments else (_title_of(target_ent) if target_ent else str(target))
+            item_title = " ".join(seg["value"] for seg in segments) if segments else (title_of(target_ent) if target_ent else str(target))
             cluster_items.append(
                 WorkClusterItem(
                     ark=str(target),
@@ -783,7 +740,7 @@ class WorkspaceViewBuilder:
     def build_work_clusters(self) -> List[WorkCluster]:
         clusters: List[WorkCluster] = []
         for ent in self.entities:
-            if _normalize_type(ent.type_entite) != "oeuvre":
+            if normalize_type(ent.type_entite) != "oeuvre":
                 continue
             cluster = self._build_work_cluster(ent)
             if cluster:
@@ -831,7 +788,7 @@ class WorkspaceViewBuilder:
         coverage = self._compute_coverage(clusters)
         rows: List[WorkListRow] = []
         for ent in self.entities:
-            if _normalize_type(ent.type_entite) != "oeuvre":
+            if normalize_type(ent.type_entite) != "oeuvre":
                 continue
             if ent.id_entitelrm in coverage["work_ids"]:
                 continue
@@ -840,7 +797,7 @@ class WorkspaceViewBuilder:
                 continue
             counts = self.work_counts.get(ark or "", CountStats())
             segments = _work_title_segments(ent, self.entity_by_ark)
-            title_value = " ".join(seg["value"] for seg in segments) if segments else _title_of(ent)
+            title_value = " ".join(seg["value"] for seg in segments) if segments else title_of(ent)
             row = WorkListRow(
                 id=ent.id_entitelrm,
                 ark=ark,
@@ -859,13 +816,13 @@ class WorkspaceViewBuilder:
 
     def work_row_for_ark(self, ark: str) -> Optional[WorkListRow]:
         entity = self.entity_by_ark.get(ark)
-        if not entity or _normalize_type(entity.type_entite) != "oeuvre":
+        if not entity or normalize_type(entity.type_entite) != "oeuvre":
             return None
         counts = self.work_counts.get(ark, CountStats())
         return WorkListRow(
             id=entity.id_entitelrm,
             ark=ark,
-            title=_title_of(entity) or entity.id_entitelrm,
+            title=title_of(entity) or entity.id_entitelrm,
             type_norm="oeuvre",
             summary=self._summary_for_ark(ark, counts=counts),
         )
@@ -873,7 +830,7 @@ class WorkspaceViewBuilder:
     # Agent views --------------------------------------------------------
     def build_agent_views(self) -> WorkspaceAgentsResponse:
         agents: List[Entity] = [
-            e for e in self.entities if _normalize_type(e.type_entite) in {"personne", "collectivite", "famille"}
+            e for e in self.entities if normalize_type(e.type_entite) in {"personne", "collectivite", "famille"}
         ]
         clusters: List[AgentCluster] = []
         coverage_arks: Set[str] = set()
@@ -905,8 +862,8 @@ class WorkspaceViewBuilder:
                 AgentListRow(
                     id=ent.id_entitelrm,
                     ark=ark,
-                    label=_agent_primary_label(ent),
-                    type_norm=_normalize_type(ent.type_entite),
+                    label=agent_primary_label(ent),
+                    type_norm=normalize_type(ent.type_entite),
                     title_segments=segments,
                     sort_key=_sort_key(sort_val),
                 )
@@ -917,7 +874,7 @@ class WorkspaceViewBuilder:
         return WorkspaceAgentsResponse(clusters=clusters, unclustered_agents=unclustered)
 
     def _build_agent_cluster(self, agent: Entity) -> Optional[AgentCluster]:
-        norm = _normalize_type(agent.type_entite)
+        norm = normalize_type(agent.type_entite)
         if norm not in {"personne", "collectivite", "famille"}:
             return None
 
@@ -932,17 +889,17 @@ class WorkspaceViewBuilder:
                 continue
             seen.add(target)
             target_ent = self.entity_by_ark.get(target)
-            if target_ent and _normalize_type(target_ent.type_entite) not in {"personne", "collectivite", "famille"}:
+            if target_ent and normalize_type(target_ent.type_entite) not in {"personne", "collectivite", "famille"}:
                 continue
             target_segments = _agent_title_segments(target_ent) if target_ent else []
             items.append(
                 AgentClusterItem(
                     ark=target,
                     id=target_ent.id_entitelrm if target_ent else None,
-                    label=_agent_primary_label(target_ent) if target_ent else target,
+                    label=agent_primary_label(target_ent) if target_ent else target,
                     origin=origin,
                     date=date,
-                    type_norm=_normalize_type(target_ent.type_entite) if target_ent else None,
+                    type_norm=normalize_type(target_ent.type_entite) if target_ent else None,
                     accepted=True,
                     title_segments=target_segments,
                     sort_key=_sort_key(_agent_sort_value(target_ent)) if target_ent else _sort_key(target),
@@ -957,7 +914,7 @@ class WorkspaceViewBuilder:
         return AgentCluster(
             anchor_id=agent.id_entitelrm,
             anchor_ark=anchor_ark,
-            anchor_label=_agent_primary_label(agent),
+            anchor_label=agent_primary_label(agent),
             anchor_type_norm=norm,
             anchor_title_segments=anchor_segments,
             sort_key=anchor_sort_key,
@@ -998,7 +955,7 @@ class WorkspaceViewBuilder:
 
         # Fallback: return a minimal cluster for independent works (neither anchor nor clustered).
         candidate = self.entity_by_id.get(anchor_id_or_ark) or self.entity_by_ark.get(anchor_id_or_ark)
-        if candidate and _normalize_type(candidate.type_entite) == "oeuvre":
+        if candidate and normalize_type(candidate.type_entite) == "oeuvre":
             return self._build_work_cluster(candidate, include_empty=True)
         return None
 
@@ -1019,17 +976,17 @@ class WorkspaceViewBuilder:
         )
 
     def _backlink_view_for(self, entity: Entity, fields: Set[str]) -> BacklinkItem:
-        norm = _normalize_type(entity.type_entite)
+        norm = normalize_type(entity.type_entite)
         title_segments: List[TitleSegment] = []
         if norm == "oeuvre":
             title_segments = _work_title_segments(entity, self.entity_by_ark)
             title_value = (
-                " ".join(seg["value"] for seg in title_segments) or _title_of(entity) or entity.id_entitelrm
+                " ".join(seg["value"] for seg in title_segments) or title_of(entity) or entity.id_entitelrm
             )
         elif norm == "manifestation":
-            title_value = _manifestation_title(entity) or entity.id_entitelrm
+            title_value = manifestation_title(entity) or entity.id_entitelrm
         else:
-            title_value = _title_of(entity) or entity.id_entitelrm
+            title_value = title_of(entity) or entity.id_entitelrm
 
         return BacklinkItem(
             id=entity.id_entitelrm,

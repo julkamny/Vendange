@@ -7,7 +7,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from data_curation.api import db, datasets  # noqa: E402
-from data_curation.curation.cluster_views import WorkspaceViewBuilder  # noqa: E402
+from data_curation.api.cluster_views import WorkspaceViewBuilder  # noqa: E402
 from tests.backend.utils import (  # noqa: E402
     EXPRESSIONS,
     MANIFESTATIONS,

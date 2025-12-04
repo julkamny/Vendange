@@ -10,71 +10,17 @@ from typing import Dict, Iterable, List, Optional, Sequence, Set
 
 from data_curation.models import Entity
 from data_curation.api.db_shared import fold_diacritics
+from data_curation.api.entity_labels import (
+    agent_primary_label,
+    extract_controlled_value_label,
+    manifestation_title,
+    normalize_type,
+    title_of,
+)
 
 DATA_DIR = Path(__file__).parent
 COMPLETION_LIMIT = 40
 EXCLUDED_AUTOCOMPLETE_TYPES = {"oeuvre", "expression", "manifestation"}
-
-
-# --- Lightweight label helpers (duplicated to avoid import cycles) ----------------
-
-
-def _normalize_type(value: str) -> str:
-    norm = fold_diacritics((value or "").strip()).lower()
-    if norm in {"œuvre", "oeuvre", "work"}:
-        return "oeuvre"
-    if norm.startswith("expression"):
-        return "expression"
-    if norm.startswith("manifestation"):
-        return "manifestation"
-    if norm in {"personne", "identité publique de personne", "identite publique de personne"}:
-        return "personne"
-    if norm in {"collectivite", "collectivité", "collective"}:
-        return "collectivite"
-    if "famille" in norm:
-        return "famille"
-    if "valeur controlee" in norm or "valeur contrôlée" in norm:
-        return "valeur controlee"
-    return norm or value
-
-
-def _zone_text(entity: Entity, zone_code: str) -> Optional[str]:
-    for zone in entity.intermarc.get_zone(zone_code):
-        parts = [sub.valeur.strip() for sub in zone.sousZones if isinstance(sub.valeur, str) and sub.valeur.strip()]
-        if parts:
-            return " ".join(parts)
-    return None
-
-
-def _title_of(entity: Entity) -> Optional[str]:
-    return _zone_text(entity, "150")
-
-
-def _manifestation_title(entity: Entity) -> Optional[str]:
-    return _zone_text(entity, "245")
-
-
-def _agent_primary_label(entity: Entity) -> str:
-    segments: List[str] = []
-    for zone in entity.intermarc.get_zone("150"):
-        for sub in zone.sousZones:
-            if sub.code in {"150$a", "150$m", "150$e"} and isinstance(sub.valeur, str):
-                value = sub.valeur.strip()
-                if value:
-                    segments.append(value)
-    if segments:
-        return " ".join(segments)
-    return _title_of(entity) or entity.id_entitelrm
-
-
-def _extract_controlled_value_label(entity: Optional[Entity]) -> Optional[str]:
-    if not entity:
-        return None
-    for zone in entity.intermarc.get_zone("169"):
-        label = next((sub.valeur for sub in zone.sousZones if sub.code == "169$a"), None)
-        if label and isinstance(label, str) and label.strip():
-            return label.strip()
-    return None
 
 
 @lru_cache
@@ -205,14 +151,14 @@ def _infer_kind(type_raw: str) -> str:
 
 
 def _display_label(entity: Entity) -> Optional[str]:
-    norm = _normalize_type(entity.type_entite)
+    norm = normalize_type(entity.type_entite)
     if norm in {"personne", "collectivite", "famille"}:
-        return _agent_primary_label(entity)
+        return agent_primary_label(entity)
     if norm == "manifestation":
-        return _manifestation_title(entity)
+        return manifestation_title(entity)
     if norm == "valeur controlee":
-        return _extract_controlled_value_label(entity)
-    return _title_of(entity)
+        return extract_controlled_value_label(entity)
+    return title_of(entity)
 
 
 @dataclass
@@ -239,7 +185,7 @@ def _build_suggestion_index(entities: Sequence[Entity]) -> List[AutocompleteSugg
         ark = (ent.ark() or "").strip()
         if not ark or ark in seen:
             continue
-        norm_type = _normalize_type(ent.type_entite)
+        norm_type = normalize_type(ent.type_entite)
         if norm_type in EXCLUDED_AUTOCOMPLETE_TYPES:
             continue
         label = _display_label(ent) or ent.id_entitelrm

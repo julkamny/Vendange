@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from data_curation.api import autocomplete as autocomplete_service
 from data_curation.api import db, datasets
 from data_curation.api.schemas import BacklinksPayload, RecordPayload, WorkCluster, WorkspaceAgentsResponse, WorkspaceWorksResponse
-from data_curation.curation.cluster_views import AgentViewBuilder, WorkspaceViewBuilder
+from data_curation.api.cluster_views import AgentViewBuilder, WorkspaceViewBuilder
 from data_curation.api.datasets import DatasetMetadata
 from data_curation.curation.pipeline import (
     run_cluster_operation,

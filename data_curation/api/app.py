@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
+from data_curation.api import autocomplete as autocomplete_service
 from data_curation.api import db, datasets
 from data_curation.api.schemas import BacklinksPayload, RecordPayload, WorkCluster, WorkspaceAgentsResponse, WorkspaceWorksResponse
 from data_curation.curation.cluster_views import AgentViewBuilder, WorkspaceViewBuilder
@@ -77,6 +78,18 @@ class ManifestationUprootPayload(BaseModel):
     detach_arks: List[str] = Field(default_factory=list, alias="detachArks")
     partial_ark: Optional[str] = Field(None, alias="partialArk")
     partial: Optional[bool] = Field(False, alias="partial")
+
+
+class AutocompleteRequest(BaseModel):
+    zone: Optional[str] = None
+    subfield: Optional[str] = None
+    query: str = ""
+
+
+class AutocompleteSuggestion(BaseModel):
+    ark: str
+    label: str
+    type: str
 
 
 @contextlib.asynccontextmanager
@@ -715,3 +728,18 @@ def workspace_backlinks(dataset_id: str, record_key: str) -> BacklinksPayload:
     if not payload:
         raise HTTPException(status_code=404, detail="Record not found for the requested identifier.")
     return payload
+
+
+@app.post("/api/datasets/{dataset_id}/autocomplete/entities")
+def dataset_autocomplete_entities(dataset_id: str, payload: AutocompleteRequest) -> dict[str, List[AutocompleteSuggestion]]:
+    meta = _ensure_dataset(dataset_id)
+    builder = _get_workspace_builder(dataset_id)
+    target_code = payload.subfield or payload.zone or ""
+    suggestions = autocomplete_service.autocomplete_entities(
+        dataset_id=dataset_id,
+        updated_at=meta.updated_at,
+        entities=builder.entities,
+        subfield_code=target_code,
+        query=payload.query or "",
+    )
+    return {"suggestions": suggestions}

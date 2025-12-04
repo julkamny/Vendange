@@ -47,6 +47,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - The React workspace now consumes these DTO endpoints end-to-end (lists, expression/manifestation panels, agent view) and no longer depends on legacy `curated.records` or client-side clustering.
 - `GET /api/datasets/{dataset_id}/workspace/record/{record_key}` returns a single record (id or ARK, with slashes/colons allowed, raw or URL-encoded) for just-in-time Intermarc loading, now including an `ark_labels` map (ARK → label) so the UI can render tooltips without extra lookups. The legacy `/records` bulk endpoint has been removed.
 - `GET /api/datasets/{dataset_id}/workspace/backlinks/{record_key}` computes backlinks on demand for any work, expression, manifestation, or agent, returning source entities plus the Intermarc fields where they point to the requested ARK.
+- `POST /api/datasets/{dataset_id}/autocomplete/entities` serves CodeMirror autocomplete with server-side routing rules: send the current field/subfield + prefix, get back compact `{ark,label,type}` suggestions already filtered by allowed kinds and controlled lists. Responses are react-query cached in the editor; the old client-side routing tables have been removed.
 
 #### Running data curation operations
 - To launch the FastAPI server in `data_curation/api`: `uv run fastapi dev data_curation/api/app.py`. See below for explanations.

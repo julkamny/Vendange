@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import CodeMirror from '@uiw/react-codemirror'
 import type { Completion } from '@codemirror/autocomplete'
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete'
@@ -7,6 +8,7 @@ import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemir
 import type { Intermarc } from '../lib/intermarc'
 import { prettyPrintIntermarc, parsePrettyPrintedIntermarc, labelFromRecord } from '../lib/intermarc'
 import type { RecordRow } from '../types'
+import type { AutocompleteSuggestionDto } from '../types'
 import { INTERMARC_THEME } from './intermarcTheme'
 import { useTranslation } from '../hooks/useTranslation'
 import { useToast } from '../providers/ToastContext'
@@ -15,12 +17,10 @@ import { useAppData } from '../providers/AppDataContext'
 import { titleOf, manifestationTitle } from '../core/entities'
 import { extractControlledValueLabel } from '../core/controlledValues'
 import { labelForAgentRecord } from '../core/agents'
-import { getControlledListsForLabel, getControlledListsForSubfield } from '../core/controlledLists'
-import { getAllowedKindsForSubfield, inferEntityKind, type AutocompleteEntityKind } from '../core/autocompleteRules'
+import { fetchEntityAutocomplete } from '../lib/api'
 
 const ARK_PREFIX = 'ark:/'
 const COMPLETION_LIMIT = 40
-const EXCLUDED_AUTOCOMPLETE_TYPES = new Set(['oeuvre', 'expression', 'manifestation'])
 
 type ParsedSubfield = {
   code: string
@@ -44,16 +44,6 @@ type SubfieldContext = {
   zone: string
   code?: string
   inValue: boolean
-}
-
-type EntitySuggestion = {
-  ark: string
-  label: string
-  labelNormalized: string
-  type: string
-  isControlled: boolean
-  kind: AutocompleteEntityKind
-  controlledLists: readonly string[]
 }
 
 class ArkLabelWidget extends WidgetType {
@@ -276,84 +266,29 @@ function createIntermarcDecorationField(options: {
   })
 }
 
-function normalizeText(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim()
-}
 
-function controlledListsForRecord(record: RecordRow): readonly string[] {
-  if (record.typeNorm !== 'valeur controlee') return []
-  const label = extractControlledValueLabel(record)
-  if (!label) return []
-  return getControlledListsForLabel(label)
-}
-
-function buildEntitySuggestions(records: RecordRow[], language: string): EntitySuggestion[] {
+function buildEntitySuggestions(entries: AutocompleteSuggestionDto[], language: string): Completion[] {
   const seen = new Set<string>()
-  const entries: EntitySuggestion[] = []
-  for (const record of records) {
-    const ark = record.ark?.trim()
-    if (!ark || seen.has(ark)) continue
-    const normalizedType = record.typeNorm?.toLowerCase()
-    if (!normalizedType || EXCLUDED_AUTOCOMPLETE_TYPES.has(normalizedType)) continue
-    const label = recordDisplayLabel(record)
-    if (!label) continue
-    const kind = inferEntityKind(record.typeNorm)
-    const controlledLists = controlledListsForRecord(record)
-    entries.push({
-      ark,
-      label,
-      labelNormalized: normalizeText(label),
-      type: record.type,
-      isControlled: kind === 'controlledValue',
-      kind,
-      controlledLists,
-    })
+  const collator = new Intl.Collator(language, { sensitivity: 'accent' })
+  const sorted = [...entries].sort((a, b) => collator.compare(a.label, b.label))
+  const options: Completion[] = []
+  for (const entry of sorted) {
+    const ark = entry.ark?.trim()
+    const label = entry.label?.trim()
+    if (!ark || !label || seen.has(ark)) continue
+    options.push({ label, detail: entry.type, apply: ark })
     seen.add(ark)
+    if (options.length >= COMPLETION_LIMIT) break
   }
-  return entries.sort((a, b) => a.label.localeCompare(b.label, language, { sensitivity: 'accent' }))
+  return options
 }
 
-function filterCompletions(
-  suggestions: EntitySuggestion[],
-  query: string,
-  options: { allowedKinds: readonly AutocompleteEntityKind[] | null; allowedControlledLists: readonly string[] },
-): Completion[] {
-  const normalized = normalizeText(query)
-  const allowedKinds = options.allowedKinds && options.allowedKinds.length ? options.allowedKinds : null
-  const allowedKindSet = allowedKinds ? new Set(allowedKinds) : null
-  const allowedControlledSet =
-    options.allowedControlledLists && options.allowedControlledLists.length
-      ? new Set(options.allowedControlledLists)
-      : null
-  const completions: Completion[] = []
-  for (const suggestion of suggestions) {
-    if (allowedKindSet) {
-      if (!allowedKindSet.has(suggestion.kind)) continue
-    } else if (!suggestion.isControlled) {
-      continue
-    }
-    if (suggestion.isControlled) {
-      if (!allowedControlledSet) continue
-      const matchesList = suggestion.controlledLists.some(list => allowedControlledSet.has(list))
-      if (!matchesList) continue
-    }
-    if (normalized && !suggestion.labelNormalized.startsWith(normalized)) continue
-    completions.push({
-      label: suggestion.label,
-      detail: suggestion.type,
-      apply: suggestion.ark,
-    })
-    if (completions.length >= COMPLETION_LIMIT) break
-  }
-  return completions
-}
-
-function createIntermarcCompletionSource(params: { suggestions: EntitySuggestion[] }) {
-  return (context: CompletionContext) => {
+function createIntermarcCompletionSource(params: {
+  datasetId: string | null
+  language: string
+  queryClient: ReturnType<typeof useQueryClient>
+}) {
+  return async (context: CompletionContext) => {
     const match = context.matchBefore(/[^\s$]*/u)
     if (!match) return null
     if (match.from === match.to && !context.explicit) return null
@@ -362,21 +297,25 @@ function createIntermarcCompletionSource(params: { suggestions: EntitySuggestion
     const subfieldCode = info.code ?? ''
     const query = match.text.trim()
     if (!query && !context.explicit) return null
-    const allowedControlledLists = getControlledListsForSubfield(subfieldCode)
-    const allowedKinds = getAllowedKindsForSubfield(subfieldCode)
-    console.log('Autocomplete context', { subfieldCode, query, allowedKinds, allowedControlledLists })
-    if ((!allowedKinds || allowedKinds.length === 0) && allowedControlledLists.length === 0) {
+    if (!params.datasetId || !subfieldCode) return null
+
+    try {
+      const suggestions = await params.queryClient.fetchQuery({
+        queryKey: ['autocomplete', 'entities', params.datasetId, subfieldCode, query],
+        queryFn: () =>
+          fetchEntityAutocomplete(params.datasetId as string, { subfield: subfieldCode, zone: info.zone, query }),
+        staleTime: 5 * 60 * 1000,
+      })
+      const options = buildEntitySuggestions(suggestions, params.language)
+      if (!options.length) return null
+      return {
+        from: match.from,
+        options,
+        validFor: /[^\s$]*/u,
+      }
+    } catch (error) {
+      console.error('Autocomplete query failed', error)
       return null
-    }
-    const options = filterCompletions(params.suggestions, query, {
-      allowedKinds,
-      allowedControlledLists,
-    })
-    if (!options.length) return null
-    return {
-      from: match.from,
-      options,
-      validFor: /[^\s$]*/u,
     }
   }
 }
@@ -391,19 +330,15 @@ type IntermarcEditorProps = {
 export function IntermarcEditor({ record, baselineRecord, onCancel, onSave }: IntermarcEditorProps) {
   const { t, language } = useTranslation()
   const { showToast } = useToast()
-  const { curated } = useAppData()
+  const { datasetId } = useAppData()
   const { getByArk } = useRecordLookup()
+  const queryClient = useQueryClient()
   const [doc, setDoc] = useState('')
   const [recordDoc, setRecordDoc] = useState('')
   const [baselineDoc, setBaselineDoc] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const statusResetRef = useRef<number | null>(null)
-
-  const suggestions = useMemo(
-    () => buildEntitySuggestions(curated?.records ?? [], language),
-    [curated?.records, language],
-  )
 
   const getLabelForArk = useCallback(
     (ark: string) => {
@@ -423,7 +358,7 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave }: In
     [getLabelForArk, record.arkLabels],
   )
 
-  const completionSource = useMemo(() => createIntermarcCompletionSource({ suggestions }), [suggestions])
+  const completionSource = useMemo(() => createIntermarcCompletionSource({ datasetId, language, queryClient }), [datasetId, language, queryClient])
 
   const completionExtension = useMemo(
     () =>

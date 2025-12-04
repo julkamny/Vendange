@@ -14,6 +14,12 @@ export type RecordRow = {
   raw: string[]
 }
 
+export type AutocompleteSuggestionDto = {
+  ark: string
+  label: string
+  type: string
+}
+
 export type DatasetStats = {
   entityCount: number
   quadCount: number

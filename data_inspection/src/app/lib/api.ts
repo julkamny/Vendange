@@ -5,6 +5,7 @@ import type {
   WorkspaceAgentsResponse,
   WorkRecordPayload,
   BacklinksResponse,
+  AutocompleteSuggestionDto,
 } from '../types'
 import type { SparqlQueryResult } from '../workspace/types'
 
@@ -270,6 +271,28 @@ export async function fetchWorkspaceBacklinks(datasetId: string, recordKey: stri
     throw new Error(detail.detail || 'Failed to load backlinks')
   }
   return parseJson<BacklinksResponse>(response)
+}
+
+export async function fetchEntityAutocomplete(
+  datasetId: string,
+  payload: { subfield?: string | null; zone?: string | null; query?: string | null },
+): Promise<AutocompleteSuggestionDto[]> {
+  const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/autocomplete/entities`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      subfield: payload.subfield ?? null,
+      zone: payload.zone ?? null,
+      query: payload.query ?? '',
+    }),
+  })
+  if (!response.ok) {
+    const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
+    throw new Error(detail.detail || 'Failed to load autocomplete suggestions')
+  }
+  const data = await parseJson<{ suggestions?: AutocompleteSuggestionDto[] }>(response)
+  return data.suggestions ?? []
 }
 
 export type ClusterLogEvent = {

@@ -676,74 +676,81 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
           sparqlLabel={t('workspace.sparqlTabDefault', { defaultValue: 'SPARQL' })}
         />
       </div>
-      <div className="workspace-tab-content" role="tabpanel">
-        {activeTab ? (
-          isWorkspaceTab(activeTab) ? (
-            activeTab.mode === 'detached' ? (
-              <DetachedTabPlaceholder
-              label={getWorkspaceLabel(activeTab)}
-              message={t('workspace.detachedPlaceholder', {
-                defaultValue: 'Cet onglet est affiché dans une autre fenêtre.',
-              })}
-              actionLabel={dockLabelInline}
-              onDock={() => dockWorkspaceTab(activeTab)}
-            />
-          ) : (
-            <WorkspaceView
-              state={activeTab}
-                mode="inline"
-                onRequestDetach={() => detachWorkspaceTab(activeTab)}
-                onStateChange={updater =>
-                  updateTabState(activeTab.id, prev =>
-                    isWorkspaceTab(prev) ? updater(prev) : prev,
-                  )
-                }
-                onOpenTab={openTabWithState}
-                onOpenDetachedTab={openDetachedTabWithState}
-                onOpenAgentTab={openAgentTabWithState}
-                onOpenAgentDetachedTab={openAgentDetachedTabWithState}
-                sharedPendingManifestationId={pendingManifestationId}
-                setSharedPendingManifestationId={setPendingManifestationId}
-              />
-            )
-          ) : isSparqlTab(activeTab) ? (
-            <SparqlWorkspaceView
-              state={activeTab}
-              onStateChange={updater =>
-                updateTabState(activeTab.id, prev =>
-                  isSparqlTab(prev) ? updater(prev) : prev,
+      <div className="workspace-tab-content">
+        {tabs.map(tab => {
+          const isActive = tab.id === activeTab?.id
+          return (
+            <div
+              key={tab.id}
+              role="tabpanel"
+              hidden={!isActive}
+              aria-hidden={!isActive}
+              className="workspace-tab-panel"
+            >
+              {isWorkspaceTab(tab) ? (
+                tab.mode === 'detached' ? (
+                  <DetachedTabPlaceholder
+                    label={getWorkspaceLabel(tab)}
+                    message={t('workspace.detachedPlaceholder', {
+                      defaultValue: 'Cet onglet est affiché dans une autre fenêtre.',
+                    })}
+                    actionLabel={dockLabelInline}
+                    onDock={() => dockWorkspaceTab(tab)}
+                  />
+                ) : (
+                  <WorkspaceView
+                    state={tab}
+                    mode="inline"
+                    onRequestDetach={() => detachWorkspaceTab(tab)}
+                    onStateChange={updater =>
+                      updateTabState(tab.id, prev => (isWorkspaceTab(prev) ? updater(prev) : prev))
+                    }
+                    onOpenTab={openTabWithState}
+                    onOpenDetachedTab={openDetachedTabWithState}
+                    onOpenAgentTab={openAgentTabWithState}
+                    onOpenAgentDetachedTab={openAgentDetachedTabWithState}
+                    sharedPendingManifestationId={pendingManifestationId}
+                    setSharedPendingManifestationId={setPendingManifestationId}
+                  />
                 )
-              }
-              onOpenWorkspaceTab={openTabWithState}
-              onOpenWorkspaceTabDetached={openDetachedTabWithState}
-              onOpenAgentTab={openAgentTabWithState}
-              onOpenAgentTabDetached={openAgentDetachedTabWithState}
-            />
-          ) : isAgentTab(activeTab) ? (
-            activeTab.mode === 'detached' ? (
-              <DetachedTabPlaceholder
-              label={getWorkspaceLabel(activeTab)}
-              message={t('workspace.detachedPlaceholder', {
-                defaultValue: 'Cet onglet est affiché dans une autre fenêtre.',
-              })}
-              actionLabel={dockLabelInline}
-              onDock={() => dockAgentTab(activeTab)}
-            />
-          ) : (
-            <AgentView
-              state={activeTab}
-                mode="inline"
-                onRequestDetach={() => detachAgentTab(activeTab)}
-                onStateChange={updater =>
-                  updateTabState(activeTab.id, prev => (isAgentTab(prev) ? updater(prev) : prev))
-                }
-                onOpenTab={openTabWithState}
-                onOpenAgentTab={openAgentTabWithState}
-                onOpenAgentTabDetached={openAgentDetachedTabWithState}
-              />
-            )
-          ) : null
-        ) : null}
+              ) : isSparqlTab(tab) ? (
+                <SparqlWorkspaceView
+                  state={tab}
+                  onStateChange={updater =>
+                    updateTabState(tab.id, prev => (isSparqlTab(prev) ? updater(prev) : prev))
+                  }
+                  onOpenWorkspaceTab={openTabWithState}
+                  onOpenWorkspaceTabDetached={openDetachedTabWithState}
+                  onOpenAgentTab={openAgentTabWithState}
+                  onOpenAgentTabDetached={openAgentDetachedTabWithState}
+                />
+              ) : isAgentTab(tab) ? (
+                tab.mode === 'detached' ? (
+                  <DetachedTabPlaceholder
+                    label={getWorkspaceLabel(tab)}
+                    message={t('workspace.detachedPlaceholder', {
+                      defaultValue: 'Cet onglet est affiché dans une autre fenêtre.',
+                    })}
+                    actionLabel={dockLabelInline}
+                    onDock={() => dockAgentTab(tab)}
+                  />
+                ) : (
+                  <AgentView
+                    state={tab}
+                    mode="inline"
+                    onRequestDetach={() => detachAgentTab(tab)}
+                    onStateChange={updater =>
+                      updateTabState(tab.id, prev => (isAgentTab(prev) ? updater(prev) : prev))
+                    }
+                    onOpenTab={openTabWithState}
+                    onOpenAgentTab={openAgentTabWithState}
+                    onOpenAgentTabDetached={openAgentDetachedTabWithState}
+                  />
+                )
+              ) : null}
+            </div>
+          )
+        })}
       </div>
       {tabs
         .filter(isWorkspaceTab)

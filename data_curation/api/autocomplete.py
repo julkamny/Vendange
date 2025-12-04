@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Set
 
 from data_curation.models import Entity
+from data_curation.api.db_shared import fold_diacritics
 
 DATA_DIR = Path(__file__).parent
 COMPLETION_LIMIT = 40
@@ -19,7 +20,7 @@ EXCLUDED_AUTOCOMPLETE_TYPES = {"oeuvre", "expression", "manifestation"}
 
 
 def _normalize_type(value: str) -> str:
-    norm = (value or "").strip().lower()
+    norm = fold_diacritics((value or "").strip()).lower()
     if norm in {"œuvre", "oeuvre", "work"}:
         return "oeuvre"
     if norm.startswith("expression"):
@@ -32,6 +33,8 @@ def _normalize_type(value: str) -> str:
         return "collectivite"
     if "famille" in norm:
         return "famille"
+    if "valeur controlee" in norm or "valeur contrôlée" in norm:
+        return "valeur controlee"
     return norm or value
 
 
@@ -197,7 +200,7 @@ def _controlled_lists_for_label(label: str) -> List[str]:
 def _infer_kind(type_raw: str) -> str:
     data = _load_rule_data()
     mapping: Dict[str, str] = data.get("type_kind_map", {})
-    key = (type_raw or "").strip().lower()
+    key = fold_diacritics((type_raw or "").strip()).lower()
     return mapping.get(key, "other")
 
 

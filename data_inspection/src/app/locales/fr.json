@@ -35,6 +35,7 @@
     "sparqlBuilderSync": "Le constructeur met à jour l’éditeur automatiquement ; vous pouvez toujours ajuster le texte SPARQL avant exécution.",
     "detachTab": "Ouvrir l’onglet dans une nouvelle fenêtre",
     "redockTab": "Ramener l’onglet ici",
+    "redockTabMainApp": "Ramener l’onglet dans l’application centrale",
     "openInWindow": "Ouvrir l’Intermarc dans une nouvelle fenêtre",
     "detachedPlaceholder": "Cet espace de travail est affiché dans une autre fenêtre.",
     "openWindowFailed": "Impossible d’ouvrir une nouvelle fenêtre. Autorisez les pop-ups pour Vendange.",

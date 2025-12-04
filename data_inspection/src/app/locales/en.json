@@ -35,6 +35,7 @@
     "sparqlBuilderSync": "Builder updates the editor automatically; you can still edit the SPARQL text before running it.",
     "detachTab": "Open tab in new window",
     "redockTab": "Bring tab back here",
+    "redockTabMainApp": "Bring the tab back to the main app",
     "openInWindow": "Open Intermarc in new window",
     "detachedPlaceholder": "This workspace is displayed in another window.",
     "openWindowFailed": "Unable to open a new window. Please allow pop-ups for Vendange.",

@@ -204,6 +204,15 @@ function hydrateChildDocument(source: Document, target: Document, classNames?: s
   if (theme) {
     target.documentElement.setAttribute('data-theme', theme)
   }
+  // Ensure CSS variables that depend on the main shell are available in the detached document.
+  const shell = source.querySelector<HTMLElement>('.app-shell')
+  const shellStyles = shell ? getComputedStyle(shell) : getComputedStyle(source.documentElement)
+  const stickyOffset =
+    shellStyles.getPropertyValue('--app-sticky-offset') ||
+    shellStyles.getPropertyValue('--app-sticky-offset-collapsed') ||
+    '0px'
+  target.documentElement.style.setProperty('--app-sticky-offset', stickyOffset.trim())
+
   target.body.className = source.body.className
   if (classNames?.length) {
     target.body.classList.add(...classNames)

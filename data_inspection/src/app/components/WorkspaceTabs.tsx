@@ -70,6 +70,14 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   )
   const defaultSparqlTitle = useMemo(() => t('workspace.sparqlTabDefault', { defaultValue: 'SPARQL' }), [t])
   const defaultAgentTitle = useMemo(() => t('workspace.agentsTabDefault', { defaultValue: 'Agents' }), [t])
+  const dockLabelInline = useMemo(
+    () => t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' }),
+    [t],
+  )
+  const dockLabelDetached = useMemo(
+    () => t('workspace.redockTabMainApp', { defaultValue: "Ramener l'onglet dans l'application centrale" }),
+    [t],
+  )
   const recordIndexes = useMemo(() => {
     const byId = new Map<string, RecordRow>()
     const byArk = new Map<string, RecordRow>()
@@ -272,7 +280,6 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
           tone: 'error',
         })
         setTabs(prev => [...prev, configured])
-        setActive(configured.id)
         return
       }
       const detachedState: WorkspaceTabStateWorkspace = {
@@ -280,11 +287,12 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         mode: 'detached',
         detachedWindowId: windowId,
         intermarcFullView: true,
+        listCollapsed: true,
+        backlinksExpanded: false,
       }
       setTabs(prev => [...prev, detachedState])
-      setActive(detachedState.id)
     },
-    [defaultWorkspaceTitle, getWorkspaceLabel, openWindow, setActive, setTabs, showToast, t],
+    [defaultWorkspaceTitle, getWorkspaceLabel, openWindow, setTabs, showToast, t],
   )
 
   const openAgentDetachedTabWithState = useCallback(
@@ -309,7 +317,6 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
           tone: 'error',
         })
         setTabs(prev => [...prev, configured])
-        setActive(configured.id)
         return
       }
       const detachedState: AgentTabState = {
@@ -317,11 +324,12 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
         mode: 'detached',
         detachedWindowId: windowId,
         intermarcFullView: true,
+        listCollapsed: true,
+        backlinksExpanded: false,
       }
       setTabs(prev => [...prev, detachedState])
-      setActive(detachedState.id)
     },
-    [defaultAgentTitle, getWorkspaceLabel, openWindow, setActive, setTabs, showToast, t],
+    [defaultAgentTitle, getWorkspaceLabel, openWindow, setTabs, showToast, t],
   )
 
   const detachWorkspaceTab = useCallback(
@@ -349,13 +357,19 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       setTabs(prev =>
         prev.map(entry =>
           entry.id === tab.id && isWorkspaceTab(entry)
-            ? { ...entry, mode: 'detached', detachedWindowId: windowId, intermarcFullView: true }
+            ? {
+                ...entry,
+                mode: 'detached',
+                detachedWindowId: windowId,
+                intermarcFullView: true,
+                listCollapsed: true,
+                backlinksExpanded: false,
+              }
             : entry,
         ),
       )
-      setActive(tab.id)
     },
-    [getWorkspaceLabel, openWindow, setActive, setTabs, showToast, t],
+    [getWorkspaceLabel, openWindow, setTabs, showToast, t],
   )
 
   const dockWorkspaceTab = useCallback(
@@ -401,13 +415,19 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       setTabs(prev =>
         prev.map(entry =>
           entry.id === tab.id && isAgentTab(entry)
-            ? { ...entry, mode: 'detached', detachedWindowId: windowId, intermarcFullView: true }
+            ? {
+                ...entry,
+                mode: 'detached',
+                detachedWindowId: windowId,
+                intermarcFullView: true,
+                listCollapsed: true,
+                backlinksExpanded: false,
+              }
             : entry,
         ),
       )
-      setActive(tab.id)
     },
-    [getWorkspaceLabel, openWindow, setActive, setTabs, showToast, t],
+    [getWorkspaceLabel, openWindow, setTabs, showToast, t],
   )
 
   const dockAgentTab = useCallback(
@@ -642,7 +662,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
                     : undefined
               }
               detachLabel={t('workspace.detachTab', { defaultValue: 'Open tab in new window' })}
-              dockLabel={t('workspace.redockTab', { defaultValue: 'Bring tab back here' })}
+              dockLabel={dockLabelInline}
             />
           ))}
         </div>
@@ -661,16 +681,16 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
           isWorkspaceTab(activeTab) ? (
             activeTab.mode === 'detached' ? (
               <DetachedTabPlaceholder
-                label={getWorkspaceLabel(activeTab)}
-                message={t('workspace.detachedPlaceholder', {
-                  defaultValue: 'Cet onglet est affiché dans une autre fenêtre.',
-                })}
-                actionLabel={t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })}
-                onDock={() => dockWorkspaceTab(activeTab)}
-              />
-            ) : (
-              <WorkspaceView
-                state={activeTab}
+              label={getWorkspaceLabel(activeTab)}
+              message={t('workspace.detachedPlaceholder', {
+                defaultValue: 'Cet onglet est affiché dans une autre fenêtre.',
+              })}
+              actionLabel={dockLabelInline}
+              onDock={() => dockWorkspaceTab(activeTab)}
+            />
+          ) : (
+            <WorkspaceView
+              state={activeTab}
                 mode="inline"
                 onRequestDetach={() => detachWorkspaceTab(activeTab)}
                 onStateChange={updater =>
@@ -702,16 +722,16 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
           ) : isAgentTab(activeTab) ? (
             activeTab.mode === 'detached' ? (
               <DetachedTabPlaceholder
-                label={getWorkspaceLabel(activeTab)}
-                message={t('workspace.detachedPlaceholder', {
-                  defaultValue: 'Cet onglet est affiché dans une autre fenêtre.',
-                })}
-                actionLabel={t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })}
-                onDock={() => dockAgentTab(activeTab)}
-              />
-            ) : (
-              <AgentView
-                state={activeTab}
+              label={getWorkspaceLabel(activeTab)}
+              message={t('workspace.detachedPlaceholder', {
+                defaultValue: 'Cet onglet est affiché dans une autre fenêtre.',
+              })}
+              actionLabel={dockLabelInline}
+              onDock={() => dockAgentTab(activeTab)}
+            />
+          ) : (
+            <AgentView
+              state={activeTab}
                 mode="inline"
                 onRequestDetach={() => detachAgentTab(activeTab)}
                 onStateChange={updater =>
@@ -735,8 +755,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
                 tab={tab}
                 container={getContainer(tab.detachedWindowId)}
                 onDock={() => dockWorkspaceTab(tab)}
-                dockLabel={t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })}
-                label={getWorkspaceLabel(tab)}
+                dockLabel={dockLabelDetached}
                 onStateChange={updater =>
                   updateTabState(tab.id, prev =>
                     isWorkspaceTab(prev) ? updater(prev) : prev,
@@ -762,8 +781,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
                 tab={tab}
                 container={getContainer(tab.detachedWindowId)}
                 onDock={() => dockAgentTab(tab)}
-                dockLabel={t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })}
-                label={getWorkspaceLabel(tab)}
+                dockLabel={dockLabelDetached}
                 onStateChange={updater =>
                   updateTabState(tab.id, prev => (isAgentTab(prev) ? updater(prev) : prev))
                 }
@@ -877,7 +895,6 @@ function DetachedTabPlaceholder({ label, message, actionLabel, onDock }: Detache
 type DetachedWorkspacePortalProps = {
   tab: WorkspaceTabStateWorkspace
   container: HTMLDivElement | null
-  label: string
   dockLabel: string
   onDock: () => void
   onStateChange: (updater: (prev: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
@@ -892,7 +909,6 @@ type DetachedWorkspacePortalProps = {
 function DetachedWorkspacePortal({
   tab,
   container,
-  label,
   dockLabel,
   onDock,
   onStateChange,
@@ -907,7 +923,6 @@ function DetachedWorkspacePortal({
   return createPortal(
     <div className="detached-workspace-shell">
       <header className="detached-workspace-shell__header">
-        <span>{label}</span>
         <button type="button" onClick={onDock}>
           {dockLabel}
         </button>
@@ -932,7 +947,6 @@ function DetachedWorkspacePortal({
 type DetachedAgentPortalProps = {
   tab: AgentTabState
   container: HTMLDivElement | null
-  label: string
   dockLabel: string
   onDock: () => void
   onStateChange: (updater: (prev: AgentTabState) => AgentTabState) => void
@@ -944,7 +958,6 @@ type DetachedAgentPortalProps = {
 function DetachedAgentPortal({
   tab,
   container,
-  label,
   dockLabel,
   onDock,
   onStateChange,
@@ -956,7 +969,6 @@ function DetachedAgentPortal({
   return createPortal(
     <div className="detached-workspace-shell">
       <header className="detached-workspace-shell__header">
-        <span>{label}</span>
         <button type="button" onClick={onDock}>
           {dockLabel}
         </button>

@@ -301,14 +301,17 @@ export function WorkspaceView({
   }, [record?.id, mode])
 
   useEffect(() => {
-    if (mode === 'detached' && !state.intermarcFullView && !autoFullRef.current) {
+    if (mode === 'detached' && !autoFullRef.current) {
       autoFullRef.current = true
-      onStateChange(prev => (prev.intermarcFullView ? prev : { ...prev, intermarcFullView: true }))
+      onStateChange(prev => {
+        if (prev.intermarcFullView && prev.listCollapsed && !prev.backlinksExpanded) return prev
+        return { ...prev, intermarcFullView: true, listCollapsed: true, backlinksExpanded: false }
+      })
     }
     if (mode === 'inline') {
       autoFullRef.current = false
     }
-  }, [mode, state.intermarcFullView, onStateChange])
+  }, [mode, onStateChange])
 
   const emptyIndexes = useMemo(
     () => ({
@@ -717,7 +720,10 @@ export function WorkspaceView({
 
   const workspaceClassName = `workspace-view${intermarcFullView ? ' is-intermarc-full' : ''}${backlinksExpanded && record ? ' has-backlinks-expanded' : ''}${listCollapsed ? ' is-list-collapsed' : ''}`
   const detachLabelFull = t('workspace.openInWindow', { defaultValue: 'Open Intermarc in new window' })
-  const dockLabelFull = t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })
+  const dockLabelFull =
+    mode === 'detached'
+      ? t('workspace.redockTabMainApp', { defaultValue: "Ramener l'onglet dans l'application centrale" })
+      : t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })
   const toggleFullLabelFull = intermarcFullView
     ? t('workspace.collapseIntermarc', { defaultValue: 'Exit full Intermarc view' })
     : t('workspace.expandIntermarc', { defaultValue: 'Expand Intermarc view' })

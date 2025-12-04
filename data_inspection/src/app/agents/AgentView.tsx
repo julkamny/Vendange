@@ -110,6 +110,7 @@ export function AgentView({
   const listRef = useRef<HTMLElement | null>(null)
   const detailsRef = useRef<HTMLElement | null>(null)
   const lastScrollKeyRef = useRef<string>('')
+  const autoFullRef = useRef(false)
   const [editing, setEditing] = useState(false)
   const backlinksExpanded = state.backlinksExpanded
   const listCollapsed = state.listCollapsed
@@ -140,6 +141,19 @@ export function AgentView({
       onStateChange(prev => ({ ...prev, intermarcFullView: false }))
     }
   }, [backlinksExpanded, intermarcFullView, onStateChange])
+
+  useEffect(() => {
+    if (mode === 'detached' && !autoFullRef.current) {
+      autoFullRef.current = true
+      onStateChange(prev => {
+        if (prev.intermarcFullView && prev.listCollapsed && !prev.backlinksExpanded) return prev
+        return { ...prev, intermarcFullView: true, listCollapsed: true, backlinksExpanded: false }
+      })
+    }
+    if (mode === 'inline') {
+      autoFullRef.current = false
+    }
+  }, [mode, onStateChange])
 
   useLayoutEffect(() => {
     const node = listRef.current
@@ -200,9 +214,11 @@ export function AgentView({
           },
           curatedRecords: [record],
         })
-      if (opts?.detach) onOpenAgentTabDetached(base => ({ ...base, selectedAgentId: record.id }))
-      else onOpenAgentTab(base => ({ ...base, selectedAgentId: record.id }))
-      // also open workspace tab for cross-navigation
+      if (opts?.detach) {
+        onOpenAgentTabDetached(base => ({ ...base, selectedAgentId: record.id }))
+        return
+      }
+      onOpenAgentTab(base => ({ ...base, selectedAgentId: record.id }))
       onOpenTab(initializer)
     },
     [onOpenAgentTab, onOpenAgentTabDetached, onOpenTab],
@@ -413,7 +429,10 @@ export function AgentView({
   const workspaceClassName = `workspace-view${intermarcFullView ? ' is-intermarc-full' : ''}${backlinksExpanded && selectedRecord ? ' has-backlinks-expanded' : ''
     }${listCollapsed ? ' is-list-collapsed' : ''}`
   const detachLabelFull = t('workspace.openInWindow', { defaultValue: 'Open Intermarc in new window' })
-  const dockLabelFull = t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })
+  const dockLabelFull =
+    mode === 'detached'
+      ? t('workspace.redockTabMainApp', { defaultValue: "Ramener l'onglet dans l'application centrale" })
+      : t('workspace.redockTab', { defaultValue: 'Ramener l’onglet ici' })
   const toggleFullLabelFull = intermarcFullView
     ? t('workspace.collapseIntermarc', { defaultValue: 'Exit full Intermarc view' })
     : t('workspace.expandIntermarc', { defaultValue: 'Expand Intermarc view' })
@@ -428,7 +447,7 @@ export function AgentView({
           {!listCollapsed ? (
             <aside
               className="workspace-panel workspace-panel--list"
-              style={{ height: 'calc(100vh - var(--app-sticky-offset) - 1.5rem)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+              style={{ height: 'calc(100vh - var(--app-sticky-offset, 0px) - 1.5rem)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
             >
               {entries.length ? (
                 <Virtuoso

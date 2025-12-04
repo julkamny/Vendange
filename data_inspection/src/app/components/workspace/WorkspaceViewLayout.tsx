@@ -265,7 +265,7 @@ export function WorkspaceViewLayout(props: Props) {
               className="workspace-panel workspace-panel--list"
               ref={listPanelRef}
               style={{
-                height: 'calc(100vh - var(--app-sticky-offset) - 1.5rem)',
+                height: 'calc(100vh - var(--app-sticky-offset, 0px) - 1.5rem)',
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',

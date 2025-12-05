@@ -124,6 +124,37 @@ export function labelFromRecord(record: RecordRow): string | undefined {
   return buildLabelFromIntermarc(record.intermarc, record.type)
 }
 
+function subfieldCode(raw: string): string {
+  if (!raw) return ''
+  const dollar = raw.lastIndexOf('$')
+  if (dollar >= 0 && dollar + 1 < raw.length) return raw.slice(dollar + 1)
+  if (raw.length > 3 && raw.startsWith('150')) return raw.slice(3)
+  return raw
+}
+
+export function buildIntermarcWorkLabel(
+  im: Intermarc,
+  arkLabels?: Record<string, string>,
+): string | undefined {
+  const zones = findZones(im, '150')
+  if (!zones.length) return undefined
+  const parts: string[] = []
+  const targetZone = zones[0]
+  for (const sub of targetZone.sousZones) {
+    const code = subfieldCode(sub.code)
+    if (code === '9') continue
+    let value = typeof sub.valeur === 'string' ? sub.valeur.trim() : ''
+    if (!value) continue
+    if (code === '3' && arkLabels) {
+      const lower = value.toLowerCase()
+      const resolved = arkLabels[value] ?? arkLabels[lower] ?? null
+      if (resolved) value = resolved
+    }
+    parts.push(value)
+  }
+  return parts.length ? parts.join(' ') : undefined
+}
+
 type DisplayValueResult = { text: string; ark?: string; tooltip?: string }
 
 async function displayValue(

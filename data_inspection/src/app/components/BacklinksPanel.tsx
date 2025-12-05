@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react'
 import type { BacklinkItem } from '../types'
 import { EntityLabel } from './EntityLabel'
 import { useTranslation } from '../hooks/useTranslation'
@@ -6,9 +7,10 @@ type BacklinksPanelProps = {
   backlinks: BacklinkItem[]
   loading?: boolean
   onOpenArk: (ark: string) => void
+  onArkContextMenu?: (event: MouseEvent<HTMLElement>) => void
 }
 
-export function BacklinksPanel({ backlinks, loading, onOpenArk }: BacklinksPanelProps) {
+export function BacklinksPanel({ backlinks, loading, onOpenArk, onArkContextMenu }: BacklinksPanelProps) {
   const { t } = useTranslation()
 
   if (loading) {
@@ -62,6 +64,7 @@ export function BacklinksPanel({ backlinks, loading, onOpenArk }: BacklinksPanel
                       className="ark-link backlinks-panel__ark-button"
                       data-ark={arkValue}
                       onClick={() => onOpenArk(arkValue)}
+                      onContextMenu={onArkContextMenu}
                     >
                       {arkValue}
                     </button>

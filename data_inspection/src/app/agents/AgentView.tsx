@@ -18,6 +18,7 @@ import { parseIntermarc } from '../lib/intermarc'
 import { useBacklinks } from '../hooks/useBacklinks'
 import { ConfirmAgentClusterModal } from '../components/workspace/ClusterModals'
 import { useAgentClustering } from './useAgentClustering'
+import { fetchWorkspaceRecord } from '../lib/api'
 
 type AgentViewProps = {
   state: AgentTabState
@@ -32,8 +33,10 @@ type AgentViewProps = {
 
 type AgentContextMenuState = {
   position: { x: number; y: number }
-  agentId: string
+  agentId?: string
   agentArk?: string | null
+  targetArk?: string | null
+  source: 'row' | 'intermarc-link' | 'backlinks-link'
 }
 
 function buildRecordRowFromPayload(payload: WorkRecordPayload): RecordRow {
@@ -225,14 +228,25 @@ export function AgentView({
   )
 
   const openArk = useCallback(
-    (ark: string, opts?: { detach?: boolean }) => {
+    async (ark: string, opts?: { detach?: boolean }) => {
       const trimmed = ark.trim()
-      if (!trimmed) return
-      if (selectedRecord && selectedRecord.ark === trimmed) {
+      if (!trimmed || !datasetId) return
+      if (selectedRecord && (selectedRecord.ark === trimmed || selectedRecord.id === trimmed)) {
         openRecord(selectedRecord, opts)
+        return
+      }
+      try {
+        const payload = await fetchWorkspaceRecord(datasetId, trimmed)
+        const record = buildRecordRowFromPayload(payload)
+        openRecord(record, opts)
+      } catch {
+        showToast(
+          t('workspace.sparqlNoRecordForArk', { defaultValue: 'No record found for this ARK.' }),
+          { tone: 'error' },
+        )
       }
     },
-    [openRecord, selectedRecord],
+    [datasetId, openRecord, selectedRecord, showToast, t],
   )
 
   const handleRowClick = useCallback(
@@ -246,7 +260,13 @@ export function AgentView({
     (event: React.MouseEvent<HTMLElement>, agentId: string, agentArk?: string | null) => {
       event.preventDefault()
       handleRowClick(agentId)
-      setContextMenu({ position: { x: event.clientX, y: event.clientY }, agentId, agentArk })
+      setContextMenu({
+        position: { x: event.clientX, y: event.clientY },
+        agentId,
+        agentArk,
+        targetArk: agentArk ?? null,
+        source: 'row',
+      })
     },
     [handleRowClick],
   )
@@ -318,9 +338,18 @@ export function AgentView({
       const arkLink = target?.closest<HTMLElement>('.ark-link')
       if (!arkLink) return
       const raw = arkLink.getAttribute('data-ark')
-      if (!raw || !selectedRecord || selectedRecord.ark !== raw) return
+      if (!raw || !selectedRecord) return
       event.preventDefault()
-      setContextMenu({ position: { x: event.clientX, y: event.clientY }, agentId: selectedRecord.id, agentArk: selectedRecord.ark })
+      const source: AgentContextMenuState['source'] = target?.closest('.backlinks-panel')
+        ? 'backlinks-link'
+        : 'intermarc-link'
+      setContextMenu({
+        position: { x: event.clientX, y: event.clientY },
+        agentId: selectedRecord.id,
+        agentArk: selectedRecord.ark,
+        targetArk: raw,
+        source,
+      })
     },
     [selectedRecord],
   )
@@ -499,7 +528,12 @@ export function AgentView({
                   </>
                 )}
                 {!backlinksExpanded ? (
-                  <BacklinksPanel backlinks={backlinks} loading={backlinksLoading} onOpenArk={ark => openArk(ark)} />
+                  <BacklinksPanel
+                    backlinks={backlinks}
+                    loading={backlinksLoading}
+                    onOpenArk={ark => openArk(ark)}
+                    onArkContextMenu={handleContextMenu}
+                  />
                 ) : null}
               </div>
             ) : (
@@ -511,7 +545,12 @@ export function AgentView({
               className="workspace-panel workspace-panel--backlinks"
               aria-label={t('backlinks.title', { defaultValue: 'Backlinks' })}
             >
-              <BacklinksPanel backlinks={backlinks} loading={backlinksLoading} onOpenArk={ark => openArk(ark)} />
+              <BacklinksPanel
+                backlinks={backlinks}
+                loading={backlinksLoading}
+                onOpenArk={ark => openArk(ark)}
+                onArkContextMenu={handleContextMenu}
+              />
             </section>
           ) : null}
         </div>
@@ -616,27 +655,27 @@ export function AgentView({
       {contextMenu ? (
         <WorkspaceContextMenu
           position={contextMenu.position}
-          openLabel={t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })}
-          openDetachedLabel={t('workspace.openInDetachedWindow', {
-            defaultValue: 'Open in detached workspace window',
-          })}
-          extraActions={buildContextMenuActions(contextMenu.agentId)}
+          openLabel={
+            contextMenu.source === 'backlinks-link'
+              ? t('workspace.openInDetachedWindow', { defaultValue: 'Open in detached workspace window' })
+              : t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })
+          }
+          openDetachedLabel={
+            contextMenu.source === 'backlinks-link'
+              ? t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })
+              : t('workspace.openInDetachedWindow', { defaultValue: 'Open in detached workspace window' })
+          }
+          extraActions={contextMenu.source === 'row' ? buildContextMenuActions(contextMenu.agentId) : undefined}
           onOpen={() => {
-            const targetRecord =
-              selectedRecord &&
-              (selectedRecord.id === contextMenu.agentId || selectedRecord.ark === contextMenu.agentArk)
-                ? selectedRecord
-                : null
-            if (targetRecord) openRecord(targetRecord)
+            const detach = contextMenu.source === 'backlinks-link'
+            const target = contextMenu.targetArk ?? contextMenu.agentArk ?? contextMenu.agentId ?? null
+            if (target) openArk(target, detach ? { detach: true } : undefined)
             setContextMenu(null)
           }}
           onOpenDetached={() => {
-            const targetRecord =
-              selectedRecord &&
-              (selectedRecord.id === contextMenu.agentId || selectedRecord.ark === contextMenu.agentArk)
-                ? selectedRecord
-                : null
-            if (targetRecord) openRecord(targetRecord, { detach: true })
+            const detach = contextMenu.source !== 'backlinks-link'
+            const target = contextMenu.targetArk ?? contextMenu.agentArk ?? contextMenu.agentId ?? null
+            if (target) openArk(target, detach ? { detach: true } : undefined)
             setContextMenu(null)
           }}
         />

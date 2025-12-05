@@ -517,12 +517,12 @@ export function SparqlWorkspaceView({
       {contextMenu ? (
         <WorkspaceContextMenu
           position={contextMenu.position}
-          openLabel={t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })}
-          openDetachedLabel={t('workspace.openInDetachedWindow', {
+          openLabel={t('workspace.openInDetachedWindow', {
             defaultValue: 'Open in detached workspace window',
           })}
-          onOpen={handleOpenContextRecord}
-          onOpenDetached={handleOpenContextRecordDetached}
+          openDetachedLabel={t('workspace.openInNewTab', { defaultValue: 'Open in new workspace tab' })}
+          onOpen={handleOpenContextRecordDetached}
+          onOpenDetached={handleOpenContextRecord}
         />
       ) : null}
     </div>

@@ -134,7 +134,12 @@ export function useWorkspaceInteractions({
       }
       if (!targetRecord) return
       event.preventDefault()
-      setContextMenu({ position: { x: event.clientX, y: event.clientY }, record: targetRecord })
+      const source: WorkspaceContextMenuState['source'] = target?.closest('.backlinks-panel')
+        ? 'backlinks-link'
+        : target?.closest('.intermarc-view')
+          ? 'intermarc-link'
+          : 'ark-link'
+      setContextMenu({ position: { x: event.clientX, y: event.clientY }, record: targetRecord, source })
     },
     [getByArk, getById],
   )
@@ -174,7 +179,7 @@ export function useWorkspaceInteractions({
       event.stopPropagation()
       const record = resolveRecordFromRow(row)
       if (record) {
-        setContextMenu({ position: { x: clientX, y: clientY }, record })
+        setContextMenu({ position: { x: clientX, y: clientY }, record, source: 'entity-row' })
         return
       }
       const key =
@@ -186,7 +191,7 @@ export function useWorkspaceInteractions({
       if (!key) return
       const fetched = await ensureRecord(key)
       if (fetched) {
-        setContextMenu({ position: { x: clientX, y: clientY }, record: fetched })
+        setContextMenu({ position: { x: clientX, y: clientY }, record: fetched, source: 'entity-row' })
       }
     }
     listNode.addEventListener('contextmenu', handleContextMenu)

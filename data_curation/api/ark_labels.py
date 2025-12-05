@@ -57,6 +57,33 @@ def _lookup_by_ark(ark: str, lookup: Dict[str, Entity]) -> Optional[Entity]:
     return lookup.get(ark) or lookup.get(ark.lower())
 
 
+def _subfield_code(raw: str) -> str:
+    if "$" in raw:
+        return raw.split("$")[-1]
+    return raw
+
+
+def _build_work_label(entity: Entity, lookup_by_ark: Dict[str, Entity], cache: Dict[str, str]) -> Optional[str]:
+    zones = list(entity.intermarc.get_zone("150"))
+    if not zones:
+        return None
+
+    parts: List[str] = []
+    for sub in _subzones(zones[0]):
+        code = _subfield_code(sub.code or "")
+        if code == "9":
+            continue
+        value = str(sub.valeur or "").strip()
+        if not value:
+            continue
+        if code == "3":
+            target = _lookup_by_ark(value, lookup_by_ark)
+            resolved = build_label_from_entity(target, lookup_by_ark, cache) if target else None
+            value = resolved or value
+        parts.append(value)
+    return " ".join(parts) if parts else None
+
+
 def build_label_from_entity(
     entity: Entity,
     lookup_by_ark: Dict[str, Entity],
@@ -77,7 +104,7 @@ def build_label_from_entity(
     label: Optional[str] = None
 
     if type_norm == "oeuvre":
-        label = _first_sub_value(intermarc, "150", "150$a") or _first_sub_value(intermarc, "001", "001$a")
+        label = _build_work_label(entity, lookup_by_ark, cache) or _first_sub_value(intermarc, "001", "001$a")
     elif type_norm == "identite publique de personne":
         parts = [
             _first_sub_value(intermarc, "100", "100$a"),

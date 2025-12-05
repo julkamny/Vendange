@@ -1,6 +1,7 @@
 import { findZones } from '../lib/intermarc'
 import { CLUSTER_NOTE } from './constants'
 import { MANUAL_CLUSTER_NOTE } from './constants'
+import { buildIntermarcWorkLabel } from '../lib/intermarc'
 import type { EntityTitleSegment, Cluster, ExpressionItem, ExpressionClusterItem, ManifestationItem, RecordRow } from '../types'
 
 export function zoneText(zone: { sousZones: Array<{ valeur?: unknown }> }): string {
@@ -24,6 +25,10 @@ function extractSubfieldLabel(code: string): string {
 }
 
 export function titleOf(rec: RecordRow): string | undefined {
+  if (rec.typeNorm === 'oeuvre') {
+    const workLabel = buildIntermarcWorkLabel(rec.intermarc, rec.arkLabels)
+    if (workLabel) return workLabel
+  }
   const zone = findZones(rec.intermarc, '150')[0]
   const text = zone ? zoneText(zone) : undefined
   return text && text.length ? text : undefined

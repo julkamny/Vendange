@@ -308,7 +308,12 @@ export function WorkspaceViewLayout(props: Props) {
                   )}
                 </div>
                 {!backlinksExpanded ? (
-                  <BacklinksPanel backlinks={backlinks} loading={backlinksLoading} onOpenArk={openRecordForArk} />
+                  <BacklinksPanel
+                    backlinks={backlinks}
+                    loading={backlinksLoading}
+                    onOpenArk={openRecordForArk}
+                    onArkContextMenu={handleRecordContextMenu}
+                  />
                 ) : null}
               </>
             ) : (
@@ -317,7 +322,12 @@ export function WorkspaceViewLayout(props: Props) {
           </section>
           {record && backlinksExpanded ? (
             <section className="workspace-panel workspace-panel--backlinks" aria-label={backlinksTitle}>
-              <BacklinksPanel backlinks={backlinks} loading={backlinksLoading} onOpenArk={openRecordForArk} />
+              <BacklinksPanel
+                backlinks={backlinks}
+                loading={backlinksLoading}
+                onOpenArk={openRecordForArk}
+                onArkContextMenu={handleRecordContextMenu}
+              />
             </section>
           ) : null}
         </div>
@@ -385,61 +395,71 @@ export function WorkspaceViewLayout(props: Props) {
 
       {contextMenu ? (
         (() => {
+          const allowOperations = contextMenu.source === 'entity-row'
           const actions: MenuAction[] = []
-          const uprootAction =
-            contextMenu.record.typeNorm === 'manifestation'
-              ? {
-                  label: prepareUprootLabel,
-                  disabled: Boolean(
-                    (activeOperation && activeOperation !== 'manifestation-uproot') ||
-                      (pendingManifestationRecord && pendingManifestationRecord.id !== contextMenu.record.id),
-                  ),
-                  onSelect: () => prepareManifestationForUprooting(contextMenu.record),
-                }
-              : null
-          if (uprootAction) actions.push(uprootAction)
-          const attachAction =
-            pendingManifestationRecord && contextMenu.record.typeNorm === 'expression'
-              ? {
-                  label: attachManifestationLabel,
-                  disabled:
-                    !contextMenu.record.ark || Boolean(activeOperation && activeOperation !== 'manifestation-uproot'),
-                  onSelect: () => requestAttachToExpression(contextMenu.record),
-                }
-              : null
-          if (attachAction) actions.push(attachAction)
-          const clusterAction = buildClusterAction(contextMenu.record)
-          if (clusterAction) actions.push(clusterAction)
-          let swapAction =
-            contextMenu.record.typeNorm === 'oeuvre'
-              ? getWorkAnchorSwapAction(contextMenu.record)
-              : contextMenu.record.typeNorm === 'expression'
-                ? getExpressionAnchorSwapAction(contextMenu.record)
+          if (allowOperations) {
+            const uprootAction =
+              contextMenu.record.typeNorm === 'manifestation'
+                ? {
+                    label: prepareUprootLabel,
+                    disabled: Boolean(
+                      (activeOperation && activeOperation !== 'manifestation-uproot') ||
+                        (pendingManifestationRecord && pendingManifestationRecord.id !== contextMenu.record.id),
+                    ),
+                    onSelect: () => prepareManifestationForUprooting(contextMenu.record),
+                  }
                 : null
-          if (swapAction && activeOperation && activeOperation !== 'anchor-swap') {
-            swapAction = { ...swapAction, disabled: true }
-          }
-          if (swapAction) actions.push(swapAction)
+            if (uprootAction) actions.push(uprootAction)
+            const attachAction =
+              pendingManifestationRecord && contextMenu.record.typeNorm === 'expression'
+                ? {
+                    label: attachManifestationLabel,
+                    disabled:
+                      !contextMenu.record.ark || Boolean(activeOperation && activeOperation !== 'manifestation-uproot'),
+                    onSelect: () => requestAttachToExpression(contextMenu.record),
+                  }
+                : null
+            if (attachAction) actions.push(attachAction)
+            const clusterAction = buildClusterAction(contextMenu.record)
+            if (clusterAction) actions.push(clusterAction)
+            let swapAction =
+              contextMenu.record.typeNorm === 'oeuvre'
+                ? getWorkAnchorSwapAction(contextMenu.record)
+                : contextMenu.record.typeNorm === 'expression'
+                  ? getExpressionAnchorSwapAction(contextMenu.record)
+                  : null
+            if (swapAction && activeOperation && activeOperation !== 'anchor-swap') {
+              swapAction = { ...swapAction, disabled: true }
+            }
+            if (swapAction) actions.push(swapAction)
 
-          let originalityAction =
-            contextMenu.record.typeNorm === 'oeuvre' ? getOriginalitySwapAction(contextMenu.record) : null
-          if (originalityAction && activeOperation && activeOperation !== 'originality-swap') {
-            originalityAction = { ...originalityAction, disabled: true }
+            let originalityAction =
+              contextMenu.record.typeNorm === 'oeuvre' ? getOriginalitySwapAction(contextMenu.record) : null
+            if (originalityAction && activeOperation && activeOperation !== 'originality-swap') {
+              originalityAction = { ...originalityAction, disabled: true }
+            }
+            if (originalityAction) actions.push(originalityAction)
           }
-          if (originalityAction) actions.push(originalityAction)
+
+          const primaryIsDetached = contextMenu.source === 'backlinks-link'
+          const primaryLabel = primaryIsDetached ? openDetachedLabel : openTabLabel
+          const secondaryLabel = primaryIsDetached ? openTabLabel : openDetachedLabel
 
           return (
         <WorkspaceContextMenu
           position={contextMenu.position}
-          openLabel={openTabLabel}
-          openDetachedLabel={openDetachedLabel}
-          extraActions={actions}
+          openLabel={primaryLabel}
+          openDetachedLabel={secondaryLabel}
+          extraActions={allowOperations ? actions : undefined}
           onOpen={() => {
-            openRecordForArk(contextMenu.record.ark ?? contextMenu.record.id)
+            openRecordForArk(contextMenu.record.ark ?? contextMenu.record.id, primaryIsDetached ? { detach: true } : undefined)
             setContextMenu(null)
           }}
           onOpenDetached={() => {
-            openRecordForArk(contextMenu.record.ark ?? contextMenu.record.id, { detach: true })
+            openRecordForArk(
+              contextMenu.record.ark ?? contextMenu.record.id,
+              primaryIsDetached ? undefined : { detach: true },
+            )
             setContextMenu(null)
           }}
         />

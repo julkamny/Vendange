@@ -155,6 +155,20 @@ export function buildIntermarcWorkLabel(
   return parts.length ? parts.join(' ') : undefined
 }
 
+export function makeArkLabelResolver(
+  getByArk: (ark: string) => { arkLabels?: Record<string, string>; intermarc: Intermarc; typeNorm: string } | null,
+): (ark: string) => string | undefined {
+  return (ark: string) => {
+    const target = getByArk(ark)
+    if (!target) return undefined
+    const direct = target.arkLabels?.[ark] ?? target.arkLabels?.[ark.toLowerCase()]
+    if (direct) return direct
+    const inferredWork =
+      target.typeNorm === 'oeuvre' ? buildIntermarcWorkLabel(target.intermarc, target.arkLabels) : undefined
+    return buildLabelFromIntermarc(target.intermarc, target.typeNorm) ?? inferredWork ?? undefined
+  }
+}
+
 type DisplayValueResult = { text: string; ark?: string; tooltip?: string }
 
 async function displayValue(

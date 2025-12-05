@@ -90,6 +90,12 @@ export function AgentView({
     [pendingAnchorPayload],
   )
 
+  const arkLabelResolver = useMemo(
+    () => (ark: string) =>
+      selectedRecord?.arkLabels?.[ark] ?? selectedRecord?.arkLabels?.[ark.toLowerCase()] ?? undefined,
+    [selectedRecord],
+  )
+
   const backlinksQuery = useBacklinks(datasetId, selectedAgentKey)
   const backlinks = backlinksQuery.backlinks
   const backlinksLoading = backlinksQuery.isFetching || backlinksQuery.isLoading
@@ -507,13 +513,7 @@ export function AgentView({
                     <IntermarcView
                       record={selectedRecord}
                       onArkClick={ark => openArk(ark)}
-                      labelResolver={ark => {
-                        if (selectedRecord.arkLabels) {
-                          const direct = selectedRecord.arkLabels[ark] ?? selectedRecord.arkLabels[ark.toLowerCase()]
-                          if (direct) return direct
-                        }
-                        return null
-                      }}
+                      labelResolver={arkLabelResolver}
                     />
                     <div className="editor-actions">
                       <button type="button" onClick={() => setEditing(true)}>

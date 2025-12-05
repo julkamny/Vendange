@@ -11,7 +11,7 @@ import { ManifestationUprootModal } from './ManifestationUprootModal'
 import type { WorkspaceTabStateWorkspace } from '../../workspace/types'
 import type { RecordRow, BacklinkItem } from '../../types'
 import type { WorkspaceContextMenuState } from './types'
-import { labelFromRecord, buildIntermarcWorkLabel } from '../../lib/intermarc'
+import { makeArkLabelResolver } from '../../lib/intermarc'
 
 type Props = {
   mode: 'inline' | 'detached'
@@ -299,16 +299,7 @@ export function WorkspaceViewLayout(props: Props) {
                       <IntermarcView
                         record={record}
                         onArkClick={handleArkClick}
-                        labelResolver={ark => {
-                          const target = getByArk(ark)
-                          if (!target) return undefined
-                          const direct = target.arkLabels?.[ark] ?? target.arkLabels?.[ark.toLowerCase()]
-                          if (direct) return direct
-                          const inferredWork = target.typeNorm === 'oeuvre'
-                            ? buildIntermarcWorkLabel(target.intermarc, target.arkLabels)
-                            : undefined
-                          return labelFromRecord(target) ?? inferredWork ?? undefined
-                        }}
+                        labelResolver={makeArkLabelResolver(getByArk)}
                       />
                       {readOnlyReason ? <p className="record-editor__note">{readOnlyReason}</p> : null}
                       {canEditRecord ? (

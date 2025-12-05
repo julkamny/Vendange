@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { RecordRow, Cluster, WorkClusterDto, WorkListRowDto, WorkRecordPayload } from '../types'
+import type { RecordRow, Cluster, WorkClusterDto, WorkListRowDto } from '../types'
 import type { WorkspaceTabStateWorkspace, AgentTabState } from '../workspace/types'
 import { useAppData } from '../providers/AppDataContext'
 import { useTranslation } from '../hooks/useTranslation'
@@ -23,8 +23,7 @@ import { useManifestationUprooting } from './workspace/useManifestationUprooting
 import { extractControlledValueLabel } from '../core/controlledValues'
 import { useWorkspaceWorks, useWorkCluster, useWorkspaceRecord } from '../hooks/useWorkspaceQueries'
 import { useBacklinks } from '../hooks/useBacklinks'
-import { parseIntermarc } from '../lib/intermarc'
-import { normalizeType } from '../core/records'
+import { buildRecordRowFromPayload } from '../lib/recordPayload'
 import { computeClusterCoverage } from '../core/clusterCoverage'
 import { fetchWorkspaceRecord } from '../lib/api'
 
@@ -89,21 +88,6 @@ function mapWorkCluster(dto: WorkClusterDto): Cluster {
     })),
     expressionGroups,
     independentExpressions,
-  }
-}
-
-function buildRecordRowFromPayload(payload: WorkRecordPayload): RecordRow {
-  const intermarc = parseIntermarc(payload.intermarc)
-  return {
-    id: payload.id,
-    type: payload.type,
-    typeNorm: normalizeType(payload.type),
-    ark: payload.ark ?? undefined,
-    arkLabels: payload.arkLabels ?? payload.ark_labels ?? {},
-    rowIndex: 0,
-    intermarcStr: payload.intermarc,
-    intermarc,
-    raw: [],
   }
 }
 

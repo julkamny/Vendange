@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from 'react'
 import { Virtuoso } from 'react-virtuoso'
 import type { AgentTabState, WorkspaceTabStateWorkspace } from '../workspace/types'
-import type { EntityBadgeSpec, RecordRow, WorkRecordPayload } from '../types'
+import type { EntityBadgeSpec, RecordRow } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useAppData } from '../providers/AppDataContext'
 import { useToast } from '../providers/ToastContext'
@@ -13,8 +13,7 @@ import { WorkspaceContextMenu, type MenuAction } from '../components/WorkspaceCo
 import { EntityLabel } from '../components/EntityLabel'
 import { configureTabStateForRecord } from '../workspace/tabState'
 import { useWorkspaceAgents, useWorkspaceRecord } from '../hooks/useWorkspaceQueries'
-import { normalizeType } from '../core/records'
-import { parseIntermarc } from '../lib/intermarc'
+import { buildRecordRowFromPayload } from '../lib/recordPayload'
 import { useBacklinks } from '../hooks/useBacklinks'
 import { ConfirmAgentClusterModal } from '../components/workspace/ClusterModals'
 import { useAgentClustering } from './useAgentClustering'
@@ -37,21 +36,6 @@ type AgentContextMenuState = {
   agentArk?: string | null
   targetArk?: string | null
   source: 'row' | 'intermarc-link' | 'backlinks-link'
-}
-
-function buildRecordRowFromPayload(payload: WorkRecordPayload): RecordRow {
-  const intermarc = parseIntermarc(payload.intermarc)
-  return {
-    id: payload.id,
-    type: payload.type,
-    typeNorm: normalizeType(payload.type),
-    ark: payload.ark ?? undefined,
-    arkLabels: payload.arkLabels ?? payload.ark_labels ?? {},
-    rowIndex: 0,
-    intermarcStr: payload.intermarc,
-    intermarc,
-    raw: [],
-  }
 }
 
 export function AgentView({
@@ -203,6 +187,15 @@ export function AgentView({
 
   const openRecord = useCallback(
     (record: RecordRow, opts?: { detach?: boolean }) => {
+      const isAgent =
+        record.typeNorm === 'identite publique de personne' ||
+        record.typeNorm === 'collectivite' ||
+        record.typeNorm === 'famille'
+      if (isAgent) {
+        if (opts?.detach) onOpenAgentTabDetached(base => ({ ...base, selectedAgentId: record.id }))
+        else onOpenAgentTab(base => ({ ...base, selectedAgentId: record.id }))
+        return
+      }
       const initializer = (base: WorkspaceTabStateWorkspace) =>
         configureTabStateForRecord(base, record, {
           clusters: [],
@@ -217,12 +210,8 @@ export function AgentView({
           },
           curatedRecords: [record],
         })
-      if (opts?.detach) {
-        onOpenAgentTabDetached(base => ({ ...base, selectedAgentId: record.id }))
-        return
-      }
-      onOpenAgentTab(base => ({ ...base, selectedAgentId: record.id }))
-      onOpenTab(initializer)
+      if (opts?.detach) onOpenTab(initializer)
+      else onOpenTab(initializer)
     },
     [onOpenAgentTab, onOpenAgentTabDetached, onOpenTab],
   )
@@ -231,10 +220,6 @@ export function AgentView({
     async (ark: string, opts?: { detach?: boolean }) => {
       const trimmed = ark.trim()
       if (!trimmed || !datasetId) return
-      if (selectedRecord && (selectedRecord.ark === trimmed || selectedRecord.id === trimmed)) {
-        openRecord(selectedRecord, opts)
-        return
-      }
       try {
         const payload = await fetchWorkspaceRecord(datasetId, trimmed)
         const record = buildRecordRowFromPayload(payload)
@@ -246,7 +231,7 @@ export function AgentView({
         )
       }
     },
-    [datasetId, openRecord, selectedRecord, showToast, t],
+    [datasetId, openRecord, showToast, t],
   )
 
   const handleRowClick = useCallback(
@@ -519,7 +504,17 @@ export function AgentView({
                   />
                 ) : (
                   <>
-                    <IntermarcView record={selectedRecord} onArkClick={ark => openArk(ark)} />
+                    <IntermarcView
+                      record={selectedRecord}
+                      onArkClick={ark => openArk(ark)}
+                      labelResolver={ark => {
+                        if (selectedRecord.arkLabels) {
+                          const direct = selectedRecord.arkLabels[ark] ?? selectedRecord.arkLabels[ark.toLowerCase()]
+                          if (direct) return direct
+                        }
+                        return null
+                      }}
+                    />
                     <div className="editor-actions">
                       <button type="button" onClick={() => setEditing(true)}>
                         {t('buttons.modifyRecord')}

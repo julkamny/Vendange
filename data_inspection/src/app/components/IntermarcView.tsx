@@ -17,6 +17,7 @@ const INTERMARC_BASE_EXTENSIONS: Extension[] = [
 type IntermarcViewProps = {
   record: RecordRow
   onArkClick?: (ark: string, context: { zone: string; subfield: string }) => void
+  labelResolver?: (ark: string) => string | undefined
 }
 
 type IntermarcRender = {
@@ -24,7 +25,7 @@ type IntermarcRender = {
   decorations: DecorationSet
 }
 
-export function IntermarcView({ record, onArkClick }: IntermarcViewProps) {
+export function IntermarcView({ record, onArkClick, labelResolver }: IntermarcViewProps) {
   const [result, setResult] = useState<PrettyIntermarcResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -33,7 +34,11 @@ export function IntermarcView({ record, onArkClick }: IntermarcViewProps) {
     let cancelled = false
     setResult(null)
     setError(null)
-    prettyPrintIntermarc(record.intermarc, { arkLabels: record.arkLabels })
+    prettyPrintIntermarc(record.intermarc, {
+      resolveLabels: true,
+      arkLabels: record.arkLabels,
+      labelResolver,
+    })
       .then(res => {
         if (!cancelled) {
           setResult(res)
@@ -45,7 +50,7 @@ export function IntermarcView({ record, onArkClick }: IntermarcViewProps) {
     return () => {
       cancelled = true
     }
-  }, [record])
+  }, [record, labelResolver])
 
   const display = useMemo(() => (result ? buildIntermarcRender(result) : null), [result])
 

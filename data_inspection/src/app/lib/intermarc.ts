@@ -163,13 +163,15 @@ async function displayValue(
   valeur: string,
   resolveLabels: boolean,
   arkLabels?: Record<string, string>,
+  labelResolver?: (ark: string) => string | undefined,
 ): Promise<DisplayValueResult> {
   if (!resolveLabels) return { text: valeur }
   if (!looksLikeArk(valeur)) return { text: valeur }
   const trimmed = valeur.trim()
   const providedLabel =
     arkLabels?.[trimmed] ??
-    (trimmed.toLowerCase() !== trimmed ? arkLabels?.[trimmed.toLowerCase()] : undefined)
+    (trimmed.toLowerCase() !== trimmed ? arkLabels?.[trimmed.toLowerCase()] : undefined) ??
+    labelResolver?.(trimmed)
   if (providedLabel) {
     const tooltip = providedLabel === trimmed ? trimmed : `${providedLabel} — ${trimmed}`
     return { text: providedLabel, ark: trimmed, tooltip }
@@ -225,6 +227,7 @@ export function parseIntermarc(s: string): Intermarc {
 type PrettyPrintOptions = {
   resolveLabels?: boolean
   arkLabels?: Record<string, string>
+  labelResolver?: (ark: string) => string | undefined
 }
 
 function curationClass(flag?: string): string {
@@ -275,6 +278,7 @@ export async function prettyPrintIntermarc(
         sz.valeur,
         resolveLabels,
         options.arkLabels,
+        options.labelResolver,
       )
       const label = formatSubLabel(z.code, sz.code)
       const displayCode = label.startsWith('$') ? label : `$${label}`

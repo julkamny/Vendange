@@ -82,13 +82,20 @@ export function buildLabelFromIntermarc(im: Intermarc, type: string): string | u
     case 'expression': {
       const zone = findZones(im, '140')[0]
       if (zone) {
-        const parts: string[] = []
+        let parent: string | undefined
+        const modifiers: string[] = []
         zone.sousZones.forEach(sub => {
           const value = typeof sub.valeur === 'string' ? sub.valeur.trim() : ''
           if (!value) return
-          parts.push(value)
+          const code = subfieldCode(sub.code)
+          if (code === '3' && !parent) {
+            parent = value
+            return
+          }
+          if (code === '9') return
+          modifiers.push(value)
         })
-        if (parts.length) return parts.join(' — ')
+        if (parent || modifiers.length) return [parent, ...modifiers].filter(Boolean).join(' ')
       }
       return getFirstSubZoneValue(im, '150', '150$a') ?? getFirstSubZoneValue(im, '245', '245$a')
     }
@@ -128,6 +135,8 @@ function subfieldCode(raw: string): string {
   if (!raw) return ''
   const dollar = raw.lastIndexOf('$')
   if (dollar >= 0 && dollar + 1 < raw.length) return raw.slice(dollar + 1)
+  const sIndex = raw.lastIndexOf('s')
+  if (sIndex >= 0 && sIndex + 1 < raw.length && /^[0-9A-Za-z]{3}s/.test(raw)) return raw.slice(sIndex + 1)
   if (raw.length > 3 && raw.startsWith('150')) return raw.slice(3)
   return raw
 }
@@ -155,6 +164,37 @@ export function buildIntermarcWorkLabel(
   return parts.length ? parts.join(' ') : undefined
 }
 
+export function buildIntermarcExpressionLabel(
+  im: Intermarc,
+  arkLabels?: Record<string, string>,
+  resolveByArk?: (ark: string) => string | undefined,
+): string | undefined {
+  const zone = findZones(im, '140')[0]
+  if (!zone) return undefined
+
+  let parentLabel: string | undefined
+  const modifiers: string[] = []
+
+  for (const sub of zone.sousZones) {
+    const value = typeof sub.valeur === 'string' ? sub.valeur.trim() : ''
+    if (!value) continue
+    const code = subfieldCode(sub.code)
+    if (code === '9') continue
+    if (code === '3' && !parentLabel) {
+      parentLabel =
+        arkLabels?.[value] ??
+        (value.toLowerCase() !== value ? arkLabels?.[value.toLowerCase()] : undefined) ??
+        resolveByArk?.(value) ??
+        value
+      continue
+    }
+    modifiers.push(value)
+  }
+
+  const parts = parentLabel ? [parentLabel, ...modifiers] : modifiers
+  return parts.length ? parts.join(' ') : undefined
+}
+
 export function makeArkLabelResolver(
   getByArk: (ark: string) => { arkLabels?: Record<string, string>; intermarc: Intermarc; typeNorm: string } | null,
 ): (ark: string) => string | undefined {
@@ -163,9 +203,26 @@ export function makeArkLabelResolver(
     if (!target) return undefined
     const direct = target.arkLabels?.[ark] ?? target.arkLabels?.[ark.toLowerCase()]
     if (direct) return direct
+    const resolveByArk = (candidate: string) => {
+      const normalized = candidate.trim()
+      if (!normalized) return undefined
+      const record = getByArk(normalized)
+      if (!record) return undefined
+      const map = record.arkLabels ?? {}
+      return (
+        map[normalized] ??
+        (normalized.toLowerCase() !== normalized ? map[normalized.toLowerCase()] : undefined) ??
+        buildLabelFromIntermarc(record.intermarc, record.typeNorm)
+      )
+    }
+
+    const inferredExpression =
+      target.typeNorm === 'expression'
+        ? buildIntermarcExpressionLabel(target.intermarc, target.arkLabels, resolveByArk)
+        : undefined
     const inferredWork =
       target.typeNorm === 'oeuvre' ? buildIntermarcWorkLabel(target.intermarc, target.arkLabels) : undefined
-    return buildLabelFromIntermarc(target.intermarc, target.typeNorm) ?? inferredWork ?? undefined
+    return inferredExpression ?? buildLabelFromIntermarc(target.intermarc, target.typeNorm) ?? inferredWork ?? undefined
   }
 }
 
@@ -197,7 +254,9 @@ function formatSubLabel(zoneCode: string, rawCode: string): string {
   if (!rawCode) return ''
   if (rawCode.startsWith(zoneCode)) {
     const remainder = rawCode.slice(zoneCode.length)
-    return remainder.startsWith('$') ? remainder.slice(1) : remainder
+    if (remainder.startsWith('$')) return remainder.slice(1)
+    if (remainder.startsWith('s')) return remainder.slice(1)
+    return remainder
   }
   const dollarIndex = rawCode.indexOf('$')
   if (dollarIndex >= 0 && dollarIndex + 1 < rawCode.length) {

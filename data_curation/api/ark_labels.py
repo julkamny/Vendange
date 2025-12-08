@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import unicodedata
 from typing import Dict, List, Optional, Set
+import re
 
 from data_curation.models import Entity, Intermarc, SousZone, Zone
 
@@ -11,7 +12,8 @@ ARK_PREFIX = "ark:/"
 
 
 def _normalize_type_name(value: str) -> str:
-    normalized = unicodedata.normalize("NFD", value or "")
+    normalized = (value or "").replace("œ", "oe").replace("Œ", "oe")
+    normalized = unicodedata.normalize("NFD", normalized)
     normalized = normalized.encode("ascii", "ignore").decode("ascii")
     return normalized.lower().strip()
 
@@ -60,6 +62,10 @@ def _lookup_by_ark(ark: str, lookup: Dict[str, Entity]) -> Optional[Entity]:
 def _subfield_code(raw: str) -> str:
     if "$" in raw:
         return raw.split("$")[-1]
+    # Intermarc NG exported to Oxigraph replaces "$" with "s" (e.g. 140s3)
+    match = re.match(r"^[0-9A-Za-z]+s(.+)$", raw or "")
+    if match:
+        return match.group(1)
     return raw
 
 
@@ -81,6 +87,44 @@ def _build_work_label(entity: Entity, lookup_by_ark: Dict[str, Entity], cache: D
             resolved = build_label_from_entity(target, lookup_by_ark, cache) if target else None
             value = resolved or value
         parts.append(value)
+    return " ".join(parts) if parts else None
+
+
+def _build_expression_label(
+    entity: Entity,
+    lookup_by_ark: Dict[str, Entity],
+    cache: Dict[str, str],
+) -> Optional[str]:
+    """
+    Build an expression label that mirrors its 140 field:
+    start with the parent work label, followed by the other subfields in order.
+    """
+
+    zone_140 = next(iter(entity.intermarc.get_zone("140")), None)
+    if not zone_140:
+        return None
+
+    parent_label: Optional[str] = None
+    modifiers: List[str] = []
+
+    for sub in _subzones(zone_140):
+        code = _subfield_code(sub.code or "")
+        if code == "9":
+            continue
+        value = str(sub.valeur or "").strip()
+        if not value:
+            continue
+        if code == "3" and parent_label is None:
+            referenced = _lookup_by_ark(value, lookup_by_ark)
+            resolved = build_label_from_entity(referenced, lookup_by_ark, cache) if referenced else None
+            parent_label = resolved or value
+            continue
+        modifiers.append(value)
+
+    parts: List[str] = []
+    if parent_label:
+        parts.append(parent_label)
+    parts.extend(modifiers)
     return " ".join(parts) if parts else None
 
 
@@ -119,20 +163,7 @@ def build_label_from_entity(
     elif type_norm == "manifestation":
         label = _first_sub_value(intermarc, "245", "245$a")
     elif type_norm == "expression":
-        zone_140 = next(iter(intermarc.get_zone("140")), None)
-        if zone_140:
-            parts: List[str] = []
-            for sub in _subzones(zone_140):
-                value = str(sub.valeur or "").strip()
-                if not value:
-                    continue
-                if sub.code == "140$3":
-                    referenced = _lookup_by_ark(value, lookup_by_ark)
-                    resolved = build_label_from_entity(referenced, lookup_by_ark, cache) if referenced else None
-                    value = resolved or value
-                parts.append(value)
-            if parts:
-                label = " — ".join(parts)
+        label = _build_expression_label(entity, lookup_by_ark, cache)
         if not label:
             label = _first_sub_value(intermarc, "150", "150$a") or _first_sub_value(intermarc, "245", "245$a")
     elif type_norm == "valeur controlee":

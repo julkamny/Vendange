@@ -260,7 +260,16 @@ export async function fetchWorkspaceRecord(datasetId: string, recordKey: string)
     const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
     throw new Error(detail.detail || 'Failed to load record')
   }
-  return parseJson<WorkRecordPayload>(response)
+  const payload = await parseJson<WorkRecordPayload>(response)
+  const arkMap = payload.arkLabels ?? payload.ark_labels ?? {}
+  const arkKeys = Object.keys(arkMap)
+  console.log('[workspace] record payload', {
+    datasetId,
+    recordKey,
+    arkLabelCount: arkKeys.length,
+    ArkLabels: arkKeys.map((key) => ({ key, value: arkMap[key] })),
+  })
+  return payload
 }
 
 export async function fetchWorkspaceBacklinks(datasetId: string, recordKey: string): Promise<BacklinksResponse> {

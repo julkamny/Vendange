@@ -38,7 +38,6 @@ type ExpressionGroupLabelProps = {
   expression: ExpressionItemViewDto | ExpressionClusterItemViewDto
   isAnchor: boolean
   manifestationCount: number
-  workLinkCount: number
   agentNames: string[]
   relationships: { outgoing: number; incoming: number }
   mediaKinds?: MediaKind[]
@@ -48,7 +47,6 @@ export function ExpressionGroupLabel({
   expression,
   isAnchor,
   manifestationCount,
-  workLinkCount,
   agentNames,
   relationships,
   mediaKinds,
@@ -71,7 +69,6 @@ export function ExpressionGroupLabel({
         />
       ) : null}
       {manifestationCount > 0 ? <CountBadge kind="manifestations" count={manifestationCount} /> : null}
-      {workLinkCount > 1 ? <CountBadge kind="workLinks" count={workLinkCount} /> : null}
       {relationships.outgoing > 0 || relationships.incoming > 0 ? (
         <RelationshipBadge outgoing={relationships.outgoing} incoming={relationships.incoming} />
       ) : null}
@@ -147,7 +144,6 @@ export function ExpressionPanel({
         const anchorClasses = ['expression-anchor', 'entity-row', 'entity-row--expression']
         if (pendingClusterSourceId && pendingClusterSourceId === group.anchor.id) anchorClasses.push('pending-cluster-source')
         const anchorAgentNames: string[] = []
-        const anchorWorkLinks = group.anchor.summary?.counts?.manifestations ?? 0
         const anchorRelationships = group.anchor.summary?.relationships ?? { outgoing: 0, incoming: 0 }
         const anchorMediaKinds = pickMediaKinds(group.anchor.summary)
 
@@ -201,7 +197,6 @@ export function ExpressionPanel({
                 expression={group.anchor}
                 isAnchor={group.anchor.work_ark === cluster.anchor_ark}
                 manifestationCount={group.anchor.manifestations.length}
-                workLinkCount={anchorWorkLinks}
                 agentNames={anchorAgentNames}
                 relationships={anchorRelationships}
                 mediaKinds={anchorMediaKinds}
@@ -215,7 +210,6 @@ export function ExpressionPanel({
                   if (pendingClusterSourceId && pendingClusterSourceId === expr.id) rowClasses.push('pending-cluster-source')
                   const exprAgentNames: string[] = []
                   const exprMediaKinds = pickMediaKinds(expr.summary)
-                  const workLinkCount = expr.summary?.counts?.manifestations ?? 0
                   const relationships = expr.summary?.relationships ?? { outgoing: 0, incoming: 0 }
                   const isSelectedExpression =
                     (selectedEntity?.entityType === 'expression' && selectedEntity.expressionId === expr.id) ||
@@ -278,7 +272,6 @@ export function ExpressionPanel({
                         isAnchor={false}
                         manifestationCount={expr.manifestations.length}
                         agentNames={exprAgentNames}
-                        workLinkCount={workLinkCount}
                         relationships={relationships}
                         mediaKinds={exprMediaKinds}
                       />

@@ -139,7 +139,6 @@ export function ManifestationPanel({
     }
     const agentNames: string[] = []
     const mediaKinds = pickMediaKinds(expression.summary)
-    const workLinkCount = expression.summary?.counts?.manifestations ?? 0
     const relationships = expression.summary?.relationships ?? { outgoing: 0, incoming: 0 }
     const meta =
       kind === 'anchor'
@@ -161,7 +160,6 @@ export function ManifestationPanel({
             isAnchor={kind === 'anchor'}
             manifestationCount={expression.manifestations.length}
             agentNames={agentNames}
-            workLinkCount={workLinkCount}
             relationships={relationships}
             mediaKinds={mediaKinds}
           />

@@ -34,57 +34,6 @@ export function titleOf(rec: RecordRow): string | undefined {
   return text && text.length ? text : undefined
 }
 
-export function workTitleSegments(rec: RecordRow): EntityTitleSegment[] {
-  const zone = findZones(rec.intermarc, '150')[0]
-  if (!zone) return []
-  const segments: EntityTitleSegment[] = []
-  for (const sz of zone.sousZones) {
-    const value = typeof sz.valeur === 'string' ? sz.valeur.trim() : ''
-    if (!value) continue
-    const labelSource = extractSubfieldLabel(sz.code)
-    const label = labelSource ? labelSource.toUpperCase() : sz.code
-    segments.push({ code: sz.code, label, value })
-  }
-  return segments
-}
-
-export function manifestationTitleSegments(rec: RecordRow): EntityTitleSegment[] {
-  const zone = findZones(rec.intermarc, '245')[0]
-  if (!zone) return []
-  const segments: EntityTitleSegment[] = []
-  for (const sz of zone.sousZones) {
-    const value = typeof sz.valeur === 'string' ? sz.valeur.trim() : ''
-    if (!value) continue
-    const labelSource = extractSubfieldLabel(sz.code)
-    const label = labelSource ? labelSource.toUpperCase() : sz.code
-    segments.push({ code: sz.code, label, value })
-  }
-  return segments
-}
-
-export function expression140Segments(
-  rec: RecordRow,
-  options: { lookupWorkByArk?: (ark: string) => RecordRow | undefined } = {},
-): EntityTitleSegment[] {
-  const zone = findZones(rec.intermarc, '140')[0]
-  if (!zone) return []
-  const segments: EntityTitleSegment[] = []
-  for (const sz of zone.sousZones) {
-    let value = typeof sz.valeur === 'string' ? sz.valeur.trim() : ''
-    if (!value) continue
-    if (sz.code === '140$3' && options.lookupWorkByArk) {
-      const workRecord = options.lookupWorkByArk(value)
-      if (workRecord) {
-        value = titleOf(workRecord) || workRecord.id || value
-      }
-    }
-    const labelSource = extractSubfieldLabel(sz.code)
-    const label = labelSource ? labelSource.toUpperCase() : sz.code
-    segments.push({ code: sz.code, label, value })
-  }
-  return segments
-}
-
 export function expressionWorkArks(rec: RecordRow): string[] {
   const from140 = findZones(rec.intermarc, '140')
     .flatMap(z => z.sousZones)

@@ -5,9 +5,11 @@ import type { WorkspaceTabStateWorkspace, AgentTabState } from '../workspace/typ
 import { configureTabStateForRecord } from '../workspace/tabState'
 import type { WorkspaceDataIndexes } from '../workspace/useWorkspaceData'
 import { deriveInternalIdFromArk } from '../lib/ark'
-import { fetchWorkspaceRecord } from '../lib/api'
+import { fetchWorkspaceRecord, fetchWorkCluster } from '../lib/api'
 import { buildRecordRowFromPayload } from '../lib/recordPayload'
 import { isAgentRecord } from '../agents/useAgentData'
+import { mapWorkCluster } from '../lib/mapWorkClusters'
+import { expressionWorkArks, manifestationExpressionArks } from '../core/entities'
 
 export type WorkspaceContextSnapshot = {
   clusters: Cluster[]
@@ -82,8 +84,123 @@ export function useRecordOpener({
     [datasetId, queryClient, rememberRecord, recordCacheRef],
   )
 
+  const buildIndexesFromCluster = useCallback((cluster: Cluster): WorkspaceDataIndexes => {
+    const worksById = new Map<string, RecordRow>()
+    const worksByArk = new Map<string, RecordRow>()
+    const expressionsById = new Map<string, RecordRow>()
+    const expressionsByArk = new Map<string, RecordRow>()
+    const expressionsByWorkArk = new Map<string, RecordRow[]>()
+    const manifestationsById = new Map<string, RecordRow>()
+    const manifestationsByExpressionArk = new Map<string, RecordRow[]>()
+
+    const addExpression = (expr: import('../types').ExpressionItem, workArk: string | undefined | null) => {
+      const exprRow: RecordRow = {
+        id: expr.id,
+        type: 'Expression',
+        typeNorm: 'expression',
+        ark: expr.ark,
+        intermarc: { zones: [] },
+        intermarcStr: '',
+        raw: [],
+        arkLabels: {},
+        rowIndex: 0,
+      }
+      expressionsById.set(expr.id, exprRow)
+      if (expr.ark) expressionsByArk.set(expr.ark, exprRow)
+      if (workArk) {
+        if (!expressionsByWorkArk.has(workArk)) expressionsByWorkArk.set(workArk, [])
+        const list = expressionsByWorkArk.get(workArk)!
+        if (!list.some(item => item.id === expr.id)) list.push(exprRow)
+      }
+      (expr.manifestations || []).forEach(man => {
+        const manRow: RecordRow = {
+          id: man.id,
+          type: 'Manifestation',
+          typeNorm: 'manifestation',
+          ark: man.ark,
+          intermarc: { zones: [] },
+          intermarcStr: '',
+          raw: [],
+          arkLabels: {},
+          rowIndex: 0,
+        }
+        manifestationsById.set(man.id, manRow)
+        const exprArk = man.expressionArk || expr.ark || null
+        if (exprArk) {
+          if (!manifestationsByExpressionArk.has(exprArk)) manifestationsByExpressionArk.set(exprArk, [])
+          const list = manifestationsByExpressionArk.get(exprArk)!
+          if (!list.some(item => item.id === man.id)) list.push(manRow)
+        }
+      })
+    }
+
+    const addWork = (id: string | undefined, ark?: string | null) => {
+      if (!id && !ark) return
+      const workRow: RecordRow = {
+        id: id ?? ark ?? '',
+        type: 'Oeuvre',
+        typeNorm: 'oeuvre',
+        ark: ark ?? undefined,
+        intermarc: { zones: [] },
+        intermarcStr: '',
+        raw: [],
+        arkLabels: {},
+        rowIndex: 0,
+      }
+      if (workRow.id) worksById.set(workRow.id, workRow)
+      if (workRow.ark) worksByArk.set(workRow.ark, workRow)
+    }
+
+    addWork(cluster.anchorId, cluster.anchorArk)
+    cluster.items.forEach(item => addWork(item.id, item.ark))
+
+    cluster.expressionGroups?.forEach(group => {
+      addExpression(group.anchor, cluster.anchorArk)
+      group.clustered.forEach(expr => addExpression(expr, cluster.anchorArk))
+    })
+    cluster.independentExpressions?.forEach(expr => addExpression(expr, cluster.anchorArk))
+
+    return {
+      worksById,
+      worksByArk,
+      expressionsById,
+      expressionsByArk,
+      expressionsByWorkArk,
+      manifestationsById,
+      manifestationsByExpressionArk,
+    }
+  }, [])
+
+  const mergeClusters = useCallback((existing: Cluster[], next: Cluster | null): Cluster[] => {
+    if (!next) return existing
+    const already = existing.find(c => c.anchorId === next.anchorId || (c.anchorArk && next.anchorArk && c.anchorArk === next.anchorArk))
+    if (already) return existing
+    return [...existing, next]
+  }, [])
+
+  const resolveAnchorKey = useCallback(
+    async (record: RecordRow): Promise<{ anchorKey: string | null; extraRecords: RecordRow[] }> => {
+      if (record.typeNorm === 'oeuvre') {
+        return { anchorKey: record.ark ?? record.id, extraRecords: [] }
+      }
+      if (record.typeNorm === 'expression') {
+        const workArk = expressionWorkArks(record)[0] ?? null
+        return { anchorKey: workArk, extraRecords: [] }
+      }
+      if (record.typeNorm === 'manifestation') {
+        const exprArk = manifestationExpressionArks(record)[0] ?? null
+        if (!exprArk) return { anchorKey: null, extraRecords: [] }
+        const exprRecord = await ensureRecord(exprArk)
+        const workArk = exprRecord ? expressionWorkArks(exprRecord)[0] ?? null : null
+        return { anchorKey: workArk, extraRecords: exprRecord ? [exprRecord] : [] }
+      }
+      return { anchorKey: null, extraRecords: [] }
+    },
+    [ensureRecord],
+  )
+
   const openRecord = useCallback(
-    (record: RecordRow, options?: RecordOpenOptions) => {
+    async (record: RecordRow, options?: RecordOpenOptions) => {
       if (isAgentRecord(record)) {
         const initializer = (base: AgentTabState) => ({ ...base, selectedAgentId: record.id })
         if (options?.detach) onOpenAgentDetachedTab(initializer)
@@ -91,18 +208,56 @@ export function useRecordOpener({
         return
       }
 
-      const ctx =
+      const baseContext =
         getWorkspaceContext?.() ?? {
           clusters: [],
           indexes: EMPTY_WORKSPACE_INDEXES,
-          curatedRecords: [record],
+          curatedRecords: [],
         }
+
+      const { anchorKey, extraRecords } = await resolveAnchorKey(record)
+      let fetchedCluster: Cluster | null = null
+      if (datasetId && anchorKey) {
+        try {
+          const dto = await queryClient.fetchQuery({
+            queryKey: ['workspace', 'work', datasetId, anchorKey],
+            queryFn: () => fetchWorkCluster(datasetId, anchorKey),
+          })
+          fetchedCluster = mapWorkCluster(dto)
+        } catch (error) {
+          console.warn('Failed to load work cluster for anchor', anchorKey, error)
+        }
+      }
+
+      const mergedClusters = mergeClusters(baseContext.clusters, fetchedCluster)
+      const mergedRecords = [...baseContext.curatedRecords, record, ...extraRecords]
+      const indexes =
+        fetchedCluster && fetchedCluster.anchorId
+          ? buildIndexesFromCluster(fetchedCluster)
+          : baseContext.indexes ?? EMPTY_WORKSPACE_INDEXES
+
+      const ctx: WorkspaceContextSnapshot = {
+        clusters: mergedClusters,
+        indexes,
+        curatedRecords: mergedRecords,
+      }
 
       const initializer = (base: WorkspaceTabStateWorkspace) => configureTabStateForRecord(base, record, ctx)
       if (options?.detach) onOpenWorkspaceDetachedTab(initializer)
       else onOpenWorkspaceTab(initializer)
     },
-    [getWorkspaceContext, onOpenAgentDetachedTab, onOpenAgentTab, onOpenWorkspaceDetachedTab, onOpenWorkspaceTab],
+    [
+      buildIndexesFromCluster,
+      datasetId,
+      getWorkspaceContext,
+      mergeClusters,
+      onOpenAgentDetachedTab,
+      onOpenAgentTab,
+      onOpenWorkspaceDetachedTab,
+      onOpenWorkspaceTab,
+      queryClient,
+      resolveAnchorKey,
+    ],
   )
 
   const openRecordForArk = useCallback(
@@ -118,7 +273,7 @@ export function useRecordOpener({
         targetRecord = await ensureRecord(trimmed)
       }
       if (!targetRecord) return null
-      openRecord(targetRecord, options)
+      await openRecord(targetRecord, options)
       return targetRecord
     },
     [ensureRecord, getByArk, getById, openRecord],

@@ -28,6 +28,12 @@ export function configureTabStateForRecord(
     return configureForExpression(base, record, ctx)
   }
   if (record.typeNorm === 'manifestation') {
+    console.log('--- WorkspaceTabState (base) ---')
+    console.log(base)
+    console.log('--- Record (manifestation) ---')
+    console.log(record)
+    console.log('--- WorkspaceTabBuildContext (ctx) ---')
+    console.log(ctx)
     return configureForManifestation(base, record, ctx)
   }
   return base
@@ -149,26 +155,35 @@ function configureForManifestation(
   const clusterFromIndexes = expressionRecord ? findClusterForExpression(ctx.clusters, expressionId, expressionArk) : null
 
   const manifestationNeedles = [record.id, record.ark].filter(Boolean) as string[]
-  const clusterLookup = clusterFromIndexes ?? findClusterContainingManifestation(ctx.clusters, manifestationNeedles)
+  const manifestationCluster = findClusterContainingManifestation(ctx.clusters, manifestationNeedles)
   const expressionInCluster =
-    clusterLookup && clusterLookup.expression
-      ? clusterLookup.expression
+    manifestationCluster && manifestationCluster.expression
+      ? manifestationCluster.expression
       : clusterFromIndexes
         ? findExpressionInCluster(clusterFromIndexes, expressionId ?? undefined, expressionArk ?? undefined)
         : undefined
 
-  const anchorId = clusterLookup
-    ? clusterLookup.anchorExpressionId
+  const anchorId = manifestationCluster
+    ? manifestationCluster.anchorExpressionId
     : clusterFromIndexes
       ? resolveAnchorExpressionId(clusterFromIndexes, expressionInCluster)
       : null
   const source = inferRecordSource(record.id, ctx.curatedRecords)
-  const highlightedWorkArk = workArk ?? clusterLookup?.cluster.anchorArk ?? clusterFromIndexes?.anchorArk ?? null
+  const highlightedWorkArk = workArk ?? manifestationCluster?.cluster.anchorArk ?? clusterFromIndexes?.anchorArk ?? null
   const expressionArkForState =
     expressionArk ??
     expressionInCluster?.ark ??
     expressionRecord?.ark ??
     null
+
+  console.log('Manifestation configuration', {
+    record,
+    workRecord,
+    expressionRecord,
+    manifestationCluster,
+    clusterFromIndexes,
+    expressionInCluster,
+  })
 
   const selectedEntity = {
     id: record.id,
@@ -177,12 +192,12 @@ function configureForManifestation(
     workArk: highlightedWorkArk ?? undefined,
     expressionId: expressionId ?? undefined,
     expressionArk: expressionArkForState ?? undefined,
-    clusterAnchorId: clusterLookup?.cluster.anchorId ?? clusterFromIndexes?.anchorId,
+    clusterAnchorId: manifestationCluster?.cluster.anchorId ?? clusterFromIndexes?.anchorId,
     isAnchor: false,
   }
 
-  if (clusterLookup || clusterFromIndexes) {
-    const resolvedCluster = clusterLookup?.cluster ?? clusterFromIndexes
+  if (manifestationCluster || clusterFromIndexes) {
+    const resolvedCluster = manifestationCluster?.cluster ?? clusterFromIndexes
     return {
       ...base,
       title: manifestationTitle(record) || titleOf(expressionRecord ?? workRecord ?? record) || base.title,
@@ -200,7 +215,7 @@ function configureForManifestation(
     title: manifestationTitle(record) || titleOf(expressionRecord ?? workRecord ?? record) || base.title,
     listScope: 'clusters',
     viewMode: 'manifestations',
-    activeWorkAnchorId: null,
+    activeWorkAnchorId: workArk ?? null,
     activeExpressionAnchorId: null,
     highlightedWorkArk,
     highlightedExpressionArk: expressionArkForState,

@@ -146,13 +146,24 @@ function configureForManifestation(
   const workArkCandidates = expressionRecord ? expressionWorkArks(expressionRecord) : []
   const workArk = workArkCandidates[0] ?? null
   const workRecord = workArk ? ctx.indexes.worksByArk.get(workArk) ?? null : null
-  const cluster = expressionRecord ? findClusterForExpression(ctx.clusters, expressionId, expressionArk) : null
-  const expressionInCluster = cluster
-    ? findExpressionInCluster(cluster, expressionId ?? undefined, expressionArk ?? undefined)
-    : undefined
-  const anchorId = cluster ? resolveAnchorExpressionId(cluster, expressionInCluster) : null
+  const clusterFromIndexes = expressionRecord ? findClusterForExpression(ctx.clusters, expressionId, expressionArk) : null
+
+  const manifestationNeedles = [record.id, record.ark].filter(Boolean) as string[]
+  const clusterLookup = clusterFromIndexes ?? findClusterContainingManifestation(ctx.clusters, manifestationNeedles)
+  const expressionInCluster =
+    clusterLookup && clusterLookup.expression
+      ? clusterLookup.expression
+      : clusterFromIndexes
+        ? findExpressionInCluster(clusterFromIndexes, expressionId ?? undefined, expressionArk ?? undefined)
+        : undefined
+
+  const anchorId = clusterLookup
+    ? clusterLookup.anchorExpressionId
+    : clusterFromIndexes
+      ? resolveAnchorExpressionId(clusterFromIndexes, expressionInCluster)
+      : null
   const source = inferRecordSource(record.id, ctx.curatedRecords)
-  const highlightedWorkArk = workArk ?? cluster?.anchorArk ?? null
+  const highlightedWorkArk = workArk ?? clusterLookup?.cluster.anchorArk ?? clusterFromIndexes?.anchorArk ?? null
   const expressionArkForState =
     expressionArk ??
     expressionInCluster?.ark ??
@@ -166,16 +177,17 @@ function configureForManifestation(
     workArk: highlightedWorkArk ?? undefined,
     expressionId: expressionId ?? undefined,
     expressionArk: expressionArkForState ?? undefined,
-    clusterAnchorId: cluster?.anchorId,
+    clusterAnchorId: clusterLookup?.cluster.anchorId ?? clusterFromIndexes?.anchorId,
     isAnchor: false,
   }
 
-  if (cluster) {
+  if (clusterLookup || clusterFromIndexes) {
+    const resolvedCluster = clusterLookup?.cluster ?? clusterFromIndexes
     return {
       ...base,
       title: manifestationTitle(record) || titleOf(expressionRecord ?? workRecord ?? record) || base.title,
       viewMode: 'manifestations',
-      activeWorkAnchorId: cluster.anchorId,
+      activeWorkAnchorId: resolvedCluster?.anchorId ?? null,
       activeExpressionAnchorId: anchorId,
       highlightedWorkArk,
       highlightedExpressionArk: expressionArkForState,
@@ -217,4 +229,34 @@ function findClusterForExpression(
     clusters.find(cluster => !!findExpressionInCluster(cluster, expressionId ?? undefined, expressionArk ?? undefined)) ??
     null
   )
+}
+
+function findClusterContainingManifestation(
+  clusters: Cluster[],
+  needles: string[],
+): { cluster: Cluster; expression: import('../types').ExpressionItem | import('../types').ExpressionClusterItem; anchorExpressionId: string | null } | null {
+  for (const cluster of clusters) {
+    const expressionGroups = cluster.expressionGroups ?? []
+    for (const group of expressionGroups) {
+      const anchorExpression = group.anchor
+      const anchorMatch = anchorExpression.manifestations.find(item => needles.includes(item.id) || (item.ark && needles.includes(item.ark)))
+      if (anchorMatch) {
+        return { cluster, expression: anchorExpression, anchorExpressionId: anchorExpression.id }
+      }
+      for (const clustered of group.clustered) {
+        const match = clustered.manifestations.find(item => needles.includes(item.id) || (item.ark && needles.includes(item.ark)))
+        if (match) {
+          const anchorExpressionId = clustered.anchorExpressionId ?? group.anchor.id ?? null
+          return { cluster, expression: clustered, anchorExpressionId }
+        }
+      }
+    }
+    for (const expression of cluster.independentExpressions ?? []) {
+      const match = expression.manifestations.find(item => needles.includes(item.id) || (item.ark && needles.includes(item.ark)))
+      if (match) {
+        return { cluster, expression, anchorExpressionId: expression.id }
+      }
+    }
+  }
+  return null
 }

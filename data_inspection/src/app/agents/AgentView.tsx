@@ -11,13 +11,13 @@ import { IntermarcEditor } from '../components/IntermarcEditor'
 import { BacklinksPanel } from '../components/BacklinksPanel'
 import { WorkspaceContextMenu, type MenuAction } from '../components/WorkspaceContextMenu'
 import { EntityLabel } from '../components/EntityLabel'
-import { configureTabStateForRecord } from '../workspace/tabState'
-import { useWorkspaceAgents, useWorkspaceRecord } from '../hooks/useWorkspaceQueries'
+import { useWorkspaceAgents, useWorkspaceRecord, useWorkspaceWorks } from '../hooks/useWorkspaceQueries'
 import { buildRecordRowFromPayload } from '../lib/recordPayload'
 import { useBacklinks } from '../hooks/useBacklinks'
 import { ConfirmAgentClusterModal } from '../components/workspace/ClusterModals'
 import { useAgentClustering } from './useAgentClustering'
-import { fetchWorkspaceRecord } from '../lib/api'
+import { useRecordOpener, EMPTY_WORKSPACE_INDEXES } from '../hooks/useRecordOpener'
+import { mapWorkClusters } from '../lib/mapWorkClusters'
 
 type AgentViewProps = {
   state: AgentTabState
@@ -51,7 +51,10 @@ export function AgentView({
   const { t } = useTranslation()
   const { showToast } = useToast()
   const { datasetId, updateRecordIntermarc, getCuratedBaselineRecord, applyServerWorkspaceUpdates } = useAppData()
+  const recordCacheRef = useRef<Map<string, RecordRow>>(new Map())
   const { data: agentsDto } = useWorkspaceAgents(datasetId)
+  const { data: workspaceWorks } = useWorkspaceWorks(datasetId)
+  const mappedClusters = useMemo(() => mapWorkClusters(workspaceWorks?.clusters) ?? [], [workspaceWorks?.clusters])
   const clustering = useAgentClustering({
     datasetId,
     agentsDto,
@@ -99,6 +102,31 @@ export function AgentView({
   const backlinksQuery = useBacklinks(datasetId, selectedAgentKey)
   const backlinks = backlinksQuery.backlinks
   const backlinksLoading = backlinksQuery.isFetching || backlinksQuery.isLoading
+  const getWorkspaceContext = useCallback(
+    () => ({
+      clusters: mappedClusters,
+      indexes: EMPTY_WORKSPACE_INDEXES,
+      curatedRecords: Array.from(recordCacheRef.current.values()),
+    }),
+    [mappedClusters],
+  )
+  const { rememberRecord, openRecordForArk } = useRecordOpener({
+    datasetId,
+    getWorkspaceContext,
+    cacheRef: recordCacheRef,
+    onOpenWorkspaceTab: onOpenTab,
+    onOpenWorkspaceDetachedTab: onOpenTab,
+    onOpenAgentTab,
+    onOpenAgentDetachedTab: onOpenAgentTabDetached,
+  })
+
+  useEffect(() => {
+    if (selectedRecord) rememberRecord(selectedRecord)
+  }, [rememberRecord, selectedRecord])
+  useEffect(() => {
+    if (pendingSourceRecord) rememberRecord(pendingSourceRecord)
+    if (pendingAnchorRecord) rememberRecord(pendingAnchorRecord)
+  }, [pendingAnchorRecord, pendingSourceRecord, rememberRecord])
 
   const listRef = useRef<HTMLElement | null>(null)
   const detailsRef = useRef<HTMLElement | null>(null)
@@ -191,53 +219,16 @@ export function AgentView({
     })
   }, [state.selectedAgentId])
 
-  const openRecord = useCallback(
-    (record: RecordRow, opts?: { detach?: boolean }) => {
-      const isAgent =
-        record.typeNorm === 'identite publique de personne' ||
-        record.typeNorm === 'collectivite' ||
-        record.typeNorm === 'famille'
-      if (isAgent) {
-        if (opts?.detach) onOpenAgentTabDetached(base => ({ ...base, selectedAgentId: record.id }))
-        else onOpenAgentTab(base => ({ ...base, selectedAgentId: record.id }))
-        return
-      }
-      const initializer = (base: WorkspaceTabStateWorkspace) =>
-        configureTabStateForRecord(base, record, {
-          clusters: [],
-          indexes: {
-            worksById: new Map(),
-            worksByArk: new Map(),
-            expressionsById: new Map(),
-            expressionsByArk: new Map(),
-            expressionsByWorkArk: new Map(),
-            manifestationsById: new Map(),
-            manifestationsByExpressionArk: new Map(),
-          },
-          curatedRecords: [record],
-        })
-      if (opts?.detach) onOpenTab(initializer)
-      else onOpenTab(initializer)
-    },
-    [onOpenAgentTab, onOpenAgentTabDetached, onOpenTab],
-  )
-
   const openArk = useCallback(
     async (ark: string, opts?: { detach?: boolean }) => {
-      const trimmed = ark.trim()
-      if (!trimmed || !datasetId) return
-      try {
-        const payload = await fetchWorkspaceRecord(datasetId, trimmed)
-        const record = buildRecordRowFromPayload(payload)
-        openRecord(record, opts)
-      } catch {
-        showToast(
-          t('workspace.sparqlNoRecordForArk', { defaultValue: 'No record found for this ARK.' }),
-          { tone: 'error' },
-        )
+      const opened = await openRecordForArk(ark, opts)
+      if (!opened) {
+        showToast(t('workspace.sparqlNoRecordForArk', { defaultValue: 'No record found for this ARK.' }), {
+          tone: 'error',
+        })
       }
     },
-    [datasetId, openRecord, showToast, t],
+    [openRecordForArk, showToast, t],
   )
 
   const handleRowClick = useCallback(

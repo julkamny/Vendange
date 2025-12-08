@@ -119,7 +119,7 @@ export function useWorkspaceInteractions({
   )
 
   const handleRecordContextMenu = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
+    async (event: React.MouseEvent<HTMLDivElement>) => {
       const target = event.target as HTMLElement | null
       const arkLink = target?.closest<HTMLElement>('.ark-link')
       if (!arkLink) return
@@ -127,13 +127,16 @@ export function useWorkspaceInteractions({
       if (!rawArk) return
       const trimmedArk = rawArk.trim()
       if (!trimmedArk) return
+      event.preventDefault()
       let targetRecord = getByArk(trimmedArk)
       if (!targetRecord) {
         const fallbackId = deriveInternalIdFromArk(trimmedArk)
         if (fallbackId) targetRecord = getById(fallbackId)
       }
+      if (!targetRecord) {
+        targetRecord = await ensureRecord(trimmedArk)
+      }
       if (!targetRecord) return
-      event.preventDefault()
       const source: WorkspaceContextMenuState['source'] = target?.closest('.backlinks-panel')
         ? 'backlinks-link'
         : target?.closest('.intermarc-view')
@@ -141,7 +144,7 @@ export function useWorkspaceInteractions({
           : 'ark-link'
       setContextMenu({ position: { x: event.clientX, y: event.clientY }, record: targetRecord, source })
     },
-    [getByArk, getById],
+    [ensureRecord, getByArk, getById],
   )
 
   const handleCloseContextMenu = useCallback(() => setContextMenu(null), [])

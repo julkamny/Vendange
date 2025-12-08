@@ -6,8 +6,8 @@ import { useTranslation } from '../hooks/useTranslation'
 import { titleOf, expressionWorkArks, manifestationsForExpression, manifestationExpressionArks } from '../core/entities'
 import type { Cluster, RecordRow } from '../types'
 import type { WorkspaceTabStateWorkspace } from './types'
-import type { WorkClusterDto, WorkClusterItemDto, ExpressionItemViewDto, ExpressionClusterItemViewDto, ManifestationItemViewDto } from '../types'
 import { useWorkCluster, useWorkspaceWorks } from '../hooks/useWorkspaceQueries'
+import { mapWorkCluster, mapWorkClusters } from '../lib/mapWorkClusters'
 
 export type WorkspaceDataIndexes = {
   worksById: Map<string, RecordRow>
@@ -19,85 +19,18 @@ export type WorkspaceDataIndexes = {
   manifestationsByExpressionArk: Map<string, RecordRow[]>
 }
 
-function mapManifestation(view: ManifestationItemViewDto): import('../types').ManifestationItem {
-  return {
-    id: view.id,
-    ark: view.ark || view.id,
-    title: view.title || view.id,
-    expressionArk: view.expression_ark || view.original_expression_ark || '',
-    expressionId: view.expression_id || undefined,
-    originalExpressionArk: view.original_expression_ark || view.expression_ark || '',
-    summary: view.summary ?? null,
-  }
-}
-
-function mapExpression(view: ExpressionItemViewDto): import('../types').ExpressionItem {
-  const manifestations = (view.manifestations || []).map(mapManifestation)
-  return {
-    id: view.id,
-    ark: view.ark || view.id,
-    title: view.title || view.id,
-    workArk: view.work_ark || '',
-    workId: view.work_id || undefined,
-    manifestations,
-    summary: view.summary ?? null,
-  }
-}
-
-function mapExpressionCluster(view: ExpressionClusterItemViewDto): import('../types').ExpressionClusterItem {
-  const base = mapExpression(view)
-  return {
-    ...base,
-    anchorExpressionId: view.anchor_expression_id,
-    accepted: view.accepted,
-    date: view.date || undefined,
-    origin: view.origin,
-  }
-}
-
-function mapClusterItem(view: WorkClusterItemDto): import('../types').ClusterItem {
-  return {
-    ark: view.ark,
-    id: view.id || undefined,
-    title: view.title || view.id || view.ark,
-    accepted: view.accepted,
-    date: view.date || undefined,
-    origin: view.origin,
-    summary: view.summary ?? null,
-  }
-}
-
-function mapCluster(dto: WorkClusterDto): Cluster {
-  const expressionGroups = (dto.expression_groups || []).map(group => ({
-    anchor: mapExpression(group.anchor),
-    clustered: (group.clustered || []).map(mapExpressionCluster),
-  }))
-  const independentExpressions = (dto.independent_expressions || []).map(mapExpression)
-  const anchorSummary = dto.anchor_summary ?? null
-  return {
-    anchorId: dto.anchor_id,
-    anchorArk: dto.anchor_ark || '',
-    anchorTitle: dto.anchor_title || dto.anchor_id,
-    anchor_summary: anchorSummary,
-    anchorSummary,
-    items: (dto.items || []).map(mapClusterItem),
-    expressionGroups,
-    independentExpressions,
-  }
-}
-
 export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
   const { clusters: localClusters, curated, datasetId } = useAppData()
   const { language } = useTranslation()
   const { data: workspaceData } = useWorkspaceWorks(datasetId)
   const anchorKey = state.activeWorkAnchorId ?? state.highlightedWorkArk ?? null
   const { data: activeClusterDto } = useWorkCluster(datasetId, anchorKey)
-  const activeClusterOverride = useMemo(() => (activeClusterDto ? mapCluster(activeClusterDto) : null), [activeClusterDto])
+  const activeClusterOverride = useMemo(
+    () => (activeClusterDto ? mapWorkCluster(activeClusterDto) : null),
+    [activeClusterDto],
+  )
 
-  const mappedClusters = useMemo(() => {
-    if (!workspaceData?.clusters) return null
-    return workspaceData.clusters.map(mapCluster)
-  }, [workspaceData?.clusters])
+  const mappedClusters = useMemo(() => (workspaceData?.clusters ? mapWorkClusters(workspaceData.clusters) : null), [workspaceData?.clusters])
 
   const clusters = mappedClusters ?? localClusters
 
@@ -240,9 +173,9 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
       return { cluster: pseudoCluster, source: 'inventory' as const, inventoryWork: candidateWorkRecord }
     }
 
-    if (activeClusterOverride) {
-      return { cluster: activeClusterOverride, source: 'cluster' as const, inventoryWork: null as RecordRow | null }
-    }
+      if (activeClusterOverride) {
+        return { cluster: activeClusterOverride, source: 'cluster' as const, inventoryWork: null as RecordRow | null }
+      }
 
     return { cluster: null, source: 'none' as const, inventoryWork: null as RecordRow | null }
   }, [

@@ -90,7 +90,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 
 ### Windows & tabs management
 - Workspace tabs can be “unmoored” into their own windows; Intermarc panes in those windows remain synced and offer a full-window toggle for multi-monitor comparisons.
-- Right-click any ARK (work/expression/manifestation or agent) to open it in a new tab or directly in a detached window; agent ARKs route to the Agents workspace automatically.
+- Right-click any ARK (work/expression/manifestation or agent) to open it in a new tab or directly in a detached window; agent ARKs route to the Agents workspace automatically. Context menus now fetch missing records on demand, so ARK links work even before their `/record` payload has been loaded, and manifestations opened from AgentView come with the workspace list populated.
 
 ### Editing anchor or independent entities
 - Click a work anchor, then "Modify record" to open a JSON editor (CodeMirror) for the anchor’s Intermarc.

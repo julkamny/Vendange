@@ -179,6 +179,155 @@ def _extract_work_cluster_targets(intermarc: Intermarc) -> set[str]:
     return targets
 
 
+def _current_work_cluster_targets(store: Store, anchor_id: str) -> set[str]:
+    graph = record_graph(anchor_id)
+    query = f"""
+    SELECT ?target
+    WHERE {{
+      GRAPH <{graph.value}> {{
+        ?rec <{HAS_FIELD.value}> ?field .
+        ?field <{FIELD_CODE_PROP.value}> "90F" .
+        ?field <{HAS_SUBFIELD.value}> ?subQ .
+        ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
+        ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
+        FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
+        ?field <{HAS_SUBFIELD.value}> ?subT .
+        ?subT <{SUBFIELD_CODE_PROP.value}> "90Fs3" .
+        ?subT <{SUBFIELD_VALUE_PROP.value}> ?target .
+      }}
+    }}
+    """
+    solutions = store.query(query)
+    targets: set[str] = set()
+    if isinstance(solutions, QuerySolutions):
+        for sol in solutions:
+            try:
+                target = sol["target"]
+            except (KeyError, TypeError):
+                target = None
+            if isinstance(target, Literal):
+                targets.add(target.value)
+    return targets
+
+
+def _expressions_of_work(store: Store, work_ark: str) -> list[tuple[str, str]]:
+    query = f"""
+    SELECT ?expr ?ark
+    WHERE {{
+      GRAPH ?g {{
+        ?expr <{HAS_FIELD.value}> ?field750 .
+        ?field750 <{FIELD_CODE_PROP.value}> "750" .
+        ?field750 <{HAS_SUBFIELD.value}> ?sub3 .
+        ?sub3 <{SUBFIELD_CODE_PROP.value}> "750s3" .
+        ?sub3 <{SUBFIELD_VALUE_PROP.value}> "{work_ark}" .
+
+        ?expr <{HAS_FIELD.value}> ?field001 .
+        ?field001 <{FIELD_CODE_PROP.value}> "001" .
+        ?field001 <{HAS_SUBFIELD.value}> ?subArk .
+        ?subArk <{SUBFIELD_CODE_PROP.value}> "001sa" .
+        ?subArk <{SUBFIELD_VALUE_PROP.value}> ?ark .
+      }}
+    }}
+    """
+    expressions: list[tuple[str, str]] = []
+    solutions = store.query(query)
+    if isinstance(solutions, QuerySolutions):
+        for sol in solutions:
+            try:
+                expr_node = sol["expr"]
+            except (KeyError, TypeError):
+                expr_node = None
+            try:
+                ark_node = sol["ark"]
+            except (KeyError, TypeError):
+                ark_node = None
+            expr_iri = getattr(expr_node, "value", None)
+            ark_val = getattr(ark_node, "value", None) if isinstance(ark_node, Literal) else None
+            if expr_iri and ark_val:
+                expressions.append((expr_iri.split("/")[-1], ark_val))
+    return expressions
+
+
+def _expression_cross_work_clusters(
+    store: Store, ark_index: dict[str, str], expr_id: str, expr_ark: str, work_ark: str
+) -> bool:
+    member_query = f"""
+    SELECT ?anchorParent
+    WHERE {{
+      GRAPH ?g {{
+        ?anchor <{HAS_FIELD.value}> ?field .
+        ?field <{FIELD_CODE_PROP.value}> "90F" .
+        ?field <{HAS_SUBFIELD.value}> ?subQ .
+        ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
+        ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
+        FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
+        ?field <{HAS_SUBFIELD.value}> ?subT .
+        ?subT <{SUBFIELD_CODE_PROP.value}> "90Fs3" .
+        ?subT <{SUBFIELD_VALUE_PROP.value}> "{expr_ark}" .
+
+        ?anchor <{HAS_FIELD.value}> ?field750 .
+        ?field750 <{FIELD_CODE_PROP.value}> "750" .
+        ?field750 <{HAS_SUBFIELD.value}> ?subParent .
+        ?subParent <{SUBFIELD_CODE_PROP.value}> "750s3" .
+        ?subParent <{SUBFIELD_VALUE_PROP.value}> ?anchorParent .
+      }}
+    }}
+    """
+    solutions_member = store.query(member_query)
+    if isinstance(solutions_member, QuerySolutions):
+        for sol in solutions_member:
+            try:
+                parent_node = sol["anchorParent"]
+            except (KeyError, TypeError):
+                parent_node = None
+            if isinstance(parent_node, Literal) and parent_node.value != work_ark:
+                return True
+
+    # Anchor case: expression of the work anchoring other expressions from different works
+    target_query = f"""
+    SELECT ?target
+    WHERE {{
+      GRAPH <{record_graph(expr_id).value}> {{
+        ?rec <{HAS_FIELD.value}> ?field .
+        ?field <{FIELD_CODE_PROP.value}> "90F" .
+        ?field <{HAS_SUBFIELD.value}> ?subQ .
+        ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
+        ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
+        FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
+        ?field <{HAS_SUBFIELD.value}> ?subT .
+        ?subT <{SUBFIELD_CODE_PROP.value}> "90Fs3" .
+        ?subT <{SUBFIELD_VALUE_PROP.value}> ?target .
+      }}
+    }}
+    """
+    solutions_targets = store.query(target_query)
+    if isinstance(solutions_targets, QuerySolutions):
+        for sol in solutions_targets:
+            try:
+                target_node = sol["target"]
+            except (KeyError, TypeError):
+                target_node = None
+            target_ark = getattr(target_node, "value", None) if isinstance(target_node, Literal) else None
+            if not target_ark:
+                continue
+            target_id = ark_index.get(target_ark)
+            if not target_id:
+                continue
+            target_parents = _expression_parents(store, target_id)
+            for parent in target_parents:
+                if parent != work_ark:
+                    return True
+
+    return False
+
+
+def _work_expressions_linked_to_other_work_clusters(store: Store, ark_index: dict[str, str], work_ark: str) -> bool:
+    for expr_id, expr_ark in _expressions_of_work(store, work_ark):
+        if _expression_cross_work_clusters(store, ark_index, expr_id, expr_ark, work_ark):
+            return True
+    return False
+
+
 def _is_work_anchor(store: Store, ark_index: dict[str, str], target_ark: str) -> bool:
     target_id = ark_index.get(target_ark)
     if not target_id:
@@ -215,6 +364,16 @@ def _is_work_anchor(store: Store, ark_index: dict[str, str], target_ark: str) ->
 
 def _ensure_unique_work_clusters(store: Store, anchor_id: str, intermarc: Intermarc) -> None:
     new_targets = _extract_work_cluster_targets(intermarc)
+
+    ark_index = load_ark_index(store)
+    previous_targets = _current_work_cluster_targets(store, anchor_id)
+    removed_targets = previous_targets - new_targets
+    for removed in removed_targets:
+        if _work_expressions_linked_to_other_work_clusters(store, ark_index, removed):
+            raise ValueError(
+                f"Impossible de retirer l'oeuvre {removed} du cluster : une de ses expressions est deja rattachee a un cluster d'expressions d'une autre oeuvre."
+            )
+
     if not new_targets:
         return
 
@@ -257,8 +416,6 @@ def _ensure_unique_work_clusters(store: Store, anchor_id: str, intermarc: Interm
             continue
         anchor_record_id = anchor_iri.split("/")[-1] if anchor_iri else None
         existing.setdefault(target_value, anchor_record_id)
-
-    ark_index = load_ark_index(store)
 
     for target in new_targets:
         anchor = existing.get(target)

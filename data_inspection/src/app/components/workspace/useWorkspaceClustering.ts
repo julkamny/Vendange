@@ -507,12 +507,11 @@ export function useWorkspaceClustering({
         )
       } catch (error) {
         console.error(error)
-        showToast(
-          accepted
-            ? t('works.cluster.failed', { defaultValue: 'Échec de la clusterisation.' })
-            : t('works.cluster.removeFailed', { defaultValue: 'Échec du retrait du cluster.' }),
-          { tone: 'error' },
-        )
+        const detail = error instanceof Error ? error.message : null
+        const fallback = accepted
+          ? t('works.cluster.failed', { defaultValue: 'Échec de la clusterisation.' })
+          : t('works.cluster.removeFailed', { defaultValue: 'Échec du retrait du cluster.' })
+        showToast(detail && !accepted ? detail : fallback, { tone: 'error' })
       }
     },
     [applyServerUpdates, applyServerWorkspaceUpdates, datasetId, showToast, t],

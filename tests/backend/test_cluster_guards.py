@@ -100,3 +100,20 @@ def test_expression_target_unknown_rejected(dataset_builder):
     attempt = _expression_intermarc("e1", [_cluster_zone("ark:/12148/unknown", note="Clusterisation script")])
     with pytest.raises(ValueError, match="parent non vérifiable"):
         db.update_record(dataset_id, "e1", type_raw="Expression", intermarc_json=attempt)
+
+
+def test_work_removal_blocked_when_expressions_clustered_elsewhere(dataset_builder):
+    dataset_id = dataset_builder("work-removal-guard")
+
+    # Cluster works w1 (anchor) + w2 so expression clustering across them is allowed
+    work_cluster = _work_intermarc("w1", [_cluster_zone(WORKS["w2"]["ark"], note="Clusterisation script")])
+    db.update_record(dataset_id, "w1", type_raw="Oeuvre", intermarc_json=work_cluster)
+
+    # Expression of w1 anchors a cluster that includes an expression of w2
+    expression_cluster = _expression_intermarc("e1", [_cluster_zone(EXPRESSIONS["e2"]["ark"], note="Clusterisation script")])
+    db.update_record(dataset_id, "e1", type_raw="Expression", intermarc_json=expression_cluster)
+
+    # Removing w2 from the work cluster should be blocked because e2 is clustered under e1 (different work)
+    removal_attempt = _work_intermarc("w1")
+    with pytest.raises(ValueError, match="expressions d'une autre oeuvre"):
+        db.update_record(dataset_id, "w1", type_raw="Oeuvre", intermarc_json=removal_attempt)

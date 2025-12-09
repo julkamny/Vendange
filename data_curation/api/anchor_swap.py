@@ -154,6 +154,24 @@ def _rewrite_cluster_fields(
     return updated_anchor, updated_target, adaptation_targets
 
 
+def _remove_backlink(entity: Entity, *, qualifier_ark: Optional[str], anchor_ark: str) -> Entity:
+    if not qualifier_ark:
+        return entity
+    changed = False
+    next_zones: List[Zone] = []
+    for zone in entity.intermarc.zones:
+        if zone.code != "552":
+            next_zones.append(_clone_zone(zone))
+            continue
+        qualifier_vals = zone.subfield_values("552$q")
+        target_vals = zone.subfield_values("552$3")
+        if qualifier_ark in qualifier_vals and anchor_ark in target_vals:
+            changed = True
+            continue
+        next_zones.append(_clone_zone(zone))
+    return entity.clone_with_new_intermarc(Intermarc(zones=next_zones)) if changed else entity
+
+
 def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> List[dict[str, str]]:
     with _STORE_LOCK:
         store = get_store_locked(dataset_id)
@@ -182,6 +200,8 @@ def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> L
         link_has_adaptation_ark = get_controlled_ark(store, "A pour adaptation")
         link_is_adaptation_of_ark = get_controlled_ark(store, "Est une adaptation de")
 
+        anchor_had_adaptation_to_target = False
+
         from .db_guards import (
             _extract_work_cluster_targets,
             _extract_expression_cluster_targets,
@@ -195,6 +215,11 @@ def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> L
                 raise ValueError("La cible n'appartient pas au cluster de l'ancre.")
             if _is_work_anchor(store, ark_index, target_ark):
                 raise ValueError("Impossible : la cible est déjà ancre d'un cluster.")
+            for zone in anchor_entity.intermarc.get_zone("552"):
+                q_match = link_has_adaptation_ark in zone.subfield_values("552$q") if link_has_adaptation_ark else False
+                t_match = target_ark in zone.subfield_values("552$3")
+                if q_match and t_match:
+                    anchor_had_adaptation_to_target = True
         else:
             cluster_targets = _extract_expression_cluster_targets(anchor_entity.intermarc)
             if target_ark not in cluster_targets:
@@ -207,6 +232,13 @@ def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> L
             target_entity,
             link_has_adaptation_ark=link_has_adaptation_ark if kind_anchor in {"œuvre","oeuvre","work"} else None,
         )
+
+        if anchor_had_adaptation_to_target:
+            updated_target = _remove_backlink(
+                updated_target,
+                qualifier_ark=link_is_adaptation_of_ark,
+                anchor_ark=anchor_ark,
+            )
 
         updated_backlinks: List[Entity] = []
         if adaptation_targets and link_is_adaptation_of_ark:

@@ -244,7 +244,7 @@ async function displayValue(
     (trimmed.toLowerCase() !== trimmed ? arkLabels?.[trimmed.toLowerCase()] : undefined) ??
     labelResolver?.(trimmed)
   if (providedLabel) {
-    const tooltip = providedLabel === trimmed ? trimmed : `${providedLabel} — ${trimmed}`
+    const tooltip = trimmed
     return { text: providedLabel, ark: trimmed, tooltip }
   }
   return { text: trimmed }

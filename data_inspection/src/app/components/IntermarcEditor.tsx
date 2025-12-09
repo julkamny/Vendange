@@ -79,7 +79,7 @@ class ArkLabelWidget extends WidgetType {
     span.className = 'ark-link has-tooltip'
     span.textContent = this.label
     span.setAttribute('data-ark', this.ark)
-    const tooltip = this.label === this.ark ? this.ark : `${this.label} — ${this.ark}`
+    const tooltip = this.label === this.ark ? this.ark : `${this.ark}`
     span.setAttribute('data-tooltip', tooltip)
     span.setAttribute('aria-label', tooltip)
     span.setAttribute('data-tooltip-placement', 'above')
@@ -231,7 +231,7 @@ function buildDecorations(
           builder.add(subfield.valueStart, subfield.valueEnd, widget)
           continue
         }
-        const tooltipLabel = mappedLabel ? `${mappedLabel} — ${normalizedArk}` : normalizedArk
+        const tooltipLabel = mappedLabel ? `${normalizedArk}` : normalizedArk
         const fallback = Decoration.mark({
           class: 'ark-link has-tooltip',
           attributes: {

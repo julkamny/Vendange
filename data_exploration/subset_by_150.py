@@ -222,33 +222,50 @@ WHERE {{
     return hits
 
 
-def collect_reference_arks(store: Store, entities: Iterable[EntityHit]) -> set[str]:
-    """Extract literal ARKs present on relation_ark/* or property/ark for subjects."""
-    arks: set[str] = set()
+def collect_graph_refs(store: Store, entities: Iterable[EntityHit]) -> tuple[set[str], set[NamedNode]]:
+    """Harvest literal ARKs and target IRIs present anywhere in the entity graphs."""
+    ark_literals: set[str] = set()
+    target_iris: set[NamedNode] = set()
     for hit in entities:
+        graph = hit.graph or NamedNode(f"{VF_ROOT}graph/{hit.iri.value.rsplit('/', 1)[-1]}")
+        for quad in store.quads_for_pattern(None, None, None, graph):
+            obj = quad.object
+            if isinstance(obj, Literal):
+                if "ark:/" in obj.value:
+                    ark_literals.add(obj.value)
+            elif isinstance(obj, NamedNode):
+                if obj.value.startswith(f"{VF_ROOT}entity/"):
+                    target_iris.add(obj)
+        # Also capture literal ARKs hanging directly off the subject (outside GRAPH clause)
         for quad in store.quads_for_pattern(hit.iri, None, None, None):
-            pred = str(quad.predicate)
-            if pred == str(PROPERTY_ARK) or pred.startswith(REL_ARK_PREFIX):
-                obj = quad.object
-                if isinstance(obj, Literal):
-                    arks.add(obj.value)
-    return arks
+            obj = quad.object
+            if isinstance(obj, Literal) and "ark:/" in obj.value:
+                ark_literals.add(obj.value)
+            elif isinstance(obj, NamedNode) and obj.value.startswith(f"{VF_ROOT}entity/"):
+                target_iris.add(obj)
+    return ark_literals, target_iris
 
 
-def find_controlled_values(store: Store, arks: set[str]) -> list[EntityHit]:
-    """Select controlled-value-like entities whose ARK is mentioned anywhere."""
+def find_controlled_values(store: Store, arks: set[str], iris: set[NamedNode]) -> list[EntityHit]:
+    """Select controlled-value-like entities whose ARK or IRI is referenced."""
     ark_values = build_literal_values("ark", arks)
-    if not ark_values:
+    iri_values = build_values("cv", iris)
+    if not ark_values and not iri_values:
         return []
+    filters = []
+    if ark_values:
+        filters.append(f"{{ ?cv <{PROPERTY_ARK.value}> ?ark . {ark_values} }}")
+    if iri_values:
+        filters.append(f"{{ {iri_values} }}")
     query = f"""
 PREFIX vf: <{VF_ROOT}>
 SELECT DISTINCT ?cv ?g ?ark
 WHERE {{
   GRAPH ?g {{
-    ?cv <{PROPERTY_ARK.value}> ?ark .
-    {ark_values}
+    {' UNION '.join(filters)}
     ?cv a ?type .
     VALUES ?type {{ <{CLASS_CONTROLLED_VALUE.value}> <{CLASS_DEWEY.value}> <{CLASS_BRAND.value}> }}
+    OPTIONAL {{ ?cv <{PROPERTY_ARK.value}> ?ark }}
   }}
 }}
 """
@@ -259,10 +276,11 @@ WHERE {{
     return hits
 
 
-def find_agents(store: Store, arks: set[str]) -> list[EntityHit]:
-    """Pull public identities / collectivities / families whose ARK is cited."""
+def find_agents(store: Store, arks: set[str], iris: set[NamedNode]) -> list[EntityHit]:
+    """Pull public identities / collectivities / families whose ARK or IRI is cited."""
     ark_values = build_literal_values("ark", arks)
-    if not ark_values:
+    iri_values = build_values("agent", iris)
+    if not ark_values and not iri_values:
         return []
     allowed_types = {"identité publique de personne", "identite publique de personne", "collectivité", "collectivite", "famille"}
     allowed_raw = ", ".join(escape_literal(t) for t in sorted(allowed_types))
@@ -279,8 +297,9 @@ PREFIX vf: <{VF_ROOT}>
 SELECT DISTINCT ?agent ?g ?ark
 WHERE {{
   GRAPH ?g {{
-    ?agent <{PROPERTY_ARK.value}> ?ark .
-    {ark_values}
+    {{
+      {' UNION '.join(filter(None, [f'{{ ?agent <{PROPERTY_ARK.value}> ?ark . {ark_values} }}' if ark_values else None, f'{{ {iri_values} }}' if iri_values else None]))}
+    }}
     OPTIONAL {{ ?agent <{PROPERTY_TYPE_RAW.value}> ?raw }}
     OPTIONAL {{ ?agent a ?rtype }}
     FILTER(
@@ -368,15 +387,19 @@ def main() -> None:
         manifestations = find_manifestations(store, expressions)
 
     selected = works + expressions + manifestations
-    referenced_arks = collect_reference_arks(store, selected)
+    referenced_arks, referenced_iris = collect_graph_refs(store, selected)
 
-    controlled_values = find_controlled_values(store, referenced_arks)
+    controlled_values = find_controlled_values(store, referenced_arks, referenced_iris)
     selected += controlled_values
 
     agents: list[EntityHit] = []
-    if args.include_agents and referenced_arks:
-        agents = find_agents(store, referenced_arks)
+    if args.include_agents and (referenced_arks or referenced_iris):
+        agents = find_agents(store, referenced_arks, referenced_iris)
         selected += agents
+        # Controlled values that appear only in agent graphs
+        extra_arks, extra_iris = collect_graph_refs(store, agents)
+        more_controlled = find_controlled_values(store, extra_arks, extra_iris)
+        selected += [c for c in more_controlled if c.iri not in {cv.iri for cv in controlled_values}]
 
     graphs_to_copy = graph_names_for_entities(store, selected)
     dest = open_output_store(output_dir, args.overwrite)

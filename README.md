@@ -51,6 +51,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 
 #### Running data curation operations
 - To launch the FastAPI server in `data_curation/api`: `uv run fastapi dev data_curation/api/app.py`. See below for explanations.
+- Clustering workflows automatically re-compact the Oxigraph store after updates so blank-node identifiers stay deterministic and the on-disk dataset remains small.
 - The React UI opens on a dashboard that lets you upload CSV snapshots, launch clustering (with or without expression propagation) while streaming script logs, jump into the inspection workspace, or delete a dataset. Every upload becomes its own Oxigraph store.
 
 ### Testing backend guardrails

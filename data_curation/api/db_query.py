@@ -11,8 +11,12 @@ from .db_shared import (
     FIELD_COMPACT_VALUE_PROP,
     HAS_FIELD,
     HAS_SUBFIELD,
+    META_DATASET,
+    META_GRAPH,
+    PROP_DATASET_LABEL,
     PROP_RECORD_ID,
     PROP_TYPE_RAW,
+    ParsedRecord,
     XSD_BOOLEAN,
     XSD_DECIMAL_TYPES,
     XSD_INTEGER_TYPES,
@@ -25,7 +29,8 @@ from .db_shared import (
     subfield_sort_key,
     unsanitize_subfield_code,
 )
-from .db_store import _STORE_LOCK, directory_size, get_store_locked
+from .db_store import _STORE_LOCK, directory_size, get_store_locked, reset_dataset_store
+from .db_ingest import _build_dataset_quads
 from . import datasets
 from ..models import Entity
 
@@ -218,7 +223,44 @@ def dataset_stats(dataset_id: str) -> Dict[str, int]:
     return {"size_bytes": size, "entity_count": entity_count, "quad_count": quad_count}
 
 
+def _parsed_records_from_store(store: Store) -> list[ParsedRecord]:
+    records: list[ParsedRecord] = []
+    subjects = _record_subjects(store)
+    for record_id, (subject, graph) in subjects.items():
+        entity = _load_record_from_store(store, subject, graph)
+        records.append(
+            ParsedRecord(
+                id=record_id,
+                type_raw=entity.type_entite,
+                ark=entity.ark(),
+                intermarc_raw=entity.intermarc_raw,
+                intermarc=entity.intermarc,
+            )
+        )
+    return records
+
+
 def compact_dataset(dataset_id: str) -> None:
+    """Rewrite the dataset with deterministic blank-node identifiers and compact storage."""
+
+    try:
+        dataset_label = datasets.get_dataset(dataset_id).title
+    except KeyError:
+        dataset_label = None
+
     with _STORE_LOCK:
+        store_before = get_store_locked(dataset_id)
+        records = _parsed_records_from_store(store_before)
+        label_literal = literal_first_value(store_before, META_DATASET, PROP_DATASET_LABEL, META_GRAPH)
+
+    ark_to_id = {record.ark: record.id for record in records if record.ark}
+    label_value = label_literal or dataset_label
+
+    with _STORE_LOCK:
+        reset_dataset_store(dataset_id)
         store = get_store_locked(dataset_id)
-        store.compact()
+        quads = list(_build_dataset_quads(records, ark_to_id, label_value))
+        if quads:
+            store.bulk_extend(quads)
+        store.flush()
+    datasets.touch_dataset(dataset_id)

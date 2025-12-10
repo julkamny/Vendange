@@ -13,6 +13,7 @@ import {
   SUBFIELD_VALUE_PREDICATE,
 } from '../sparql/sparnaturalConfig'
 import { ensureGraphWrapping } from '../sparql/queryUtils'
+import { rewriteSparnaturalShortcuts } from '../sparql/sparnaturalRewrite'
 import { CONTROLLED_LIST_VALUES } from '../data/controlledListsData'
 
 const BASE_PREFIX = `${BASE_NS}/`
@@ -150,7 +151,7 @@ export function SparnaturalBuilder({
         lastQueryRef.current = ''
         return
       }
-      const expanded = ensureGraphWrapping(el.expandSparql(detail.queryString))
+      const expanded = ensureGraphWrapping(rewriteSparnaturalShortcuts(el.expandSparql(detail.queryString)))
       if (expanded === lastQueryRef.current) return
       lastQueryRef.current = expanded
       onQueryChange(expanded)

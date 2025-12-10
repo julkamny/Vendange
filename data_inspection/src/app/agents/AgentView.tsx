@@ -360,7 +360,6 @@ export function AgentView({
       if (!agentsDto) return null
       const cluster = agentsDto.clusters.find(c => c.anchor_id === anchorId)
       if (!cluster) return null
-      const anchorNormalized = normalizeArkValue(cluster.anchor_ark)
       const anchorMatch = filterIdSet.has(String(cluster.anchor_id))
       const itemMatch = filterActive
         ? cluster.items.some(item => {

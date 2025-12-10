@@ -105,6 +105,10 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - Vendange stores each record in its own named graph. The builder (and manual execution) rewrite Sparnatural output into one `GRAPH` block per entity (`GRAPH ?g_manifestation { … }`, `GRAPH ?g_expression { … }`, etc.) so W–E–M traversals span the right graphs out of the box. For custom logic you can still provide explicit `GRAPH` clauses—auto-wrapping steps aside as soon as it detects one.
 - From the SPARQL results, pick the columns that contain work or agent ARKs and apply them as a global filter: matched rows are highlighted, out-of-scope clusters collapse + dim, and the filter stays active across all workspace/agent tabs (inline or detached) until you clear it from the banner.
 
+### Data exploration scripts
+- `data_exploration/subset_by_150.py` — builds a new Oxigraph store containing works whose `150` subfields match a needle, optionally pulling linked expressions (`750s3`), manifestations (`740s3`), and agents; controlled values referenced by the kept records are always copied. The script registers the subset in `data_curation/api/datasets/datasets.json` so FastAPI/React can open it; output lives under `data_curation/api/datasets/<dataset>-subset-<needle-slug>`. Example:  
+  `uv run python data_exploration/subset_by_150.py current-exportcsv "petites filles modèles" --include-expressions --include-manifestations --include-agents`
+
 ### Installation
 On MacOS Monterey 12.6.7, use Python 3.11 to install spaCy:
 

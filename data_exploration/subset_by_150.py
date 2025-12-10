@@ -10,12 +10,18 @@ import argparse
 import json
 import re
 import shutil
+import sys
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Sequence
 
 from pyoxigraph import Literal, NamedNode, Store
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.append(str(ROOT))
+
+from data_curation.api import datasets
 
 # --- Constants ----------------------------------------------------------------
 
@@ -65,6 +71,10 @@ def resolve_dataset_path(dataset: str) -> Path:
     """Accept a dataset id or path; always return the RocksDB directory."""
     candidate = Path(dataset)
     if candidate.is_dir():
+        return candidate
+    datasets.ensure_root()
+    candidate = datasets.dataset_directory(dataset)
+    if candidate.exists():
         return candidate
     root = Path(__file__).resolve().parent.parent / "data_curation" / "api" / "datasets"
     return root / dataset
@@ -337,7 +347,12 @@ def main() -> None:
 
     needle_slug = slugify(args.needle)
     default_output = f"{Path(args.dataset).name}-subset-{needle_slug}"
-    output_dir = resolve_dataset_path(args.output_id or default_output)
+    output_id = args.output_id or default_output
+
+    # Register the output dataset in datasets.json and resolve its directory.
+    title = f"{output_id} (150 contains '{args.needle}')"
+    meta = datasets.ensure_dataset(output_id, title=title)
+    output_dir = datasets.dataset_directory(meta.id)
 
     store = Store.read_only(str(source_path))
 
@@ -366,8 +381,10 @@ def main() -> None:
     graphs_to_copy = graph_names_for_entities(store, selected)
     dest = open_output_store(output_dir, args.overwrite)
     quad_count = copy_graphs(store, dest, graphs_to_copy)
+    datasets.touch_dataset(meta.id)
 
-    print(f"Subset written to: {output_dir}")
+    print(f"Subset written to registered dataset: {meta.id}")
+    print(f"Path: {output_dir}")
     print(
         "Entities kept | works={w} expressions={e} manifestations={m} controlled={c} agents={a}".format(
             w=len(works),

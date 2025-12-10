@@ -5,6 +5,7 @@ import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
 import { EntityLabel } from '../../components/EntityLabel'
 import { buildArkSet, normalizeArk as normalizeArkValue } from '../../lib/arkFilters'
+import { deriveInternalIdFromArk } from '../../lib/ark'
 
 type WorkListPanelProps = {
   clusters: WorkClusterDto[]
@@ -40,6 +41,16 @@ export function WorkListPanel({
 
   const filterKey = workArkFilter ? [...workArkFilter].sort().join('|') : ''
   const filterSet = buildArkSet(workArkFilter ?? null)
+  const filterIdSet = useMemo(() => {
+    const ids = new Set<string>()
+    ;(workArkFilter ?? []).forEach(value => {
+      const maybeId = deriveInternalIdFromArk(value)
+      if (maybeId) ids.add(maybeId)
+      const match = typeof value === 'string' ? value.match(/entity\/([^/#?]+)/i) : null
+      if (match?.[1]) ids.add(match[1])
+    })
+    return ids
+  }, [workArkFilter])
   const filterActive = filterSet.size > 0
   const [expandedOutOfScopeClusters, setExpandedOutOfScopeClusters] = useState<Set<string>>(new Set())
   const [expandedOutOfScopeWorks, setExpandedOutOfScopeWorks] = useState<Set<string>>(new Set())
@@ -57,18 +68,24 @@ export function WorkListPanel({
         const n = normalizeArkValue(cluster.anchor_ark)
         if (n) normalizedArks.push(n)
       }
+      if (cluster.anchor_id != null) {
+        normalizedArks.push(String(cluster.anchor_id))
+      }
       cluster.items.forEach(item => {
         const n = normalizeArkValue(item.ark)
         if (n) normalizedArks.push(n)
+        if (item.id != null) normalizedArks.push(String(item.id))
       })
-      const matched = filterActive ? normalizedArks.filter(ark => filterSet.has(ark)) : []
+      const matched = filterActive
+        ? normalizedArks.filter(ark => filterSet.has(ark) || filterIdSet.has(ark))
+        : []
       map.set(cluster.anchor_id, {
         hasMatch: filterActive ? matched.length > 0 : true,
         matchedArks: new Set(matched),
       })
     })
     return map
-  }, [clusters, filterActive, filterSet])
+  }, [clusters, filterActive, filterIdSet, filterSet])
 
   const sortedEntries = useMemo(() => {
     type ListEntry =
@@ -149,11 +166,13 @@ export function WorkListPanel({
         itemContent={(_, entry) => {
           if (entry.kind === 'cluster') {
             const { cluster } = entry
+            console.log(cluster, cluster.anchor_id)
             const anchorCounts = cluster.anchor_summary?.counts
             const anchorLabel = cluster.anchor_title ?? cluster.anchor_id
             const meta = clusterMeta.get(cluster.anchor_id)
             const anchorNormalized = normalizeArkValue(cluster.anchor_ark)
-            const anchorIsMatch = anchorNormalized ? filterSet.has(anchorNormalized) : false
+            const anchorIsMatch =
+              anchorNormalized ? filterSet.has(anchorNormalized) : filterIdSet.has(String(cluster.anchor_id))
             const hasMatch = meta?.hasMatch ?? true
             const isOutOfScope = filterActive && !hasMatch
             const isExpanded = isOutOfScope && expandedOutOfScopeClusters.has(cluster.anchor_id)
@@ -237,7 +256,8 @@ export function WorkListPanel({
                     }
                     if (isOutOfScope) rowClasses.push('entity-row--out-of-scope')
                     const normalizedItemArk = normalizeArkValue(item.ark)
-                    const itemIsMatch = normalizedItemArk ? filterSet.has(normalizedItemArk) : false
+                    const itemIsMatch =
+                      normalizedItemArk ? filterSet.has(normalizedItemArk) : filterIdSet.has(String(item.id ?? ''))
                     if (itemIsMatch) rowClasses.push('entity-row--filter-match')
                     const itemSegments = item.title_segments && item.title_segments.length ? item.title_segments : undefined
                     const mediaKinds = pickMediaKinds(item.summary)
@@ -300,9 +320,9 @@ export function WorkListPanel({
           }
 
           const { work } = entry
-          const normalizedArk = normalizeArkValue(work.ark)
-          const isMatch = normalizedArk ? filterSet.has(normalizedArk) : false
+          const isMatch = filterIdSet.has(String(work.id ?? ''))
           const isOutOfScope = filterActive && !isMatch
+          console.log(work, isOutOfScope, isMatch, filterSet, filterIdSet)
           const isExpanded = isOutOfScope && expandedOutOfScopeWorks.has(work.id)
           const containerClasses = ['cluster', 'cluster--unclustered']
           const headerClasses = ['cluster-header-row', 'entity-row', 'entity-row--work']

@@ -5,6 +5,7 @@
 - Update the README once you're done working to make sure it reflects the current state of the app.
 - Strive not to add more LOC to a file if it's above the 500 ~ 600 limit, and whenever you have the occasion to extract from a large file (600 < LOC) pieces, chunks, functions, seize the opportunity to refactor.
 - Strive for DRY : don't repeat it yourself, better to import / refactor code to make it more general than to rewrite something that already exists.
+- Interspread concise & information-rich docstrings in the code you write.
 - Once you're done working, if you've touched files in the React app living in data_inspection, you need to execute `npm run lint`.
 - If you've touched files in the FastAPI Python backend, use `uv run ruff check`.
 

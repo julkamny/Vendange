@@ -11,8 +11,10 @@ class NESStore:
       - table person(ark PRIMARY KEY, fetched_at)
       - table variant(ark, variant TEXT, UNIQUE(ark, variant))
     """
-    def __init__(self, db_path: str = ".nes_cache.sqlite"):
-        self.db_path = db_path
+    def __init__(self, db_path: str | None = None):
+        # Store the cache alongside this module to avoid working-directory surprises.
+        default_path = Path(__file__).resolve().parent / ".nes_cache.sqlite"
+        self.db_path = str(db_path or default_path)
         self._ensure_schema()
 
     def _conn(self) -> sqlite3.Connection:

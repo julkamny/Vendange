@@ -4,8 +4,7 @@ import type { WorkClusterDto, WorkListRowDto } from '../../types'
 import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
 import { EntityLabel } from '../../components/EntityLabel'
-import { buildArkSet, normalizeArk as normalizeArkValue } from '../../lib/arkFilters'
-import { deriveInternalIdFromArk } from '../../lib/ark'
+import { buildArkAndIdSets, normalizeArk as normalizeArkValue } from '../../lib/arkFilters'
 
 type WorkListPanelProps = {
   clusters: WorkClusterDto[]
@@ -39,19 +38,11 @@ export function WorkListPanel({
     (summary?.mediaKinds as unknown as { emoji: string; label: string; kindCode: string }[] | undefined) ??
     (summary?.media_kinds as unknown as { emoji: string; label: string; kindCode: string }[] | undefined)
 
-  const filterKey = workArkFilter ? [...workArkFilter].sort().join('|') : ''
-  const filterSet = buildArkSet(workArkFilter ?? null)
-  const filterIdSet = useMemo(() => {
-    const ids = new Set<string>()
-    ;(workArkFilter ?? []).forEach(value => {
-      const maybeId = deriveInternalIdFromArk(value)
-      if (maybeId) ids.add(maybeId)
-      const match = typeof value === 'string' ? value.match(/entity\/([^/#?]+)/i) : null
-      if (match?.[1]) ids.add(match[1])
-    })
-    return ids
-  }, [workArkFilter])
-  const filterActive = filterSet.size > 0
+  const { arks: filterSet, ids: filterIdSet, key: filterKey } = useMemo(
+    () => buildArkAndIdSets(workArkFilter ?? null),
+    [workArkFilter],
+  )
+  const filterActive = filterSet.size > 0 || filterIdSet.size > 0
   const [expandedOutOfScopeClusters, setExpandedOutOfScopeClusters] = useState<Set<string>>(new Set())
   const [expandedOutOfScopeWorks, setExpandedOutOfScopeWorks] = useState<Set<string>>(new Set())
 

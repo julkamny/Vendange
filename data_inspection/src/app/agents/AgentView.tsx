@@ -18,7 +18,7 @@ import { ConfirmAgentClusterModal } from '../components/workspace/ClusterModals'
 import { useAgentClustering } from './useAgentClustering'
 import { useRecordOpener, EMPTY_WORKSPACE_INDEXES } from '../hooks/useRecordOpener'
 import { mapWorkClusters } from '../lib/mapWorkClusters'
-import { buildArkSet, normalizeArk as normalizeArkValue } from '../lib/arkFilters'
+import { buildArkAndIdSets, normalizeArk as normalizeArkValue } from '../lib/arkFilters'
 
 type AgentViewProps = {
   state: AgentTabState
@@ -62,9 +62,11 @@ export function AgentView({
   const { data: agentsDto } = useWorkspaceAgents(datasetId)
   const { data: workspaceWorks } = useWorkspaceWorks(datasetId)
   const mappedClusters = useMemo(() => mapWorkClusters(workspaceWorks?.clusters) ?? [], [workspaceWorks?.clusters])
-  const filterKey = useMemo(() => (agentArkFilter ? [...agentArkFilter].sort().join('|') : ''), [agentArkFilter])
-  const filterSet = useMemo(() => buildArkSet(agentArkFilter ?? null), [agentArkFilter])
-  const filterActive = filterSet.size > 0
+  const { arks: filterSet, ids: filterIdSet, key: filterKey } = useMemo(
+    () => buildArkAndIdSets(agentArkFilter ?? null),
+    [agentArkFilter],
+  )
+  const filterActive = filterSet.size > 0 || filterIdSet.size > 0
   const [expandedOutOfScopeAgentClusters, setExpandedOutOfScopeAgentClusters] = useState<Set<string>>(new Set())
   const [expandedOutOfScopeAgents, setExpandedOutOfScopeAgents] = useState<Set<string>>(new Set())
 
@@ -359,11 +361,11 @@ export function AgentView({
       const cluster = agentsDto.clusters.find(c => c.anchor_id === anchorId)
       if (!cluster) return null
       const anchorNormalized = normalizeArkValue(cluster.anchor_ark)
-      const anchorMatch = anchorNormalized ? filterSet.has(anchorNormalized) : false
+      const anchorMatch = filterIdSet.has(String(cluster.anchor_id))
       const itemMatch = filterActive
         ? cluster.items.some(item => {
             const n = normalizeArkValue(item.ark)
-            return n ? filterSet.has(n) : false
+            return n ? filterSet.has(n) : filterIdSet.has(String(item.id ?? ''))
           })
         : false
       const hasMatch = filterActive ? anchorMatch || itemMatch : true
@@ -416,7 +418,10 @@ export function AgentView({
               if (pendingSourceId && pendingSourceId === itemKey) itemClasses.push('pending-cluster-source')
               if (isOutOfScope) itemClasses.push('entity-row--out-of-scope')
               const normalizedItemArk = normalizeArkValue(item.ark)
-              if (normalizedItemArk && filterSet.has(normalizedItemArk)) {
+              if (
+                (normalizedItemArk && filterSet.has(normalizedItemArk)) ||
+                filterIdSet.has(String(item.id ?? ''))
+              ) {
                 itemClasses.push('entity-row--filter-match')
               }
               const itemSegments = item.title_segments ?? []
@@ -457,6 +462,7 @@ export function AgentView({
       agentsDto,
       expandedOutOfScopeAgentClusters,
       filterActive,
+      filterIdSet,
       filterSet,
       handleRowClick,
       openContextMenuForAgent,
@@ -476,7 +482,8 @@ export function AgentView({
       if (isSelected) rowClasses.push('selected')
       if (pendingSourceId && pendingSourceId === agent.id) rowClasses.push('pending-cluster-source')
       const normalizedArk = normalizeArkValue(agent.ark)
-      const isMatch = normalizedArk ? filterSet.has(normalizedArk) : false
+      const isMatch =
+        (normalizedArk && filterSet.has(normalizedArk)) || filterIdSet.has(String(agent.id ?? ''))
       const isOutOfScope = filterActive && !isMatch
       const isExpanded = isOutOfScope && expandedOutOfScopeAgents.has(agent.id)
       if (isOutOfScope) {
@@ -515,6 +522,7 @@ export function AgentView({
       agentsDto,
       expandedOutOfScopeAgents,
       filterActive,
+      filterIdSet,
       filterSet,
       handleRowClick,
       openContextMenuForAgent,

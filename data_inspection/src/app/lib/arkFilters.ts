@@ -1,4 +1,5 @@
 import type { SparqlQueryResult } from '../workspace/types'
+import { deriveInternalIdFromArk } from './ark'
 
 // Shared ARK utilities used by SPARQL extraction and list filtering
 export const ARK_REGEX = /ark:\/\S+/giu
@@ -25,6 +26,24 @@ export function normalizeArkList(values: Array<string | null | undefined> | null
 
 export function buildArkSet(values: string[] | null | undefined): Set<string> {
   return new Set(normalizeArkList(values ?? []))
+}
+
+export function buildArkAndIdSets(values: string[] | null | undefined): {
+  arks: Set<string>
+  ids: Set<string>
+  key: string
+} {
+  const arks = buildArkSet(values)
+  const ids = new Set<string>()
+  ;(values ?? []).forEach(value => {
+    const maybeId = deriveInternalIdFromArk(value)
+    if (maybeId) ids.add(String(maybeId))
+    if (typeof value === 'string') {
+      const match = value.match(/entity\/([^/#?]+)/i)
+      if (match?.[1]) ids.add(match[1])
+    }
+  })
+  return { arks, ids, key: [...arks, ...ids].sort().join('|') }
 }
 
 export function extractArksFromResult(result: SparqlQueryResult, columns: string[]): string[] {

@@ -356,6 +356,29 @@ button:focus-visible {
   gap: 0.5rem;
   align-items: center;
 }
+.workspace-filter-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-highlight) 35%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+}
+.workspace-filter-banner__info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.9rem;
+}
+.workspace-filter-banner__source {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+.workspace-filter-banner button {
+  align-self: flex-start;
+}
 .workspace-view__header-actions button {
   font-size: 0.78rem;
   padding: 0.35rem 0.75rem;
@@ -897,6 +920,26 @@ button:focus-visible {
   flex-direction: column;
   gap: 0.35rem;
   margin-bottom: 0.75rem;
+}
+.cluster--out-of-scope {
+  opacity: 0.68;
+  filter: saturate(0.75);
+}
+.cluster--collapsed .cluster-items {
+  display: none;
+}
+.entity-row--out-of-scope {
+  opacity: 0.65;
+}
+.entity-row--collapsed {
+  max-height: 2.5rem;
+  overflow: hidden;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+.entity-row--filter-match {
+  border-left: 3px solid color-mix(in srgb, var(--color-link) 80%, transparent);
+  background: color-mix(in srgb, var(--color-highlight) 55%, transparent);
 }
 .cluster-item {
   display: inline;
@@ -2013,6 +2056,51 @@ body.modal-open {
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
+}
+.sparql-ark-filter {
+  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  background: color-mix(in srgb, var(--color-surface-alt) 90%, var(--color-bg));
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.sparql-ark-filter__body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+.sparql-ark-filter__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.sparql-ark-filter__label {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.sparql-ark-filter__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+}
+.sparql-ark-filter__options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+}
+.sparql-ark-filter__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: flex-start;
+}
+.sparql-ark-filter__hint {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
 }
 
 .sparql-results__toolbar {

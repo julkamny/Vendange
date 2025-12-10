@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RecordRow, Cluster, WorkListRowDto } from '../types'
-import type { WorkspaceTabStateWorkspace, AgentTabState } from '../workspace/types'
+import type { WorkspaceTabStateWorkspace, AgentTabState, ArkFilterSource } from '../workspace/types'
 import { useAppData } from '../providers/AppDataContext'
 import { useTranslation } from '../hooks/useTranslation'
 import { WorkListPanel } from '../workspace/components/WorkListPanel'
@@ -36,6 +36,9 @@ type WorkspaceViewProps = {
   onRequestDock?: () => void
   sharedPendingManifestationId?: string | null
   setSharedPendingManifestationId?: (next: string | null) => void
+  workArkFilter?: string[] | null
+  workArkFilterSource?: ArkFilterSource | null
+  onClearWorkArkFilter?: () => void
 }
 
 export function WorkspaceView({
@@ -50,6 +53,9 @@ export function WorkspaceView({
   onRequestDock,
   sharedPendingManifestationId,
   setSharedPendingManifestationId,
+  workArkFilter,
+  workArkFilterSource,
+  onClearWorkArkFilter,
 }: WorkspaceViewProps) {
   const {
     datasetId,
@@ -469,6 +475,7 @@ export function WorkspaceView({
           onCancelPendingCluster={cancelPendingCluster}
           listRef={listScrollRef}
           onScroll={handleListScroll}
+          workArkFilter={workArkFilter ?? null}
         />
       )
     }
@@ -583,12 +590,46 @@ export function WorkspaceView({
     ? t('workspace.collapseIntermarc', { defaultValue: 'Exit full Intermarc view' })
     : t('workspace.expandIntermarc', { defaultValue: 'Expand Intermarc view' })
 
+  const workFilterBanner =
+    workArkFilter && workArkFilter.length
+      ? (
+        <div className="workspace-filter-banner">
+          <div className="workspace-filter-banner__info">
+            <strong>
+              {t('workspace.workArkFilterActive', { defaultValue: 'Filtered by SPARQL subset' })}
+            </strong>
+            <span>
+              {t('workspace.workArkFilterCount', {
+                defaultValue: '{{count}} work ARKs in scope',
+                count: workArkFilter.length,
+              })}
+            </span>
+            {workArkFilterSource ? (
+              <span className="workspace-filter-banner__source">
+                {t('workspace.workArkFilterSource', {
+                  defaultValue: "Source: '{{title}}' – {{columns}}",
+                  title: workArkFilterSource.tabTitle,
+                  columns: workArkFilterSource.workColumns.join(', '),
+                })}
+              </span>
+            ) : null}
+          </div>
+          {onClearWorkArkFilter ? (
+            <button type="button" onClick={onClearWorkArkFilter}>
+              {t('workspace.clearWorkFilter', { defaultValue: 'Clear work filter' })}
+            </button>
+          ) : null}
+        </div>
+      )
+      : null
+
   return (
     <WorkspaceViewLayout
       mode={mode}
       state={state}
       workspaceClassName={workspaceClassName}
        activeOperation={activeOperation}
+      headerBanner={workFilterBanner}
       breadcrumbs={breadcrumbs}
       record={record}
       getById={getById}

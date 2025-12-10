@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { WorkspaceView } from '../WorkspaceView'
-import type { AgentTabState, WorkspaceTabStateWorkspace } from '../../workspace/types'
+import type { AgentTabState, ArkFilterSource, WorkspaceTabStateWorkspace } from '../../workspace/types'
 
 type DetachedWorkspacePortalProps = {
   tab: WorkspaceTabStateWorkspace
@@ -14,6 +14,9 @@ type DetachedWorkspacePortalProps = {
   onOpenAgentDetachedTab: (initializer: (base: AgentTabState) => AgentTabState) => void
   sharedPendingManifestationId?: string | null
   setSharedPendingManifestationId?: (next: string | null) => void
+  workArkFilter?: string[] | null
+  workArkFilterSource?: ArkFilterSource | null
+  onClearWorkArkFilter?: () => void
 }
 
 export function DetachedWorkspacePortal({
@@ -28,6 +31,9 @@ export function DetachedWorkspacePortal({
   onOpenAgentDetachedTab,
   sharedPendingManifestationId,
   setSharedPendingManifestationId,
+  workArkFilter,
+  workArkFilterSource,
+  onClearWorkArkFilter,
 }: DetachedWorkspacePortalProps) {
   if (!container) return null
   return createPortal(
@@ -48,6 +54,9 @@ export function DetachedWorkspacePortal({
         onOpenAgentDetachedTab={onOpenAgentDetachedTab}
         sharedPendingManifestationId={sharedPendingManifestationId}
         setSharedPendingManifestationId={setSharedPendingManifestationId}
+        workArkFilter={workArkFilter}
+        workArkFilterSource={workArkFilterSource}
+        onClearWorkArkFilter={onClearWorkArkFilter}
       />
     </div>,
     container,

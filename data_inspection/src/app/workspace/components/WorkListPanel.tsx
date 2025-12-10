@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, type MouseEvent, type UIEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type UIEvent } from 'react'
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import type { WorkClusterDto, WorkListRowDto } from '../../types'
 import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
 import { EntityLabel } from '../../components/EntityLabel'
+import { buildArkSet, normalizeArk as normalizeArkValue } from '../../lib/arkFilters'
 
 type WorkListPanelProps = {
   clusters: WorkClusterDto[]
@@ -16,6 +17,7 @@ type WorkListPanelProps = {
   onCancelPendingCluster?: () => void
   onScroll?: (event: UIEvent<HTMLElement>) => void
   listRef?: React.MutableRefObject<HTMLElement | null>
+  workArkFilter?: string[] | null
 }
 
 export function WorkListPanel({
@@ -29,11 +31,44 @@ export function WorkListPanel({
   onCancelPendingCluster,
   onScroll,
   listRef,
+  workArkFilter,
 }: WorkListPanelProps) {
   const { t } = useTranslation()
   const pickMediaKinds = (summary?: { mediaKinds?: unknown; media_kinds?: unknown }) =>
     (summary?.mediaKinds as unknown as { emoji: string; label: string; kindCode: string }[] | undefined) ??
     (summary?.media_kinds as unknown as { emoji: string; label: string; kindCode: string }[] | undefined)
+
+  const filterKey = workArkFilter ? [...workArkFilter].sort().join('|') : ''
+  const filterSet = buildArkSet(workArkFilter ?? null)
+  const filterActive = filterSet.size > 0
+  const [expandedOutOfScopeClusters, setExpandedOutOfScopeClusters] = useState<Set<string>>(new Set())
+  const [expandedOutOfScopeWorks, setExpandedOutOfScopeWorks] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    setExpandedOutOfScopeClusters(new Set())
+    setExpandedOutOfScopeWorks(new Set())
+  }, [filterKey])
+
+  const clusterMeta = useMemo(() => {
+    const map = new Map<string, { hasMatch: boolean; matchedArks: Set<string> }>()
+    clusters.forEach(cluster => {
+      const normalizedArks: string[] = []
+      if (cluster.anchor_ark) {
+        const n = normalizeArkValue(cluster.anchor_ark)
+        if (n) normalizedArks.push(n)
+      }
+      cluster.items.forEach(item => {
+        const n = normalizeArkValue(item.ark)
+        if (n) normalizedArks.push(n)
+      })
+      const matched = filterActive ? normalizedArks.filter(ark => filterSet.has(ark)) : []
+      map.set(cluster.anchor_id, {
+        hasMatch: filterActive ? matched.length > 0 : true,
+        matchedArks: new Set(matched),
+      })
+    })
+    return map
+  }, [clusters, filterActive, filterSet])
 
   const sortedEntries = useMemo(() => {
     type ListEntry =
@@ -115,13 +150,24 @@ export function WorkListPanel({
           if (entry.kind === 'cluster') {
             const { cluster } = entry
             const anchorCounts = cluster.anchor_summary?.counts
+            const anchorLabel = cluster.anchor_title ?? cluster.anchor_id
+            const meta = clusterMeta.get(cluster.anchor_id)
+            const anchorNormalized = normalizeArkValue(cluster.anchor_ark)
+            const anchorIsMatch = anchorNormalized ? filterSet.has(anchorNormalized) : false
+            const hasMatch = meta?.hasMatch ?? true
+            const isOutOfScope = filterActive && !hasMatch
+            const isExpanded = isOutOfScope && expandedOutOfScopeClusters.has(cluster.anchor_id)
             const clusterClasses = ['cluster']
             if (state.activeWorkAnchorId === cluster.anchor_id) clusterClasses.push('active')
+            if (isOutOfScope) clusterClasses.push('cluster--out-of-scope')
+            if (isOutOfScope && !isExpanded) clusterClasses.push('cluster--collapsed')
             const anchorRowClasses = ['cluster-header-row', 'entity-row', 'entity-row--work']
             if (pendingClusterSourceId && pendingClusterSourceId === cluster.anchor_id) anchorRowClasses.push('pending-cluster-source')
             if (state.highlightedWorkArk && state.highlightedWorkArk === cluster.anchor_ark) {
               anchorRowClasses.push('highlight')
             }
+            if (isOutOfScope) anchorRowClasses.push('entity-row--out-of-scope')
+            if (anchorIsMatch) anchorRowClasses.push('entity-row--filter-match')
             const anchorSegments =
               cluster.anchor_title_segments && cluster.anchor_title_segments.length
                 ? cluster.anchor_title_segments
@@ -143,6 +189,15 @@ export function WorkListPanel({
                     }}
                     onDoubleClick={event => {
                       if (shouldIgnoreAgentBadge(event)) return
+                      if (isOutOfScope) {
+                        setExpandedOutOfScopeClusters(prev => {
+                          const next = new Set(prev)
+                          if (next.has(cluster.anchor_id)) next.delete(cluster.anchor_id)
+                          else next.add(cluster.anchor_id)
+                          return next
+                        })
+                        return
+                      }
                       if (pendingClusterSourceId && pendingClusterSourceId === cluster.anchor_id) {
                         onCancelPendingCluster?.()
                         return
@@ -152,7 +207,7 @@ export function WorkListPanel({
                   >
                     <span className="cluster-anchor-marker">⚓︎</span>
                     <EntityLabel
-                      title={entry.title}
+                      title={anchorLabel}
                       badges={[{ type: 'work', text: cluster.anchor_id, tooltip: cluster.anchor_ark }]}
                       counts={anchorCounts}
                       relationships={anchorRelationships}
@@ -180,6 +235,10 @@ export function WorkListPanel({
                     if (state.highlightedWorkArk && state.highlightedWorkArk === item.ark) {
                       rowClasses.push('highlight')
                     }
+                    if (isOutOfScope) rowClasses.push('entity-row--out-of-scope')
+                    const normalizedItemArk = normalizeArkValue(item.ark)
+                    const itemIsMatch = normalizedItemArk ? filterSet.has(normalizedItemArk) : false
+                    if (itemIsMatch) rowClasses.push('entity-row--filter-match')
                     const itemSegments = item.title_segments && item.title_segments.length ? item.title_segments : undefined
                     const mediaKinds = pickMediaKinds(item.summary)
                     const relationships = item.summary?.relationships
@@ -195,6 +254,15 @@ export function WorkListPanel({
                         }}
                         onDoubleClick={event => {
                           if (shouldIgnoreWorkRowEvent(event)) return
+                          if (isOutOfScope) {
+                            setExpandedOutOfScopeClusters(prev => {
+                              const next = new Set(prev)
+                              if (next.has(cluster.anchor_id)) next.delete(cluster.anchor_id)
+                              else next.add(cluster.anchor_id)
+                              return next
+                            })
+                            return
+                          }
                           if (pendingClusterSourceId && pendingClusterSourceId === item.id) {
                             onCancelPendingCluster?.()
                             return
@@ -231,9 +299,20 @@ export function WorkListPanel({
             )
           }
 
-          const { work, title } = entry
+          const { work } = entry
+          const normalizedArk = normalizeArkValue(work.ark)
+          const isMatch = normalizedArk ? filterSet.has(normalizedArk) : false
+          const isOutOfScope = filterActive && !isMatch
+          const isExpanded = isOutOfScope && expandedOutOfScopeWorks.has(work.id)
           const containerClasses = ['cluster', 'cluster--unclustered']
           const headerClasses = ['cluster-header-row', 'entity-row', 'entity-row--work']
+          if (isOutOfScope) {
+            containerClasses.push('cluster--out-of-scope')
+            if (!isExpanded) containerClasses.push('cluster--collapsed')
+            headerClasses.push('entity-row--out-of-scope')
+            if (!isExpanded) headerClasses.push('entity-row--collapsed')
+          }
+          if (isMatch) headerClasses.push('entity-row--filter-match')
           const highlight =
             (work.ark && state.highlightedWorkArk === work.ark) ||
             (!work.ark && state.selectedEntity?.entityType === 'work' && state.selectedEntity.id === work.id)
@@ -255,6 +334,15 @@ export function WorkListPanel({
                 }}
                 onDoubleClick={event => {
                   if (shouldIgnoreAgentBadge(event)) return
+                  if (isOutOfScope) {
+                    setExpandedOutOfScopeWorks(prev => {
+                      const next = new Set(prev)
+                      if (next.has(work.id)) next.delete(work.id)
+                      else next.add(work.id)
+                      return next
+                    })
+                    return
+                  }
                   if (pendingClusterSourceId && pendingClusterSourceId === work.id) {
                     onCancelPendingCluster?.()
                     return
@@ -264,7 +352,7 @@ export function WorkListPanel({
               >
                 <div className="cluster-header">
                   <EntityLabel
-                    title={title}
+                    title={work.title || work.id || work.ark || t('labels.workFallback')}
                     badges={[{ type: 'work', text: work.id, tooltip: work.ark }]}
                     counts={counts}
                     agentNames={undefined}

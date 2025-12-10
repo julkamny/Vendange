@@ -2,7 +2,12 @@ import CodeMirror from '@uiw/react-codemirror'
 import { useCallback, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { sql } from '@codemirror/lang-sql'
 import { executeSparqlQuery, getApiBaseUrl } from '../lib/api'
-import type { WorkspaceTabStateSparql, WorkspaceTabStateWorkspace, AgentTabState } from '../workspace/types'
+import type {
+  WorkspaceTabStateSparql,
+  WorkspaceTabStateWorkspace,
+  AgentTabState,
+  ArkFilterPayload,
+} from '../workspace/types'
 import type { RecordRow } from '../types'
 import { DEFAULT_WORKSPACE_STATE } from '../workspace/types'
 import { useTranslation } from '../hooks/useTranslation'
@@ -19,8 +24,7 @@ import { labelFromRecord } from '../lib/intermarc'
 import { extractControlledValueLabel } from '../core/controlledValues'
 import { WorkspaceContextMenu } from './WorkspaceContextMenu'
 import { isAgentRecord } from '../agents/useAgentData'
-
-const ARK_REGEX = /ark:\/\S+/g
+import { ARK_REGEX, extractArksFromResult, normalizeArk as normalizeArkValue, matchArksInText } from '../lib/arkFilters'
 
 type SparqlWorkspaceViewProps = {
   state: WorkspaceTabStateSparql
@@ -33,15 +37,12 @@ type SparqlWorkspaceViewProps = {
   ) => void
   onOpenAgentTab: (initializer: (base: AgentTabState) => AgentTabState) => void
   onOpenAgentTabDetached: (initializer: (base: AgentTabState) => AgentTabState) => void
+  onApplyArkFilter: (payload: ArkFilterPayload) => void
 }
 
 type ArkContextMenuState = {
   position: { x: number; y: number }
   record: RecordRow
-}
-
-function normalizeArk(value: string): string {
-  return value.trim()
 }
 
 function isWorkspaceEntityRecord(record?: RecordRow | null): record is RecordRow {
@@ -56,6 +57,7 @@ export function SparqlWorkspaceView({
   onOpenWorkspaceTabDetached,
   onOpenAgentTab,
   onOpenAgentTabDetached,
+  onApplyArkFilter,
 }: SparqlWorkspaceViewProps) {
   const { t, language } = useTranslation()
   const { showToast } = useToast()
@@ -95,7 +97,8 @@ export function SparqlWorkspaceView({
 
   const agentLabelForArk = useCallback(
     (ark: string): string | null => {
-      const normalized = normalizeArk(ark)
+      const normalized = normalizeArkValue(ark)
+      if (!normalized) return null
       let record = getByArk(normalized)
       if (!record) {
         const fallbackId = deriveInternalIdFromArk(normalized)
@@ -151,6 +154,22 @@ export function SparqlWorkspaceView({
     })
   }, [state.result, state.sort, collator])
 
+  useEffect(() => {
+    if (!state.result) return
+    if (state.arkFilterColumns.work.length || state.arkFilterColumns.agent.length) return
+    const candidates = state.result.columns.filter(column =>
+      state.result?.rows.some(row => {
+        const value = (row as Record<string, unknown>)[column]
+        return typeof value === 'string' && matchArksInText(value).length > 0
+      }),
+    )
+    if (!candidates.length) return
+    onStateChange(prev => ({
+      ...prev,
+      arkFilterColumns: { ...prev.arkFilterColumns, work: candidates },
+    }))
+  }, [onStateChange, state.arkFilterColumns.agent.length, state.arkFilterColumns.work.length, state.result])
+
   const apiBaseUrl = getApiBaseUrl()
 
   const handleQueryChange = useCallback(
@@ -194,6 +213,10 @@ export function SparqlWorkspaceView({
       onStateChange(prev => {
         const preservedHidden = new Set([...prev.hiddenColumns].filter(column => result.columns.includes(column)))
         const nextSort = prev.sort && result.columns.includes(prev.sort.column) ? prev.sort : null
+        const nextArkColumns = {
+          work: prev.arkFilterColumns.work.filter(column => result.columns.includes(column)),
+          agent: prev.arkFilterColumns.agent.filter(column => result.columns.includes(column)),
+        }
         return {
           ...prev,
           isExecuting: false,
@@ -202,6 +225,7 @@ export function SparqlWorkspaceView({
           result,
           hiddenColumns: preservedHidden,
           sort: nextSort,
+          arkFilterColumns: nextArkColumns,
         }
       })
     } catch (error) {
@@ -212,7 +236,13 @@ export function SparqlWorkspaceView({
   }, [state.query, onStateChange, showToast, t, datasetId])
 
   const handleClearResults = useCallback(() => {
-    onStateChange(prev => ({ ...prev, result: null, lastRunQuery: null, sort: null }))
+    onStateChange(prev => ({
+      ...prev,
+      result: null,
+      lastRunQuery: null,
+      sort: null,
+      arkFilterColumns: { work: [], agent: [] },
+    }))
   }, [onStateChange])
 
   const toggleColumn = useCallback(
@@ -245,9 +275,50 @@ export function SparqlWorkspaceView({
     [onStateChange],
   )
 
+  const toggleArkColumn = useCallback(
+    (kind: 'work' | 'agent', column: string) => {
+      onStateChange(prev => {
+        const next = new Set(prev.arkFilterColumns[kind])
+        if (next.has(column)) next.delete(column)
+        else next.add(column)
+        return { ...prev, arkFilterColumns: { ...prev.arkFilterColumns, [kind]: Array.from(next) } }
+      })
+    },
+    [onStateChange],
+  )
+
+  const handleApplyArkFilter = useCallback(() => {
+    if (!state.result) return
+    const workArks = extractArksFromResult(state.result, state.arkFilterColumns.work)
+    const agentArks = extractArksFromResult(state.result, state.arkFilterColumns.agent)
+    const payload: ArkFilterPayload = {
+      workArks,
+      agentArks,
+      source: {
+        tabId: state.id,
+        tabTitle: state.title || 'SPARQL',
+        workColumns: state.arkFilterColumns.work,
+        agentColumns: state.arkFilterColumns.agent,
+      },
+    }
+    onApplyArkFilter(payload)
+    const hasArks = workArks.length || agentArks.length
+    showToast(
+      hasArks
+        ? t('workspace.sparqlAppliedArkFilter', {
+            defaultValue: 'Filtered to {{works}} works and {{agents}} agents from this SPARQL tab.',
+            works: workArks.length,
+            agents: agentArks.length,
+          })
+        : t('workspace.sparqlAppliedEmptyArkFilter', {
+            defaultValue: 'No ARKs found in the selected columns; filters cleared.',
+          }),
+      { tone: hasArks ? 'success' : 'info' },
+    )
+  }, [onApplyArkFilter, showToast, state.arkFilterColumns.agent, state.arkFilterColumns.work, state.id, state.result, state.title, t])
   const resolveRecordForArk = useCallback(
     (ark: string): RecordRow | null => {
-      const trimmed = normalizeArk(ark)
+      const trimmed = normalizeArkValue(ark)
       if (!trimmed) return null
       let record = getByArk(trimmed)
       if (!record) {
@@ -320,7 +391,8 @@ export function SparqlWorkspaceView({
 
   const renderArkFragments = useCallback(
     (value: string) => {
-      const matches = Array.from(value.matchAll(ARK_REGEX))
+      const matcher = new RegExp(ARK_REGEX.source, ARK_REGEX.flags)
+      const matches = Array.from(value.matchAll(matcher))
       if (!matches.length) return value
       const pieces: Array<string | { ark: string }> = []
       let lastIndex = 0
@@ -368,7 +440,8 @@ export function SparqlWorkspaceView({
       if (typeof value === 'string') {
         const trimmed = value.trim()
         if (trimmed.length === 0) return ''
-        if (trimmed.match(ARK_REGEX)?.length === 1 && trimmed === trimmed.match(ARK_REGEX)?.[0]) {
+        const arkMatches = matchArksInText(trimmed)
+        if (arkMatches.length === 1 && trimmed === arkMatches[0]) {
           const display = agentLabelForArk(trimmed) ?? trimmed
           return (
             <button
@@ -390,6 +463,35 @@ export function SparqlWorkspaceView({
     },
     [agentLabelForArk, openRecordForArk, renderArkFragments],
   )
+
+  const renderArkColumnChooser = useCallback(
+    (kind: 'work' | 'agent', label: string) => {
+      if (!state.result) return null
+      return (
+        <div className="sparql-ark-filter__group">
+          <div className="sparql-ark-filter__label">{label}</div>
+          <div className="sparql-ark-filter__options">
+            {state.result.columns.map(column => (
+              <label key={`${kind}-${column}`}>
+                <input
+                  type="checkbox"
+                  checked={state.arkFilterColumns[kind].includes(column)}
+                  onChange={() => toggleArkColumn(kind, column)}
+                />
+                <span>{column}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )
+    },
+    [state.arkFilterColumns, state.result, toggleArkColumn],
+  )
+
+  const hasResults = Boolean(state.result && state.result.rows.length)
+  const hasSelectedArkColumns =
+    state.arkFilterColumns.work.length > 0 || state.arkFilterColumns.agent.length > 0
+  const arkFilterDisabled = !hasResults || !hasSelectedArkColumns
 
   return (
     <div className="sparql-workspace" onContextMenu={handleContextMenu}>
@@ -455,6 +557,49 @@ export function SparqlWorkspaceView({
       <section className="sparql-results">
         {state.result ? (
           <>
+            <div className="sparql-ark-filter">
+              <div className="sparql-ark-filter__header">
+                <strong>
+                  {t('workspace.sparqlArkFilterTitle', {
+                    defaultValue: 'Use SPARQL results to filter workspace / agents',
+                  })}
+                </strong>
+                <p>
+                  {t('workspace.sparqlArkFilterHelp', {
+                    defaultValue: 'Choose columns containing work or agent ARKs, then apply a global filter.',
+                  })}
+                </p>
+              </div>
+              <div className="sparql-ark-filter__body">
+                {renderArkColumnChooser(
+                  'work',
+                  t('workspace.sparqlWorkArkColumns', { defaultValue: 'Work ARK columns' }),
+                )}
+                {renderArkColumnChooser(
+                  'agent',
+                  t('workspace.sparqlAgentArkColumns', { defaultValue: 'Agent ARK columns' }),
+                )}
+                <div className="sparql-ark-filter__actions">
+                  <button type="button" onClick={handleApplyArkFilter} disabled={arkFilterDisabled}>
+                    {t('workspace.sparqlApplyArkFilter', { defaultValue: 'Apply ARK filter' })}
+                  </button>
+                  {!hasSelectedArkColumns ? (
+                    <span className="sparql-ark-filter__hint">
+                      {t('workspace.sparqlArkFilterNoSelection', {
+                        defaultValue: 'Select at least one column to enable the filter.',
+                      })}
+                    </span>
+                  ) : null}
+                  {!hasResults ? (
+                    <span className="sparql-ark-filter__hint">
+                      {t('workspace.sparqlArkFilterNoResults', {
+                        defaultValue: 'Run a query with rows before applying a filter.',
+                      })}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            </div>
             <header className="sparql-results__toolbar">
               <span>
                 {t('workspace.sparqlRowCount', {

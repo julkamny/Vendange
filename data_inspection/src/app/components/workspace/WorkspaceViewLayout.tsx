@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { IntermarcEditor } from '../../components/IntermarcEditor'
 import { IntermarcView } from '../../components/IntermarcView'
 import { BacklinksPanel } from '../../components/BacklinksPanel'
@@ -109,6 +109,7 @@ type Props = {
   togglePartialAttach: (checked: boolean) => void
   cancelPendingAttach: () => void
   confirmAttach: () => void
+  headerBanner?: ReactNode
 }
 
 export function WorkspaceViewLayout(props: Props) {
@@ -200,6 +201,7 @@ export function WorkspaceViewLayout(props: Props) {
     togglePartialAttach,
     cancelPendingAttach,
     confirmAttach,
+    headerBanner,
   } = props
 
   const buildClusterAction = (target: RecordRow): MenuAction | null => {
@@ -259,6 +261,7 @@ export function WorkspaceViewLayout(props: Props) {
       <div className={workspaceClassName}>
         <header className="workspace-view__header">
           <WorkspaceBreadcrumbs items={breadcrumbs} ariaLabel={toolbarAriaLabel} />
+          {headerBanner}
         </header>
         <div className="workspace-view__body">
           {!listCollapsed ? (

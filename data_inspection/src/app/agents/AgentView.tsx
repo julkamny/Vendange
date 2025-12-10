@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from 'react'
 import { Virtuoso } from 'react-virtuoso'
-import type { AgentTabState, WorkspaceTabStateWorkspace } from '../workspace/types'
+import type { AgentTabState, WorkspaceTabStateWorkspace, ArkFilterSource } from '../workspace/types'
 import type { EntityBadgeSpec, RecordRow } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useAppData } from '../providers/AppDataContext'
@@ -18,6 +18,7 @@ import { ConfirmAgentClusterModal } from '../components/workspace/ClusterModals'
 import { useAgentClustering } from './useAgentClustering'
 import { useRecordOpener, EMPTY_WORKSPACE_INDEXES } from '../hooks/useRecordOpener'
 import { mapWorkClusters } from '../lib/mapWorkClusters'
+import { buildArkSet, normalizeArk as normalizeArkValue } from '../lib/arkFilters'
 
 type AgentViewProps = {
   state: AgentTabState
@@ -28,6 +29,9 @@ type AgentViewProps = {
   mode: 'inline' | 'detached'
   onRequestDetach?: () => void
   onRequestDock?: () => void
+  agentArkFilter?: string[] | null
+  agentArkFilterSource?: ArkFilterSource | null
+  onClearAgentArkFilter?: () => void
 }
 
 type AgentContextMenuState = {
@@ -47,6 +51,9 @@ export function AgentView({
   mode,
   onRequestDetach,
   onRequestDock,
+  agentArkFilter,
+  agentArkFilterSource,
+  onClearAgentArkFilter,
 }: AgentViewProps) {
   const { t } = useTranslation()
   const { showToast } = useToast()
@@ -55,6 +62,16 @@ export function AgentView({
   const { data: agentsDto } = useWorkspaceAgents(datasetId)
   const { data: workspaceWorks } = useWorkspaceWorks(datasetId)
   const mappedClusters = useMemo(() => mapWorkClusters(workspaceWorks?.clusters) ?? [], [workspaceWorks?.clusters])
+  const filterKey = useMemo(() => (agentArkFilter ? [...agentArkFilter].sort().join('|') : ''), [agentArkFilter])
+  const filterSet = useMemo(() => buildArkSet(agentArkFilter ?? null), [agentArkFilter])
+  const filterActive = filterSet.size > 0
+  const [expandedOutOfScopeAgentClusters, setExpandedOutOfScopeAgentClusters] = useState<Set<string>>(new Set())
+  const [expandedOutOfScopeAgents, setExpandedOutOfScopeAgents] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    setExpandedOutOfScopeAgentClusters(new Set())
+    setExpandedOutOfScopeAgents(new Set())
+  }, [filterKey])
   const clustering = useAgentClustering({
     datasetId,
     agentsDto,
@@ -338,10 +355,20 @@ export function AgentView({
 
   const renderCluster = useCallback(
     (anchorId: string) => {
-      console.log('renderCluster', anchorId)
       if (!agentsDto) return null
       const cluster = agentsDto.clusters.find(c => c.anchor_id === anchorId)
       if (!cluster) return null
+      const anchorNormalized = normalizeArkValue(cluster.anchor_ark)
+      const anchorMatch = anchorNormalized ? filterSet.has(anchorNormalized) : false
+      const itemMatch = filterActive
+        ? cluster.items.some(item => {
+            const n = normalizeArkValue(item.ark)
+            return n ? filterSet.has(n) : false
+          })
+        : false
+      const hasMatch = filterActive ? anchorMatch || itemMatch : true
+      const isOutOfScope = filterActive && !hasMatch
+      const isExpanded = isOutOfScope && expandedOutOfScopeAgentClusters.has(cluster.anchor_id)
       const anchorSelected = state.selectedAgentId === anchorId
       const anchorLabel = cluster.anchor_label || cluster.anchor_id
       const anchorSegments = cluster.anchor_title_segments || []
@@ -349,17 +376,33 @@ export function AgentView({
       const rowClasses = ['entity-row', 'entity-row--person']
       if (anchorSelected) rowClasses.push('selected')
       if (pendingSourceId && pendingSourceId === cluster.anchor_id) rowClasses.push('pending-cluster-source')
+      if (isOutOfScope) rowClasses.push('entity-row--out-of-scope')
+      if (anchorMatch) rowClasses.push('entity-row--filter-match')
       const badges: EntityBadgeSpec[] = [
         { type: 'person', text: cluster.anchor_id, tooltip: anchorArk ?? cluster.anchor_id },
       ]
+      const clusterClasses = ['cluster']
+      if (isOutOfScope) clusterClasses.push('cluster--out-of-scope')
+      if (isOutOfScope && !isExpanded) clusterClasses.push('cluster--collapsed')
       return (
-        <div key={`cluster-${cluster.anchor_id}`} className="cluster">
+        <div key={`cluster-${cluster.anchor_id}`} className={clusterClasses.join(' ')}>
           <div
             className={rowClasses.join(' ')}
             data-agent-id={cluster.anchor_id}
             data-agent-ark={anchorArk}
             onClick={() => handleRowClick(cluster.anchor_id)}
             onContextMenu={event => openContextMenuForAgent(event, cluster.anchor_id, anchorArk)}
+            onDoubleClick={() => {
+              if (isOutOfScope) {
+                setExpandedOutOfScopeAgentClusters(prev => {
+                  const next = new Set(prev)
+                  if (next.has(cluster.anchor_id)) next.delete(cluster.anchor_id)
+                  else next.add(cluster.anchor_id)
+                  return next
+                })
+                return
+              }
+            }}
           >
             <span className="cluster-anchor-marker">⚓︎</span>
             <EntityLabel title={anchorLabel} badges={badges} titleSegments={anchorSegments} />
@@ -371,6 +414,11 @@ export function AgentView({
               const itemClasses = ['cluster-item', 'entity-row', 'entity-row--person']
               if (itemSelected) itemClasses.push('selected')
               if (pendingSourceId && pendingSourceId === itemKey) itemClasses.push('pending-cluster-source')
+              if (isOutOfScope) itemClasses.push('entity-row--out-of-scope')
+              const normalizedItemArk = normalizeArkValue(item.ark)
+              if (normalizedItemArk && filterSet.has(normalizedItemArk)) {
+                itemClasses.push('entity-row--filter-match')
+              }
               const itemSegments = item.title_segments ?? []
               return (
                 <div
@@ -405,7 +453,17 @@ export function AgentView({
         </div>
       )
     },
-    [agentsDto, handleRowClick, openContextMenuForAgent, pendingSourceId, state.selectedAgentId, toggleAgentClusterMembership],
+    [
+      agentsDto,
+      expandedOutOfScopeAgentClusters,
+      filterActive,
+      filterSet,
+      handleRowClick,
+      openContextMenuForAgent,
+      pendingSourceId,
+      state.selectedAgentId,
+      toggleAgentClusterMembership,
+    ],
   )
 
   const renderUnclustered = useCallback(
@@ -417,6 +475,15 @@ export function AgentView({
       const rowClasses = ['entity-row', 'entity-row--person']
       if (isSelected) rowClasses.push('selected')
       if (pendingSourceId && pendingSourceId === agent.id) rowClasses.push('pending-cluster-source')
+      const normalizedArk = normalizeArkValue(agent.ark)
+      const isMatch = normalizedArk ? filterSet.has(normalizedArk) : false
+      const isOutOfScope = filterActive && !isMatch
+      const isExpanded = isOutOfScope && expandedOutOfScopeAgents.has(agent.id)
+      if (isOutOfScope) {
+        rowClasses.push('entity-row--out-of-scope')
+        if (!isExpanded) rowClasses.push('entity-row--collapsed')
+      }
+      if (isMatch) rowClasses.push('entity-row--filter-match')
       const segments = agent.title_segments ?? []
       return (
         <div
@@ -425,6 +492,16 @@ export function AgentView({
           data-agent-id={agent.id}
           onClick={() => handleRowClick(agent.id)}
           onContextMenu={event => openContextMenuForAgent(event, agent.id, agent.ark)}
+          onDoubleClick={() => {
+            if (isOutOfScope) {
+              setExpandedOutOfScopeAgents(prev => {
+                const next = new Set(prev)
+                if (next.has(agent.id)) next.delete(agent.id)
+                else next.add(agent.id)
+                return next
+              })
+            }
+          }}
         >
           <EntityLabel
             title={agent.label || agent.id}
@@ -434,7 +511,16 @@ export function AgentView({
         </div>
       )
     },
-    [agentsDto, handleRowClick, openContextMenuForAgent, pendingSourceId, state.selectedAgentId],
+    [
+      agentsDto,
+      expandedOutOfScopeAgents,
+      filterActive,
+      filterSet,
+      handleRowClick,
+      openContextMenuForAgent,
+      pendingSourceId,
+      state.selectedAgentId,
+    ],
   )
 
   const workspaceClassName = `workspace-view${intermarcFullView ? ' is-intermarc-full' : ''}${backlinksExpanded && selectedRecord ? ' has-backlinks-expanded' : ''
@@ -447,12 +533,45 @@ export function AgentView({
   const toggleFullLabelFull = intermarcFullView
     ? t('workspace.collapseIntermarc', { defaultValue: 'Exit full Intermarc view' })
     : t('workspace.expandIntermarc', { defaultValue: 'Expand Intermarc view' })
+  const agentFilterBanner =
+    agentArkFilter && agentArkFilter.length
+      ? (
+        <div className="workspace-filter-banner">
+          <div className="workspace-filter-banner__info">
+            <strong>
+              {t('agents.arkFilterActive', { defaultValue: 'Filtered agents by SPARQL subset' })}
+            </strong>
+            <span>
+              {t('agents.arkFilterCount', {
+                defaultValue: '{{count}} agent ARKs in scope',
+                count: agentArkFilter.length,
+              })}
+            </span>
+            {agentArkFilterSource ? (
+              <span className="workspace-filter-banner__source">
+                {t('agents.arkFilterSource', {
+                  defaultValue: "Source: '{{title}}' – {{columns}}",
+                  title: agentArkFilterSource.tabTitle,
+                  columns: agentArkFilterSource.agentColumns.join(', '),
+                })}
+              </span>
+            ) : null}
+          </div>
+          {onClearAgentArkFilter ? (
+            <button type="button" onClick={onClearAgentArkFilter}>
+              {t('agents.clearArkFilter', { defaultValue: 'Clear agent filter' })}
+            </button>
+          ) : null}
+        </div>
+      )
+      : null
 
   return (
     <>
       <div className={workspaceClassName}>
         <header className="workspace-view__header">
           <h3>{t('workspace.agentsTitle', { defaultValue: 'Agents' })}</h3>
+          {agentFilterBanner}
         </header>
         <div className="workspace-view__body">
           {!listCollapsed ? (

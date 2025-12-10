@@ -1,7 +1,13 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { WorkspaceView } from './WorkspaceView'
 import { SparqlWorkspaceView } from './SparqlWorkspaceView'
-import type { WorkspaceTabState, WorkspaceTabStateWorkspace, AgentTabState } from '../workspace/types'
+import type {
+  WorkspaceTabState,
+  WorkspaceTabStateWorkspace,
+  AgentTabState,
+  GlobalArkFilterState,
+  ArkFilterPayload,
+} from '../workspace/types'
 import { createDefaultSparqlState, isSparqlTab, isWorkspaceTab, isAgentTab } from '../workspace/types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useShortcuts } from '../providers'
@@ -21,6 +27,7 @@ import { useTabDetachment } from './workspaceTabs/useTabDetachment'
 import { useWorkspaceTabShortcuts } from './workspaceTabs/useWorkspaceTabShortcuts'
 import type { RecordRow } from '../types'
 import { createAgentTab, createWorkspaceTab, nextTabId } from './workspaceTabs/tabFactories'
+import { normalizeArkList } from '../lib/arkFilters'
 
 type WorkspaceTabsProps = {
   shortcutModalOpen: boolean
@@ -29,7 +36,7 @@ type WorkspaceTabsProps = {
 export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   const { t } = useTranslation()
   const { bindings } = useShortcuts()
-  const { clusters, curated } = useAppData()
+  const { clusters, curated, datasetId } = useAppData()
   const { openWindow, closeWindow, getContainer, isOpen, arrangeWindows } = useDetachedWindows()
   const { showToast } = useToast()
   const curatedRecords = useMemo(() => curated?.records ?? [], [curated])
@@ -69,9 +76,18 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   }, [curatedRecords])
 
   const [pendingManifestationId, setPendingManifestationId] = useState<string | null>(null)
+  const [arkFilter, setArkFilter] = useState<GlobalArkFilterState>({
+    workArks: [],
+    agentArks: [],
+    source: null,
+  })
   const [tabs, setTabs] = useState<WorkspaceTabState[]>(() => [createWorkspaceTab(defaultWorkspaceTitle)])
   const [activeId, setActiveId] = useState(() => tabs[0]?.id ?? '')
   const [shortcutTargetId, setShortcutTargetId] = useState(() => tabs[0]?.id ?? '')
+
+  useEffect(() => {
+    setArkFilter({ workArks: [], agentArks: [], source: null })
+  }, [datasetId])
 
   const setActive = useCallback(
     (id: string) => {
@@ -154,6 +170,44 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     },
     [],
   )
+
+  const applyGlobalArkFilter = useCallback((payload: ArkFilterPayload) => {
+    const workArks = normalizeArkList(payload.workArks)
+    const agentArks = normalizeArkList(payload.agentArks)
+    const hasAny = workArks.length || agentArks.length
+    setArkFilter({
+      workArks,
+      agentArks,
+      source: hasAny
+        ? {
+            tabId: payload.source.tabId,
+            tabTitle: payload.source.tabTitle,
+            workColumns: payload.source.workColumns,
+            agentColumns: payload.source.agentColumns,
+          }
+        : null,
+    })
+  }, [])
+
+  const clearWorkArkFilter = useCallback(() => {
+    setArkFilter(prev => {
+      const next = { ...prev, workArks: [] }
+      if (!next.agentArks.length) {
+        return { workArks: [], agentArks: [], source: null }
+      }
+      return next
+    })
+  }, [])
+
+  const clearAgentArkFilter = useCallback(() => {
+    setArkFilter(prev => {
+      const next = { ...prev, agentArks: [] }
+      if (!next.workArks.length) {
+        return { workArks: [], agentArks: [], source: null }
+      }
+      return next
+    })
+  }, [])
 
   const activeTab = useMemo(() => tabs.find(tab => tab.id === activeId) ?? tabs[0], [tabs, activeId])!
   const shortcutTab = useMemo(
@@ -350,6 +404,11 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
                     onOpenAgentDetachedTab={openAgentDetachedTabWithState}
                     sharedPendingManifestationId={pendingManifestationId}
                     setSharedPendingManifestationId={setPendingManifestationId}
+                    workArkFilter={arkFilter.workArks.length ? arkFilter.workArks : null}
+                    workArkFilterSource={
+                      arkFilter.source && arkFilter.workArks.length ? arkFilter.source : null
+                    }
+                    onClearWorkArkFilter={clearWorkArkFilter}
                   />
                 )
               ) : isSparqlTab(tab) ? (
@@ -362,6 +421,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
                   onOpenWorkspaceTabDetached={openDetachedTabWithState}
                   onOpenAgentTab={openAgentTabWithState}
                   onOpenAgentTabDetached={openAgentDetachedTabWithState}
+                  onApplyArkFilter={applyGlobalArkFilter}
                 />
               ) : isAgentTab(tab) ? (
                 tab.mode === 'detached' ? (
@@ -384,6 +444,11 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
                     onOpenTab={openTabWithState}
                     onOpenAgentTab={openAgentTabWithState}
                     onOpenAgentTabDetached={openAgentDetachedTabWithState}
+                    agentArkFilter={arkFilter.agentArks.length ? arkFilter.agentArks : null}
+                    agentArkFilterSource={
+                      arkFilter.source && arkFilter.agentArks.length ? arkFilter.source : null
+                    }
+                    onClearAgentArkFilter={clearAgentArkFilter}
                   />
                 )
               ) : null}
@@ -411,6 +476,11 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
                 onOpenAgentDetachedTab={openAgentDetachedTabWithState}
                 sharedPendingManifestationId={pendingManifestationId}
                 setSharedPendingManifestationId={setPendingManifestationId}
+                workArkFilter={arkFilter.workArks.length ? arkFilter.workArks : null}
+                workArkFilterSource={
+                  arkFilter.source && arkFilter.workArks.length ? arkFilter.source : null
+                }
+                onClearWorkArkFilter={clearWorkArkFilter}
               />
             )
             : null,
@@ -430,6 +500,11 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
                 onOpenTab={openTabWithState}
                 onOpenAgentTab={openAgentTabWithState}
                 onOpenAgentTabDetached={openAgentDetachedTabWithState}
+                agentArkFilter={arkFilter.agentArks.length ? arkFilter.agentArks : null}
+                agentArkFilterSource={
+                  arkFilter.source && arkFilter.agentArks.length ? arkFilter.source : null
+                }
+                onClearAgentArkFilter={clearAgentArkFilter}
               />
             )
             : null,

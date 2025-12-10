@@ -54,6 +54,10 @@ export type WorkspaceTabStateSparql = {
   result: SparqlQueryResult | null
   hiddenColumns: Set<string>
   sort: { column: string; direction: 'asc' | 'desc' } | null
+  arkFilterColumns: {
+    work: string[]
+    agent: string[]
+  }
 }
 
 export type WorkspaceTabState = WorkspaceTabStateWorkspace | WorkspaceTabStateSparql | AgentTabState
@@ -63,6 +67,30 @@ export type WorkspaceTabState = WorkspaceTabStateWorkspace | WorkspaceTabStateSp
  * This covers both the WEM workspace and the Agents workspace.
  */
 export type WorkspaceLayoutTabState = WorkspaceTabStateWorkspace | AgentTabState
+
+export type ArkFilterColumns = {
+  work: string[]
+  agent: string[]
+}
+
+export type ArkFilterSource = {
+  tabId: string
+  tabTitle: string
+  workColumns: string[]
+  agentColumns: string[]
+}
+
+export type ArkFilterPayload = {
+  workArks: string[]
+  agentArks: string[]
+  source: ArkFilterSource
+}
+
+export type GlobalArkFilterState = {
+  workArks: string[]
+  agentArks: string[]
+  source: ArkFilterSource | null
+}
 
 export const DEFAULT_WORKSPACE_STATE: Omit<WorkspaceTabStateWorkspace, 'id' | 'title'> = {
   kind: 'workspace',
@@ -107,6 +135,7 @@ export function createDefaultSparqlState(id: string, title: string): WorkspaceTa
     result: null,
     hiddenColumns: new Set(),
     sort: null,
+    arkFilterColumns: { work: [], agent: [] },
   }
 }
 

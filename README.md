@@ -103,6 +103,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - Sparnatural reads a SHACL profile. Update `data_inspection/src/app/sparql/sparnaturalConfig.ts` when you need to expose a new node/property.
 - The builder also surfaces agent entities (person / collective / famille) with the 700/701/702/710/711/712 links, lets you pick relator codes from the controlled lists, and hides ARKs for agents in favour of their Intermarc label.
 - Vendange stores each record in its own named graph. The builder (and manual execution) rewrite Sparnatural output into one `GRAPH` block per entity (`GRAPH ?g_manifestation { … }`, `GRAPH ?g_expression { … }`, etc.) so W–E–M traversals span the right graphs out of the box. For custom logic you can still provide explicit `GRAPH` clauses—auto-wrapping steps aside as soon as it detects one.
+- From the SPARQL results, pick the columns that contain work or agent ARKs and apply them as a global filter: matched rows are highlighted, out-of-scope clusters collapse + dim, and the filter stays active across all workspace/agent tabs (inline or detached) until you clear it from the banner.
 
 ### Installation
 On MacOS Monterey 12.6.7, use Python 3.11 to install spaCy:

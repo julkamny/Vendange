@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { AgentView } from '../../agents/AgentView'
-import type { AgentTabState, WorkspaceTabStateWorkspace } from '../../workspace/types'
+import type { AgentTabState, ArkFilterSource, WorkspaceTabStateWorkspace } from '../../workspace/types'
 
 type DetachedAgentPortalProps = {
   tab: AgentTabState
@@ -11,6 +11,9 @@ type DetachedAgentPortalProps = {
   onOpenTab: (initializer: (base: WorkspaceTabStateWorkspace) => WorkspaceTabStateWorkspace) => void
   onOpenAgentTab: (initializer: (base: AgentTabState) => AgentTabState) => void
   onOpenAgentTabDetached: (initializer: (base: AgentTabState) => AgentTabState) => void
+  agentArkFilter?: string[] | null
+  agentArkFilterSource?: ArkFilterSource | null
+  onClearAgentArkFilter?: () => void
 }
 
 export function DetachedAgentPortal({
@@ -22,6 +25,9 @@ export function DetachedAgentPortal({
   onOpenTab,
   onOpenAgentTab,
   onOpenAgentTabDetached,
+  agentArkFilter,
+  agentArkFilterSource,
+  onClearAgentArkFilter,
 }: DetachedAgentPortalProps) {
   if (!container) return null
   return createPortal(
@@ -39,6 +45,9 @@ export function DetachedAgentPortal({
         onOpenTab={onOpenTab}
         onOpenAgentTab={onOpenAgentTab}
         onOpenAgentTabDetached={onOpenAgentTabDetached}
+        agentArkFilter={agentArkFilter}
+        agentArkFilterSource={agentArkFilterSource}
+        onClearAgentArkFilter={onClearAgentArkFilter}
       />
     </div>,
     container,

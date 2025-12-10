@@ -376,6 +376,16 @@ button:focus-visible {
   color: var(--color-text-muted);
   font-size: 0.8rem;
 }
+.workspace-filter-banner__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+}
+.workspace-filter-banner__nav {
+  display: inline-flex;
+  gap: 0.35rem;
+}
 .workspace-filter-banner button {
   align-self: flex-start;
 }

@@ -124,6 +124,14 @@
       "label": "Move selection down",
       "description": "Move to the next item in the active WEM or Agents list (works in detached windows too)."
     },
+    "nextFilterMatch": {
+      "label": "Next filtered match",
+      "description": "Jump to the next work or agent that matches the active SPARQL filter."
+    },
+    "previousFilterMatch": {
+      "label": "Previous filtered match",
+      "description": "Jump to the previous work or agent that matches the active SPARQL filter."
+    },
     "nextWorkspace": {
       "label": "Switch workspace (right)",
       "description": "Activate the next tab of any type (WEM, Agents, SPARQL); wraps to first."

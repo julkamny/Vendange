@@ -13,6 +13,7 @@ import { useTranslation } from '../hooks/useTranslation'
 import { useShortcuts } from '../providers'
 import { useWorkspaceData } from '../workspace/useWorkspaceData'
 import { useAppData } from '../providers'
+import { useWorkspaceAgents } from '../hooks/useWorkspaceQueries'
 import { manifestationTitle, titleOf, expressionWorkArks } from '../core/entities'
 import { useDetachedWindows } from '../providers'
 import { useToast } from '../providers'
@@ -224,6 +225,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   )
   const workspaceSource = isWorkspaceTab(shortcutTab) ? shortcutTab : firstWorkspaceTab
   const workspace = useWorkspaceData(workspaceSource)
+  const { data: workspaceAgents } = useWorkspaceAgents(datasetId)
 
   const labelForTabRecord = useCallback((record: RecordRow | null) => {
     if (!record) return null
@@ -323,6 +325,9 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     setActive,
     setTabs,
     updateTabState,
+    workArkFilter: arkFilter.workArks,
+    agentArkFilter: arkFilter.agentArks,
+    workspaceAgents,
     dockWorkspaceTab,
     detachWorkspaceTab,
     dockAgentTab,

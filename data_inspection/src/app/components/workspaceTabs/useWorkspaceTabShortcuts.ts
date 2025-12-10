@@ -8,10 +8,12 @@ import {
   type WorkspaceTabState,
   type WorkspaceTabStateWorkspace,
 } from '../../workspace/types'
-import type { RecordRow } from '../../types'
+import type { RecordRow, NavigationDirection, WorkspaceAgentsResponse } from '../../types'
 import type { useWorkspaceData } from '../../workspace/useWorkspaceData'
 import { navigateAgentList, navigateList } from './navigation'
 import { focusTreeDown, focusTreeUp } from '../../workspace/shortcutActions'
+import { buildArkAndIdSets } from '../../lib/arkFilters'
+import { filterNavigationTargets, pickCyclicMatch } from '../../lib/filterNavigation'
 
 type WorkspaceData = ReturnType<typeof useWorkspaceData>
 
@@ -27,6 +29,9 @@ type UseWorkspaceTabShortcutsParams = {
   setActive: (id: string) => void
   setTabs: Dispatch<SetStateAction<WorkspaceTabState[]>>
   updateTabState: (id: string, updater: (prev: WorkspaceTabState) => WorkspaceTabState) => void
+  workArkFilter: string[]
+  agentArkFilter: string[]
+  workspaceAgents: WorkspaceAgentsResponse | undefined
   dockWorkspaceTab: (tab: WorkspaceTabStateWorkspace) => void
   detachWorkspaceTab: (tab: WorkspaceTabStateWorkspace) => void
   dockAgentTab: (tab: AgentTabState) => void
@@ -48,6 +53,9 @@ export function useWorkspaceTabShortcuts({
   setActive,
   setTabs,
   updateTabState,
+  workArkFilter,
+  agentArkFilter,
+  workspaceAgents,
   dockWorkspaceTab,
   detachWorkspaceTab,
   dockAgentTab,
@@ -56,6 +64,88 @@ export function useWorkspaceTabShortcuts({
   setShortcutTargetId,
   getContainer,
 }: UseWorkspaceTabShortcutsParams) {
+  const buildWorkspaceWorkCandidates = useCallback(() => {
+    const candidates: Array<{ id: string; ark?: string | null; anchorId?: string | null; containerIndex: number }> = []
+    workspace.clusters.forEach((cluster, clusterIndex) => {
+      candidates.push({
+        id: cluster.anchorId,
+        ark: cluster.anchorArk,
+        anchorId: cluster.anchorId,
+        containerIndex: clusterIndex,
+      })
+      cluster.items.forEach(item => {
+        if (!item.id) return
+        candidates.push({
+          id: String(item.id),
+          ark: item.ark,
+          anchorId: cluster.anchorId,
+          containerIndex: clusterIndex,
+        })
+      })
+    })
+    const offset = workspace.clusters.length
+    workspace.unclusteredWorks.forEach((work, index) => {
+      candidates.push({
+        id: work.id,
+        ark: work.ark,
+        anchorId: null,
+        containerIndex: offset + index,
+      })
+    })
+    return candidates
+  }, [workspace.clusters, workspace.unclusteredWorks])
+
+  const buildAgentEntries = useCallback(() => {
+    if (!workspaceAgents) return [] as Array<{ kind: 'cluster'; anchorId: string; sortKey: string } | { kind: 'single'; agentId: string; sortKey: string }>
+    const entries: Array<{ kind: 'cluster'; anchorId: string; sortKey: string } | { kind: 'single'; agentId: string; sortKey: string }> = []
+    workspaceAgents.clusters.forEach(cluster => {
+      const sortKey = cluster.sort_key ?? cluster.anchor_label ?? cluster.anchor_id
+      entries.push({ kind: 'cluster', anchorId: cluster.anchor_id, sortKey })
+    })
+    workspaceAgents.unclustered_agents.forEach(agent => {
+      const sortKey = agent.sort_key ?? agent.label ?? agent.id
+      entries.push({ kind: 'single', agentId: agent.id, sortKey })
+    })
+    return entries.sort((a, b) => a.sortKey.localeCompare(b.sortKey, 'fr', { sensitivity: 'accent' }))
+  }, [workspaceAgents])
+
+  const buildAgentCandidates = useCallback(() => {
+    if (!workspaceAgents) return [] as Array<{ id: string; ark?: string | null; anchorId?: string | null; containerIndex: number }>
+    const entries = buildAgentEntries()
+    const candidates: Array<{ id: string; ark?: string | null; anchorId?: string | null; containerIndex: number }> = []
+    entries.forEach((entry, containerIndex) => {
+      if (entry.kind === 'cluster') {
+        const cluster = workspaceAgents.clusters.find(c => c.anchor_id === entry.anchorId)
+        if (!cluster) return
+        candidates.push({
+          id: cluster.anchor_id,
+          ark: cluster.anchor_ark,
+          anchorId: cluster.anchor_id,
+          containerIndex,
+        })
+        cluster.items.forEach(item => {
+          if (!item.id) return
+          candidates.push({
+            id: String(item.id),
+            ark: item.ark,
+            anchorId: cluster.anchor_id,
+            containerIndex,
+          })
+        })
+        return
+      }
+      const agent = workspaceAgents.unclustered_agents.find(a => a.id === entry.agentId)
+      if (!agent) return
+      candidates.push({
+        id: agent.id,
+        ark: agent.ark,
+        anchorId: null,
+        containerIndex,
+      })
+    })
+    return candidates
+  }, [buildAgentEntries, workspaceAgents])
+
   const handleShortcutAction = useCallback(
     (action: ShortcutAction, sourceDocument: Document = document) => {
       const targetTab = shortcutTab
@@ -114,6 +204,55 @@ export function useWorkspaceTabShortcuts({
           navigateList(action === 'listUp' ? 'up' : 'down', targetTab, sourceDocument)
         } else if (targetIsAgent) {
           navigateAgentList(action === 'listUp' ? 'up' : 'down', targetTab, setTabs, sourceDocument)
+        }
+        return
+      }
+
+      if (action === 'nextFilterMatch' || action === 'previousFilterMatch') {
+        const direction: NavigationDirection = action === 'nextFilterMatch' ? 'next' : 'previous'
+        if (targetIsWorkspace) {
+          const { ids: workFilterIds } = buildArkAndIdSets(workArkFilter ?? null)
+          const candidates = buildWorkspaceWorkCandidates()
+          const matches = filterNavigationTargets(candidates, workFilterIds)
+          const current =
+            targetTab.highlightedWorkId ??
+            (targetTab.selectedEntity?.entityType === 'work' ? targetTab.selectedEntity.id : null)
+          const next = pickCyclicMatch(matches, current, direction)
+          if (!next) return
+          updateTabState(targetTab.id, prev => {
+            if (!isWorkspaceTab(prev)) return prev
+            return {
+              ...prev,
+              viewMode: 'works',
+              listScope: 'clusters',
+              activeWorkAnchorId: next.anchorId ?? next.id ?? prev.activeWorkAnchorId,
+              highlightedWorkId: next.id,
+              highlightedWorkArk: next.ark ?? prev.highlightedWorkArk ?? null,
+              selectedEntity: {
+                id: next.id,
+                source: 'curated',
+                entityType: 'work',
+                workArk: next.ark ?? undefined,
+              },
+            }
+          })
+          return
+        }
+        if (targetIsAgent) {
+          const { ids: agentFilterIds } = buildArkAndIdSets(agentArkFilter ?? null)
+          const candidates = buildAgentCandidates()
+          const matches = filterNavigationTargets(candidates, agentFilterIds)
+          const current = targetTab.highlightedAgentId ?? targetTab.selectedAgentId
+          const next = pickCyclicMatch(matches, current, direction)
+          if (!next) return
+          updateTabState(targetTab.id, prev => {
+            if (!isAgentTab(prev)) return prev
+            return {
+              ...prev,
+              highlightedAgentId: next.id,
+              selectedAgentId: next.id,
+            }
+          })
         }
         return
       }
@@ -192,6 +331,10 @@ export function useWorkspaceTabShortcuts({
       detachWorkspaceTab,
       dockAgentTab,
       dockWorkspaceTab,
+      buildAgentCandidates,
+      buildWorkspaceWorkCandidates,
+      workArkFilter,
+      agentArkFilter,
       setActive,
       setTabs,
       shortcutTab,

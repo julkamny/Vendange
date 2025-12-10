@@ -20,6 +20,7 @@ export type WorkspaceTabStateWorkspace = {
   listScope: InventoryScope
   viewMode: ViewMode
   activeWorkAnchorId: string | null
+  highlightedWorkId: string | null
   highlightedWorkArk: string | null | undefined
   activeExpressionAnchorId: string | null
   highlightedExpressionArk: string | null
@@ -38,6 +39,7 @@ export type AgentTabState = {
   intermarcFullView: boolean
   backlinksExpanded: boolean
   listCollapsed: boolean
+  highlightedAgentId: string | null
   selectedAgentId: string | null
   listScrollTop: number
   detailsScrollTop: number
@@ -102,6 +104,7 @@ export const DEFAULT_WORKSPACE_STATE: Omit<WorkspaceTabStateWorkspace, 'id' | 't
   listScope: 'clusters',
   viewMode: 'works',
   activeWorkAnchorId: null,
+  highlightedWorkId: null,
   highlightedWorkArk: undefined,
   activeExpressionAnchorId: null,
   highlightedExpressionArk: null,
@@ -118,6 +121,7 @@ export const DEFAULT_AGENT_STATE: Omit<AgentTabState, 'id' | 'title'> = {
   intermarcFullView: false,
   backlinksExpanded: false,
   listCollapsed: false,
+  highlightedAgentId: null,
   selectedAgentId: null,
   listScrollTop: 0,
   detailsScrollTop: 0,

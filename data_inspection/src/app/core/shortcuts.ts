@@ -27,6 +27,18 @@ export const SHORTCUTS: ShortcutConfig[] = [
     defaultBinding: 'ArrowDown',
   },
   {
+    action: 'previousFilterMatch',
+    labelKey: 'shortcuts.previousFilterMatch.label',
+    descriptionKey: 'shortcuts.previousFilterMatch.description',
+    defaultBinding: 'Ctrl+Alt+ArrowUp',
+  },
+  {
+    action: 'nextFilterMatch',
+    labelKey: 'shortcuts.nextFilterMatch.label',
+    descriptionKey: 'shortcuts.nextFilterMatch.description',
+    defaultBinding: 'Ctrl+Alt+ArrowDown',
+  },
+  {
     action: 'nextWorkspace',
     labelKey: 'shortcuts.nextWorkspace.label',
     descriptionKey: 'shortcuts.nextWorkspace.description',

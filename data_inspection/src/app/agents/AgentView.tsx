@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from 'react'
-import { Virtuoso } from 'react-virtuoso'
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import type { AgentTabState, WorkspaceTabStateWorkspace, ArkFilterSource } from '../workspace/types'
 import type { EntityBadgeSpec, RecordRow } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
@@ -19,6 +19,8 @@ import { useAgentClustering } from './useAgentClustering'
 import { useRecordOpener, EMPTY_WORKSPACE_INDEXES } from '../hooks/useRecordOpener'
 import { mapWorkClusters } from '../lib/mapWorkClusters'
 import { buildArkAndIdSets, normalizeArk as normalizeArkValue } from '../lib/arkFilters'
+import { filterNavigationTargets, pickCyclicMatch, type NavigationTarget } from '../lib/filterNavigation'
+import type { NavigationDirection } from '../types'
 
 type AgentViewProps = {
   state: AgentTabState
@@ -148,6 +150,7 @@ export function AgentView({
   }, [pendingAnchorRecord, pendingSourceRecord, rememberRecord])
 
   const listRef = useRef<HTMLElement | null>(null)
+  const virtuosoRef = useRef<VirtuosoHandle | null>(null)
   const detailsRef = useRef<HTMLElement | null>(null)
   const lastScrollKeyRef = useRef<string>('')
   const autoFullRef = useRef(false)
@@ -171,6 +174,44 @@ export function AgentView({
     })
     return list.sort((a, b) => a.sortKey.localeCompare(b.sortKey, 'fr', { sensitivity: 'accent' }))
   }, [agentsDto])
+
+  const agentNavigationCandidates = useMemo<NavigationTarget[]>(() => {
+    if (!agentsDto) return []
+    return entries.flatMap((entry, containerIndex) => {
+      if (entry.kind === 'cluster') {
+        const cluster = agentsDto.clusters.find(c => c.anchor_id === entry.anchorId)
+        if (!cluster) return []
+        const anchor: NavigationTarget = {
+          id: cluster.anchor_id,
+          ark: cluster.anchor_ark ?? null,
+          anchorId: cluster.anchor_id,
+          containerIndex,
+        }
+        const items: NavigationTarget[] = cluster.items
+          .filter(item => item.id != null)
+          .map(item => ({
+            id: String(item.id),
+            ark: item.ark ?? null,
+            anchorId: cluster.anchor_id,
+            containerIndex,
+          }))
+        return [anchor, ...items]
+      }
+      const agent = agentsDto.unclustered_agents.find(a => a.id === entry.agentId)
+      if (!agent) return []
+      return [{
+        id: agent.id,
+        ark: agent.ark ?? null,
+        anchorId: null,
+        containerIndex,
+      }]
+    })
+  }, [agentsDto, entries])
+
+  const filteredAgentMatches = useMemo(
+    () => filterNavigationTargets(agentNavigationCandidates, filterIdSet),
+    [agentNavigationCandidates, filterIdSet],
+  )
 
   useEffect(() => {
     setEditing(false)
@@ -224,19 +265,22 @@ export function AgentView({
   )
 
   useEffect(() => {
-    const key = `${state.selectedAgentId}`
+    const key = `${state.highlightedAgentId ?? state.selectedAgentId ?? ''}`
     if (lastScrollKeyRef.current === key) return
     lastScrollKeyRef.current = key
     if (typeof window === 'undefined') return
-    const container = listRef.current
-    if (!container) return
+    const targetId = state.highlightedAgentId ?? state.selectedAgentId
+    if (!targetId) return
+    const target = agentNavigationCandidates.find(entry => entry.id === targetId)
+    if (!target) return
+    virtuosoRef.current?.scrollToIndex({ index: target.containerIndex, align: 'center', behavior: 'auto' })
     window.requestAnimationFrame(() => {
-      const target =
-        container.querySelector<HTMLElement>('.entity-row.selected') ||
-        container.querySelector<HTMLElement>('.entity-row.highlight')
-      if (target) target.scrollIntoView({ block: 'center', behavior: 'auto' })
+      const container = listRef.current
+      if (!container) return
+      const row = container.querySelector<HTMLElement>(`.entity-row[data-agent-id="${targetId}"]`)
+      if (row) row.scrollIntoView({ block: 'center', behavior: 'auto' })
     })
-  }, [state.selectedAgentId])
+  }, [agentNavigationCandidates, state.highlightedAgentId, state.selectedAgentId, virtuosoRef])
 
   const openArk = useCallback(
     async (ark: string, opts?: { detach?: boolean }) => {
@@ -252,9 +296,26 @@ export function AgentView({
 
   const handleRowClick = useCallback(
     (agentId: string) => {
-      onStateChange(prev => ({ ...prev, selectedAgentId: agentId }))
+      onStateChange(prev => ({ ...prev, selectedAgentId: agentId, highlightedAgentId: agentId }))
     },
     [onStateChange],
+  )
+
+  const focusFilteredAgent = useCallback(
+    (direction: NavigationDirection) => {
+      const current = state.highlightedAgentId ?? state.selectedAgentId
+      const target = pickCyclicMatch(filteredAgentMatches, current, direction)
+      if (!target) return
+      onStateChange(prev => ({ ...prev, highlightedAgentId: target.id, selectedAgentId: target.id }))
+      virtuosoRef.current?.scrollToIndex({ index: target.containerIndex, align: 'center', behavior: 'auto' })
+      window.requestAnimationFrame(() => {
+        const container = listRef.current
+        if (!container) return
+        const row = container.querySelector<HTMLElement>(`.entity-row[data-agent-id="${target.id}"]`)
+        if (row) row.scrollIntoView({ block: 'center', behavior: 'auto' })
+      })
+    },
+    [filteredAgentMatches, listRef, onStateChange, state.highlightedAgentId, state.selectedAgentId],
   )
 
   const openContextMenuForAgent = useCallback(
@@ -360,7 +421,6 @@ export function AgentView({
       if (!agentsDto) return null
       const cluster = agentsDto.clusters.find(c => c.anchor_id === anchorId)
       if (!cluster) return null
-      const anchorNormalized = normalizeArkValue(cluster.anchor_ark)
       const anchorMatch = filterIdSet.has(String(cluster.anchor_id))
       const itemMatch = filterActive
         ? cluster.items.some(item => {
@@ -377,6 +437,7 @@ export function AgentView({
       const anchorArk = cluster.anchor_ark ?? undefined
       const rowClasses = ['entity-row', 'entity-row--person']
       if (anchorSelected) rowClasses.push('selected')
+      if (state.highlightedAgentId === anchorId) rowClasses.push('highlight')
       if (pendingSourceId && pendingSourceId === cluster.anchor_id) rowClasses.push('pending-cluster-source')
       if (isOutOfScope) rowClasses.push('entity-row--out-of-scope')
       if (anchorMatch) rowClasses.push('entity-row--filter-match')
@@ -415,6 +476,7 @@ export function AgentView({
               const itemSelected = state.selectedAgentId === itemKey
               const itemClasses = ['cluster-item', 'entity-row', 'entity-row--person']
               if (itemSelected) itemClasses.push('selected')
+              if (state.highlightedAgentId && itemKey && state.highlightedAgentId === itemKey) itemClasses.push('highlight')
               if (pendingSourceId && pendingSourceId === itemKey) itemClasses.push('pending-cluster-source')
               if (isOutOfScope) itemClasses.push('entity-row--out-of-scope')
               const normalizedItemArk = normalizeArkValue(item.ark)
@@ -467,6 +529,7 @@ export function AgentView({
       handleRowClick,
       openContextMenuForAgent,
       pendingSourceId,
+      state.highlightedAgentId,
       state.selectedAgentId,
       toggleAgentClusterMembership,
     ],
@@ -480,6 +543,7 @@ export function AgentView({
       const isSelected = state.selectedAgentId === agent.id
       const rowClasses = ['entity-row', 'entity-row--person']
       if (isSelected) rowClasses.push('selected')
+      if (state.highlightedAgentId === agent.id) rowClasses.push('highlight')
       if (pendingSourceId && pendingSourceId === agent.id) rowClasses.push('pending-cluster-source')
       const normalizedArk = normalizeArkValue(agent.ark)
       const isMatch =
@@ -527,6 +591,7 @@ export function AgentView({
       handleRowClick,
       openContextMenuForAgent,
       pendingSourceId,
+      state.highlightedAgentId,
       state.selectedAgentId,
     ],
   )
@@ -565,11 +630,29 @@ export function AgentView({
               </span>
             ) : null}
           </div>
-          {onClearAgentArkFilter ? (
-            <button type="button" onClick={onClearAgentArkFilter}>
-              {t('agents.clearArkFilter', { defaultValue: 'Clear agent filter' })}
-            </button>
-          ) : null}
+          <div className="workspace-filter-banner__actions">
+            {onClearAgentArkFilter ? (
+              <button type="button" onClick={onClearAgentArkFilter}>
+                {t('agents.clearArkFilter', { defaultValue: 'Clear agent filter' })}
+              </button>
+            ) : null}
+            <div className="workspace-filter-banner__nav">
+              <button
+                type="button"
+                onClick={() => focusFilteredAgent('next')}
+                disabled={!filteredAgentMatches.length}
+              >
+                {t('agents.nextFilteredAgent', { defaultValue: 'Next filtered agent' })}
+              </button>
+              <button
+                type="button"
+                onClick={() => focusFilteredAgent('previous')}
+                disabled={!filteredAgentMatches.length}
+              >
+                {t('agents.previousFilteredAgent', { defaultValue: 'Previous filtered agent' })}
+              </button>
+            </div>
+          </div>
         </div>
       )
       : null
@@ -589,6 +672,7 @@ export function AgentView({
             >
               {entries.length ? (
                 <Virtuoso
+                  ref={virtuosoRef}
                   style={{ height: '100%', width: '100%' }}
                   className="work-list-panel"
                   data={entries}

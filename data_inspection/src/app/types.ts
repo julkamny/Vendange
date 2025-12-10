@@ -329,6 +329,8 @@ export type ShortcutAction =
   | 'focusDown'
   | 'listUp'
   | 'listDown'
+  | 'nextFilterMatch'
+  | 'previousFilterMatch'
   | 'nextWorkspace'
   | 'previousWorkspace'
   | 'toggleBacklinks'
@@ -344,3 +346,5 @@ export type ShortcutConfig = {
   descriptionKey: string
   defaultBinding: string
 }
+
+export type NavigationDirection = 'next' | 'previous'

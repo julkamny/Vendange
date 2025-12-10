@@ -23,6 +23,9 @@ import { buildRecordRowFromPayload } from '../lib/recordPayload'
 import { computeClusterCoverage } from '../core/clusterCoverage'
 import { mapWorkCluster } from '../lib/mapWorkClusters'
 import { useRecordOpener } from '../hooks/useRecordOpener'
+import { buildArkAndIdSets } from '../lib/arkFilters'
+import { filterNavigationTargets, pickCyclicMatch, type NavigationTarget } from '../lib/filterNavigation'
+import type { NavigationDirection } from '../types'
 
 type WorkspaceViewProps = {
   state: WorkspaceTabStateWorkspace
@@ -111,7 +114,49 @@ export function WorkspaceView({
     [workspaceWorks?.clusters],
   )
   const coverage = useMemo(() => computeClusterCoverage(mappedClusters), [mappedClusters])
-  const unclusteredWorks: WorkListRowDto[] = workspaceWorks?.unclustered_works ?? []
+  const unclusteredWorks: WorkListRowDto[] = useMemo(
+    () => workspaceWorks?.unclustered_works ?? [],
+    [workspaceWorks?.unclustered_works],
+  )
+  const { ids: workFilterIdSet } = useMemo(
+    () => buildArkAndIdSets(workArkFilter ?? null),
+    [workArkFilter],
+  )
+  const workNavigationCandidates = useMemo<NavigationTarget[]>(() => {
+    const candidates: NavigationTarget[] = []
+    const clusters = workspaceWorks?.clusters ?? []
+    clusters.forEach((cluster, clusterIndex) => {
+      candidates.push({
+        id: cluster.anchor_id,
+        ark: cluster.anchor_ark ?? null,
+        anchorId: cluster.anchor_id,
+        containerIndex: clusterIndex,
+      })
+      cluster.items.forEach(item => {
+        if (item.id == null) return
+        candidates.push({
+          id: String(item.id),
+          ark: item.ark,
+          anchorId: cluster.anchor_id,
+          containerIndex: clusterIndex,
+        })
+      })
+    })
+    const offset = clusters.length
+    unclusteredWorks.forEach((work, index) => {
+      candidates.push({
+        id: work.id,
+        ark: work.ark ?? null,
+        anchorId: null,
+        containerIndex: offset + index,
+      })
+    })
+    return candidates
+  }, [unclusteredWorks, workspaceWorks?.clusters])
+  const filteredWorkMatches = useMemo(
+    () => filterNavigationTargets(workNavigationCandidates, workFilterIdSet),
+    [workNavigationCandidates, workFilterIdSet],
+  )
   const emptyIndexes = useMemo(
     () => ({
       worksById: new Map<string, RecordRow>(),
@@ -411,6 +456,7 @@ export function WorkspaceView({
     onStateChange(prev => ({
       ...prev,
       activeWorkAnchorId: nextAnchorId,
+      highlightedWorkId: workId ?? null,
       highlightedWorkArk: workArk ?? null,
       viewMode: 'works',
       listScope: 'clusters',
@@ -430,6 +476,7 @@ export function WorkspaceView({
       onStateChange(prev => ({
         ...prev,
         activeWorkAnchorId: nextAnchorId,
+        highlightedWorkId: workId ?? null,
         highlightedWorkArk: workArk ?? null,
         viewMode: 'expressions',
         listScope: 'clusters',
@@ -446,6 +493,7 @@ export function WorkspaceView({
     onStateChange(prev => ({
       ...prev,
       activeWorkAnchorId: nextAnchorId,
+      highlightedWorkId: workId ?? null,
       highlightedWorkArk: workArk ?? null,
       viewMode: 'expressions',
       listScope: 'clusters',
@@ -458,6 +506,31 @@ export function WorkspaceView({
     }))
 
   }
+
+  const focusFilteredWork = useCallback(
+    (direction: NavigationDirection) => {
+      const currentWorkId =
+        state.highlightedWorkId ??
+        (state.selectedEntity?.entityType === 'work' ? state.selectedEntity.id : null)
+      const target = pickCyclicMatch(filteredWorkMatches, currentWorkId, direction)
+      if (!target) return
+      onStateChange(prev => ({
+        ...prev,
+        viewMode: 'works',
+        listScope: 'clusters',
+        activeWorkAnchorId: target.anchorId ?? target.id ?? prev.activeWorkAnchorId,
+        highlightedWorkId: target.id,
+        highlightedWorkArk: target.ark ?? prev.highlightedWorkArk ?? null,
+        selectedEntity: {
+          id: target.id,
+          source: 'curated',
+          entityType: 'work',
+          workArk: target.ark ?? undefined,
+        },
+      }))
+    },
+    [filteredWorkMatches, onStateChange, state.highlightedWorkId, state.selectedEntity],
+  )
 
   const renderListPanel = (viewMode: WorkspaceTabStateWorkspace['viewMode']) => {
     if (viewMode === 'works') {
@@ -614,11 +687,29 @@ export function WorkspaceView({
               </span>
             ) : null}
           </div>
-          {onClearWorkArkFilter ? (
-            <button type="button" onClick={onClearWorkArkFilter}>
-              {t('workspace.clearWorkFilter', { defaultValue: 'Clear work filter' })}
-            </button>
-          ) : null}
+          <div className="workspace-filter-banner__actions">
+            {onClearWorkArkFilter ? (
+              <button type="button" onClick={onClearWorkArkFilter}>
+                {t('workspace.clearWorkFilter', { defaultValue: 'Clear work filter' })}
+              </button>
+            ) : null}
+            <div className="workspace-filter-banner__nav">
+              <button
+                type="button"
+                onClick={() => focusFilteredWork('next')}
+                disabled={!filteredWorkMatches.length}
+              >
+                {t('workspace.nextFilteredWork', { defaultValue: 'Next filtered work' })}
+              </button>
+              <button
+                type="button"
+                onClick={() => focusFilteredWork('previous')}
+                disabled={!filteredWorkMatches.length}
+              >
+                {t('workspace.previousFilteredWork', { defaultValue: 'Previous filtered work' })}
+              </button>
+            </div>
+          </div>
         </div>
       )
       : null

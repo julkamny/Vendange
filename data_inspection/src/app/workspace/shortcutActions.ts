@@ -50,6 +50,7 @@ function focusClusterTreeUp(
       activeWorkAnchorId: cluster.anchorId,
       activeExpressionAnchorId: anchorId,
       highlightedExpressionArk: expressionArk,
+      highlightedWorkId: cluster.anchorId,
       highlightedWorkArk: workArk ?? null,
       selectedEntity: {
         id: expressionId,
@@ -80,6 +81,7 @@ function focusClusterTreeUp(
       activeWorkAnchorId: cluster.anchorId,
       activeExpressionAnchorId: null,
       highlightedExpressionArk: null,
+      highlightedWorkId: workId ?? cluster.anchorId,
       highlightedWorkArk: workArk ?? null,
       selectedEntity: {
         id: workId,
@@ -113,6 +115,7 @@ function focusClusterTreeDown(
       activeWorkAnchorId: cluster.anchorId,
       activeExpressionAnchorId: null,
       highlightedExpressionArk: null,
+      highlightedWorkId: cluster.anchorId,
       highlightedWorkArk: targetWorkArk ?? null,
     }
 
@@ -156,6 +159,7 @@ function focusClusterTreeDown(
       activeWorkAnchorId: cluster.anchorId,
       activeExpressionAnchorId: anchorId,
       highlightedExpressionArk: expressionArk ?? null,
+      highlightedWorkId: cluster.anchorId,
       highlightedWorkArk: expression.workArk ?? state.highlightedWorkArk ?? null,
     }
 

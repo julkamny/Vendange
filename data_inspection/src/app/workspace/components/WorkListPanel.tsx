@@ -117,7 +117,8 @@ export function WorkListPanel({
 
   useEffect(() => {
     const targetId =
-      state.selectedEntity?.entityType === 'work' ? state.selectedEntity.id : null
+      state.highlightedWorkId ??
+      (state.selectedEntity?.entityType === 'work' ? state.selectedEntity.id : null)
     const targetArk =
       state.highlightedWorkArk ??
       (state.selectedEntity?.entityType === 'work' ? state.selectedEntity.workArk ?? null : null)
@@ -127,15 +128,25 @@ export function WorkListPanel({
     const index = sortedEntries.findIndex(entry => {
       if (entry.kind === 'cluster') {
         const { cluster } = entry
-        if (cluster.anchor_id === targetId || cluster.anchor_ark === targetArk) return true
-        return cluster.items.some(item => item.id === targetId || item.ark === targetArk)
+        if ((targetId && cluster.anchor_id === targetId) || (targetArk && cluster.anchor_ark === targetArk)) return true
+        return cluster.items.some(item => (targetId && item.id === targetId) || (targetArk && item.ark === targetArk))
       }
-      return entry.work.id === targetId || entry.work.ark === targetArk
+      return (targetId && entry.work.id === targetId) || (targetArk && entry.work.ark === targetArk)
     })
     if (index >= 0) {
       virtuosoRef.current?.scrollToIndex({ index, align: 'center', behavior: 'auto' })
+      window.requestAnimationFrame(() => {
+        const container = listRef?.current
+        if (!container) return
+        const selectors: string[] = []
+        if (targetId) selectors.push(`[data-work-id="${targetId}"]`)
+        if (targetArk) selectors.push(`[data-work-ark="${targetArk}"]`)
+        if (!selectors.length) return
+        const row = container.querySelector<HTMLElement>(selectors.join(','))
+        if (row) row.scrollIntoView({ block: 'center', behavior: 'auto' })
+      })
     }
-  }, [sortedEntries, state.highlightedWorkArk, state.selectedEntity])
+  }, [listRef, sortedEntries, state.highlightedWorkArk, state.highlightedWorkId, state.selectedEntity])
 
   return (
     isEmpty ? (
@@ -157,7 +168,6 @@ export function WorkListPanel({
         itemContent={(_, entry) => {
           if (entry.kind === 'cluster') {
             const { cluster } = entry
-            console.log(cluster, cluster.anchor_id)
             const anchorCounts = cluster.anchor_summary?.counts
             const anchorLabel = cluster.anchor_title ?? cluster.anchor_id
             const meta = clusterMeta.get(cluster.anchor_id)
@@ -173,7 +183,10 @@ export function WorkListPanel({
             if (isOutOfScope && !isExpanded) clusterClasses.push('cluster--collapsed')
             const anchorRowClasses = ['cluster-header-row', 'entity-row', 'entity-row--work']
             if (pendingClusterSourceId && pendingClusterSourceId === cluster.anchor_id) anchorRowClasses.push('pending-cluster-source')
-            if (state.highlightedWorkArk && state.highlightedWorkArk === cluster.anchor_ark) {
+            const anchorHighlighted =
+              (state.highlightedWorkId && state.highlightedWorkId === cluster.anchor_id) ||
+              (state.highlightedWorkArk && state.highlightedWorkArk === cluster.anchor_ark)
+            if (anchorHighlighted) {
               anchorRowClasses.push('highlight')
             }
             if (isOutOfScope) anchorRowClasses.push('entity-row--out-of-scope')
@@ -242,7 +255,10 @@ export function WorkListPanel({
                     const rowClasses = ['cluster-item', 'entity-row', 'entity-row--work']
                     if (!item.accepted) rowClasses.push('unchecked')
                     if (pendingClusterSourceId && pendingClusterSourceId === item.id) rowClasses.push('pending-cluster-source')
-                    if (state.highlightedWorkArk && state.highlightedWorkArk === item.ark) {
+                    const itemHighlighted =
+                      (state.highlightedWorkId && item.id && state.highlightedWorkId === item.id) ||
+                      (state.highlightedWorkArk && state.highlightedWorkArk === item.ark)
+                    if (itemHighlighted) {
                       rowClasses.push('highlight')
                     }
                     if (isOutOfScope) rowClasses.push('entity-row--out-of-scope')
@@ -313,7 +329,6 @@ export function WorkListPanel({
           const { work } = entry
           const isMatch = filterIdSet.has(String(work.id ?? ''))
           const isOutOfScope = filterActive && !isMatch
-          console.log(work, isOutOfScope, isMatch, filterSet, filterIdSet)
           const isExpanded = isOutOfScope && expandedOutOfScopeWorks.has(work.id)
           const containerClasses = ['cluster', 'cluster--unclustered']
           const headerClasses = ['cluster-header-row', 'entity-row', 'entity-row--work']
@@ -325,6 +340,7 @@ export function WorkListPanel({
           }
           if (isMatch) headerClasses.push('entity-row--filter-match')
           const highlight =
+            (state.highlightedWorkId && state.highlightedWorkId === work.id) ||
             (work.ark && state.highlightedWorkArk === work.ark) ||
             (!work.ark && state.selectedEntity?.entityType === 'work' && state.selectedEntity.id === work.id)
           if (highlight) headerClasses.push('highlight')

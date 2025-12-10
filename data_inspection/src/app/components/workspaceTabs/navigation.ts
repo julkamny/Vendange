@@ -73,7 +73,11 @@ export function navigateAgentList(
   const target = entries[nextIndex]
   activateEntry(target)
   setTabs(prev =>
-    prev.map(tab => (isAgentTab(tab) && tab.id === state.id ? { ...tab, selectedAgentId: target.agentId } : tab)),
+    prev.map(tab =>
+      isAgentTab(tab) && tab.id === state.id
+        ? { ...tab, selectedAgentId: target.agentId, highlightedAgentId: target.agentId }
+        : tab,
+    ),
   )
 }
 

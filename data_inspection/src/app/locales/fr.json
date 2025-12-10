@@ -124,6 +124,14 @@
       "label": "Sélection suivante",
       "description": "Aller à l'élément suivant dans la liste WEM ou Agents (y compris en fenêtre détachée)."
     },
+    "nextFilterMatch": {
+      "label": "Résultat filtré suivant",
+      "description": "Aller au prochain agent ou à la prochaine œuvre correspondant au filtre SPARQL actif."
+    },
+    "previousFilterMatch": {
+      "label": "Résultat filtré précédent",
+      "description": "Revenir à l'agent ou à l'œuvre précédent correspondant au filtre SPARQL actif."
+    },
     "nextWorkspace": {
       "label": "Changer d'espace (droite)",
       "description": "Activer l'onglet suivant, qu'il soit WEM, Agents ou SPARQL (boucle au premier)."

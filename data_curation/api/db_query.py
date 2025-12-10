@@ -252,14 +252,13 @@ def compact_dataset(dataset_id: str) -> None:
         store_before = get_store_locked(dataset_id)
         records = _parsed_records_from_store(store_before)
         label_literal = literal_first_value(store_before, META_DATASET, PROP_DATASET_LABEL, META_GRAPH)
+        # Drop reference so the underlying Oxigraph store releases its file lock before reset.
+        del store_before
 
-    ark_to_id = {record.ark: record.id for record in records if record.ark}
-    label_value = label_literal or dataset_label
-
-    with _STORE_LOCK:
         reset_dataset_store(dataset_id)
         store = get_store_locked(dataset_id)
-        quads = list(_build_dataset_quads(records, ark_to_id, label_value))
+        ark_to_id = {record.ark: record.id for record in records if record.ark}
+        quads = list(_build_dataset_quads(records, ark_to_id, label_literal or dataset_label))
         if quads:
             store.bulk_extend(quads)
         store.flush()

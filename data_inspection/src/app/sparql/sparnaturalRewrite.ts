@@ -207,6 +207,7 @@ function rewriteFilterPattern(pattern: FilterPattern, context: RewriteContext): 
   }
 
   const filterExpression: FilterPattern['expression'] = {
+    type: 'operation',
     operator: 'regex',
     args: [regexInfo.variable, needleVar, literal(regexInfo.flags ?? 'i')],
   }
@@ -221,14 +222,14 @@ function rewriteFilterPattern(pattern: FilterPattern, context: RewriteContext): 
 function makeInFilter(variable: VariableTerm, values: string[]): FilterPattern {
   return {
     type: 'filter',
-    expression: { operator: 'in', args: [variable, values.map(value => literal(value))] },
+    expression: { type: 'operation', operator: 'in', args: [variable, values.map(value => literal(value))] },
   }
 }
 
 function makeNotEqualsFilter(variable: VariableTerm, value: string): FilterPattern {
   return {
     type: 'filter',
-    expression: { operator: '!=', args: [variable, literal(value)] },
+    expression: { type: 'operation', operator: '!=', args: [variable, literal(value)] },
   }
 }
 

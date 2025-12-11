@@ -4,7 +4,7 @@ import { computeClusterCoverage } from '../core/clusterCoverage'
 import { getUnclusteredWorks } from '../core/unclustered'
 import { useTranslation } from '../hooks/useTranslation'
 import { titleOf, expressionWorkArks, manifestationsForExpression, manifestationExpressionArks } from '../core/entities'
-import type { Cluster, RecordRow } from '../types'
+import type { Cluster, RecordRow, WorkListRowDto } from '../types'
 import type { WorkspaceTabStateWorkspace } from './types'
 import { useWorkCluster, useWorkspaceWorks } from '../hooks/useWorkspaceQueries'
 import { mapWorkCluster, mapWorkClusters } from '../lib/mapWorkClusters'
@@ -35,6 +35,12 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
   const clusters = mappedClusters ?? localClusters
 
   const coverage = useMemo(() => computeClusterCoverage(clusters), [clusters])
+
+  const unclusteredWorkRows = useMemo<WorkListRowDto[]>(
+    () => workspaceData?.unclustered_works ?? [],
+    [workspaceData?.unclustered_works],
+  )
+
   const unclusteredWorks = useMemo(() => {
     if (workspaceData?.unclustered_works && curated?.records) {
       const byId = new Map<string, RecordRow>()
@@ -194,6 +200,7 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
   return {
     clusters,
     unclusteredWorks,
+    unclusteredWorkRows,
     coverage,
     activeCluster: activeContext.cluster,
     activeClusterSource: activeContext.source,

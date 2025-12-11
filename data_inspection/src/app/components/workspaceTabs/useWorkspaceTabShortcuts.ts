@@ -84,7 +84,11 @@ export function useWorkspaceTabShortcuts({
       })
     })
     const offset = workspace.clusters.length
-    workspace.unclusteredWorks.forEach((work, index) => {
+    const unclusteredSource =
+      workspace.unclusteredWorkRows && workspace.unclusteredWorkRows.length
+        ? workspace.unclusteredWorkRows
+        : workspace.unclusteredWorks
+    unclusteredSource.forEach((work, index) => {
       candidates.push({
         id: work.id,
         ark: work.ark,
@@ -93,7 +97,7 @@ export function useWorkspaceTabShortcuts({
       })
     })
     return candidates
-  }, [workspace.clusters, workspace.unclusteredWorks])
+  }, [workspace.clusters, workspace.unclusteredWorkRows, workspace.unclusteredWorks])
 
   const buildAgentEntries = useCallback(() => {
     if (!workspaceAgents) return [] as Array<{ kind: 'cluster'; anchorId: string; sortKey: string } | { kind: 'single'; agentId: string; sortKey: string }>

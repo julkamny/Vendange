@@ -7,6 +7,14 @@ const SPAR_NS = `${BASE_NS}/sparnatural#`
 export const SPAR_CONTROLLED_VALUE_PREDICATE = `${SPAR_NS}subfieldControlledValue`
 export const SPAR_SUBFIELD_VALUE_PREDICATE = `${SPAR_NS}subfieldValue`
 export const SUBFIELD_VALUE_PREDICATE = `${BASE_NS}/subfieldValue`
+export const PROP_WORK_TITLE_PREDICATE = `${PROP_NS}workTitleText`
+export const PROP_EXPRESSION_TITLE_PREDICATE = `${PROP_NS}expressionTitleText`
+export const PROP_MANIFESTATION_TITLE_PREDICATE = `${PROP_NS}manifestationTitleText`
+export const PROP_PERSON_TITLE_PREDICATE = `${PROP_NS}personNameText`
+export const PROP_COLLECTIVE_TITLE_PREDICATE = `${PROP_NS}collectiveNameText`
+export const PROP_FAMILY_TITLE_PREDICATE = `${PROP_NS}familyNameText`
+export const PROP_ENTITY_WIDE_PREDICATE = `${PROP_NS}entityWideText`
+export const PROP_FIELD_WIDE_PREDICATE = `${PROP_NS}fieldWideText`
 
 export function buildSparnaturalConfig(): string {
   return `
@@ -31,7 +39,7 @@ export function buildSparnaturalConfig(): string {
   sh:nodeKind sh:IRI ;
   volipi:iconName "fa-regular fa-book" ;
   rdfs:label "Work"@en , "Oeuvre"@fr ;
-  sh:property :entityField , :entityArk , :workExpression , :workPerson , :workCollective , :workFamily .
+  sh:property :entityField , :entityArk , :workTitle , :entityText , :workExpression , :workPerson , :workCollective , :workFamily .
 
 :Expression a sh:NodeShape ;
   sh:order "2"^^xsd:integer ;
@@ -39,7 +47,7 @@ export function buildSparnaturalConfig(): string {
   sh:nodeKind sh:IRI ;
   volipi:iconName "fa-regular fa-scroll-old" ;
   rdfs:label "Expression"@en , "Expression"@fr ;
-  sh:property :entityField , :entityArk , :expressionWork , :expressionManifestation , :expressionPerson , :expressionCollective , :expressionFamily .
+  sh:property :entityField , :entityArk , :expressionTitle , :entityText , :expressionWork , :expressionManifestation , :expressionPerson , :expressionCollective , :expressionFamily .
 
 :Manifestation a sh:NodeShape ;
   sh:order "3"^^xsd:integer ;
@@ -47,7 +55,7 @@ export function buildSparnaturalConfig(): string {
   sh:nodeKind sh:IRI ;
   volipi:iconName "fa-regular fa-layer-group" ;
   rdfs:label "Manifestation"@en , "Manifestation"@fr ;
-  sh:property :entityField , :entityArk , :manifestationExpression , :manifestationPerson , :manifestationCollective , :manifestationFamily .
+  sh:property :entityField , :entityArk , :manifestationTitle , :entityText , :manifestationExpression , :manifestationPerson , :manifestationCollective , :manifestationFamily .
 
 :Person a sh:NodeShape ;
   sh:order "4"^^xsd:integer ;
@@ -55,7 +63,7 @@ export function buildSparnaturalConfig(): string {
   sh:nodeKind sh:IRI ;
   volipi:iconName "fa-regular fa-user" ;
   rdfs:label "Person"@en , "Personne"@fr ;
-  sh:property :entityField , :entityArk , :personWork , :personExpression , :personManifestation .
+  sh:property :entityField , :entityArk , :personTitle , :entityText , :personWork , :personExpression , :personManifestation .
 
 :Collective a sh:NodeShape ;
   sh:order "5"^^xsd:integer ;
@@ -63,7 +71,7 @@ export function buildSparnaturalConfig(): string {
   sh:nodeKind sh:IRI ;
   volipi:iconName "fa-regular fa-users" ;
   rdfs:label "Collective"@en , "Collectivité"@fr ;
-  sh:property :entityField , :entityArk , :collectiveWork , :collectiveExpression , :collectiveManifestation .
+  sh:property :entityField , :entityArk , :collectiveTitle , :entityText , :collectiveWork , :collectiveExpression , :collectiveManifestation .
 
 :Family a sh:NodeShape ;
   sh:order "6"^^xsd:integer ;
@@ -71,14 +79,14 @@ export function buildSparnaturalConfig(): string {
   sh:nodeKind sh:IRI ;
   volipi:iconName "fa-regular fa-people-roof" ;
   rdfs:label "Family"@en , "Famille"@fr ;
-  sh:property :entityField , :entityArk , :familyWork , :familyExpression , :familyManifestation .
+  sh:property :entityField , :entityArk , :familyTitle , :entityText , :familyWork , :familyExpression , :familyManifestation .
 
 :Field a sh:NodeShape ;
   sh:order "10"^^xsd:integer ;
   sh:nodeKind sh:IRI ;
   volipi:iconName "fa-regular fa-table" ;
   rdfs:label "Field (zone)"@en , "Zone"@fr ;
-  sh:property :fieldCode , :fieldSubfield ;
+  sh:property :fieldCode , :fieldWide , :fieldSubfield ;
   sh:deactivated true .
 
 :Subfield a sh:NodeShape ;
@@ -101,6 +109,48 @@ export function buildSparnaturalConfig(): string {
   sh:node :Field ;
   dash:searchWidget core:NonSelectableProperty .
 
+:entityText a sh:PropertyShape ;
+  sh:path <${PROP_ENTITY_WIDE_PREDICATE}> ;
+  sh:name "Text (entity wide)"@en , "Texte (entité complète)"@fr ;
+  sh:node :Text ;
+  dash:searchWidget core:SearchProperty .
+
+:workTitle a sh:PropertyShape ;
+  sh:path <${PROP_WORK_TITLE_PREDICATE}> ;
+  sh:name "Text (title)"@en , "Texte (titre)"@fr ;
+  sh:node :Text ;
+  dash:searchWidget core:SearchProperty .
+
+:expressionTitle a sh:PropertyShape ;
+  sh:path <${PROP_EXPRESSION_TITLE_PREDICATE}> ;
+  sh:name "Text (title)"@en , "Texte (titre)"@fr ;
+  sh:node :Text ;
+  dash:searchWidget core:SearchProperty .
+
+:manifestationTitle a sh:PropertyShape ;
+  sh:path <${PROP_MANIFESTATION_TITLE_PREDICATE}> ;
+  sh:name "Text (title)"@en , "Texte (titre)"@fr ;
+  sh:node :Text ;
+  dash:searchWidget core:SearchProperty .
+
+:personTitle a sh:PropertyShape ;
+  sh:path <${PROP_PERSON_TITLE_PREDICATE}> ;
+  sh:name "Text (name)"@en , "Texte (nom)"@fr ;
+  sh:node :Text ;
+  dash:searchWidget core:SearchProperty .
+
+:collectiveTitle a sh:PropertyShape ;
+  sh:path <${PROP_COLLECTIVE_TITLE_PREDICATE}> ;
+  sh:name "Text (name)"@en , "Texte (nom)"@fr ;
+  sh:node :Text ;
+  dash:searchWidget core:SearchProperty .
+
+:familyTitle a sh:PropertyShape ;
+  sh:path <${PROP_FAMILY_TITLE_PREDICATE}> ;
+  sh:name "Text (name)"@en , "Texte (nom)"@fr ;
+  sh:node :Text ;
+  dash:searchWidget core:SearchProperty .
+
 :fieldSubfield a sh:PropertyShape ;
   sh:path <${BASE_NS}/hasSubfield> ;
   sh:name "Subfield"@en , "Sous-zone"@fr ;
@@ -110,6 +160,12 @@ export function buildSparnaturalConfig(): string {
 :fieldCode a sh:PropertyShape ;
   sh:path <${BASE_NS}/fieldCode> ;
   sh:name "Field code"@en , "Code de zone"@fr ;
+  sh:node :Text ;
+  dash:searchWidget core:SearchProperty .
+
+:fieldWide a sh:PropertyShape ;
+  sh:path <${PROP_FIELD_WIDE_PREDICATE}> ;
+  sh:name "Text (field wide)"@en , "Texte (zone complète)"@fr ;
   sh:node :Text ;
   dash:searchWidget core:SearchProperty .
 

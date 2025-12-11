@@ -133,19 +133,18 @@ export function WorkListPanel({
       }
       return (targetId && entry.work.id === targetId) || (targetArk && entry.work.ark === targetArk)
     })
-    if (index >= 0) {
-      virtuosoRef.current?.scrollToIndex({ index, align: 'center', behavior: 'auto' })
-      window.requestAnimationFrame(() => {
-        const container = listRef?.current
-        if (!container) return
-        const selectors: string[] = []
-        if (targetId) selectors.push(`[data-work-id="${targetId}"]`)
-        if (targetArk) selectors.push(`[data-work-ark="${targetArk}"]`)
-        if (!selectors.length) return
-        const row = container.querySelector<HTMLElement>(selectors.join(','))
-        if (row) row.scrollIntoView({ block: 'center', behavior: 'auto' })
-      })
-    }
+    if (index < 0) return
+    virtuosoRef.current?.scrollToIndex({ index, align: 'center', behavior: 'auto' })
+    window.requestAnimationFrame(() => {
+      const container = listRef?.current
+      if (!container) return
+      const selectors: string[] = []
+      if (targetId) selectors.push(`[data-work-id="${targetId}"]`)
+      if (targetArk) selectors.push(`[data-work-ark="${targetArk}"]`)
+      if (!selectors.length) return
+      const row = container.querySelector<HTMLElement>(selectors.join(','))
+      if (row) row.scrollIntoView({ block: 'center', behavior: 'auto' })
+    })
   }, [listRef, sortedEntries, state.highlightedWorkArk, state.highlightedWorkId, state.selectedEntity])
 
   return (

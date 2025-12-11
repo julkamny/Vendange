@@ -532,6 +532,25 @@ export function WorkspaceView({
     [filteredWorkMatches, onStateChange, state.highlightedWorkId, state.selectedEntity],
   )
 
+  useEffect(() => {
+    // Ensure freshly opened tabs scroll to their target row once data is ready
+    const targetId =
+      state.highlightedWorkId ??
+      (state.selectedEntity?.entityType === 'work' ? state.selectedEntity.id : null)
+    const targetArk =
+      state.highlightedWorkArk ??
+      (state.selectedEntity?.entityType === 'work' ? state.selectedEntity.workArk ?? null : null)
+    if (!targetId && !targetArk) return
+    const container = listScrollRef.current
+    if (!container) return
+    window.requestAnimationFrame(() => {
+      const row =
+        (targetId && container.querySelector<HTMLElement>(`.entity-row[data-work-id="${targetId}"]`)) ||
+        (targetArk && container.querySelector<HTMLElement>(`.entity-row[data-work-ark="${targetArk}"]`))
+      if (row) row.scrollIntoView({ block: 'center', behavior: 'auto' })
+    })
+  }, [listScrollRef, state.highlightedWorkArk, state.highlightedWorkId, state.selectedEntity])
+
   const renderListPanel = (viewMode: WorkspaceTabStateWorkspace['viewMode']) => {
     if (viewMode === 'works') {
       return (

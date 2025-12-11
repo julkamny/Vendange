@@ -1,8 +1,6 @@
 import { useMemo } from 'react'
 import { useAppData } from '../providers/AppDataContext'
 import { computeClusterCoverage } from '../core/clusterCoverage'
-import { getUnclusteredWorks } from '../core/unclustered'
-import { useTranslation } from '../hooks/useTranslation'
 import { titleOf, expressionWorkArks, manifestationsForExpression, manifestationExpressionArks } from '../core/entities'
 import type { Cluster, RecordRow, WorkListRowDto } from '../types'
 import type { WorkspaceTabStateWorkspace } from './types'
@@ -21,7 +19,6 @@ export type WorkspaceDataIndexes = {
 
 export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
   const { clusters: localClusters, curated, datasetId } = useAppData()
-  const { language } = useTranslation()
   const { data: workspaceData } = useWorkspaceWorks(datasetId)
   const anchorKey = state.activeWorkAnchorId ?? state.highlightedWorkArk ?? null
   const { data: activeClusterDto } = useWorkCluster(datasetId, anchorKey)
@@ -42,20 +39,12 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
   )
 
   const unclusteredWorks = useMemo(() => {
-    if (workspaceData?.unclustered_works && curated?.records) {
-      const byId = new Map<string, RecordRow>()
-      curated.records.forEach(rec => byId.set(rec.id, rec))
-      const byArk = new Map<string, RecordRow>()
-      curated.records.forEach(rec => {
-        if (rec.ark) byArk.set(rec.ark, rec)
-      })
-      return workspaceData.unclustered_works
-        .map(entry => byId.get(entry.id) ?? (entry.ark ? byArk.get(entry.ark) : undefined))
-        .filter((rec): rec is RecordRow => Boolean(rec))
-    }
-    if (!curated) return []
-    return getUnclusteredWorks(curated.records, coverage, language)
-  }, [curated, coverage, language, workspaceData?.unclustered_works])
+    const byId = new Map<string, RecordRow>()
+    const byArk = new Map<string, RecordRow>()
+    return workspaceData?.unclustered_works
+      .map(entry => byId.get(entry.id) ?? (entry.ark ? byArk.get(entry.ark) : undefined))
+      .filter((rec): rec is RecordRow => Boolean(rec))
+  }, [workspaceData?.unclustered_works])
 
   const dataIndexes = useMemo<WorkspaceDataIndexes>(() => {
     const worksById = new Map<string, RecordRow>()

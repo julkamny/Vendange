@@ -6,7 +6,7 @@ from . import datasets
 from .anchor_swap import _manual_adaptation_zone
 from .db_guards import (
     _ensure_unique_expression_clusters,
-    _ensure_unique_manual_agent_clusters,
+    _ensure_unique_agent_clusters,
     _ensure_unique_work_clusters,
     _extract_expression_cluster_targets,
     _extract_work_cluster_targets,
@@ -304,7 +304,7 @@ def update_record(dataset_id: str, record_id: str, *, type_raw: str, intermarc_j
 
         # Guards after rebuild
         if _is_agent_type(type_raw):
-            _ensure_unique_manual_agent_clusters(store, record_id, final_intermarc)
+            _ensure_unique_agent_clusters(store, record_id, final_intermarc)
         if _is_work_type(type_raw):
             _ensure_unique_work_clusters(store, record_id, final_intermarc)
         if _is_expression_type(type_raw):

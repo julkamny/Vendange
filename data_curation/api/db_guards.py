@@ -16,6 +16,13 @@ from .db_store import load_ark_index
 from ..models import Intermarc
 from ..utils.text_norm import fold_diacritics
 
+
+CLUSTER_NOTE_VALUES = {"Clusterisation manuelle", "Clusterisation script"}
+CLUSTER_NOTE_VALUES_LOWER = {val.lower() for val in CLUSTER_NOTE_VALUES}
+CURATED_FLAGS = {"manual", "created"}
+_CLUSTER_NOTE_LIST = ",".join(f'"{val}"' for val in CLUSTER_NOTE_VALUES_LOWER)
+CLUSTER_NOTE_FILTER = f"FILTER(lcase(str(?note)) IN ({_CLUSTER_NOTE_LIST}))"
+
 def _is_agent_type(type_raw: str) -> bool:
     normalized = fold_diacritics(type_raw).strip().lower()
     return normalized in {"identite publique de personne", "collectivite", "famille"}
@@ -31,11 +38,11 @@ def _is_expression_type(type_raw: str) -> bool:
     return normalized.startswith("expression")
 
 
-def _extract_manual_agent_targets(intermarc: Intermarc) -> set[str]:
+def _extract_cluster_targets(intermarc: Intermarc) -> set[str]:
     targets: set[str] = set()
     for zone in intermarc.get_zone("90F"):
         note = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$q"), None)
-        if not note or note.strip().lower() != "clusterisation manuelle":
+        if not note or note.strip().lower() not in CLUSTER_NOTE_VALUES_LOWER:
             continue
         target = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$3"), None)
         if target:
@@ -43,19 +50,21 @@ def _extract_manual_agent_targets(intermarc: Intermarc) -> set[str]:
     return targets
 
 
-def _is_manual_anchor(store: Store, ark_index: dict[str, str], target_ark: str) -> bool:
-    target_id = ark_index.get(target_ark)
-    if not target_id:
-        return False
+def _has_curated_cluster_note(store: Store, target_graph: str) -> bool:
+    """
+    Return True when the graph contains a 90F note (manual or script) whose field
+    or subfield is curated (affectedByCuration manual/created).
+    """
     query = f"""
-    SELECT ?field ?aff
+    SELECT ?aff
     WHERE {{
-      GRAPH <{record_graph(target_id).value}> {{
+      GRAPH <{target_graph}> {{
         ?rec <{HAS_FIELD.value}> ?field .
         ?field <{FIELD_CODE_PROP.value}> "90F" .
         ?field <{HAS_SUBFIELD.value}> ?subQ .
         ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
-        ?subQ <{SUBFIELD_VALUE_PROP.value}> "Clusterisation manuelle" .
+        ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
+        {CLUSTER_NOTE_FILTER}
         OPTIONAL {{ ?field <{AFFECTED_BY_CURATION_PROP.value}> ?aff }}
         OPTIONAL {{ ?subQ <{AFFECTED_BY_CURATION_PROP.value}> ?aff }}
       }}
@@ -69,15 +78,20 @@ def _is_manual_anchor(store: Store, ark_index: dict[str, str], target_ark: str) 
             aff = solution["aff"]
         except (KeyError, TypeError):
             aff = None
-        if aff and isinstance(aff, Literal):
-            norm = aff.value.lower()
-            if norm in {"created", "manual"}:
-                return True
+        if isinstance(aff, Literal) and aff.value.lower() in CURATED_FLAGS:
+            return True
     return False
 
 
-def _ensure_unique_manual_agent_clusters(store: Store, anchor_id: str, intermarc: Intermarc) -> None:
-    new_targets = _extract_manual_agent_targets(intermarc)
+def _is_agent_anchor(store: Store, ark_index: dict[str, str], target_ark: str) -> bool:
+    target_id = ark_index.get(target_ark)
+    if not target_id:
+        return False
+    return _has_curated_cluster_note(store, record_graph(target_id).value)
+
+
+def _ensure_unique_agent_clusters(store: Store, anchor_id: str, intermarc: Intermarc) -> None:
+    new_targets = _extract_cluster_targets(intermarc)
     if not new_targets:
         return
 
@@ -92,7 +106,8 @@ def _ensure_unique_manual_agent_clusters(store: Store, anchor_id: str, intermarc
             ?field <{FIELD_CODE_PROP.value}> "90F" .
             ?field <{HAS_SUBFIELD.value}> ?subQ .
             ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
-            ?subQ <{SUBFIELD_VALUE_PROP.value}> "Clusterisation manuelle" .
+            ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
+            {CLUSTER_NOTE_FILTER}
             ?field <{HAS_SUBFIELD.value}> ?subT .
             ?subT <{SUBFIELD_CODE_PROP.value}> "90Fs3" .
             ?subT <{SUBFIELD_VALUE_PROP.value}> "{anchor_ark}" .
@@ -120,7 +135,8 @@ def _ensure_unique_manual_agent_clusters(store: Store, anchor_id: str, intermarc
         ?field <{FIELD_CODE_PROP.value}> "90F" .
         ?field <{HAS_SUBFIELD.value}> ?subQ .
         ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
-        ?subQ <{SUBFIELD_VALUE_PROP.value}> "Clusterisation manuelle" .
+        ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
+        {CLUSTER_NOTE_FILTER}
         ?field <{HAS_SUBFIELD.value}> ?subT .
         ?subT <{SUBFIELD_CODE_PROP.value}> "90Fs3" .
         ?subT <{SUBFIELD_VALUE_PROP.value}> ?target .
@@ -158,25 +174,14 @@ def _ensure_unique_manual_agent_clusters(store: Store, anchor_id: str, intermarc
             raise ValueError(
                 f"Impossible d'enregistrer : l'agent {target} est deja rattache au cluster de {anchor}."
             )
-        if _is_manual_anchor(store, ark_index, target):
+        if _is_agent_anchor(store, ark_index, target):
             raise ValueError(
-                f"Impossible d'enregistrer : l'agent {target} est deja ancre d'un cluster manuel."
+                f"Impossible d'enregistrer : l'agent {target} est deja ancre d'un cluster."
             )
 
 
 def _extract_work_cluster_targets(intermarc: Intermarc) -> set[str]:
-    targets: set[str] = set()
-    for zone in intermarc.get_zone("90F"):
-        note = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$q"), None)
-        if not note:
-            continue
-        norm_note = str(note).strip().lower()
-        if norm_note not in {"clusterisation manuelle", "clusterisation script"}:
-            continue
-        target = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$3"), None)
-        if target:
-            targets.add(str(target).strip())
-    return targets
+    return _extract_cluster_targets(intermarc)
 
 
 def _current_work_cluster_targets(store: Store, anchor_id: str) -> set[str]:
@@ -190,7 +195,7 @@ def _current_work_cluster_targets(store: Store, anchor_id: str) -> set[str]:
         ?field <{HAS_SUBFIELD.value}> ?subQ .
         ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
         ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
-        FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
+        {CLUSTER_NOTE_FILTER}
         ?field <{HAS_SUBFIELD.value}> ?subT .
         ?subT <{SUBFIELD_CODE_PROP.value}> "90Fs3" .
         ?subT <{SUBFIELD_VALUE_PROP.value}> ?target .
@@ -260,7 +265,7 @@ def _expression_cross_work_clusters(
         ?field <{HAS_SUBFIELD.value}> ?subQ .
         ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
         ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
-        FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
+        {CLUSTER_NOTE_FILTER}
         ?field <{HAS_SUBFIELD.value}> ?subT .
         ?subT <{SUBFIELD_CODE_PROP.value}> "90Fs3" .
         ?subT <{SUBFIELD_VALUE_PROP.value}> "{expr_ark}" .
@@ -293,7 +298,7 @@ def _expression_cross_work_clusters(
         ?field <{HAS_SUBFIELD.value}> ?subQ .
         ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
         ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
-        FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
+        {CLUSTER_NOTE_FILTER}
         ?field <{HAS_SUBFIELD.value}> ?subT .
         ?subT <{SUBFIELD_CODE_PROP.value}> "90Fs3" .
         ?subT <{SUBFIELD_VALUE_PROP.value}> ?target .
@@ -332,34 +337,7 @@ def _is_work_anchor(store: Store, ark_index: dict[str, str], target_ark: str) ->
     target_id = ark_index.get(target_ark)
     if not target_id:
         return False
-    query = f"""
-    SELECT ?aff
-    WHERE {{
-      GRAPH <{record_graph(target_id).value}> {{
-        ?rec <{HAS_FIELD.value}> ?field .
-        ?field <{FIELD_CODE_PROP.value}> "90F" .
-        ?field <{HAS_SUBFIELD.value}> ?subQ .
-        ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
-        ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
-        FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
-        OPTIONAL {{ ?field <{AFFECTED_BY_CURATION_PROP.value}> ?aff }}
-        OPTIONAL {{ ?subQ <{AFFECTED_BY_CURATION_PROP.value}> ?aff }}
-      }}
-    }}
-    """
-    solutions = store.query(query)
-    if not isinstance(solutions, QuerySolutions):
-        return False
-    for solution in solutions:
-        try:
-            aff = solution["aff"]
-        except (KeyError, TypeError):
-            aff = None
-        if aff and isinstance(aff, Literal):
-            norm = aff.value.lower()
-            if norm in {"created", "manual"}:
-                return True
-    return False
+    return _has_curated_cluster_note(store, record_graph(target_id).value)
 
 
 def _ensure_unique_work_clusters(store: Store, anchor_id: str, intermarc: Intermarc) -> None:
@@ -386,7 +364,7 @@ def _ensure_unique_work_clusters(store: Store, anchor_id: str, intermarc: Interm
         ?field <{HAS_SUBFIELD.value}> ?subQ .
         ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
         ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
-        FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
+        {CLUSTER_NOTE_FILTER}
         ?field <{HAS_SUBFIELD.value}> ?subT .
         ?subT <{SUBFIELD_CODE_PROP.value}> ?codeTarget .
         FILTER(?codeTarget = "90Fs3")
@@ -430,18 +408,7 @@ def _ensure_unique_work_clusters(store: Store, anchor_id: str, intermarc: Interm
 
 
 def _extract_expression_cluster_targets(intermarc: Intermarc) -> set[str]:
-    targets: set[str] = set()
-    for zone in intermarc.get_zone("90F"):
-        note = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$q"), None)
-        if not note:
-            continue
-        norm_note = str(note).strip().lower()
-        if norm_note not in {"clusterisation manuelle", "clusterisation script"}:
-            continue
-        target = next((sz.valeur for sz in zone.sousZones if sz.code == "90F$3"), None)
-        if target:
-            targets.add(str(target).strip())
-    return targets
+    return _extract_cluster_targets(intermarc)
 
 
 def _expression_parents(store: Store, record_id: str) -> set[str]:
@@ -475,34 +442,7 @@ def _is_expression_anchor(store: Store, ark_index: dict[str, str], target_ark: s
     target_id = ark_index.get(target_ark)
     if not target_id:
         return False
-    query = f"""
-    SELECT ?aff
-    WHERE {{
-      GRAPH <{record_graph(target_id).value}> {{
-        ?rec <{HAS_FIELD.value}> ?field .
-        ?field <{FIELD_CODE_PROP.value}> "90F" .
-        ?field <{HAS_SUBFIELD.value}> ?subQ .
-        ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
-        ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
-        FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
-        OPTIONAL {{ ?field <{AFFECTED_BY_CURATION_PROP.value}> ?aff }}
-        OPTIONAL {{ ?subQ <{AFFECTED_BY_CURATION_PROP.value}> ?aff }}
-      }}
-    }}
-    """
-    solutions = store.query(query)
-    if not isinstance(solutions, QuerySolutions):
-        return False
-    for solution in solutions:
-        try:
-            aff = solution["aff"]
-        except (KeyError, TypeError):
-            aff = None
-        if aff and isinstance(aff, Literal):
-            norm = aff.value.lower()
-            if norm in {"created", "manual"}:
-                return True
-    return False
+    return _has_curated_cluster_note(store, record_graph(target_id).value)
 
 
 def _works_clustered_together(store: Store, ark_index: dict[str, str], work_ark_a: str, work_ark_b: str) -> bool:
@@ -517,7 +457,7 @@ def _works_clustered_together(store: Store, ark_index: dict[str, str], work_ark_
         ?field1 <{HAS_SUBFIELD.value}> ?subQ1 .
         ?subQ1 <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
         ?subQ1 <{SUBFIELD_VALUE_PROP.value}> ?note1 .
-        FILTER(?note1 = "Clusterisation manuelle" || ?note1 = "Clusterisation script")
+        FILTER(lcase(str(?note1)) IN ({_CLUSTER_NOTE_LIST}))
         ?field1 <{HAS_SUBFIELD.value}> ?subT1 .
         ?subT1 <{SUBFIELD_CODE_PROP.value}> ?codeTarget1 .
         FILTER(?codeTarget1 = "90Fs3")
@@ -528,7 +468,7 @@ def _works_clustered_together(store: Store, ark_index: dict[str, str], work_ark_
         ?field2 <{HAS_SUBFIELD.value}> ?subQ2 .
         ?subQ2 <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
         ?subQ2 <{SUBFIELD_VALUE_PROP.value}> ?note2 .
-        FILTER(?note2 = "Clusterisation manuelle" || ?note2 = "Clusterisation script")
+        FILTER(lcase(str(?note2)) IN ({_CLUSTER_NOTE_LIST}))
         ?field2 <{HAS_SUBFIELD.value}> ?subT2 .
         ?subT2 <{SUBFIELD_CODE_PROP.value}> ?codeTarget2 .
         FILTER(?codeTarget2 = "90Fs3")
@@ -555,7 +495,7 @@ def _works_clustered_together(store: Store, ark_index: dict[str, str], work_ark_
             ?field <{HAS_SUBFIELD.value}> ?subQ .
             ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
             ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
-            FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
+            {CLUSTER_NOTE_FILTER}
             ?field <{HAS_SUBFIELD.value}> ?subT .
             ?subT <{SUBFIELD_CODE_PROP.value}> ?codeTarget .
             FILTER(?codeTarget = "90Fs3")
@@ -579,7 +519,7 @@ def _works_clustered_together(store: Store, ark_index: dict[str, str], work_ark_
             ?field <{HAS_SUBFIELD.value}> ?subQ .
             ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
             ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
-            FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
+            {CLUSTER_NOTE_FILTER}
             ?field <{HAS_SUBFIELD.value}> ?subT .
             ?subT <{SUBFIELD_CODE_PROP.value}> ?codeTarget .
             FILTER(?codeTarget = "90Fs3")
@@ -611,7 +551,7 @@ def _ensure_unique_expression_clusters(store: Store, anchor_id: str, intermarc: 
         ?field <{HAS_SUBFIELD.value}> ?subQ .
         ?subQ <{SUBFIELD_CODE_PROP.value}> "90Fsq" .
         ?subQ <{SUBFIELD_VALUE_PROP.value}> ?note .
-        FILTER(?note = "Clusterisation manuelle" || ?note = "Clusterisation script")
+        {CLUSTER_NOTE_FILTER}
         ?field <{HAS_SUBFIELD.value}> ?subT .
         ?subT <{SUBFIELD_CODE_PROP.value}> ?codeTarget .
         FILTER(?codeTarget = "90Fs3")

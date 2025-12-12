@@ -30,6 +30,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
   - `90F$a` = ARK of the clustered work (from `001$a`)
   - `90F$q` = `Clusterisation script`
   - `90F$d` = today (YYYY-MM-DD)
+- Manual vs script clustering notes are handled uniformly (`90F$q` / `90Fsq` = “Clusterisation manuelle” or “Clusterisation script”); protection of anchors relies on `affectedByCuration` being `manual` or `created` on the 90F field or its `90Fsq` subfield.
 - Adaptation links:
   1. The original work gets a `552$q` subfield with the ARK identifier of the controled value with `169$a` "A pour adaptation" and a `552$3` subfield pointing to the ARK identifier of the adaptation.
   2. The adaptation gets a `552$q` with the ARK identifier of the controled value with `169$a` "Est une adaptation de" and a `552$3` subfield pointing to the ARK identifier of the original work.

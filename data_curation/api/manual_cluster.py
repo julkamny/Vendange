@@ -10,7 +10,7 @@ from .anchor_swap import _clone_intermarc, _clone_zone, _manual_cluster_zone
 from .db_guards import (
     _ensure_unique_expression_clusters,
     _ensure_unique_work_clusters,
-    _ensure_unique_manual_agent_clusters,
+    _ensure_unique_agent_clusters,
     _is_agent_type,
 )
 from ..models import Entity, Intermarc
@@ -132,7 +132,7 @@ def update_manual_cluster(
         elif is_expression:
             _ensure_unique_expression_clusters(store, anchor_id, next_intermarc)
         else:
-            _ensure_unique_manual_agent_clusters(store, anchor_id, next_intermarc)
+            _ensure_unique_agent_clusters(store, anchor_id, next_intermarc)
 
         clear_record_graph(store, anchor_id)
 

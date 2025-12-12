@@ -49,7 +49,7 @@ test('rebuildExpressionCluster90FEntries writes manual vs script correctly', () 
     { ark: 'ark:/expr/child2', origin: 'script', date: '2025-01-02' },
   ])
   const manualZone = next.zones.find(z => z.sousZones.some(sz => sz.code === '90F$3'))
-  const scriptZone = next.zones.find(z => z.sousZones.some(sz => sz.code === '90F$a'))
+  const scriptZone = next.zones.find(z => z.sousZones.some(sz => sz.code === '90F$3'))
   assert.ok(manualZone && scriptZone)
   assert.equal(
     manualZone?.sousZones.find(sz => sz.code === '90F$q')?.valeur,

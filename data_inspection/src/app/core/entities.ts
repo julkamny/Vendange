@@ -2,26 +2,13 @@ import { findZones } from '../lib/intermarc'
 import { CLUSTER_NOTE } from './constants'
 import { MANUAL_CLUSTER_NOTE } from './constants'
 import { buildIntermarcWorkLabel } from '../lib/intermarc'
-import type { EntityTitleSegment, Cluster, ExpressionItem, ExpressionClusterItem, ManifestationItem, RecordRow } from '../types'
+import type { Cluster, ExpressionItem, ExpressionClusterItem, ManifestationItem, RecordRow } from '../types'
 
 export function zoneText(zone: { sousZones: Array<{ valeur?: unknown }> }): string {
   const parts = zone.sousZones
     .map(sz => (sz.valeur ? String(sz.valeur).trim() : ''))
     .filter(part => part.length > 0)
   return parts.join(' ').replace(/\s+/g, ' ').trim()
-}
-
-function extractSubfieldLabel(code: string): string {
-  const trimmed = code?.trim() ?? ''
-  if (!trimmed) return ''
-  const dollarIndex = trimmed.lastIndexOf('$')
-  if (dollarIndex >= 0 && dollarIndex + 1 < trimmed.length) {
-    return trimmed.slice(dollarIndex + 1)
-  }
-  if (trimmed.startsWith('150')) {
-    return trimmed.slice(3)
-  }
-  return trimmed
 }
 
 export function titleOf(rec: RecordRow): string | undefined {
@@ -111,27 +98,6 @@ export function worksClusteredTogether(arkA: string | undefined | null, arkB: st
     if (itemArks.has(arkA) && itemArks.has(arkB)) return true
   }
   return false
-}
-
-export function agentTitleSegments(rec: RecordRow): EntityTitleSegment[] {
-  const norm = rec.typeNorm.toLowerCase()
-  const zoneCode = norm === 'collectivite' ? '110' : norm === 'famille' ? '120' : '100'
-  const zone = findZones(rec.intermarc, zoneCode)[0]
-  if (!zone) return []
-  const segments: EntityTitleSegment[] = []
-  for (const sz of zone.sousZones) {
-    const value = typeof sz.valeur === 'string' ? sz.valeur.trim() : ''
-    if (!value) continue
-    // Only keep lowercase subfield codes (case-sensitive)
-    const code = sz.code ?? ''
-    const dollarIndex = code.lastIndexOf('$')
-    const sub = dollarIndex >= 0 ? code.slice(dollarIndex + 1) : code
-    if (sub !== sub.toLowerCase()) continue
-    const labelSource = extractSubfieldLabel(sz.code)
-    const label = labelSource ? labelSource.toUpperCase() : sz.code
-    segments.push({ code: sz.code, label, value })
-  }
-  return segments
 }
 
 export function countManifestationExpressionLinks(rec: RecordRow): number {

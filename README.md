@@ -58,7 +58,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 ### Testing backend guardrails
 - End-to-end guards between the React UI and FastAPI are covered in `data_curation/tests/test_cluster_guards.py`. Run them with `uv run pytest data_curation/tests/test_cluster_guards.py`.
 - The tests spin up fresh Oxigraph stores under `data_curation/api/datasets/<prefix>-<uuid>` (work/expression/manifestation fixtures with 150/140/245/750/740 fields) and **intentionally leave them on disk** for inspection after a run.
-- Deep-linking: `http://localhost:5173/<dataset_slug>` opens the inspection view directly for that dataset (dashboard is skipped). Opening a dataset from the dashboard also updates the URL to `/dataset_slug`; hitting back or clearing returns to `/`.
+- Routing now uses TanStack Router. Deep-linking to `http://localhost:5173/<dataset_slug>` loads the dataset via the route loader (with a friendly error screen when the slug is invalid) and back/forward navigation keeps the dashboard/inspection views in sync.
 
 ### Debug & Fixtures
 - **Styled debug logs** — use `-vv` to unlock Rich-powered logs: the CLI renders colourful panels, syntax-highlighted titles, and tables for matched variants and removed segments.

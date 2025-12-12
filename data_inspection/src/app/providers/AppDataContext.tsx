@@ -143,6 +143,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [applyServerUpdates, applyServerWorkspaceUpdates, showToast],
   )
 
+  const clearData = useCallback(() => {
+    resetArkLabelCache()
+    setState({ ...INITIAL_STATE, pristineRecords: new Map() })
+  }, [])
+
   const value = useMemo<AppDataContextValue>(
     () => ({
       ...state,
@@ -158,10 +163,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       exportCurated: async () => {
         showToast('Export indisponible : les données sont chargées à la demande.', { tone: 'info' })
       },
-      clearData: () => {
-        resetArkLabelCache()
-        setState({ ...INITIAL_STATE, pristineRecords: new Map() })
-      },
+      clearData,
     }),
     [
       state,
@@ -171,6 +173,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       applyServerUpdates,
       applyServerWorkspaceUpdates,
       showToast,
+      clearData,
     ],
   )
 

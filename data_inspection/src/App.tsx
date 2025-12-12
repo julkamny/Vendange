@@ -1,4 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  Outlet,
+  RouterProvider,
+  createRootRouteWithContext,
+  createRoute,
+  createRouter,
+  useNavigate,
+  type ErrorComponentProps,
+} from '@tanstack/react-router'
 import { QueryClientProvider } from '@tanstack/react-query'
 import './App.css'
 import './app/style.css'
@@ -14,6 +23,50 @@ import { DatasetDashboard } from './app/components/DatasetDashboard'
 import type { DatasetSummary } from './app/types'
 import { DetachedWindowProvider } from './app/providers'
 import { queryClient } from './app/lib/queryClient'
+
+type AppRouterContext = {
+  appData: {
+    loadDataset: (datasetId: string, options?: { title?: string }) => Promise<DatasetSummary>
+    clearData: () => void
+  }
+}
+
+const rootRoute = createRootRouteWithContext<AppRouterContext>()({
+  component: RootLayout,
+})
+
+const dashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/',
+  component: DashboardRoute,
+})
+
+const inspectionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '$datasetId',
+  loader: async ({ params, context }) => {
+    const summary = await context.appData.loadDataset(params.datasetId)
+    return summary
+  },
+  component: InspectionRoute,
+  errorComponent: DatasetError,
+})
+
+const routeTree = rootRoute.addChildren([dashboardRoute, inspectionRoute])
+
+const router = createRouter({
+  routeTree,
+  defaultPreload: 'intent',
+  context: {
+    appData: undefined as unknown as AppRouterContext['appData'],
+  },
+})
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router
+  }
+}
 
 function App() {
   return (
@@ -34,84 +87,15 @@ function App() {
 }
 
 function AppRouter() {
-  const [view, setView] = useState<'dashboard' | 'inspection'>('dashboard')
-  const [activeDataset, setActiveDataset] = useState<DatasetSummary | null>(null)
-  const [openingDatasetId, setOpeningDatasetId] = useState<string | null>(null)
   const { loadDataset, clearData } = useAppData()
-
-  const pathDatasetId = useMemo(() => {
-    if (typeof window === 'undefined') return null
-    const slug = window.location.pathname.replace(/^\//, '').replace(/\/$/, '')
-    return slug || null
-  }, [])
-
-  const openInspection = useCallback(async (dataset: DatasetSummary) => {
-    setOpeningDatasetId(dataset.id)
-    try {
-      const summary = await loadDataset(dataset.id, { title: dataset.title })
-      setActiveDataset(summary)
-      setView('inspection')
-      if (typeof window !== 'undefined') {
-        window.history.pushState({ datasetId: summary.id }, '', `/${summary.id}`)
-      }
-    } catch {
-      // loadDataset already reports the error
-    } finally {
-      setOpeningDatasetId(null)
-    }
-  }, [loadDataset])
-
-  const openInspectionBySlug = useCallback(
-    async (slug: string, pushState: boolean) => {
-      setOpeningDatasetId(slug)
-      try {
-        const summary = await loadDataset(slug)
-        setActiveDataset(summary)
-        setView('inspection')
-        if (pushState && typeof window !== 'undefined') {
-          window.history.pushState({ datasetId: summary.id }, '', `/${summary.id}`)
-        }
-      } catch {
-        // loadDataset toasts errors
-      } finally {
-        setOpeningDatasetId(null)
-      }
-    },
-    [loadDataset],
+  const context = useMemo(
+    () => ({
+      appData: { loadDataset, clearData },
+    }),
+    [clearData, loadDataset],
   )
 
-  const goHome = useCallback(() => {
-    clearData()
-    setActiveDataset(null)
-    setView('dashboard')
-    if (typeof window !== 'undefined') {
-      window.history.pushState({}, '', '/')
-    }
-  }, [clearData])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined
-    const slug = pathDatasetId
-    if (slug) {
-      openInspectionBySlug(slug, false)
-    }
-    const onPop = () => {
-      const nextSlug = window.location.pathname.replace(/^\//, '').replace(/\/$/, '')
-      if (nextSlug) {
-        openInspectionBySlug(nextSlug, false)
-      } else {
-        goHome()
-      }
-    }
-    window.addEventListener('popstate', onPop)
-    return () => window.removeEventListener('popstate', onPop)
-  }, [goHome, openInspectionBySlug, pathDatasetId])
-
-  if (view === 'dashboard') {
-    return <DatasetDashboard onOpenInspection={openInspection} openingDatasetId={openingDatasetId ?? undefined} />
-  }
-
-  return <AppShell onBack={goHome} dataset={activeDataset} />
+  return <RouterProvider router={router} context={context} />
 }
 
 type AppShellProps = {
@@ -161,6 +145,71 @@ function AppShell({ onBack, dataset }: AppShellProps) {
         <span>{t('app.title')}</span>
         {dataset ? <span className="app-footer__dataset">Base en cours&nbsp;: {dataset.title}</span> : null}
       </footer>
+    </div>
+  )
+}
+
+function RootLayout() {
+  return <Outlet />
+}
+
+function DashboardRoute() {
+  const { loadDataset, clearData } = useAppData()
+  const navigate = useNavigate({ from: dashboardRoute.id })
+  const [openingDatasetId, setOpeningDatasetId] = useState<string | null>(null)
+
+  useEffect(() => {
+    clearData()
+  }, [clearData])
+
+  const openInspection = useCallback(
+    async (dataset: DatasetSummary) => {
+      setOpeningDatasetId(dataset.id)
+      try {
+        const summary = await loadDataset(dataset.id, { title: dataset.title })
+        await navigate({ to: '/$datasetId', params: { datasetId: summary.id } })
+      } catch (error) {
+        console.error('Failed to open dataset', error)
+      } finally {
+        setOpeningDatasetId(null)
+      }
+    },
+    [loadDataset, navigate],
+  )
+
+  return <DatasetDashboard onOpenInspection={openInspection} openingDatasetId={openingDatasetId ?? undefined} />
+}
+
+function InspectionRoute() {
+  const dataset = inspectionRoute.useLoaderData()
+  const { clearData } = useAppData()
+  const navigate = useNavigate({ from: inspectionRoute.id })
+
+  const goHome = useCallback(() => {
+    clearData()
+    navigate({ to: '/' })
+  }, [clearData, navigate])
+
+  return <AppShell onBack={goHome} dataset={dataset} />
+}
+
+function DatasetError({ error }: ErrorComponentProps) {
+  const { clearData } = useAppData()
+  const navigate = useNavigate({ from: inspectionRoute.id })
+
+  useEffect(() => {
+    clearData()
+  }, [clearData])
+
+  return (
+    <div className="app-shell">
+      <main className="app-main" style={{ padding: '1.5rem' }}>
+        <h1>Base introuvable</h1>
+        <p>{error instanceof Error ? error.message : "Impossible d'ouvrir cette base."}</p>
+        <button type="button" onClick={() => navigate({ to: '/' })}>
+          Retour au tableau de bord
+        </button>
+      </main>
     </div>
   )
 }

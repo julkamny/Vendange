@@ -29,6 +29,7 @@ import { useWorkspaceTabShortcuts } from './workspaceTabs/useWorkspaceTabShortcu
 import type { RecordRow } from '../types'
 import { createAgentTab, createWorkspaceTab, nextTabId } from './workspaceTabs/tabFactories'
 import { normalizeArkList } from '../lib/arkFilters'
+import { useRecordLookup } from '../hooks/useRecordLookup'
 
 type WorkspaceTabsProps = {
   shortcutModalOpen: boolean
@@ -37,10 +38,10 @@ type WorkspaceTabsProps = {
 export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
   const { t } = useTranslation()
   const { bindings } = useShortcuts()
-  const { clusters, curated, datasetId } = useAppData()
+  const { clusters, datasetId } = useAppData()
   const { openWindow, closeWindow, getContainer, isOpen, arrangeWindows } = useDetachedWindows()
   const { showToast } = useToast()
-  const curatedRecords = useMemo(() => curated?.records ?? [], [curated])
+  const { getById: lookupById, getByArk: lookupByArk } = useRecordLookup()
 
   const defaultWorkspaceTitle = useMemo(
     () => t('workspace.tabDefault', { defaultValue: 'Workspace' }),
@@ -62,19 +63,6 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     () => t('workspace.redockTabMainApp', { defaultValue: "Ramener l'onglet dans l'application centrale" }),
     [t],
   )
-
-  const recordIndexes = useMemo(() => {
-    const byId = new Map<string, RecordRow>()
-    const byArk = new Map<string, RecordRow>()
-    const addRecords = (records: RecordRow[]) => {
-      for (const rec of records) {
-        byId.set(rec.id, rec)
-        if (rec.ark) byArk.set(rec.ark, rec)
-      }
-    }
-    addRecords(curatedRecords)
-    return { byId, byArk }
-  }, [curatedRecords])
 
   const [pendingManifestationId, setPendingManifestationId] = useState<string | null>(null)
   const [arkFilter, setArkFilter] = useState<GlobalArkFilterState>({
@@ -246,7 +234,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
 
       if (isAgentTab(tab)) {
         const entityId = tab.selectedAgentId
-        const record = entityId ? recordIndexes.byId.get(entityId) ?? null : null
+        const record = entityId ? lookupById(entityId) ?? null : null
         const label = labelForTabRecord(record)
         if (label) return label
         return tab.title || defaultAgentTitle
@@ -256,8 +244,8 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       const entity = tab.selectedEntity
       if (!entity) return fallbackLabel
 
-      const findById = (id?: string | null) => (id ? recordIndexes.byId.get(id) ?? null : null)
-      const findByArk = (ark?: string | null) => (ark ? recordIndexes.byArk.get(ark) ?? null : null)
+      const findById = (id?: string | null) => (id ? lookupById(id) ?? null : null)
+      const findByArk = (ark?: string | null) => (ark ? lookupByArk(ark) ?? null : null)
 
       if (entity.entityType === 'manifestation') {
         const record = findById(entity.id)
@@ -291,7 +279,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
       if (label) return label
       return fallbackLabel
     },
-    [recordIndexes, defaultWorkspaceTitle, defaultSparqlTitle, labelForTabRecord, defaultAgentTitle],
+    [defaultWorkspaceTitle, defaultSparqlTitle, labelForTabRecord, defaultAgentTitle, lookupByArk, lookupById],
   )
 
   const {
@@ -321,7 +309,6 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
     shortcutTab,
     workspace,
     clusters,
-    curatedRecords,
     setActive,
     setTabs,
     updateTabState,

@@ -4,22 +4,13 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Cluster, RecordRow } from '../types'
 import type { Intermarc } from '../lib/intermarc'
 import { resetArkLabelCache } from '../lib/intermarc'
-import {
-  fetchDatasets,
-  syncRecordUpdate,
-  type DatasetSummary,
-  type DatasetRecordPayload,
-  type WorkspaceUpdatePayload,
-} from '../lib/api'
+import { fetchDatasets, syncRecordUpdate, type DatasetSummary, type DatasetRecordPayload, type WorkspaceUpdatePayload } from '../lib/api'
 import { useToast } from './ToastContext'
 import { getBroadcastClientId, postBroadcastEvent, subscribeToBroadcast } from '../lib/broadcast'
-
-type MinimalDataset = { records: RecordRow[] }
 
 export type AppDataState = {
   datasetId: string | null
   datasetTitle: string | null
-  curated: MinimalDataset | null
   pristineRecords: Map<string, RecordRow>
   clusters: Cluster[]
   loadingDataset: boolean
@@ -47,7 +38,6 @@ type AppDataContextValue = AppDataState & {
 const INITIAL_STATE: AppDataState = {
   datasetId: null,
   datasetTitle: null,
-  curated: null,
   pristineRecords: new Map(),
   clusters: [],
   loadingDataset: false,
@@ -84,7 +74,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         setState({
           datasetId,
           datasetTitle: options?.title ?? meta.title,
-          curated: { records: [] },
           pristineRecords: new Map(),
           clusters: [],
           loadingDataset: false,

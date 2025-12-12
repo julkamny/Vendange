@@ -1,7 +1,11 @@
-import { useCallback, useMemo } from 'react'
-import { useEffect, useRef } from 'react'
+import { useCallback, useMemo, useEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAppData } from '../providers/AppDataContext'
-import type { RecordRow } from '../types'
+import { useWorkspaceWorks } from './useWorkspaceQueries'
+import { mapWorkClusters } from '../lib/mapWorkClusters'
+import { buildRecordRowFromPayload } from '../lib/recordPayload'
+import { stubExpressionRecord, stubManifestationRecord, stubWorkRecord } from '../workspace/recordStubs'
+import type { RecordRow, WorkRecordPayload } from '../types'
 import { extractAgentNames } from '../core/agents'
 import { countGeneralRelationships } from '../core/generalRelationships'
 import { extractMediaKinds, type MediaKind } from '../core/media'
@@ -15,8 +19,55 @@ type RecordLookup = {
 }
 
 export function useRecordLookup(): RecordLookup {
-  const { curated } = useAppData()
-  const records = useMemo(() => curated?.records ?? [], [curated])
+  const { datasetId } = useAppData()
+  const queryClient = useQueryClient()
+  const { data: workspaceWorks } = useWorkspaceWorks(datasetId)
+
+  const stubbedRecords = useMemo<RecordRow[]>(() => {
+    if (!workspaceWorks?.clusters && !workspaceWorks?.unclustered_works) return []
+    const mappedClusters = mapWorkClusters(workspaceWorks?.clusters ?? [])
+    const acc: RecordRow[] = []
+
+    mappedClusters.forEach(cluster => {
+      acc.push(stubWorkRecord(cluster.anchorId, cluster.anchorArk, cluster.anchorTitle ?? null))
+      cluster.items.forEach(item => acc.push(stubWorkRecord(item.id ?? item.ark ?? '', item.ark, item.title ?? null)))
+      cluster.expressionGroups.forEach(group => {
+        const exprRow = stubExpressionRecord(group.anchor, cluster.anchorArk)
+        acc.push(exprRow)
+        group.anchor.manifestations.forEach(man => acc.push(stubManifestationRecord(man, group.anchor.ark)))
+        group.clustered.forEach(expr => {
+          acc.push(stubExpressionRecord(expr, cluster.anchorArk))
+          expr.manifestations.forEach(man => acc.push(stubManifestationRecord(man, expr.ark ?? group.anchor.ark)))
+        })
+      })
+      cluster.independentExpressions.forEach(expr => {
+        acc.push(stubExpressionRecord(expr, cluster.anchorArk))
+        expr.manifestations.forEach(man => acc.push(stubManifestationRecord(man, expr.ark ?? cluster.anchorArk)))
+      })
+    })
+
+    ;(workspaceWorks?.unclustered_works ?? []).forEach(work => {
+      acc.push(stubWorkRecord(work.id, work.ark ?? undefined, work.title ?? null))
+    })
+
+    return acc
+  }, [workspaceWorks?.clusters, workspaceWorks?.unclustered_works])
+
+  const cachedRecords = useMemo<RecordRow[]>(() => {
+    const queries = queryClient.getQueriesData({ queryKey: ['workspace', 'record', datasetId] })
+    return queries.map(([, payload]) => (payload ? buildRecordRowFromPayload(payload as unknown as WorkRecordPayload) : null)).filter((rec): rec is RecordRow => Boolean(rec))
+  }, [datasetId, queryClient])
+
+  const records = useMemo<RecordRow[]>(() => {
+    const byId = new Map<string, RecordRow>()
+    const add = (rec: RecordRow) => {
+      if (!rec.id) return
+      byId.set(rec.id, rec)
+    }
+    stubbedRecords.forEach(add)
+    cachedRecords.forEach(add)
+    return Array.from(byId.values())
+  }, [cachedRecords, stubbedRecords])
   const agentCache = useRef(new Map<string, string[]>())
   const relationshipCache = useRef(new Map<string, number>())
   const mediaCache = useRef(new Map<string, MediaKind[]>())

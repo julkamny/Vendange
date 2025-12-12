@@ -81,7 +81,7 @@ export type ManifestationDragPayload = {
 
 export type SelectedEntity = {
   id: string
-  source: 'curated'
+  source: 'workspace'
   entityType?:
     | 'work'
     | 'expression'
@@ -312,7 +312,7 @@ export type InventoryRow =
       kind: 'entity'
       entityType: InventoryEntityType
       record: RecordRow
-      source: 'curated'
+      source: 'workspace'
       title: string
       subtitle?: string
       badges?: EntityBadgeSpec[]

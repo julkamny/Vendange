@@ -182,7 +182,6 @@ export function WorkspaceView({
     () => ({
       clusters: mappedClusters,
       indexes: emptyIndexes,
-      curatedRecords: Array.from(recordCacheRef.current.values()),
     }),
     [emptyIndexes, mappedClusters],
   )
@@ -217,7 +216,6 @@ export function WorkspaceView({
     state,
     record,
     workspace: workspaceContext,
-    curated: null,
     t,
   })
   const [editingRecord, setEditingRecord] = useState(false)
@@ -462,7 +460,7 @@ export function WorkspaceView({
       listScope: 'clusters',
       selectedEntity: {
         id: workId,
-        source: 'curated',
+        source: 'workspace',
         entityType: 'work',
         workArk: workArk ?? undefined,
       },
@@ -482,7 +480,7 @@ export function WorkspaceView({
         listScope: 'clusters',
         selectedEntity: {
           id: workId,
-          source: 'curated',
+          source: 'workspace',
           entityType: 'work',
           workArk: workArk ?? undefined,
         },
@@ -499,7 +497,7 @@ export function WorkspaceView({
       listScope: 'clusters',
       selectedEntity: {
         id: workId,
-        source: 'curated',
+        source: 'workspace',
         entityType: 'work',
         workArk: workArk ?? undefined,
       },
@@ -523,7 +521,7 @@ export function WorkspaceView({
         highlightedWorkArk: target.ark ?? prev.highlightedWorkArk ?? null,
         selectedEntity: {
           id: target.id,
-          source: 'curated',
+          source: 'workspace',
           entityType: 'work',
           workArk: target.ark ?? undefined,
         },
@@ -597,7 +595,7 @@ export function WorkspaceView({
                   highlightedExpressionArk: expressionArk ?? null,
                   selectedEntity: {
                     id: expressionId,
-                    source: 'curated',
+                    source: 'workspace',
                     entityType: 'expression',
                     workArk: workArk ?? undefined,
                     expressionId,
@@ -625,7 +623,7 @@ export function WorkspaceView({
                   highlightedExpressionArk: expressionArk ?? null,
                   selectedEntity: {
                     id: expressionId,
-                    source: 'curated',
+                    source: 'workspace',
                     entityType: 'expression',
                     workArk: workArk ?? undefined,
                     expressionId,
@@ -660,7 +658,7 @@ export function WorkspaceView({
               viewMode: 'manifestations',
               selectedEntity: {
                 id: manifestationId,
-                source: 'curated',
+                source: 'workspace',
                 entityType: 'manifestation',
                 expressionId,
                 expressionArk,

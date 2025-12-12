@@ -13,7 +13,6 @@ import { inferRecordSource, resolveAnchorExpressionId } from './shortcutActions'
 type WorkspaceTabBuildContext = {
   clusters: Cluster[]
   indexes: WorkspaceDataIndexes
-  curatedRecords: RecordRow[]
 }
 
 export function configureTabStateForRecord(
@@ -46,7 +45,7 @@ function configureForWork(
 ): WorkspaceTabStateWorkspace {
   const workArk = record.ark ?? null
   const cluster = findClusterForWork(ctx.clusters, record.id, workArk)
-  const source = inferRecordSource(record.id, ctx.curatedRecords)
+  const source = inferRecordSource()
   const highlightedWorkArk = workArk ?? cluster?.anchorArk ?? null
   const workArkForEntity = workArk ?? cluster?.anchorArk ?? undefined
 
@@ -103,7 +102,7 @@ function configureForExpression(
     ? findExpressionInCluster(cluster, record.id, expressionArk ?? undefined)
     : undefined
   const anchorId = cluster ? resolveAnchorExpressionId(cluster, expressionInCluster) : null
-  const source = inferRecordSource(record.id, ctx.curatedRecords)
+  const source = inferRecordSource()
   const highlightedWorkArk = workArk ?? cluster?.anchorArk ?? null
   const expressionArkForState = expressionArk ?? expressionInCluster?.ark ?? null
   const selectedEntity = {
@@ -172,7 +171,7 @@ function configureForManifestation(
     : clusterFromIndexes
       ? resolveAnchorExpressionId(clusterFromIndexes, expressionInCluster)
       : null
-  const source = inferRecordSource(record.id, ctx.curatedRecords)
+  const source = inferRecordSource()
   const highlightedWorkArk = workArk ?? manifestationCluster?.cluster.anchorArk ?? clusterFromIndexes?.anchorArk ?? null
   const expressionArkForState =
     expressionArk ??

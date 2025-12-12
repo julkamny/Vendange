@@ -127,7 +127,6 @@ export function AgentView({
     () => ({
       clusters: mappedClusters,
       indexes: EMPTY_WORKSPACE_INDEXES,
-      curatedRecords: Array.from(recordCacheRef.current.values()),
     }),
     [mappedClusters],
   )

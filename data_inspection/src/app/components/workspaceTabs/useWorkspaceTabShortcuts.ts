@@ -8,7 +8,7 @@ import {
   type WorkspaceTabState,
   type WorkspaceTabStateWorkspace,
 } from '../../workspace/types'
-import type { RecordRow, NavigationDirection, WorkspaceAgentsResponse } from '../../types'
+import type { NavigationDirection, WorkspaceAgentsResponse } from '../../types'
 import type { useWorkspaceData } from '../../workspace/useWorkspaceData'
 import { navigateAgentList, navigateList } from './navigation'
 import { focusTreeDown, focusTreeUp } from '../../workspace/shortcutActions'
@@ -25,7 +25,6 @@ type UseWorkspaceTabShortcutsParams = {
   shortcutTab: WorkspaceTabState
   workspace: WorkspaceData
   clusters: WorkspaceData['clusters']
-  curatedRecords: RecordRow[]
   setActive: (id: string) => void
   setTabs: Dispatch<SetStateAction<WorkspaceTabState[]>>
   updateTabState: (id: string, updater: (prev: WorkspaceTabState) => WorkspaceTabState) => void
@@ -49,7 +48,6 @@ export function useWorkspaceTabShortcuts({
   shortcutTab,
   workspace,
   clusters,
-  curatedRecords,
   setActive,
   setTabs,
   updateTabState,
@@ -164,7 +162,6 @@ export function useWorkspaceTabShortcuts({
               activeCluster: workspace.activeCluster,
               activeClusterSource: workspace.activeClusterSource,
               indexes: workspace.indexes,
-              curatedRecords,
             })
             : prev,
         )
@@ -179,7 +176,6 @@ export function useWorkspaceTabShortcuts({
               activeCluster: workspace.activeCluster,
               activeClusterSource: workspace.activeClusterSource,
               indexes: workspace.indexes,
-              curatedRecords,
             })
             : prev,
         )
@@ -234,7 +230,7 @@ export function useWorkspaceTabShortcuts({
               highlightedWorkArk: next.ark ?? prev.highlightedWorkArk ?? null,
               selectedEntity: {
                 id: next.id,
-                source: 'curated',
+                source: 'workspace',
                 entityType: 'work',
                 workArk: next.ark ?? undefined,
               },
@@ -330,7 +326,6 @@ export function useWorkspaceTabShortcuts({
     [
       arrangeWindows,
       clusters,
-      curatedRecords,
       detachAgentTab,
       detachWorkspaceTab,
       dockAgentTab,

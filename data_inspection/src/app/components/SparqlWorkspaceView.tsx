@@ -21,7 +21,6 @@ import { SparnaturalBuilder, type ControlledValueOption } from './SparnaturalBui
 import { buildSparnaturalConfig } from '../sparql/sparnaturalConfig'
 import { ensureGraphWrapping } from '../sparql/queryUtils'
 import { labelFromRecord } from '../lib/intermarc'
-import { extractControlledValueLabel } from '../core/controlledValues'
 import { WorkspaceContextMenu } from './WorkspaceContextMenu'
 import { isAgentRecord } from '../agents/useAgentData'
 import { ARK_REGEX, extractArksFromResult, normalizeArk as normalizeArkValue, matchArksInText } from '../lib/arkFilters'
@@ -61,7 +60,7 @@ export function SparqlWorkspaceView({
 }: SparqlWorkspaceViewProps) {
   const { t, language } = useTranslation()
   const { showToast } = useToast()
-  const { clusters, curated, datasetId } = useAppData()
+  const { clusters, datasetId } = useAppData()
   const { getByArk, getById } = useRecordLookup()
   const sparnaturalConfig = useMemo(() => buildSparnaturalConfig(), [])
   const stubWorkspaceState = useMemo<WorkspaceTabStateWorkspace>(
@@ -73,25 +72,12 @@ export function SparqlWorkspaceView({
     () => ({
       clusters,
       indexes: workspaceData.indexes,
-      curatedRecords: curated?.records ?? [],
     }),
-    [clusters, workspaceData.indexes, curated?.records],
+    [clusters, workspaceData.indexes],
   )
   const collator = useMemo(() => new Intl.Collator(language, { sensitivity: 'accent' }), [language])
   const [contextMenu, setContextMenu] = useState<ArkContextMenuState | null>(null)
-  const controlledValueOptions = useMemo<ControlledValueOption[]>(() => {
-    const source = curated?.records ?? []
-    const entries = new Map<string, string>()
-    for (const record of source) {
-      if (record.typeNorm !== 'valeur controlee' || !record.ark) continue
-      const label = extractControlledValueLabel(record)
-      if (!label || entries.has(record.ark)) continue
-      entries.set(record.ark, label)
-    }
-    return Array.from(entries.entries())
-      .map(([ark, label]) => ({ ark, label }))
-      .sort((a, b) => a.label.localeCompare(b.label, language, { sensitivity: 'accent' }))
-  }, [curated?.records, language])
+  const controlledValueOptions = useMemo<ControlledValueOption[]>(() => [], [])
   const builderDisabled = !datasetId
   const builderKey = `${datasetId ?? 'no-dataset'}-${language}`
 

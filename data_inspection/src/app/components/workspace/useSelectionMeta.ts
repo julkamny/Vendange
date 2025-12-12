@@ -10,16 +10,10 @@ type Params = {
     clusters: Cluster[]
     coverage: unknown
   }
-  curated: { records: RecordRow[] } | null
   t: (key: string, opts?: Record<string, unknown>) => string
 }
 
-export function useSelectionMeta({ state, record, workspace, curated, t }: Params) {
-  const recordInCurated = useMemo(() => {
-    if (!record) return false
-    if (!curated || !curated.records || curated.records.length === 0) return true
-    return curated.records.some(r => r.id === record.id)
-  }, [record, curated])
+export function useSelectionMeta({ state, record, workspace, t }: Params) {
 
   const isAnchorSelection = useMemo(() => {
     const selected = state.selectedEntity
@@ -66,19 +60,18 @@ export function useSelectionMeta({ state, record, workspace, curated, t }: Param
   }, [record, workspace.coverage])
 
   const canEditRecord = useMemo(() => {
-    if (!record || !recordInCurated) return false
+    if (!record) return false
     if (record.typeNorm === 'manifestation') return true
     if (!isRecordClustered) return true
     return isAnchorSelection
-  }, [isAnchorSelection, isRecordClustered, record, recordInCurated])
+  }, [isAnchorSelection, isRecordClustered, record])
 
   const readOnlyReason = useMemo(() => {
     if (!record) return null
-    if (!recordInCurated) return t('messages.recordNotInCurated')
     if (record.typeNorm !== 'manifestation' && isRecordClustered && !isAnchorSelection)
       return t('messages.clusteredRecordReadOnly')
     return null
-  }, [isAnchorSelection, isRecordClustered, record, recordInCurated, t])
+  }, [isAnchorSelection, isRecordClustered, record, t])
 
-  return { recordInCurated, isAnchorSelection, isRecordClustered, canEditRecord, readOnlyReason }
+  return { isAnchorSelection, isRecordClustered, canEditRecord, readOnlyReason }
 }

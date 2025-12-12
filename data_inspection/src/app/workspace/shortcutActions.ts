@@ -1,5 +1,5 @@
 import { findExpressionInCluster, findPrimaryExpressionForWork } from '../core/entities'
-import type { Cluster, RecordRow } from '../types'
+import type { Cluster } from '../types'
 import type { WorkspaceTabStateWorkspace } from './types'
 import type { WorkspaceDataIndexes } from './useWorkspaceData'
 
@@ -8,7 +8,6 @@ type ShortcutContext = {
   activeCluster: Cluster | null
   activeClusterSource: 'cluster' | 'inventory' | 'none'
   indexes: WorkspaceDataIndexes
-  curatedRecords: RecordRow[]
 }
 
 export function focusTreeUp(state: WorkspaceTabStateWorkspace, ctx: ShortcutContext): WorkspaceTabStateWorkspace {
@@ -54,7 +53,7 @@ function focusClusterTreeUp(
       highlightedWorkArk: workArk ?? null,
       selectedEntity: {
         id: expressionId,
-        source: inferRecordSource(expressionId, ctx.curatedRecords),
+        source: 'workspace',
         entityType: 'expression',
         workArk: workArk ?? undefined,
         expressionId,
@@ -85,7 +84,7 @@ function focusClusterTreeUp(
       highlightedWorkArk: workArk ?? null,
       selectedEntity: {
         id: workId,
-        source: inferRecordSource(workId, ctx.curatedRecords),
+        source: 'workspace',
         entityType: 'work',
         workArk: workArk ?? undefined,
         clusterAnchorId: cluster.anchorId,
@@ -132,7 +131,7 @@ function focusClusterTreeDown(
       highlightedExpressionArk: expressionArk,
       selectedEntity: {
         id: expression.id,
-        source: inferRecordSource(expression.id, ctx.curatedRecords),
+        source: 'workspace',
         entityType: 'expression',
         workArk: expression.workArk ?? targetWorkArk ?? undefined,
         expressionId: expression.id,
@@ -171,7 +170,7 @@ function focusClusterTreeDown(
       ...baseState,
       selectedEntity: {
         id: nextManifest.id,
-        source: inferRecordSource(nextManifest.id, ctx.curatedRecords),
+        source: 'workspace',
         entityType: 'manifestation',
         workArk: expression.workArk ?? undefined,
         expressionId: expression.id,
@@ -247,7 +246,6 @@ export function resolveAnchorExpressionId(cluster: Cluster, expression: ReturnTy
   return null
 }
 
-export function inferRecordSource(id: string | undefined, curated: RecordRow[]): 'curated' {
-  if (id && curated.some(record => record.id === id)) return 'curated'
-  return 'curated'
+export function inferRecordSource(): 'workspace' {
+  return 'workspace'
 }

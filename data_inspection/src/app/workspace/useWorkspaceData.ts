@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
 import { useAppData } from '../providers/AppDataContext'
 import { computeClusterCoverage } from '../core/clusterCoverage'
-import { titleOf, expressionWorkArks, manifestationsForExpression, manifestationExpressionArks } from '../core/entities'
+import { titleOf, manifestationsForExpression } from '../core/entities'
 import type { Cluster, RecordRow, WorkListRowDto } from '../types'
 import type { WorkspaceTabStateWorkspace } from './types'
 import { useWorkCluster, useWorkspaceWorks } from '../hooks/useWorkspaceQueries'
 import { mapWorkCluster, mapWorkClusters } from '../lib/mapWorkClusters'
+import { stubExpressionRecord, stubManifestationRecord, stubWorkRecord } from './recordStubs'
 
 export type WorkspaceDataIndexes = {
   worksById: Map<string, RecordRow>
@@ -18,7 +19,7 @@ export type WorkspaceDataIndexes = {
 }
 
 export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
-  const { clusters: localClusters, curated, datasetId } = useAppData()
+  const { clusters: localClusters, datasetId } = useAppData()
   const { data: workspaceData } = useWorkspaceWorks(datasetId)
   const anchorKey = state.activeWorkAnchorId ?? state.highlightedWorkArk ?? null
   const { data: activeClusterDto } = useWorkCluster(datasetId, anchorKey)
@@ -33,18 +34,12 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
 
   const coverage = useMemo(() => computeClusterCoverage(clusters), [clusters])
 
-  const unclusteredWorkRows = useMemo<WorkListRowDto[]>(
-    () => workspaceData?.unclustered_works ?? [],
+  const unclusteredWorkRows = useMemo<WorkListRowDto[]>(() => workspaceData?.unclustered_works ?? [], [workspaceData?.unclustered_works])
+
+  const unclusteredWorks = useMemo(
+    () => (workspaceData?.unclustered_works ?? []).map(entry => stubWorkRecord(entry.id, entry.ark ?? undefined, entry.title ?? null)),
     [workspaceData?.unclustered_works],
   )
-
-  const unclusteredWorks = useMemo(() => {
-    const byId = new Map<string, RecordRow>()
-    const byArk = new Map<string, RecordRow>()
-    return workspaceData?.unclustered_works
-      .map(entry => byId.get(entry.id) ?? (entry.ark ? byArk.get(entry.ark) : undefined))
-      .filter((rec): rec is RecordRow => Boolean(rec))
-  }, [workspaceData?.unclustered_works])
 
   const dataIndexes = useMemo<WorkspaceDataIndexes>(() => {
     const worksById = new Map<string, RecordRow>()
@@ -55,41 +50,51 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
     const manifestationsById = new Map<string, RecordRow>()
     const manifestationsByExpressionArk = new Map<string, RecordRow[]>()
 
-    const addRecords = (records: RecordRow[] | undefined | null) => {
-      if (!records) return
-      for (const rec of records) {
-        if (rec.typeNorm === 'oeuvre') {
-          worksById.set(rec.id, rec)
-          if (rec.ark) worksByArk.set(rec.ark, rec)
-          continue
+    const clusterSource = mappedClusters ?? []
+    clusterSource.forEach(cluster => {
+      const addExpression = (expr: import('../types').ExpressionItem) => {
+        const exprRow = stubExpressionRecord(expr, cluster.anchorArk)
+        expressionsById.set(exprRow.id, exprRow)
+        if (exprRow.ark) expressionsByArk.set(exprRow.ark, exprRow)
+        const workArk = cluster.anchorArk
+        if (workArk) {
+          if (!expressionsByWorkArk.has(workArk)) expressionsByWorkArk.set(workArk, [])
+          const list = expressionsByWorkArk.get(workArk)!
+          if (!list.some(item => item.id === exprRow.id)) list.push(exprRow)
         }
-        if (rec.typeNorm === 'expression') {
-          expressionsById.set(rec.id, rec)
-          if (rec.ark) expressionsByArk.set(rec.ark, rec)
-          const workArks = expressionWorkArks(rec)
-          for (const workArk of workArks) {
-            if (!expressionsByWorkArk.has(workArk)) expressionsByWorkArk.set(workArk, [])
-            const list = expressionsByWorkArk.get(workArk)!
-            if (!list.some(existing => existing.id === rec.id)) {
-              list.push(rec)
-            }
-          }
-          continue
-        }
-        if (rec.typeNorm === 'manifestation') {
-          manifestationsById.set(rec.id, rec)
-          for (const exprArk of manifestationExpressionArks(rec)) {
+        expr.manifestations.forEach(man => {
+          const manRow = stubManifestationRecord(man, expr.ark ?? workArk)
+          manifestationsById.set(manRow.id, manRow)
+          const exprArk = man.expressionArk || expr.ark
+          if (exprArk) {
             if (!manifestationsByExpressionArk.has(exprArk)) manifestationsByExpressionArk.set(exprArk, [])
             const list = manifestationsByExpressionArk.get(exprArk)!
-            if (!list.some(existing => existing.id === rec.id)) {
-              list.push(rec)
-            }
+            if (!list.some(item => item.id === manRow.id)) list.push(manRow)
           }
-        }
+        })
       }
-    }
 
-    addRecords(curated?.records ?? null)
+      const addWork = (id: string | undefined, ark?: string, title?: string | null) => {
+        if (!id && !ark) return
+        const workRow = stubWorkRecord(id ?? ark ?? '', ark, title ?? null)
+        worksById.set(workRow.id, workRow)
+        if (workRow.ark) worksByArk.set(workRow.ark, workRow)
+      }
+
+      addWork(cluster.anchorId, cluster.anchorArk, cluster.anchorTitle ?? null)
+      cluster.items.forEach(item => addWork(item.id, item.ark, item.title ?? null))
+      cluster.expressionGroups.forEach(group => {
+        addExpression(group.anchor)
+        group.clustered.forEach(expr => addExpression(expr))
+      })
+      cluster.independentExpressions.forEach(expr => addExpression(expr))
+    })
+
+    unclusteredWorkRows.forEach(entry => {
+      const workRow = stubWorkRecord(entry.id, entry.ark ?? undefined, entry.title ?? null)
+      worksById.set(workRow.id, workRow)
+      if (workRow.ark) worksByArk.set(workRow.ark, workRow)
+    })
 
     return {
       worksById,
@@ -100,7 +105,7 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
       manifestationsById,
       manifestationsByExpressionArk,
     }
-  }, [curated?.records])
+  }, [mappedClusters, unclusteredWorkRows])
 
   const activeContext = useMemo(() => {
     const selectedWorkId = state.selectedEntity?.entityType === 'work' ? state.selectedEntity.id : null

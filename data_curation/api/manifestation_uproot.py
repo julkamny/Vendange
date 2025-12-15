@@ -3,11 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional, Sequence, Set
 
-from .db_ingest import _build_record_from_payload, _build_record_quads
-from .db_query import _load_record_from_store, _record_subjects
-from .db_shared import get_controlled_ark
-from .db_store import _STORE_LOCK, clear_record_graph, get_store_locked, load_ark_index
-from . import datasets
+from .pg import controlled_repo, entities_repo
+from .pg.curation_tx import dataset_transaction, update_entity_record
 from .anchor_swap import _clone_zone
 from ..models import Entity, Intermarc, SousZone, Zone
 
@@ -22,15 +19,14 @@ class ManifestationUprootResult:
 
 
 def _work_arks_for_expression_arks(
-    store, ark_index: dict[str, str], expression_arks: Sequence[str]
+    conn, dataset_id: str, expression_arks: Sequence[str]
 ) -> Set[str]:
     work_arks: Set[str] = set()
-    subjects = _record_subjects(store)
     for expr_ark in expression_arks:
-        expr_id = ark_index.get(expr_ark)
-        if not expr_id or expr_id not in subjects:
+        row_ent = entities_repo.get_by_ark(dataset_id, expr_ark, conn=conn)
+        if not row_ent:
             continue
-        expr_entity = _load_record_from_store(store, *subjects[expr_id])
+        _, expr_entity = row_ent
         work_arks.update(_expression_work_arks(expr_entity))
     return work_arks
 
@@ -86,25 +82,22 @@ def uproot_manifestation(
     partial_ark: Optional[str],
     partial_requested: bool = False,
 ) -> ManifestationUprootResult:
-    with _STORE_LOCK:
-        store = get_store_locked(dataset_id)
-        subjects = _record_subjects(store)
-        if manifestation_id not in subjects:
+    with dataset_transaction(dataset_id) as conn:
+        manifest_row = entities_repo.get_by_record_id(dataset_id, manifestation_id, for_update=True, conn=conn)
+        if not manifest_row:
             raise ValueError(f"Record not found: {manifestation_id}")
-
-        manifestation = _load_record_from_store(store, *subjects[manifestation_id])
+        _, manifestation = manifest_row
         kind = manifestation.type_entite.strip().lower()
         if not kind.startswith("manifestation"):
             raise ValueError("Le déracinage est réservé aux manifestations.")
 
-        ark_index = load_ark_index(store)
-
         target_entity: Optional[Entity] = None
         target_ark = (target_expression_ark or "").strip()
         if target_expression_id:
-            if target_expression_id not in subjects:
+            target_row = entities_repo.get_by_record_id(dataset_id, target_expression_id, for_update=True, conn=conn)
+            if not target_row:
                 raise ValueError(f"Record not found: {target_expression_id}")
-            target_entity = _load_record_from_store(store, *subjects[target_expression_id])
+            _, target_entity = target_row
             target_norm = target_entity.type_entite.strip().lower()
             if not target_norm.startswith("expression"):
                 raise ValueError("Impossible : la cible n'est pas une expression.")
@@ -114,11 +107,11 @@ def uproot_manifestation(
             raise ValueError("ARK de l'expression cible manquant.")
 
         previous_expr_arks = set(_manifestation_expression_arks(manifestation))
-        previous_work_arks = _work_arks_for_expression_arks(store, ark_index, previous_expr_arks)
+        previous_work_arks = _work_arks_for_expression_arks(conn, dataset_id, previous_expr_arks)
 
         wants_partial = partial_requested or bool(partial_ark)
         if wants_partial and not partial_ark:
-            partial_ark = get_controlled_ark(store, "Partiellement") or "Partiellement"
+            partial_ark = controlled_repo.get_controlled_ark_by_label(dataset_id, "Partiellement", conn=conn) or "Partiellement"
 
         next_intermarc = _rewrite_manifestation_links(
             manifestation.intermarc, detach=detach_arks, target_ark=target_ark, partial_ark=partial_ark
@@ -127,37 +120,25 @@ def uproot_manifestation(
         if next_intermarc.to_json_string() == manifestation.intermarc.to_json_string():
             raise ValueError("Aucun changement détecté dans les liens 740$3.")
 
-        clear_record_graph(store, manifestation_id)
-
-        manifestation_ark = manifestation.ark()
-        if manifestation_ark:
-            ark_index.setdefault(manifestation_ark, manifestation_id)
-        if target_entity:
-            target_entity_ark = target_entity.ark()
-            if target_entity_ark:
-                ark_index.setdefault(target_entity_ark, target_entity.id_entitelrm)
-
-        record = _build_record_from_payload(
-            manifestation.id_entitelrm, manifestation.type_entite, next_intermarc.to_json_string()
+        update_entity_record(
+            dataset_id,
+            record_id=manifestation.id_entitelrm,
+            type_raw=manifestation.type_entite,
+            intermarc=next_intermarc,
+            conn=conn,
         )
-        quads = list(_build_record_quads(record, ark_index))
-        if quads:
-            store.extend(quads)
-            store.flush()
-
-        datasets.touch_dataset(dataset_id)
 
         updated_records = [
             {
                 "id": manifestation.id_entitelrm,
                 "type": manifestation.type_entite,
-                "ark": manifestation_ark,
+                "ark": manifestation.ark(),
                 "intermarc": next_intermarc.to_json_string(),
             }
         ]
 
         next_expr_arks = set(next_intermarc.get_subfield_values("740", "3"))
-        next_work_arks = _work_arks_for_expression_arks(store, ark_index, next_expr_arks)
+        next_work_arks = _work_arks_for_expression_arks(conn, dataset_id, next_expr_arks)
 
         return ManifestationUprootResult(
             updated_records=updated_records,

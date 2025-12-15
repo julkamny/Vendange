@@ -8,8 +8,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from datetime import date
 from pathlib import Path
 
-from data_curation.api.db_shared import get_controlled_ark
-from data_curation.api.db_store import get_store_locked
+from data_curation.api.pg import controlled_repo, entities_repo
 from data_curation.authority.nes_service import NameExpansionService
 from data_curation.models import AgentResponsibility, Entity, Intermarc, Zone, SousZone
 from data_curation.curation.adaptation import (
@@ -275,22 +274,21 @@ def cluster_works_by_title_responsibilities(
     adaptation_pairs: Set[Tuple[str, str]] = set()
     adaptations_to_review: Set[str] = set()
 
-    ark_index: Dict[str, Entity] = {}
-    ark_to_id: Dict[str, str] = {}
-    for entity in (all_entities or []):
-        ark = entity.ark()
-        if not ark:
-            continue
-        ark_index[ark] = entity
-        ark_to_id[ark] = entity.id_entitelrm
-    for work in works:
-        ark = work.ark()
-        if not ark:
-            continue
-        ark_index.setdefault(ark, work)
-        ark_to_id.setdefault(ark, work.id_entitelrm)
+    entity_cache: Dict[str, Entity] = {}
 
-    nes = NameExpansionService(local_entities_by_ark=ark_index)
+    def _fetch_entity_by_ark(ark: str) -> Entity | None:
+        if not ark:
+            return None
+        if ark in entity_cache:
+            return entity_cache[ark]
+        row = entities_repo.get_by_ark(dataset_id, ark)
+        if row:
+            _, ent = row
+            entity_cache[ark] = ent
+            return ent
+        return None
+
+    nes = NameExpansionService(get_local_entity=_fetch_entity_by_ark)
     normalized_cache: Dict[str, str] = {}
     adaptation_flag_cache: Dict[str, bool] = {}
     agent_counter_cache: Dict[str, Counter] = {}
@@ -301,11 +299,10 @@ def cluster_works_by_title_responsibilities(
     work_oldest_year_cache: Dict[str, Optional[int]] = {}
 
     source_creator_label = "Créateur de l'œuvre source (Auteur du texte) / Créatrice de l'œuvre source (Autrice du texte)"
-    store = get_store_locked(dataset_id)
-    adaptation_role_ark = get_controlled_ark(store, "Responsable de l'adaptation")
-    source_creator_role_ark = get_controlled_ark(store, source_creator_label)
-    link_has_adaptation_ark = get_controlled_ark(store, "A pour adaptation")
-    link_is_adaptation_of_ark = get_controlled_ark(store, "Est une adaptation de")
+    adaptation_role_ark = controlled_repo.get_controlled_ark_by_label(dataset_id, "Responsable de l'adaptation")
+    source_creator_role_ark = controlled_repo.get_controlled_ark_by_label(dataset_id, source_creator_label)
+    link_has_adaptation_ark = controlled_repo.get_controlled_ark_by_label(dataset_id, "A pour adaptation")
+    link_is_adaptation_of_ark = controlled_repo.get_controlled_ark_by_label(dataset_id, "Est une adaptation de")
 
     # Synthesize a minimal lookup for canonical relator builder
     controlled_lookup: Dict[str, str] = {}
@@ -367,7 +364,7 @@ def cluster_works_by_title_responsibilities(
             return agent_variants_cache[agent_ark]
         variants = nes.ensure_variants(agent_ark) or []
         if not variants:
-            entity = ark_index.get(agent_ark)
+            entity = _entity_by_ark(agent_ark)
             if entity:
                 label = entity.title_main()
                 if label:
@@ -457,13 +454,15 @@ def cluster_works_by_title_responsibilities(
         return analyses
 
     def _entity_by_ark(ark: str) -> Entity | None:
-        entity_id = ark_to_id.get(ark)
-        if not entity_id:
+        if not ark:
             return None
-        entity = updated.get(entity_id)
-        if entity:
-            return entity
-        return ark_index.get(ark)
+        for ent in updated.values():
+            if ent.ark() == ark:
+                return ent
+        cached = entity_cache.get(ark)
+        if cached:
+            return cached
+        return _fetch_entity_by_ark(ark)
 
     def _extract_years(values: List[str]) -> List[int]:
         years: List[int] = []

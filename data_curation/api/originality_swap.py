@@ -3,11 +3,8 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Set
 
 from .anchor_swap import _clone_intermarc, _clone_zone, _manual_adaptation_zone
-from .db_ingest import _build_record_from_payload, _build_record_quads
-from .db_query import _load_record_from_store, _record_subjects
-from .db_shared import get_controlled_ark
-from .db_store import _STORE_LOCK, clear_record_graph, get_store_locked, load_ark_index
-from . import datasets
+from .pg import controlled_repo, entities_repo
+from .pg.curation_tx import dataset_transaction, update_entity_record
 from ..models import Entity, Intermarc, SousZone, Zone
 
 
@@ -99,16 +96,16 @@ def swap_work_originality(dataset_id: str, *, original_id: str, target_id: str) 
     - Remove curated 552 zones from the previous original and add manual ones to the new original.
     """
 
-    with _STORE_LOCK:
-        store = get_store_locked(dataset_id)
-        subjects = _record_subjects(store)
-        if original_id not in subjects:
+    with dataset_transaction(dataset_id) as conn:
+        original_row_entity = entities_repo.get_by_record_id(dataset_id, original_id, for_update=True, conn=conn)
+        target_row_entity = entities_repo.get_by_record_id(dataset_id, target_id, for_update=True, conn=conn)
+        if not original_row_entity:
             raise ValueError(f"Record not found: {original_id}")
-        if target_id not in subjects:
+        if not target_row_entity:
             raise ValueError(f"Record not found: {target_id}")
 
-        original_entity = _load_record_from_store(store, *subjects[original_id])
-        target_entity = _load_record_from_store(store, *subjects[target_id])
+        _, original_entity = original_row_entity
+        _, target_entity = target_row_entity
 
         norm_orig = original_entity.type_entite.strip().lower()
         norm_target = target_entity.type_entite.strip().lower()
@@ -122,12 +119,11 @@ def swap_work_originality(dataset_id: str, *, original_id: str, target_id: str) 
         if not original_ark or not target_ark:
             raise ValueError("Les œuvres doivent avoir un ARK.")
 
-        has_adaptation_ark = get_controlled_ark(store, "A pour adaptation")
-        is_adaptation_of_ark = get_controlled_ark(store, "Est une adaptation de")
+        has_adaptation_ark = controlled_repo.get_controlled_ark_by_label(dataset_id, "A pour adaptation", conn=conn)
+        is_adaptation_of_ark = controlled_repo.get_controlled_ark_by_label(dataset_id, "Est une adaptation de", conn=conn)
         if not has_adaptation_ark or not is_adaptation_of_ark:
             raise ValueError("Valeurs contrôlées manquantes pour les liens d'adaptation.")
 
-        # Collect curated adaptation targets to move away from the original
         removal_indices: Set[int] = set()
         adaptation_targets: List[str] = []
         for idx, zone in enumerate(original_entity.intermarc.zones):
@@ -135,18 +131,15 @@ def swap_work_originality(dataset_id: str, *, original_id: str, target_id: str) 
             if not target:
                 continue
             removal_indices.add(idx)
-            if target != target_ark:  # avoid self-linking the new original
+            if target != target_ark:
                 adaptation_targets.append(target)
 
         if not adaptation_targets:
             raise ValueError("Aucune adaptation à transférer depuis cette œuvre.")
 
-        ark_index = load_ark_index(store)
-
         cleaned_original = _clone_intermarc(original_entity.intermarc, skip=removal_indices)
         updated_original = original_entity.clone_with_new_intermarc(cleaned_original)
 
-        # Add manual adaptation links to the new original, skipping duplicates
         existing_targets: Set[str] = set()
         for zone in target_entity.intermarc.zones:
             if zone.code != "552" or has_adaptation_ark not in zone.subfield_values("552$q"):
@@ -169,12 +162,11 @@ def swap_work_originality(dataset_id: str, *, original_id: str, target_id: str) 
             updated_target_original.id_entitelrm: updated_target_original,
         }
 
-        # Rewrite backlinks on every adaptation target
         for adaptation_ark in adaptation_targets:
-            adaptation_id = ark_index.get(adaptation_ark)
-            if not adaptation_id or adaptation_id not in subjects:
+            target_row = entities_repo.get_by_ark(dataset_id, adaptation_ark, for_update=True, conn=conn)
+            if not target_row:
                 raise ValueError(f"Adaptation introuvable : {adaptation_ark}")
-            adaptation_entity = _load_record_from_store(store, *subjects[adaptation_id])
+            _, adaptation_entity = target_row
             patched = _retarget_adaptation_backlinks(
                 adaptation_entity,
                 qualifier_ark=is_adaptation_of_ark,
@@ -184,26 +176,22 @@ def swap_work_originality(dataset_id: str, *, original_id: str, target_id: str) 
             if patched.intermarc.to_json_string() != adaptation_entity.intermarc.to_json_string():
                 updated_entities[patched.id_entitelrm] = patched
 
-        for rid in updated_entities:
-            clear_record_graph(store, rid)
-
-        quads = []
+        payloads: List[dict[str, str]] = []
         for ent in updated_entities.values():
-            record = _build_record_from_payload(ent.id_entitelrm, ent.type_entite, ent.intermarc.to_json_string())
-            quads.extend(_build_record_quads(record, ark_index))
+            update_entity_record(
+                dataset_id,
+                record_id=ent.id_entitelrm,
+                type_raw=ent.type_entite,
+                intermarc=ent.intermarc,
+                conn=conn,
+            )
+            payloads.append(
+                {
+                    "id": ent.id_entitelrm,
+                    "type": ent.type_entite,
+                    "ark": ent.ark(),
+                    "intermarc": ent.intermarc.to_json_string(),
+                }
+            )
 
-        if quads:
-            store.extend(quads)
-            store.flush()
-
-        datasets.touch_dataset(dataset_id)
-
-        return [
-            {
-                "id": ent.id_entitelrm,
-                "type": ent.type_entite,
-                "ark": ent.ark(),
-                "intermarc": ent.intermarc.to_json_string(),
-            }
-            for ent in updated_entities.values()
-        ]
+        return payloads

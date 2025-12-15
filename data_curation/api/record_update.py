@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from . import datasets
 from .anchor_swap import _manual_adaptation_zone
 from .db_guards import (
     _ensure_unique_expression_clusters,
@@ -14,12 +13,10 @@ from .db_guards import (
     _is_expression_type,
     _is_work_type,
 )
-from .db_ingest import _build_record_from_payload, _build_record_quads
-from .db_query import _load_record_from_store, _record_subjects
-from .db_shared import get_controlled_ark
-from .db_store import _STORE_LOCK, clear_record_graph, get_store_locked, load_ark_index
 from .manual_cluster import _add_cluster_target, _remove_cluster_target
 from .manifestation_uproot import _rewrite_manifestation_links
+from .pg import controlled_repo, entities_repo
+from .pg.curation_tx import dataset_transaction, update_entity_record
 from ..models import Entity, Intermarc, SousZone, Zone
 
 
@@ -30,6 +27,11 @@ def _zone_signature(zone: Zone) -> Tuple[str, Optional[str], Tuple[Tuple[str, st
         zone.field_compact_value,
         tuple((sub.code, sub.valeur) for sub in zone.sousZones),
     )
+
+
+def _ark_from_im(intermarc: Intermarc) -> Optional[str]:
+    vals = intermarc.get_subfield_values("001", "a")
+    return vals[0].strip() if vals else None
 
 
 def _clone_zone_preserve(zone: Zone) -> Zone:
@@ -200,16 +202,15 @@ def _merge_non_special_zones(
 
 def update_record(dataset_id: str, record_id: str, *, type_raw: str, intermarc_json: str) -> List[dict[str, str]]:
     new_intermarc = Intermarc.from_json_string(intermarc_json)
+    updated_payloads: List[dict[str, str]] = []
 
-    with _STORE_LOCK:
-        store = get_store_locked(dataset_id)
-        subjects = _record_subjects(store)
-        if record_id not in subjects:
+    with dataset_transaction(dataset_id) as conn:
+        anchor_row_entity = entities_repo.get_by_record_id(dataset_id, record_id, for_update=True, conn=conn)
+        if not anchor_row_entity:
             raise ValueError(f"Record not found: {record_id}")
-
-        previous_entity = _load_record_from_store(store, *subjects[record_id])
+        anchor_row, previous_entity = anchor_row_entity
         if not type_raw.strip():
-            type_raw = previous_entity.type_entite
+            type_raw = anchor_row.get("type_raw") or previous_entity.type_entite
         prev_im = previous_entity.intermarc
 
         # Guard: 750 cannot be added or removed
@@ -262,8 +263,8 @@ def update_record(dataset_id: str, record_id: str, *, type_raw: str, intermarc_j
                 desired_notes[target] = note
 
         # Adaptation links
-        has_adaptation = get_controlled_ark(store, "A pour adaptation")
-        is_adaptation_of = get_controlled_ark(store, "Est une adaptation de")
+        has_adaptation = controlled_repo.get_controlled_ark_by_label(dataset_id, "A pour adaptation", conn=conn)
+        is_adaptation_of = controlled_repo.get_controlled_ark_by_label(dataset_id, "Est une adaptation de", conn=conn)
         qualifiers = {q for q in (has_adaptation, is_adaptation_of) if q}
         prev_adapt_lookup = _build_adaptation_lookup(prev_im, qualifiers)
         next_adapt_lookup = _build_adaptation_lookup(new_intermarc, qualifiers)
@@ -285,7 +286,7 @@ def update_record(dataset_id: str, record_id: str, *, type_raw: str, intermarc_j
 
         # 740 zones (attach without detach)
         if added_740:
-            partial_label = get_controlled_ark(store, "Partiellement") or "Partiellement"
+            partial_label = controlled_repo.get_controlled_ark_by_label(dataset_id, "Partiellement", conn=conn) or "Partiellement"
             added_sequence = [(target, partial_flags.get(target, False)) for target in added_740]
             updated_740 = _apply_740_additions(previous_entity, added_sequence, partial_label=partial_label)
         else:
@@ -302,31 +303,35 @@ def update_record(dataset_id: str, record_id: str, *, type_raw: str, intermarc_j
 
         final_intermarc = Intermarc(zones=merged_zones)
 
+        record_ark = _ark_from_im(final_intermarc)
+
         # Guards after rebuild
         if _is_agent_type(type_raw):
-            _ensure_unique_agent_clusters(store, record_id, final_intermarc)
+            _ensure_unique_agent_clusters(conn, dataset_id, record_ark or "", final_intermarc)
         if _is_work_type(type_raw):
-            _ensure_unique_work_clusters(store, record_id, final_intermarc)
+            _ensure_unique_work_clusters(conn, dataset_id, record_ark or "", final_intermarc)
         if _is_expression_type(type_raw):
-            _ensure_unique_expression_clusters(store, record_id, final_intermarc)
+            _ensure_unique_expression_clusters(conn, dataset_id, record_ark or "", final_intermarc)
 
-        ark_index = load_ark_index(store)
-        record = _build_record_from_payload(record_id, type_raw, final_intermarc.to_json_string())
-        record_ark = record.ark
-        if record_ark:
-            ark_index[record_ark] = record_id
+        ark_cache: Dict[str, Tuple] = {}
 
-        # Counterpart updates for adaptation links
+        def _get_by_ark(ark: str):
+            if ark in ark_cache:
+                return ark_cache[ark]
+            res = entities_repo.get_by_ark(dataset_id, ark, for_update=True, conn=conn)
+            ark_cache[ark] = res
+            return res
+
         updated_entities: Dict[str, Entity] = {}
         if added_adapt or removed_adapt:
             for qual, target in added_adapt:
                 counter_qual = is_adaptation_of if qual == has_adaptation else has_adaptation
                 if not counter_qual:
                     continue
-                target_id = ark_index.get(target)
-                if not target_id or target_id not in subjects:
+                target_row_entity = _get_by_ark(target)
+                if not target_row_entity:
                     raise ValueError(f"Oeuvre cible introuvable pour l'adaptation : {target}")
-                target_entity = _load_record_from_store(store, *subjects[target_id])
+                _, target_entity = target_row_entity
                 patched = _ensure_adaptation_link(target_entity, counter_qual, record_ark or "")
                 if patched:
                     updated_entities[patched.id_entitelrm] = patched
@@ -334,45 +339,39 @@ def update_record(dataset_id: str, record_id: str, *, type_raw: str, intermarc_j
                 counter_qual = is_adaptation_of if qual == has_adaptation else has_adaptation
                 if not counter_qual:
                     continue
-                target_id = ark_index.get(target)
-                if not target_id or target_id not in subjects:
+                target_row_entity = _get_by_ark(target)
+                if not target_row_entity:
                     continue
-                target_entity = _load_record_from_store(store, *subjects[target_id])
+                _, target_entity = target_row_entity
                 patched = _remove_adaptation_link(target_entity, counter_qual, record_ark or "")
                 if patched:
                     updated_entities[patched.id_entitelrm] = patched
 
-        # Write current record
-        clear_record_graph(store, record_id)
-        quads = list(_build_record_quads(record, ark_index))
-
-        # Write counterpart updates
-        for ent in updated_entities.values():
-            clear_record_graph(store, ent.id_entitelrm)
-            other_record = _build_record_from_payload(ent.id_entitelrm, ent.type_entite, ent.intermarc.to_json_string())
-            quads.extend(_build_record_quads(other_record, ark_index))
-
-        if quads:
-            store.extend(quads)
-            store.flush()
-
-        datasets.touch_dataset(dataset_id)
-
-        updated_payloads = [
-            {
-                "id": record.id,
-                "type": record.type_raw,
-                "ark": record_ark,
-                "intermarc": final_intermarc.to_json_string(),
-            }
-        ]
-        updated_payloads.extend(
-            {
-                "id": ent.id_entitelrm,
-                "type": ent.type_entite,
-                "ark": ent.ark(),
-                "intermarc": ent.intermarc.to_json_string(),
-            }
-            for ent in updated_entities.values()
+        # Write current record + counterparts
+        updated_main = update_entity_record(
+            dataset_id,
+            record_id=record_id,
+            type_raw=type_raw,
+            intermarc=final_intermarc,
+            conn=conn,
         )
-        return updated_payloads
+        updated_payloads.append(updated_main.as_payload())
+
+        for ent in updated_entities.values():
+            update_entity_record(
+                dataset_id,
+                record_id=ent.id_entitelrm,
+                type_raw=ent.type_entite,
+                intermarc=ent.intermarc,
+                conn=conn,
+            )
+            updated_payloads.append(
+                {
+                    "id": ent.id_entitelrm,
+                    "type": ent.type_entite,
+                    "ark": ent.ark(),
+                    "intermarc": ent.intermarc.to_json_string(),
+                }
+            )
+
+    return updated_payloads

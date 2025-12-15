@@ -2,10 +2,6 @@ from __future__ import annotations
 
 from typing import List, Optional, Set
 
-from .db_ingest import _build_record_from_payload, _build_record_quads
-from .db_query import _load_record_from_store, _record_subjects
-from .db_store import _STORE_LOCK, clear_record_graph, get_store_locked, load_ark_index
-from . import datasets
 from .anchor_swap import _clone_intermarc, _clone_zone, _manual_cluster_zone
 from .db_guards import (
     _ensure_unique_expression_clusters,
@@ -13,6 +9,8 @@ from .db_guards import (
     _ensure_unique_agent_clusters,
     _is_agent_type,
 )
+from .pg import entities_repo
+from .pg.curation_tx import dataset_transaction, update_entity_record
 from ..models import Entity, Intermarc
 
 CLUSTER_NOTES: Set[str] = {"Clusterisation manuelle", "Clusterisation script"}
@@ -63,13 +61,11 @@ def update_manual_cluster(
     ``target_ark`` directly (as used by the checkbox UI).
     """
 
-    with _STORE_LOCK:
-        store = get_store_locked(dataset_id)
-        subjects = _record_subjects(store)
-        if anchor_id not in subjects:
+    with dataset_transaction(dataset_id) as conn:
+        anchor_row_entity = entities_repo.get_by_record_id(dataset_id, anchor_id, for_update=True, conn=conn)
+        if not anchor_row_entity:
             raise ValueError(f"Record not found: {anchor_id}")
-
-        anchor_entity: Entity = _load_record_from_store(store, *subjects[anchor_id])
+        anchor_row, anchor_entity = anchor_row_entity
         anchor_norm = anchor_entity.type_entite.strip().lower()
         is_work = anchor_norm in {"work", "oeuvre", "œuvre"}
         is_expression = anchor_norm.startswith("expression")
@@ -83,14 +79,14 @@ def update_manual_cluster(
         if not anchor_ark:
             raise ValueError("Ancre sans ARK : impossible de clustériser.")
 
-        ark_index = load_ark_index(store)
         target_entity: Optional[Entity] = None
         if accepted:
             if not target_id:
                 raise ValueError("Target id manquant pour ajouter au cluster.")
-            if target_id not in subjects:
+            target_row_entity = entities_repo.get_by_record_id(dataset_id, target_id, for_update=True, conn=conn)
+            if not target_row_entity:
                 raise ValueError(f"Record not found: {target_id}")
-            target_entity = _load_record_from_store(store, *subjects[target_id])
+            _, target_entity = target_row_entity
             target_norm = target_entity.type_entite.strip().lower()
             if is_work and target_norm not in {"work", "oeuvre", "œuvre"}:
                 raise ValueError("Cible incompatible : seules les œuvres peuvent être rattachées à une œuvre.")
@@ -107,16 +103,17 @@ def update_manual_cluster(
                 raise ValueError("Impossible de clustériser une entité avec elle-même.")
         else:
             if not target_ark and target_id:
-                if target_id not in subjects:
+                target_row_entity = entities_repo.get_by_record_id(dataset_id, target_id, for_update=True, conn=conn)
+                if not target_row_entity:
                     raise ValueError(f"Record not found: {target_id}")
-                target_entity = _load_record_from_store(store, *subjects[target_id])
+                _, target_entity = target_row_entity
                 target_ark = target_entity.ark()
             if not target_ark:
                 raise ValueError("ARK cible manquant pour retirer du cluster.")
             if not target_entity:
-                target_id_from_ark = ark_index.get(target_ark)
-                if target_id_from_ark and target_id_from_ark in subjects:
-                    target_entity = _load_record_from_store(store, *subjects[target_id_from_ark])
+                target_row_entity = entities_repo.get_by_ark(dataset_id, target_ark, for_update=True, conn=conn)
+                if target_row_entity:
+                    _, target_entity = target_row_entity
 
         next_intermarc = (
             _add_cluster_target(anchor_entity.intermarc, target_ark)
@@ -128,38 +125,21 @@ def update_manual_cluster(
             return []
 
         if is_work:
-            _ensure_unique_work_clusters(store, anchor_id, next_intermarc)
+            _ensure_unique_work_clusters(conn, dataset_id, anchor_ark, next_intermarc)
         elif is_expression:
-            _ensure_unique_expression_clusters(store, anchor_id, next_intermarc)
+            _ensure_unique_expression_clusters(conn, dataset_id, anchor_ark, next_intermarc)
         else:
-            _ensure_unique_agent_clusters(store, anchor_id, next_intermarc)
+            _ensure_unique_agent_clusters(conn, dataset_id, anchor_ark, next_intermarc)
 
-        clear_record_graph(store, anchor_id)
+        updated_anchor = update_entity_record(
+            dataset_id,
+            record_id=anchor_entity.id_entitelrm,
+            type_raw=anchor_entity.type_entite,
+            intermarc=next_intermarc,
+            conn=conn,
+        ).as_payload()
 
-        ark_index = load_ark_index(store)
-        if anchor_ark:
-            ark_index.setdefault(anchor_ark, anchor_id)
-        if target_entity:
-            target_ark_val = target_entity.ark()
-            if target_ark_val:
-                ark_index.setdefault(target_ark_val, target_entity.id_entitelrm)
-
-        record = _build_record_from_payload(anchor_entity.id_entitelrm, anchor_entity.type_entite, next_intermarc.to_json_string())
-        quads = list(_build_record_quads(record, ark_index))
-        if quads:
-            store.extend(quads)
-            store.flush()
-
-        datasets.touch_dataset(dataset_id)
-
-        updated_entities = [
-            {
-                "id": anchor_entity.id_entitelrm,
-                "type": anchor_entity.type_entite,
-                "ark": anchor_ark,
-                "intermarc": next_intermarc.to_json_string(),
-            }
-        ]
+        updated_entities = [updated_anchor]
         if target_entity:
             updated_entities.append(
                 {

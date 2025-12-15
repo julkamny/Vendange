@@ -18,7 +18,7 @@ from data_curation.api.schemas import (
 
 
 def _record_id_expr() -> str:
-    return "record->>'id_entitelrm'"
+    return "record_id"
 
 
 def _title_expr() -> str:

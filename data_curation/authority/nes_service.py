@@ -88,12 +88,16 @@ class NameExpansionService:
         self,
         store: NESStore | None = None,
         local_entities_by_ark: Dict[str, Entity] | None = None,
+        get_local_entity=None,
     ):
         self.store = store or NESStore()
         self.local_entities_by_ark = local_entities_by_ark or {}
+        self._get_local_entity = get_local_entity
 
     def _variants_from_local(self, ark: str) -> List[str]:
         entity = self.local_entities_by_ark.get(ark)
+        if not entity and self._get_local_entity:
+            entity = self._get_local_entity(ark)
         if not entity:
             return []
         return _variants_from_entity(entity)

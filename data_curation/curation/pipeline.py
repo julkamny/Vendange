@@ -4,7 +4,8 @@ import json
 from dataclasses import asdict
 from typing import Iterable, List, Sequence, Tuple
 
-from data_curation.api import db
+from data_curation.api.pg.curation_tx import dataset_transaction, update_entity_record
+from data_curation.api.pg.entities_repo import iter_entities
 from data_curation.curation.operations import (
     ClusterResult,
     ExpressionClusterResult,
@@ -29,16 +30,23 @@ def _is_expression(entity: Entity) -> bool:
 
 def _persist_entities(dataset_id: str, entities: Iterable[Entity]) -> None:
     seen: set[str] = set()
+    updates: List[Tuple[str, str, str]] = []
     for entity in entities:
         if entity.id_entitelrm in seen:
             continue
-        db.update_record(
-            dataset_id,
-            entity.id_entitelrm,
-            type_raw=entity.type_entite,
-            intermarc_json=entity.intermarc.to_json_string(),
-        )
+        updates.append((entity.id_entitelrm, entity.type_entite, entity.intermarc.to_json_string()))
         seen.add(entity.id_entitelrm)
+    if not updates:
+        return
+    with dataset_transaction(dataset_id) as conn:
+        for rec_id, type_raw, intermarc_json in updates:
+            update_entity_record(
+                dataset_id,
+                record_id=rec_id,
+                type_raw=type_raw,
+                intermarc=Entity(rec_id, type_raw, intermarc_json).intermarc,
+                conn=conn,
+            )
 
 
 def _dump_json(path: str, payload: Sequence[object]) -> None:
@@ -51,12 +59,11 @@ def run_cluster_operation(
     dataset_id: str,
     clusters_json: str | None = None,
 ) -> List[ClusterResult]:
-    entities = db.load_entities(dataset_id)
+    entities = list(iter_entities(dataset_id))
     works = [e for e in entities if _is_work(e)]
     updated_works, clusters = cluster_works_by_title_responsibilities(dataset_id, works, entities)
 
     _persist_entities(dataset_id, updated_works)
-    db.compact_dataset(dataset_id)
 
     if clusters_json:
         _dump_json(clusters_json, [asdict(c) for c in clusters])
@@ -70,7 +77,7 @@ def run_cluster_with_expression_operation(
     works_json: str | None = None,
     expressions_json: str | None = None,
 ) -> Tuple[List[ClusterResult], List[ExpressionClusterResult]]:
-    entities = db.load_entities(dataset_id)
+    entities = list(iter_entities(dataset_id))
     works = [e for e in entities if _is_work(e)]
     expressions = [e for e in entities if _is_expression(e)]
 
@@ -79,7 +86,6 @@ def run_cluster_with_expression_operation(
 
     updated_expressions, expression_clusters = cluster_expressions_by_051_and_041(expressions, work_clusters)
     _persist_entities(dataset_id, updated_expressions)
-    db.compact_dataset(dataset_id)
 
     if works_json:
         _dump_json(works_json, [asdict(c) for c in work_clusters])

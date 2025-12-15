@@ -16,14 +16,20 @@ ALTER TABLE dataset ADD COLUMN IF NOT EXISTS last_clustered_at timestamptz;
 CREATE TABLE IF NOT EXISTS entity (
     dataset_id  text NOT NULL,
     entity_id   bigserial,
+    record_id   text,
     ark         text,
+    type_raw    text,
     type_norm   text NOT NULL,
     record      jsonb NOT NULL,
     updated_at  timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (dataset_id, entity_id)
 ) PARTITION BY LIST (dataset_id);
 
+ALTER TABLE entity ADD COLUMN IF NOT EXISTS record_id text;
+ALTER TABLE entity ADD COLUMN IF NOT EXISTS type_raw text;
+
 CREATE INDEX IF NOT EXISTS idx_entity_ark ON entity (ark);
+CREATE INDEX IF NOT EXISTS idx_entity_record_id ON entity (record_id);
 CREATE INDEX IF NOT EXISTS idx_entity_type_norm ON entity (type_norm);
 CREATE INDEX IF NOT EXISTS idx_entity_record_gin ON entity USING GIN (record jsonb_path_ops);
 

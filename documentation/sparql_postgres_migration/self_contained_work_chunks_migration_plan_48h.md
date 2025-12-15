@@ -587,6 +587,8 @@ Remove named-graph scoping from the frontend:
 * ✅ Projections for that entity are updated consistently
 * ✅ Lock blocks concurrent writes to same dataset, not others
 
+**Execution status (2025-12-15)**: Implemented. Added `data_curation/api/pg/curation_tx.py` with dataset advisory lock, update_entity_record, and projection refresh.
+
 **Perfect engineer prompt**
 
 ```text
@@ -615,6 +617,8 @@ Implement transactional infra for curation ops:
 * ✅ Update endpoint works from UI
 * ✅ Curation flags merging behavior preserved
 * ✅ Baseline comparisons: record payload matches expected after update
+
+**Execution status (2025-12-15)**: Implemented. `record_update.py` now reads/writes from Postgres via curation_tx; guards and adaptation/backlink updates run inside dataset lock.
 
 **Perfect engineer prompt**
 
@@ -646,6 +650,8 @@ Add 2-3 unit tests around the zone/subfield flag merge behavior.
 * ✅ Uniqueness constraints enforced (works/expressions/agents)
 * ✅ No Oxigraph access from this path
 
+**Execution status (2025-12-15)**: Implemented. Manual cluster rewired to SQL with new guard checks.
+
 **Perfect engineer prompt**
 
 ```text
@@ -675,6 +681,8 @@ Add tests: attempting to create a duplicate/invalid cluster must fail.
 * ✅ Swaps complete without partial updates
 * ✅ Projections stay consistent (clusters/backlinks/labels)
 
+**Execution status (2025-12-15)**: Implemented. Anchor swap + originality swap now operate on Postgres entities under dataset locks.
+
 **Perfect engineer prompt**
 
 ```text
@@ -700,6 +708,8 @@ Port anchor_swap and originality_swap to Postgres:
 
 * ✅ Operation works from UI
 * ✅ Backlinks and rel_edge updated accordingly
+
+**Execution status (2025-12-15)**: Implemented. Manifestation uproot rewired to Postgres writes/projections.
 
 **Perfect engineer prompt**
 
@@ -732,6 +742,8 @@ Port manifestation_uproot to Postgres:
 * ✅ Controlled ARK lookups no longer depend on Oxigraph
 * ✅ Name expansion still works using on-demand entity fetch
 
+**Execution status (2025-12-15)**: Implemented. Clustering pipeline pulls entities from Postgres, NameExpansionService uses on-demand entity fetcher; controlled lookups use SQL.
+
 **Perfect engineer prompt**
 
 ```text
@@ -760,6 +772,8 @@ Port clustering pipeline to Postgres and remove full in-memory ark_index:
 
 * ✅ Randomized sequences preserve invariants (no duplicate clusters, etc.)
 * ✅ Concurrent ops on different datasets proceed; same dataset serializes
+
+**Execution status (2025-12-15)**: Implemented basic guard + concurrency tests in `tests/curation/test_curation_guards.py` (skips if Postgres unavailable).
 
 **Perfect engineer prompt**
 

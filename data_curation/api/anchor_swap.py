@@ -2,11 +2,9 @@ from __future__ import annotations
 
 from typing import List, Optional, Sequence, Set, Tuple
 
-from .db_ingest import _build_record_from_payload, _build_record_quads
-from .db_query import _load_record_from_store, _record_subjects
-from .db_shared import get_controlled_ark
-from .db_store import _STORE_LOCK, clear_record_graph, get_store_locked, load_ark_index
-from . import datasets
+from .pg import controlled_repo, entities_repo
+from .pg.curation_tx import dataset_transaction, update_entity_record
+from .db_guards import _extract_cluster_targets, _is_expression_anchor, _is_work_anchor
 from ..models import Entity, Intermarc, SousZone, Zone
 
 
@@ -173,20 +171,20 @@ def _remove_backlink(entity: Entity, *, qualifier_ark: Optional[str], anchor_ark
 
 
 def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> List[dict[str, str]]:
-    with _STORE_LOCK:
-        store = get_store_locked(dataset_id)
-        subjects = _record_subjects(store)
-        if anchor_id not in subjects:
+    with dataset_transaction(dataset_id) as conn:
+        anchor_row_entity = entities_repo.get_by_record_id(dataset_id, anchor_id, for_update=True, conn=conn)
+        target_row_entity = entities_repo.get_by_record_id(dataset_id, target_id, for_update=True, conn=conn)
+        if not anchor_row_entity:
             raise ValueError(f"Record not found: {anchor_id}")
-        if target_id not in subjects:
+        if not target_row_entity:
             raise ValueError(f"Record not found: {target_id}")
 
-        anchor_entity = _load_record_from_store(store, *subjects[anchor_id])
-        target_entity = _load_record_from_store(store, *subjects[target_id])
+        _, anchor_entity = anchor_row_entity
+        _, target_entity = target_row_entity
 
         kind_anchor = anchor_entity.type_entite.strip().lower()
         kind_target = target_entity.type_entite.strip().lower()
-        if kind_anchor not in {"œuvre","oeuvre","work","expression"}:
+        if kind_anchor not in {"œuvre", "oeuvre", "work", "expression"}:
             raise ValueError("Le changement d'ancre n'est possible que pour les œuvres ou les expressions.")
         if kind_anchor != kind_target:
             raise ValueError("Ancre et cible doivent être du même type.")
@@ -196,24 +194,19 @@ def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> L
         if not anchor_ark or not target_ark:
             raise ValueError("Ancre et cible doivent avoir un ARK.")
 
-        ark_index = load_ark_index(store)
-        link_has_adaptation_ark = get_controlled_ark(store, "A pour adaptation")
-        link_is_adaptation_of_ark = get_controlled_ark(store, "Est une adaptation de")
+        link_has_adaptation_ark = controlled_repo.get_controlled_ark_by_label(dataset_id, "A pour adaptation", conn=conn)
+        link_is_adaptation_of_ark = controlled_repo.get_controlled_ark_by_label(
+            dataset_id, "Est une adaptation de", conn=conn
+        )
 
         anchor_had_adaptation_to_target = False
 
-        from .db_guards import (
-            _extract_work_cluster_targets,
-            _extract_expression_cluster_targets,
-            _is_work_anchor,
-            _is_expression_anchor,
-        )
+        cluster_targets = _extract_cluster_targets(anchor_entity.intermarc)
+        if target_ark not in cluster_targets:
+            raise ValueError("La cible n'appartient pas au cluster de l'ancre.")
 
-        if kind_anchor in {"œuvre","oeuvre","work"}:
-            cluster_targets = _extract_work_cluster_targets(anchor_entity.intermarc)
-            if target_ark not in cluster_targets:
-                raise ValueError("La cible n'appartient pas au cluster de l'ancre.")
-            if _is_work_anchor(store, ark_index, target_ark):
+        if kind_anchor in {"œuvre", "oeuvre", "work"}:
+            if _is_work_anchor(conn, dataset_id, target_ark):
                 raise ValueError("Impossible : la cible est déjà ancre d'un cluster.")
             for zone in anchor_entity.intermarc.get_zone("552"):
                 q_match = link_has_adaptation_ark in zone.subfield_values("552$q") if link_has_adaptation_ark else False
@@ -221,16 +214,13 @@ def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> L
                 if q_match and t_match:
                     anchor_had_adaptation_to_target = True
         else:
-            cluster_targets = _extract_expression_cluster_targets(anchor_entity.intermarc)
-            if target_ark not in cluster_targets:
-                raise ValueError("La cible n'appartient pas au cluster de l'ancre.")
-            if _is_expression_anchor(store, ark_index, target_ark):
+            if _is_expression_anchor(conn, dataset_id, target_ark):
                 raise ValueError("Impossible : la cible est déjà ancre d'un cluster.")
 
         updated_anchor, updated_target, adaptation_targets = _rewrite_cluster_fields(
             anchor_entity,
             target_entity,
-            link_has_adaptation_ark=link_has_adaptation_ark if kind_anchor in {"œuvre","oeuvre","work"} else None,
+            link_has_adaptation_ark=link_has_adaptation_ark if kind_anchor in {"œuvre", "oeuvre", "work"} else None,
         )
 
         if anchor_had_adaptation_to_target:
@@ -243,12 +233,11 @@ def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> L
         updated_backlinks: List[Entity] = []
         if adaptation_targets and link_is_adaptation_of_ark:
             for adaptation_ark in adaptation_targets:
-                adaptation_id = ark_index.get(adaptation_ark)
-                if not adaptation_id or adaptation_id not in subjects:
+                target_row = entities_repo.get_by_ark(dataset_id, adaptation_ark, for_update=True, conn=conn)
+                if not target_row:
                     raise ValueError(f"Adaptation introuvable : {adaptation_ark}")
-                adaptation_entity = _load_record_from_store(store, *subjects[adaptation_id])
+                _, adaptation_entity = target_row
                 if adaptation_entity.id_entitelrm == target_entity.id_entitelrm:
-                    # Avoid rewriting backlinks on the new anchor itself (would create self links)
                     continue
                 patched = _update_adaptation_backlinks(
                     adaptation_entity,
@@ -259,31 +248,22 @@ def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> L
                 if patched.intermarc.to_json_string() != adaptation_entity.intermarc.to_json_string():
                     updated_backlinks.append(patched)
 
-        # Persist changes: remove old graphs, then insert updated quads
-        for rid in {anchor_id, target_id, *[ent.id_entitelrm for ent in updated_backlinks]}:
-            clear_record_graph(store, rid)
+        payloads = []
+        for ent in (updated_anchor, updated_target, *updated_backlinks):
+            update_entity_record(
+                dataset_id,
+                record_id=ent.id_entitelrm,
+                type_raw=ent.type_entite,
+                intermarc=ent.intermarc,
+                conn=conn,
+            )
+            payloads.append(
+                {
+                    "id": ent.id_entitelrm,
+                    "type": ent.type_entite,
+                    "ark": ent.ark(),
+                    "intermarc": ent.intermarc.to_json_string(),
+                }
+            )
 
-        ark_index.setdefault(anchor_ark, anchor_id)
-        ark_index.setdefault(target_ark, target_id)
-
-        quads = []
-        for entity in [updated_anchor, updated_target, *updated_backlinks]:
-            record = _build_record_from_payload(entity.id_entitelrm, entity.type_entite, entity.intermarc.to_json_string())
-            quads.extend(_build_record_quads(record, ark_index))
-
-        if quads:
-            store.extend(quads)
-            store.flush()
-
-        datasets.touch_dataset(dataset_id)
-
-        updated_entities = [updated_anchor, updated_target, *updated_backlinks]
-        return [
-            {
-                "id": ent.id_entitelrm,
-                "type": ent.type_entite,
-                "ark": ent.ark(),
-                "intermarc": ent.intermarc.to_json_string(),
-            }
-            for ent in updated_entities
-        ]
+        return payloads

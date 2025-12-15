@@ -1,0 +1,29 @@
+[PrefixDeclaration]
+:      http://vendange.bnf.fr/
+owl:   http://www.w3.org/2002/07/owl#
+rdf:   http://www.w3.org/1999/02/22-rdf-syntax-ns#
+rdfs:  http://www.w3.org/2000/01/rdf-schema#
+xsd:   http://www.w3.org/2001/XMLSchema#
+vend:  http://vendange.bnf.fr/ontology#
+
+[SourceDeclaration]
+sourceUri      jdbc
+connectionUrl  jdbc:postgresql://postgres:5432/vendange
+username       vendange
+password       vendange
+driverClass    org.postgresql.Driver
+
+[MappingDeclaration] @collection [[
+mappingId entity-core
+target    :entity/{dataset_id}/{entity_id} a vend:Entity ;
+          vend:datasetId "{dataset_id}"^^xsd:string ;
+          vend:typeNorm "{type_norm}"^^xsd:string ;
+          vend:label "{label}"^^xsd:string ;
+          vend:ark "{ark}"^^xsd:string .
+source    SELECT dataset_id, entity_id, type_norm, COALESCE(ark,'') as ark, label
+          FROM entity_label
+
+mappingId rel-edge
+target    :entity/{dataset_id}/{src_entity_id} <{predicate_iri}> :ark/{tgt_ark} .
+source    SELECT dataset_id, src_entity_id, predicate_iri, tgt_ark FROM rel_edge WHERE tgt_ark IS NOT NULL
+]]

@@ -19,6 +19,7 @@ from data_curation.api.pg.session import db_session
 LOGGER = logging.getLogger(__name__)
 
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "db" / "schema.sql"
+VIEWS_PATH = Path(__file__).resolve().parents[3] / "db" / "views.sql"
 
 PARTITIONED_TABLES: tuple[str, ...] = ("entity", "rel_edge", "entity_label", "cluster", "fts")
 
@@ -39,6 +40,9 @@ def ensure_schema() -> None:
     with db_session() as conn:
         LOGGER.info("Applying base schema from %s", SCHEMA_PATH)
         _execute_sql_file(conn, SCHEMA_PATH)
+        if VIEWS_PATH.exists():
+            LOGGER.info("Applying views from %s", VIEWS_PATH)
+            _execute_sql_file(conn, VIEWS_PATH)
         conn.commit()
 
 

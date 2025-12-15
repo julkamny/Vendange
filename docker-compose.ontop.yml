@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  ontop:
+    image: ontop/ontop:5.0.0
+    restart: unless-stopped
+    environment:
+      ONTOP_PORT: 8080
+      ONTOP_MAPPING_FILE: /opt/ontop/input/mapping.obda
+      ONTOP_ONTOLOGY_FILE: /opt/ontop/input/ontology.ttl
+      ONTOP_PROPERTIES_FILE: /opt/ontop/input/ontop.properties
+    volumes:
+      - ./ontop:/opt/ontop/input:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vendange
+      POSTGRES_PASSWORD: vendange
+      POSTGRES_DB: vendange
+    ports:
+      - "55433:5432"
+    volumes:
+      - vendange_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vendange -d vendange"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  vendange_pg_data:

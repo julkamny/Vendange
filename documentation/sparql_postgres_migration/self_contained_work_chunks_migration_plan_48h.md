@@ -402,6 +402,8 @@ Do not touch curation/SPARQL yet unless it’s clearly dead code.
 * ✅ Ontop starts, endpoint reachable
 * ✅ “Ping” SPARQL query works (even if returns empty)
 
+**Execution status (2025-12-15)**: Added `ontop/` (properties, ontology, mapping stubs) and `docker-compose.ontop.yml`; ontop container starts alongside dedicated Postgres (port 55433).
+
 **Perfect engineer prompt**
 
 ```text
@@ -434,6 +436,8 @@ No real mappings yet; focus on repeatable boot + readiness.
 
 * ✅ Views compile and return rows for a sample dataset
 * ✅ Basic sanity query: count fields/subfields per entity is reasonable
+
+**Execution status (2025-12-15)**: Added `db/views.sql` and wired into `ensure_schema()`.
 
 **Perfect engineer prompt**
 
@@ -478,6 +482,8 @@ This follows the SRS “no named graphs” + dataset scoping pattern.
 * ✅ Query: traverse a relation edge using `rel_edge`
 * ✅ Every returned entity has `vend:datasetId`
 
+**Execution status (2025-12-15)**: Initial ontology/mapping stubs in `ontop/`; mapping exposes entities, labels, datasetId and rel_edge predicates.
+
 **Perfect engineer prompt**
 
 ```text
@@ -518,6 +524,8 @@ This is explicitly required by SRS §8.1.
 * ✅ UPDATE/INSERT/DELETE rejected
 * ✅ Negative test: query cannot “see” another dataset
 
+**Execution status (2025-12-15)**: Backend SPARQL endpoint now proxies to Ontop with SELECT-only guard + dataset filter injection, timeout default 10s.
+
 **Perfect engineer prompt**
 
 ```text
@@ -546,6 +554,8 @@ Do not change frontend contracts.
 * ✅ Sparnatural tab still produces valid SPARQL
 * ✅ Backend scoping works (no leakage)
 * ✅ No `GRAPH {}` emitted by frontend
+
+**Execution status (2025-12-15)**: Removed graph wrapping; `ensureGraphWrapping` now a no-op to drop GRAPH rewriting.
 
 **Perfect engineer prompt**
 

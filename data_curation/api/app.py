@@ -24,6 +24,8 @@ from data_curation.api.schemas import BacklinksPayload, RecordPayload, WorkClust
 from data_curation.api.datasets import DatasetMetadata
 from data_curation.api.pg.session import db_session
 from data_curation.api.pg import workspace_repo, autocomplete_repo
+from data_curation.api.ontop import client as ontop_client
+from data_curation.api.ontop import inject as ontop_inject
 from data_curation.curation.pipeline import (
     run_cluster_operation,
     run_cluster_with_expression_operation,
@@ -497,11 +499,12 @@ async def execute_query(dataset_id: str, payload: SparqlQueryPayload) -> dict[st
         raise HTTPException(status_code=400, detail="SPARQL query cannot be empty")
     _ensure_dataset(dataset_id)
     try:
-        columns, rows = db.run_sparql_query(dataset_id, payload.query)
+        injected = ontop_inject.inject_dataset_filter(payload.query, dataset_id)
+        columns, rows = ontop_client.execute_select(injected, timeout_seconds=10)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # pragma: no cover - defensive guard for runtime SPARQL errors
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"columns": columns, "rows": rows}
 
 

@@ -130,3 +130,4 @@ uv run -- spacy download fr_dep_news_trf
 - The FastAPI backend now exposes `/api/health/db` and reads `POSTGRES_DSN` for pooled connections (defaults to `postgresql://vendange:vendange@localhost:55432/vendange`).
 - Apply the base schema once Postgres is up: `uv run python -m data_curation.api.pg.schema ensure-schema`. Create/drop dataset partitions with `create-partitions` / `drop-partitions --dataset <id>`.
 - Dataset uploads now dual-write: Oxigraph (legacy) plus Postgres (`entity`, `entity_label`, `rel_edge`, `cluster`, `fts`).
+- Ontop dev stack (SPARQL over Postgres): `docker compose -f docker-compose.ontop.yml up -d` (exposes `http://localhost:8080/sparql`, connects to Postgres on 55433). Configure `ONTOP_ENDPOINT_URL` in `.env` if you run it elsewhere.

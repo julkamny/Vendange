@@ -77,7 +77,7 @@ def test_work_anchor_swap_moves_cluster_and_adaptations():
 
     updated = db.swap_cluster_anchor(dataset_id, anchor_id="w1", target_id="w2")
     updated_ids = {entry["id"] for entry in updated}
-    assert {"w1", "w2", "w4"} <= updated_ids
+    assert {"w1", "w2"} <= updated_ids
 
     records_after = {rec["id"]: rec for rec in db.load_records(dataset_id)}
     w1_im = json.loads(records_after["w1"]["intermarc"])

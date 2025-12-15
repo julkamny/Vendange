@@ -7,7 +7,13 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from data_curation.api.db_shared import looks_like_ark, sanitize_subfield_code
-from data_curation.api.entity_labels import agent_primary_label, manifestation_title, normalize_type, title_of
+from data_curation.api.entity_labels import (
+    agent_primary_label,
+    manifestation_title,
+    normalize_type,
+    title_of,
+    extract_controlled_value_label,
+)
 from data_curation.models import Intermarc
 from data_curation.utils.text_norm import fold_diacritics
 
@@ -42,6 +48,8 @@ def compute_label(parsed: ParsedRecord) -> tuple[str, Optional[str]]:
         label = manifestation_title(view)
     elif type_norm in {"personne", "collectivite", "famille"}:
         label = agent_primary_label(view)
+    elif type_norm == "valeur controlee":
+        label = extract_controlled_value_label(view)
     label = label or parsed.ark or parsed.record_id
     sort_key = fold_diacritics(label).lower() if label else None
     return label, sort_key

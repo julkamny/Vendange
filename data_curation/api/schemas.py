@@ -160,3 +160,10 @@ class BacklinksPayload(BaseModel):
     target_id: str
     target_ark: Optional[str] = None
     backlinks: List[BacklinkItem] = Field(default_factory=list)
+
+
+# Autocomplete
+class AutocompleteSuggestion(BaseModel):
+    ark: str
+    label: str
+    type: str

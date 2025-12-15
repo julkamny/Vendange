@@ -20,7 +20,14 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from data_curation.api import db, datasets
-from data_curation.api.schemas import BacklinksPayload, RecordPayload, WorkCluster, WorkspaceAgentsResponse, WorkspaceWorksResponse
+from data_curation.api.schemas import (
+    AutocompleteSuggestion,
+    BacklinksPayload,
+    RecordPayload,
+    WorkCluster,
+    WorkspaceAgentsResponse,
+    WorkspaceWorksResponse,
+)
 from data_curation.api.datasets import DatasetMetadata
 from data_curation.api.pg.session import db_session
 from data_curation.api.pg import workspace_repo, autocomplete_repo
@@ -84,12 +91,6 @@ class AutocompleteRequest(BaseModel):
     zone: Optional[str] = None
     subfield: Optional[str] = None
     query: str = ""
-
-
-class AutocompleteSuggestion(BaseModel):
-    ark: str
-    label: str
-    type: str
 
 
 @contextlib.asynccontextmanager
@@ -548,7 +549,11 @@ def workspace_works(dataset_id: str) -> WorkspaceWorksResponse:
 
 @app.get("/api/datasets/{dataset_id}/workspace/work/{anchor_key:path}", response_model=WorkCluster)
 def workspace_work(dataset_id: str, anchor_key: str) -> WorkCluster:
-    raise HTTPException(status_code=404, detail="Work cluster view not available during migration")
+    _ensure_dataset(dataset_id)
+    cluster = workspace_repo.get_work_cluster(dataset_id, anchor_key)
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Work cluster not found.")
+    return cluster
 
 
 @app.get("/api/datasets/{dataset_id}/workspace/agents", response_model=WorkspaceAgentsResponse)

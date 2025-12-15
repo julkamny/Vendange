@@ -305,6 +305,35 @@ def update_record(dataset_id: str, record_id: str, *, type_raw: str, intermarc_j
 
         record_ark = _ark_from_im(final_intermarc)
 
+        def _works_clustered_together(work_a: str, work_b: str) -> bool:
+            rows = conn.execute(
+                """
+                SELECT 1 FROM cluster
+                WHERE dataset_id=%s AND (
+                    (anchor_ark=%s AND member_ark=%s) OR
+                    (anchor_ark=%s AND member_ark=%s)
+                ) LIMIT 1
+                """,
+                (dataset_id, work_a, work_b, work_b, work_a),
+            ).fetchone()
+            return bool(rows)
+
+        # Validate cluster targets existence and parent compatibility (expressions)
+        if _is_work_type(type_raw) or _is_expression_type(type_raw):
+            target_arks = {sz.valeur for z in final_intermarc.get_zone("90F") for sz in z.sousZones if sz.code == "90F$3"}
+            for target in target_arks:
+                target_row = entities_repo.get_by_ark(dataset_id, target, for_update=True, conn=conn)
+                if not target_row:
+                    raise ValueError(f"Cible introuvable pour le cluster : {target}")
+                _, target_ent = target_row
+                if _is_expression_type(type_raw) and _is_expression_type(target_ent.type_entite):
+                    anchor_parents = set(final_intermarc.get_subfield_values("140", "3") or final_intermarc.get_subfield_values("750", "3"))
+                    target_parents = set(target_ent.intermarc.get_subfield_values("140", "3") or target_ent.intermarc.get_subfield_values("750", "3"))
+                    if anchor_parents and target_parents and anchor_parents.isdisjoint(target_parents):
+                        linked = any(_works_clustered_together(a, b) for a in anchor_parents for b in target_parents)
+                        if not linked:
+                            raise ValueError("La cible n'a pas le même parent (750/140).")
+
         # Guards after rebuild
         if _is_agent_type(type_raw):
             _ensure_unique_agent_clusters(conn, dataset_id, record_ark or "", final_intermarc)

@@ -10,7 +10,7 @@ dependencies = [
     "uvicorn[standard]",
     "pydantic",
     "python-multipart",
-    "psycopg[binary]>=3.1.19",
+    "psycopg[binary,pool]>=3.1.19",
     "rich>=14.2.0",
     "pip>=25.2",
     "numpy==1.26.4",

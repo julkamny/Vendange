@@ -158,6 +158,8 @@ Implement initial Postgres schema + partition mgmt:
 * ✅ Entity count matches source CSV
 * ✅ Records round-trip (stored JSON matches parsed payload)
 
+**Execution status (2025-12-15)**: Implemented. New Postgres ingest pipeline `data_curation/api/pg/ingest.py`, projections populated, dual-write wrapper in `data_curation/api/db.py`. Sample ingest of `sample_data/current_export.csv` into dataset `sample-long` completed (4240 rows).
+
 **Perfect engineer prompt**
 
 ```text
@@ -197,6 +199,8 @@ Add a tiny verification script: count rows and sample 5 records.
 * ✅ `cluster` populated for 90F clusters (work/expression/agent)
 * ✅ `fts` populated and queryable
 
+**Execution status (2025-12-15)**: Implemented via `data_curation/api/pg/projections.py` and integrated into ingest.
+
 **Perfect engineer prompt**
 
 ```text
@@ -231,6 +235,8 @@ Implement hybrid projections and wire them into ingest:
 * ✅ Creating dataset inserts row + creates partitions
 * ✅ Deleting dataset drops partitions + dataset row
 * ✅ `updated_at` is updated on ingest + curation writes
+
+**Execution status (2025-12-15)**: Implemented. Added Postgres dataset repo (`data_curation/api/pg/datasets_repo.py`) and rewired `data_curation/api/datasets.py` to use it while preserving dataset directories for legacy Oxigraph stores.
 
 **Perfect engineer prompt**
 

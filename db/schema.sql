@@ -5,8 +5,13 @@ CREATE TABLE IF NOT EXISTS dataset (
     id          text PRIMARY KEY,
     title       text NOT NULL,
     created_at  timestamptz NOT NULL DEFAULT now(),
-    updated_at  timestamptz NOT NULL DEFAULT now()
+    updated_at  timestamptz NOT NULL DEFAULT now(),
+    source_filename text,
+    last_clustered_at timestamptz
 );
+
+ALTER TABLE dataset ADD COLUMN IF NOT EXISTS source_filename text;
+ALTER TABLE dataset ADD COLUMN IF NOT EXISTS last_clustered_at timestamptz;
 
 CREATE TABLE IF NOT EXISTS entity (
     dataset_id  text NOT NULL,
@@ -26,9 +31,9 @@ CREATE TABLE IF NOT EXISTS rel_edge (
     dataset_id     text NOT NULL,
     src_entity_id  bigint NOT NULL,
     predicate_iri  text NOT NULL,
-    tgt_ark        text,
+    tgt_ark        text DEFAULT '' NOT NULL,
     tgt_entity_id  bigint,
-    PRIMARY KEY (dataset_id, src_entity_id, predicate_iri, COALESCE(tgt_ark, ''))
+    PRIMARY KEY (dataset_id, src_entity_id, predicate_iri, tgt_ark)
 ) PARTITION BY LIST (dataset_id);
 
 CREATE INDEX IF NOT EXISTS idx_rel_edge_src ON rel_edge (src_entity_id);

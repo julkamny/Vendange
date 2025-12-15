@@ -11,12 +11,13 @@ import logging
 import os
 from typing import Optional
 
+from psycopg import sql
 from psycopg_pool import ConnectionPool
 from psycopg.rows import dict_row
 
 LOGGER = logging.getLogger(__name__)
 
-DEFAULT_DSN = "postgresql://vendange:vendange@localhost:5432/vendange"
+DEFAULT_DSN = "postgresql://vendange:vendange@localhost:55432/vendange"
 
 # Singleton pool initialized lazily to avoid surprising failures when Postgres
 # is not running during import time.
@@ -31,7 +32,9 @@ def _configure_connection(conn) -> None:
     statement_timeout_ms = os.getenv("POSTGRES_STATEMENT_TIMEOUT_MS")
     if statement_timeout_ms:
         # Default guardrail; per-request overrides live in session.py
-        conn.execute("SET SESSION statement_timeout = %s", (f"{int(statement_timeout_ms)}ms",))
+        conn.execute(
+            sql.SQL("SET SESSION statement_timeout = {}").format(sql.Literal(f"{int(statement_timeout_ms)}ms"))
+        )
     conn.commit()
 
 

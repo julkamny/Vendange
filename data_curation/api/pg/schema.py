@@ -45,9 +45,13 @@ def ensure_schema() -> None:
 def _create_partition(conn, parent: str, dataset_id: str) -> None:
     partition = sql.Identifier(_partition_name(parent, dataset_id))
     stmt = sql.SQL(
-        "CREATE TABLE IF NOT EXISTS {partition} PARTITION OF {parent} FOR VALUES IN (%s)"
-    ).format(partition=partition, parent=sql.Identifier(parent))
-    conn.execute(stmt, (dataset_id,))
+        "CREATE TABLE IF NOT EXISTS {partition} PARTITION OF {parent} FOR VALUES IN ({dataset_id})"
+    ).format(
+        partition=partition,
+        parent=sql.Identifier(parent),
+        dataset_id=sql.Literal(dataset_id),
+    )
+    conn.execute(stmt)
 
 
 def create_dataset_partitions(dataset_id: str) -> None:

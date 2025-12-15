@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import re
 import threading
 import uuid
@@ -9,8 +8,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
+from data_curation.api.pg import datasets_repo
+
 DATASETS_ROOT = Path(__file__).resolve().parent / "datasets"
-METADATA_PATH = DATASETS_ROOT / "datasets.json"
 _METADATA_LOCK = threading.RLock()
 
 
@@ -54,41 +54,40 @@ def _slugify(value: str) -> str:
 
 
 def _load_metadata_unlocked() -> Dict[str, DatasetMetadata]:
-    if not METADATA_PATH.exists():
-        return {}
-    data = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
-    lookup: Dict[str, DatasetMetadata] = {}
-    for item in data:
-        meta = DatasetMetadata(
-            id=item["id"],
-            title=item["title"],
-            created_at=item["created_at"],
-            updated_at=item["updated_at"],
-            source_filename=item.get("source_filename"),
-            last_clustered_at=item.get("last_clustered_at"),
-        )
-        lookup[meta.id] = meta
-    return lookup
+    raise NotImplementedError("Legacy metadata file no longer used")
 
 
 def _save_metadata_unlocked(metadata: Iterable[DatasetMetadata]) -> None:
-    payload = [m.to_dict() for m in metadata]
-    METADATA_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    raise NotImplementedError("Legacy metadata file no longer used")
 
 
 def list_datasets() -> List[DatasetMetadata]:
-    with _METADATA_LOCK:
-        ensure_root()
-        return list(_load_metadata_unlocked().values())
+    ensure_root()
+    rows = datasets_repo.list_datasets()
+    return [
+        DatasetMetadata(
+            id=row["id"],
+            title=row["title"],
+            created_at=row["created_at"].isoformat(),
+            updated_at=row["updated_at"].isoformat(),
+            source_filename=row.get("source_filename"),
+            last_clustered_at=row.get("last_clustered_at").isoformat() if row.get("last_clustered_at") else None,
+        )
+        for row in rows
+    ]
 
 
 def get_dataset(dataset_id: str) -> DatasetMetadata:
-    with _METADATA_LOCK:
-        ensure_root()
-        data = _load_metadata_unlocked()
-        if dataset_id not in data:
-            raise KeyError(f"Dataset not found: {dataset_id}")
-        return data[dataset_id]
+    ensure_root()
+    row = datasets_repo.get_dataset(dataset_id)
+    return DatasetMetadata(
+        id=row["id"],
+        title=row["title"],
+        created_at=row["created_at"].isoformat(),
+        updated_at=row["updated_at"].isoformat(),
+        source_filename=row.get("source_filename"),
+        last_clustered_at=row.get("last_clustered_at").isoformat() if row.get("last_clustered_at") else None,
+    )
 
 
 def _generate_dataset_id(title: Optional[str], existing: Dict[str, DatasetMetadata]) -> str:
@@ -107,79 +106,41 @@ def _generate_dataset_id(title: Optional[str], existing: Dict[str, DatasetMetada
 def create_dataset_entry(title: Optional[str], source_filename: Optional[str]) -> DatasetMetadata:
     with _METADATA_LOCK:
         ensure_root()
-        data = _load_metadata_unlocked()
-        dataset_id = _generate_dataset_id(title, data)
-        now = _now_iso()
-        meta = DatasetMetadata(
-            id=dataset_id,
-            title=title.strip() if title else dataset_id,
-            created_at=now,
-            updated_at=now,
-            source_filename=source_filename,
-            last_clustered_at=None,
-        )
-        data[dataset_id] = meta
-        _save_metadata_unlocked(data.values())
+        existing = {meta["id"]: meta for meta in datasets_repo.list_datasets()}
+        dataset_id = _generate_dataset_id(title, {k: DatasetMetadata(k, "", "", "") for k in existing})
+        datasets_repo.create_dataset(dataset_id, title.strip() if title else dataset_id, source_filename)
     dataset_path = dataset_directory(dataset_id)
     dataset_path.mkdir(parents=True, exist_ok=True)
-    return meta
+    return get_dataset(dataset_id)
 
 
 def ensure_dataset(dataset_id: str, title: Optional[str] = None, source_filename: Optional[str] = None) -> DatasetMetadata:
     normalized_id = _slugify(dataset_id)
     with _METADATA_LOCK:
         ensure_root()
-        data = _load_metadata_unlocked()
-        if normalized_id in data:
-            return data[normalized_id]
-        now = _now_iso()
-        meta = DatasetMetadata(
-            id=normalized_id,
-            title=title.strip() if title else normalized_id,
-            created_at=now,
-            updated_at=now,
-            source_filename=source_filename,
-            last_clustered_at=None,
-        )
-        data[normalized_id] = meta
-        _save_metadata_unlocked(data.values())
+        try:
+            return get_dataset(normalized_id)
+        except KeyError:
+            datasets_repo.create_dataset(normalized_id, title.strip() if title else normalized_id, source_filename)
     dataset_directory(normalized_id).mkdir(parents=True, exist_ok=True)
-    return meta
+    return get_dataset(normalized_id)
 
 
 def update_dataset_title(dataset_id: str, title: str) -> DatasetMetadata:
     with _METADATA_LOCK:
         ensure_root()
-        data = _load_metadata_unlocked()
-        if dataset_id not in data:
-            raise KeyError(f"Dataset not found: {dataset_id}")
-        meta = data[dataset_id]
-        meta.title = title.strip() or meta.title
-        meta.updated_at = _now_iso()
-        data[dataset_id] = meta
-        _save_metadata_unlocked(data.values())
-        return meta
+        datasets_repo.update_title(dataset_id, title.strip() or title)
+    return get_dataset(dataset_id)
 
 
 def touch_dataset(dataset_id: str) -> None:
-    with _METADATA_LOCK:
-        ensure_root()
-        data = _load_metadata_unlocked()
-        if dataset_id not in data:
-            return
-        meta = data[dataset_id]
-        meta.updated_at = _now_iso()
-        data[dataset_id] = meta
-        _save_metadata_unlocked(data.values())
+    ensure_root()
+    datasets_repo.touch(dataset_id)
 
 
 def delete_dataset_entry(dataset_id: str) -> None:
-    with _METADATA_LOCK:
-        ensure_root()
-        data = _load_metadata_unlocked()
-        if dataset_id in data:
-            data.pop(dataset_id)
-            _save_metadata_unlocked(data.values())
+    ensure_root()
+    datasets_repo.delete_dataset(dataset_id)
 
 
 def dataset_directory(dataset_id: str) -> Path:

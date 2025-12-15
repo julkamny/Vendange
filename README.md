@@ -9,6 +9,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 ### Overview
 - Python CLI to run modular data-curation operations directly against the Oxigraph SPARQL store for IFLA-LRM entities.
 - Web UI to review, approve/reject/alter merges and export a curated dataset.
+- Workspace endpoints are being migrated to Postgres (SQL-backed lists/records/backlinks/autocomplete); the former in-memory `WorkspaceViewBuilder` cache has been removed during this migration phase.
 
 ### Getting Started
 

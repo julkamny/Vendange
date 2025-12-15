@@ -271,6 +271,8 @@ Keep API responses unchanged if possible.
 * ✅ No full entity scan / no in-memory “all entities” cache path
 * ✅ p95 improves vs Oxigraph builder on 400k (rough check OK)
 
+**Execution status (2025-12-15)**: Implemented minimal SQL workspace list (`data_curation/api/pg/workspace_repo.py`) and wired `/workspace/works` + `/workspace/agents` to Postgres; clusters currently returned empty pending later clustering port.
+
 **Perfect engineer prompt**
 
 ```text
@@ -304,6 +306,8 @@ Do not optimize everything; focus on correctness + no in-memory full dataset loa
 * ✅ Record view works for both ID and ARK keys
 * ✅ Backlinks list matches baseline (Chunk 01 outputs)
 
+**Execution status (2025-12-15)**: Implemented SQL-backed record + backlinks endpoints using `entity`/`rel_edge`. No baseline comparison yet; returns backlinks via tgt_ark reverse lookup.
+
 **Perfect engineer prompt**
 
 ```text
@@ -332,6 +336,8 @@ Validate against P0 baseline snapshots for a handful of keys.
 * ✅ No in-memory full dataset required
 * ✅ Uses `fts` and/or `entity_label` for speed
 
+**Execution status (2025-12-15)**: Implemented `api/pg/autocomplete_repo.py` and rewired endpoint to Postgres FTS.
+
 **Perfect engineer prompt**
 
 ```text
@@ -359,6 +365,8 @@ Port autocomplete/entities to SQL:
 * ✅ Workspace tab works end-to-end
 * ✅ No imports of `WorkspaceViewBuilder` remain
 * ✅ Memory footprint drops (qualitative check)
+
+**Execution status (2025-12-15)**: Removed WorkspaceViewBuilder cache, deleted `cluster_views.py`, pruned builder references in FastAPI handlers. Some curation responses now return empty cluster deltas while migration continues.
 
 **Perfect engineer prompt**
 

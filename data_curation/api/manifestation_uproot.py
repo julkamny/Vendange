@@ -10,7 +10,6 @@ from .db_store import _STORE_LOCK, clear_record_graph, get_store_locked, load_ar
 from . import datasets
 from .anchor_swap import _clone_zone
 from ..models import Entity, Intermarc, SousZone, Zone
-from data_curation.api.cluster_views import _expression_work_arks, _manifestation_expression_arks
 
 
 @dataclass
@@ -34,6 +33,17 @@ def _work_arks_for_expression_arks(
         expr_entity = _load_record_from_store(store, *subjects[expr_id])
         work_arks.update(_expression_work_arks(expr_entity))
     return work_arks
+
+
+def _expression_work_arks(expr: Entity) -> List[str]:
+    vals = expr.intermarc.get_subfield_values("140", "3")
+    if vals:
+        return vals
+    return expr.intermarc.get_subfield_values("750", "3")
+
+
+def _manifestation_expression_arks(manifestation: Entity) -> List[str]:
+    return manifestation.intermarc.get_subfield_values("740", "3")
 
 
 def _rewrite_manifestation_links(

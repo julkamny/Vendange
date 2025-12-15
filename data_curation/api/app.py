@@ -9,30 +9,27 @@ import json
 import logging
 import shutil
 import zipfile
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, List, Optional
-import threading
+from typing import Any, AsyncIterator, List, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from data_curation.api import autocomplete as autocomplete_service
 from data_curation.api import db, datasets
 from data_curation.api.schemas import BacklinksPayload, RecordPayload, WorkCluster, WorkspaceAgentsResponse, WorkspaceWorksResponse
-from data_curation.api.cluster_views import AgentViewBuilder, WorkspaceViewBuilder
 from data_curation.api.datasets import DatasetMetadata
 from data_curation.api.pg.session import db_session
+from data_curation.api.pg import workspace_repo, autocomplete_repo
 from data_curation.curation.pipeline import (
     run_cluster_operation,
     run_cluster_with_expression_operation,
 )
 from data_curation.api.manifestation_uproot import ManifestationUprootResult, uproot_manifestation
 from data_curation.utils.log_bundle import LOG_TEXT_FORMAT, LogBundle, activate_log_bundle, reset_log_bundle
-from data_curation.models import Entity
 
 
 LOGGER = logging.getLogger(__name__)
@@ -343,57 +340,7 @@ def _serialize_dataset(meta: DatasetMetadata) -> dict[str, Any]:
     }
 
 
-# WorkspaceViewBuilder cache --------------------------------------------------
-
-
-@dataclass
-class _WorkspaceCacheEntry:
-    builder: WorkspaceViewBuilder
-    updated_at: str
-
-
-_WORKSPACE_CACHE: Dict[str, _WorkspaceCacheEntry] = {}
-_WORKSPACE_CACHE_LOCK = threading.RLock()
-
-
-def _invalidate_workspace_cache(dataset_id: str) -> None:
-    with _WORKSPACE_CACHE_LOCK:
-        _WORKSPACE_CACHE.pop(dataset_id, None)
-
-
-def _get_workspace_builder(dataset_id: str) -> WorkspaceViewBuilder:
-    meta = _ensure_dataset(dataset_id)
-    updated_at = meta.updated_at
-    with _WORKSPACE_CACHE_LOCK:
-        entry = _WORKSPACE_CACHE.get(dataset_id)
-        if entry and entry.updated_at == updated_at:
-            return entry.builder
-
-    builder = WorkspaceViewBuilder.from_dataset(dataset_id)
-    with _WORKSPACE_CACHE_LOCK:
-        _WORKSPACE_CACHE[dataset_id] = _WorkspaceCacheEntry(builder=builder, updated_at=updated_at)
-    return builder
-
-
-def _apply_workspace_updates(dataset_id: str, updated_records: List[dict[str, str]]) -> Optional[WorkspaceViewBuilder]:
-    if not updated_records:
-        _invalidate_workspace_cache(dataset_id)
-        return None
-
-    with _WORKSPACE_CACHE_LOCK:
-        entry = _WORKSPACE_CACHE.get(dataset_id)
-
-    if not entry:
-        return None
-
-    entities = [Entity(item["id"], item["type"], item["intermarc"]) for item in updated_records]
-    entry.builder.replace_entities(entities)
-    # Refresh cache timestamp to latest dataset update after db.touch_dataset
-    meta = datasets.get_dataset(dataset_id)
-    with _WORKSPACE_CACHE_LOCK:
-        _WORKSPACE_CACHE[dataset_id] = _WorkspaceCacheEntry(builder=entry.builder, updated_at=meta.updated_at)
-
-    return entry.builder
+# Workspace cache removed; workspace endpoints now query Postgres directly.
 
 
 @app.get("/api/datasets")
@@ -448,7 +395,6 @@ def delete_dataset(dataset_id: str) -> None:
     if dataset_dir.exists():
         shutil.rmtree(dataset_dir, ignore_errors=True)
     datasets.delete_dataset_entry(dataset_id)
-    _invalidate_workspace_cache(dataset_id)
 
 
 @app.post("/api/datasets/{dataset_id}/update_record")
@@ -458,27 +404,11 @@ async def update_record(dataset_id: str, payload: UpdateRecordPayload) -> dict[s
         updated = db.update_record(dataset_id, payload.record_id, type_raw=payload.type_raw, intermarc_json=payload.intermarc_json)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    builder = _apply_workspace_updates(dataset_id, updated) or _get_workspace_builder(dataset_id)
-    clusters = builder.build_work_clusters()
-    affected_arks = {rec.get("ark") for rec in updated if rec.get("ark")}
-    updated_clusters = [
-        cluster
-        for cluster in clusters
-        if (cluster.anchor_ark and cluster.anchor_ark in affected_arks)
-        or any(item.ark in affected_arks for item in cluster.items)
-    ]
-    updated_work_rows = []
-    for ark in affected_arks:
-        if not ark:
-            continue
-        row = builder.work_row_for_ark(ark)
-        if row:
-            updated_work_rows.append(row)
     return {
         "updatedRecords": updated,
-        "updatedClusters": updated_clusters,
+        "updatedClusters": [],
         "removedClusterIds": [],
-        "updatedWorkRows": updated_work_rows,
+        "updatedWorkRows": [],
     }
 
 
@@ -489,27 +419,11 @@ def swap_anchor(dataset_id: str, payload: AnchorSwapPayload) -> dict[str, object
         updated = db.swap_cluster_anchor(dataset_id, anchor_id=payload.anchor_id, target_id=payload.target_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    builder = _apply_workspace_updates(dataset_id, updated) or _get_workspace_builder(dataset_id)
-    clusters = builder.build_work_clusters()
-    affected_arks = {rec.get("ark") for rec in updated if rec.get("ark")}
-    updated_clusters = [
-        cluster
-        for cluster in clusters
-        if (cluster.anchor_ark and cluster.anchor_ark in affected_arks)
-        or any(item.ark in affected_arks for item in cluster.items)
-    ]
-    updated_work_rows = []
-    for ark in affected_arks:
-        if not ark:
-            continue
-        row = builder.work_row_for_ark(ark)
-        if row:
-            updated_work_rows.append(row)
     return {
         "updatedRecords": updated,
-        "updatedClusters": updated_clusters,
+        "updatedClusters": [],
         "removedClusterIds": [],
-        "updatedWorkRows": updated_work_rows,
+        "updatedWorkRows": [],
     }
 
 
@@ -524,27 +438,11 @@ def swap_originality(dataset_id: str, payload: OriginalitySwapPayload) -> dict[s
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    builder = _apply_workspace_updates(dataset_id, updated) or _get_workspace_builder(dataset_id)
-    clusters = builder.build_work_clusters()
-    affected_arks = {rec.get("ark") for rec in updated if rec.get("ark")}
-    updated_clusters = [
-        cluster
-        for cluster in clusters
-        if (cluster.anchor_ark and cluster.anchor_ark in affected_arks)
-        or any(item.ark in affected_arks for item in cluster.items)
-    ]
-    updated_work_rows = []
-    for ark in affected_arks:
-        if not ark:
-            continue
-        row = builder.work_row_for_ark(ark)
-        if row:
-            updated_work_rows.append(row)
     return {
         "updatedRecords": updated,
-        "updatedClusters": updated_clusters,
+        "updatedClusters": [],
         "removedClusterIds": [],
-        "updatedWorkRows": updated_work_rows,
+        "updatedWorkRows": [],
     }
 
 
@@ -561,50 +459,11 @@ def manual_cluster(dataset_id: str, payload: ManualClusterPayload) -> dict[str, 
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    builder = _apply_workspace_updates(dataset_id, updated) or _get_workspace_builder(dataset_id)
-    clusters = builder.build_work_clusters()
-
-    affected_ids = {item.get("id") for item in updated if item.get("id")}
-    affected_arks = {item.get("ark") for item in updated if item.get("ark")}
-    if payload.target_ark:
-        affected_arks.add(payload.target_ark)
-
-    def _cluster_matches(cluster: WorkCluster) -> bool:
-        if cluster.anchor_id in affected_ids or (cluster.anchor_ark and cluster.anchor_ark in affected_arks):
-            return True
-        for item in cluster.items:
-            if (item.id and item.id in affected_ids) or (item.ark and item.ark in affected_arks):
-                return True
-        for group in cluster.expression_groups:
-            if (group.anchor.id in affected_ids) or (group.anchor.ark and group.anchor.ark in affected_arks):
-                return True
-            for expr in group.clustered:
-                if (expr.id and expr.id in affected_ids) or (expr.ark and expr.ark in affected_arks):
-                    return True
-        for expr in cluster.independent_expressions:
-            if (expr.id and expr.id in affected_ids) or (expr.ark and expr.ark in affected_arks):
-                return True
-        return False
-
-    updated_clusters = [cluster for cluster in clusters if _cluster_matches(cluster)]
-    removed_cluster_ids: List[str] = []
-    if payload.accepted is False and not any(c.anchor_id == payload.anchor_id for c in clusters):
-        removed_cluster_ids.append(payload.anchor_id)
-
-    updated_work_rows = []
-    for ark in affected_arks:
-        if not ark:
-            continue
-        row = builder.work_row_for_ark(ark)
-        if row:
-            updated_work_rows.append(row)
-
     return {
         "updatedRecords": updated,
-        "updatedClusters": updated_clusters,
-        "removedClusterIds": removed_cluster_ids,
-        "updatedWorkRows": updated_work_rows,
+        "updatedClusters": [],
+        "removedClusterIds": [],
+        "updatedWorkRows": [],
     }
 
 
@@ -624,31 +483,11 @@ def uproot_manifestation_endpoint(dataset_id: str, payload: ManifestationUprootP
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    builder = _apply_workspace_updates(dataset_id, result.updated_records) or _get_workspace_builder(dataset_id)
-    clusters = builder.build_work_clusters()
-
-    related_work_arks = result.previous_work_arks | result.next_work_arks
-
-    def _cluster_matches(cluster: WorkCluster) -> bool:
-        if cluster.anchor_ark and cluster.anchor_ark in related_work_arks:
-            return True
-        return any(item.ark in related_work_arks for item in cluster.items)
-
-    updated_clusters = [cluster for cluster in clusters if _cluster_matches(cluster)]
-
-    updated_work_rows = []
-    for ark in related_work_arks:
-        if not ark:
-            continue
-        row = builder.work_row_for_ark(ark)
-        if row:
-            updated_work_rows.append(row)
-
     return {
         "updatedRecords": result.updated_records,
-        "updatedClusters": updated_clusters,
+        "updatedClusters": [],
         "removedClusterIds": [],
-        "updatedWorkRows": updated_work_rows,
+        "updatedWorkRows": [],
     }
 
 
@@ -701,33 +540,24 @@ def download_cluster_log(dataset_id: str, log_name: str) -> Response:
 @app.get("/api/datasets/{dataset_id}/workspace/works", response_model=WorkspaceWorksResponse)
 def workspace_works(dataset_id: str) -> WorkspaceWorksResponse:
     _ensure_dataset(dataset_id)
-    builder = _get_workspace_builder(dataset_id)
-    return builder.workspace_works_payload()
+    return workspace_repo.list_works(dataset_id)
 
 
 @app.get("/api/datasets/{dataset_id}/workspace/work/{anchor_key:path}", response_model=WorkCluster)
 def workspace_work(dataset_id: str, anchor_key: str) -> WorkCluster:
-    _ensure_dataset(dataset_id)
-    builder = _get_workspace_builder(dataset_id)
-    cluster = builder.cluster_for_anchor(anchor_key)
-    if not cluster:
-        raise HTTPException(status_code=404, detail="Cluster not found for the requested anchor.")
-    return cluster
+    raise HTTPException(status_code=404, detail="Work cluster view not available during migration")
 
 
 @app.get("/api/datasets/{dataset_id}/workspace/agents", response_model=WorkspaceAgentsResponse)
 def workspace_agents(dataset_id: str) -> WorkspaceAgentsResponse:
     _ensure_dataset(dataset_id)
-    workspace = _get_workspace_builder(dataset_id)
-    builder = AgentViewBuilder.from_workspace(workspace)
-    return builder.workspace_agents_payload()
+    return workspace_repo.list_agents(dataset_id)
 
 
 @app.get("/api/datasets/{dataset_id}/workspace/record/{record_key:path}", response_model=RecordPayload)
 def workspace_record(dataset_id: str, record_key: str) -> RecordPayload:
     _ensure_dataset(dataset_id)
-    builder = _get_workspace_builder(dataset_id)
-    record = builder.record_payload_for_key(record_key)
+    record = workspace_repo.record_payload(dataset_id, record_key)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found for the requested identifier.")
     return record
@@ -736,8 +566,7 @@ def workspace_record(dataset_id: str, record_key: str) -> RecordPayload:
 @app.get("/api/datasets/{dataset_id}/workspace/backlinks/{record_key:path}", response_model=BacklinksPayload)
 def workspace_backlinks(dataset_id: str, record_key: str) -> BacklinksPayload:
     _ensure_dataset(dataset_id)
-    builder = _get_workspace_builder(dataset_id)
-    payload = builder.backlinks_payload_for_key(record_key)
+    payload = workspace_repo.get_backlinks(dataset_id, record_key)
     if not payload:
         raise HTTPException(status_code=404, detail="Record not found for the requested identifier.")
     return payload
@@ -745,14 +574,6 @@ def workspace_backlinks(dataset_id: str, record_key: str) -> BacklinksPayload:
 
 @app.post("/api/datasets/{dataset_id}/autocomplete/entities")
 def dataset_autocomplete_entities(dataset_id: str, payload: AutocompleteRequest) -> dict[str, List[AutocompleteSuggestion]]:
-    meta = _ensure_dataset(dataset_id)
-    builder = _get_workspace_builder(dataset_id)
-    target_code = payload.subfield or payload.zone or ""
-    suggestions = autocomplete_service.autocomplete_entities(
-        dataset_id=dataset_id,
-        updated_at=meta.updated_at,
-        entities=builder.entities,
-        subfield_code=target_code,
-        query=payload.query or "",
-    )
+    _ensure_dataset(dataset_id)
+    suggestions = autocomplete_repo.search_entities(dataset_id, payload.query or "")
     return {"suggestions": suggestions}

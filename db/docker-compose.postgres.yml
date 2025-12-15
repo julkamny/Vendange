@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vendange
+      POSTGRES_PASSWORD: vendange
+      POSTGRES_DB: vendange
+    ports:
+      - "5432:5432"
+    volumes:
+      - vendange_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vendange -d vendange"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  vendange_pg_data:

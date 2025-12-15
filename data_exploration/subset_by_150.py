@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-from data_curation.api import datasets
+from data_curation.api import datasets  # noqa: E402
 
 # --- Constants ----------------------------------------------------------------
 

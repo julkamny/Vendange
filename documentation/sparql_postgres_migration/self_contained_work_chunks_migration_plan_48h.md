@@ -76,6 +76,8 @@ Do not modify application behavior. Provide instructions to re-run.
 * ✅ Backend can open a connection and run `SELECT 1`
 * ✅ DB timeout utility exists (even if not used yet)
 
+**Execution status (2025-12-15)**: Implemented. New assets: `db/docker-compose.postgres.yml`, `data_curation/api/pg/{pool.py,session.py}`, `/api/health/db`, `.env.example` with `POSTGRES_DSN`.
+
 **Perfect engineer prompt**
 
 ```text

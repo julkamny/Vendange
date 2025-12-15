@@ -25,6 +25,7 @@ from data_curation.api import db, datasets
 from data_curation.api.schemas import BacklinksPayload, RecordPayload, WorkCluster, WorkspaceAgentsResponse, WorkspaceWorksResponse
 from data_curation.api.cluster_views import AgentViewBuilder, WorkspaceViewBuilder
 from data_curation.api.datasets import DatasetMetadata
+from data_curation.api.pg.session import db_session
 from data_curation.curation.pipeline import (
     run_cluster_operation,
     run_cluster_with_expression_operation,
@@ -110,6 +111,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/api/health/db")
+def db_health() -> dict[str, str]:
+    """Simple connectivity probe for Postgres."""
+    try:
+        with db_session(statement_timeout_ms=500) as conn:
+            conn.execute("SELECT 1")
+    except Exception as exc:  # pragma: no cover - defensive guardrail
+        LOGGER.exception("Database health check failed")
+        raise HTTPException(status_code=503, detail="Database unavailable") from exc
+    return {"status": "ok"}
 
 
 class _QueueLogHandler(logging.Handler):

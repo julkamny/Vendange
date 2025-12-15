@@ -7,10 +7,10 @@ _Vérification Experte, Nettoyage et Dédoublonnage des Arbres NOEMI par Grappag
 While the ideas behind Vendange's clustering operations and its UI are the result of human reflexion, the code was produced by gpt-5-codex in codex cli.
 
 ### Overview
-- Python CLI to run modular data-curation operations directly against the Oxigraph SPARQL store for IFLA-LRM entities.
+- Python CLI to run modular data-curation operations directly against the Postgres-backed corpus (SPARQL served via Ontop).
 - Web UI to review, approve/reject/alter merges and export a curated dataset.
-- Workspace endpoints are being migrated to Postgres (SQL-backed lists/records/backlinks/autocomplete); the former in-memory `WorkspaceViewBuilder` cache has been removed during this migration phase.
-- Curation operations (update record, manual clustering, anchor/originality swap, manifestation uproot) now write directly to Postgres under dataset-scoped advisory locks; Oxigraph is no longer touched on these paths.
+- Workspace endpoints are Postgres-backed (SQL lists/records/backlinks/autocomplete); the former in-memory `WorkspaceViewBuilder` cache has been removed.
+- Curation operations (update record, manual clustering, anchor/originality swap, manifestation uproot) now write directly to Postgres under dataset-scoped advisory locks; Oxigraph has been removed from the backend stack.
 
 ### Getting Started
 
@@ -54,12 +54,12 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 
 #### Running data curation operations
 - To launch the FastAPI server in `data_curation/api`: `uv run fastapi dev data_curation/api/app.py`. See below for explanations.
-- Clustering workflows automatically re-compact the Oxigraph store after updates so blank-node identifiers stay deterministic and the on-disk dataset remains small.
-- The React UI opens on a dashboard that lets you upload CSV snapshots, launch clustering (with or without expression propagation) while streaming script logs, jump into the inspection workspace, or delete a dataset. Every upload becomes its own Oxigraph store.
+- Clustering workflows refresh Postgres projections after updates so labels/backlinks stay consistent.
+- The React UI opens on a dashboard that lets you upload CSV snapshots, launch clustering (with or without expression propagation) while streaming script logs, jump into the inspection workspace, or delete a dataset. Every upload is stored in Postgres partitions keyed by dataset_id.
 
 ### Testing backend guardrails
 - End-to-end guards between the React UI and FastAPI are covered in `data_curation/tests/test_cluster_guards.py`. Run them with `uv run pytest data_curation/tests/test_cluster_guards.py`.
-- The tests spin up fresh Oxigraph stores under `data_curation/api/datasets/<prefix>-<uuid>` (work/expression/manifestation fixtures with 150/140/245/750/740 fields) and **intentionally leave them on disk** for inspection after a run.
+- The tests ingest fixture CSVs into Postgres partitions keyed by dataset_id (work/expression/manifestation fixtures with 150/140/245/750/740 fields) and intentionally leave datasets registered for inspection after a run.
 - Routing now uses TanStack Router. Deep-linking to `http://localhost:5173/<dataset_slug>` loads the dataset via the route loader (with a friendly error screen when the slug is invalid) and back/forward navigation keeps the dashboard/inspection views in sync.
 
 ### Debug & Fixtures
@@ -130,5 +130,5 @@ uv run -- spacy download fr_dep_news_trf
 - Start the database locally: `docker compose -f db/docker-compose.postgres.yml up -d` (service `postgres`, port 55432 -> container 5432).
 - The FastAPI backend now exposes `/api/health/db` and reads `POSTGRES_DSN` for pooled connections (defaults to `postgresql://vendange:vendange@localhost:55432/vendange`).
 - Apply the base schema once Postgres is up: `uv run python -m data_curation.api.pg.schema ensure-schema`. Create/drop dataset partitions with `create-partitions` / `drop-partitions --dataset <id>`.
-- Dataset uploads now dual-write: Oxigraph (legacy) plus Postgres (`entity`, `entity_label`, `rel_edge`, `cluster`, `fts`).
+- Dataset uploads now write directly to Postgres tables (`entity`, `entity_label`, `rel_edge`, `cluster`, `fts`); Oxigraph has been removed.
 - Ontop dev stack (SPARQL over Postgres): `docker compose -f docker-compose.ontop.yml up -d` (exposes `http://localhost:8080/sparql`, connects to Postgres on 55433). Configure `ONTOP_ENDPOINT_URL` in `.env` if you run it elsewhere.

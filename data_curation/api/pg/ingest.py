@@ -156,7 +156,7 @@ def ingest_csv(dataset_id: str, csv_bytes: bytes, *, dataset_label: Optional[str
                 label_rows.append((dataset_id, entity_id, label, sort_key, rec.type_norm))
 
                 for edge in projections.extract_edges(rec):
-                    predicate_iri = relation_predicate(edge["relation_code"]).value
+                    predicate_iri = relation_predicate(edge["relation_code"])
                     edge_rows.append((dataset_id, entity_id, predicate_iri, edge["tgt_ark"]))
 
                 cluster_rows.extend(

@@ -27,8 +27,6 @@ dependencies = [
     "spacy-curated-transformers==0.3.1",
     "sympy==1.14.0",
     "torch==2.2.2",
-    "pyoxigraph>=0.5.2",
-    "oxigraph>=0.5.2",
     "spacy==3.8.7",
     "fr_dep_news_trf==3.8.0",
     "google-genai>=1.50.1",

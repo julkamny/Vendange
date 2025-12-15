@@ -10,8 +10,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from data_curation.api import db, datasets
-from data_curation.api.db_shared import get_controlled_ark
-from data_curation.api.db_store import get_store_locked
+from data_curation.api.pg import controlled_repo
 from data_curation.api.manifestation_uproot import uproot_manifestation
 import pytest
 
@@ -58,8 +57,7 @@ def test_manifestation_uproot_and_attach_updates_740_links():
     ]
     db.ingest_csv(_records_to_csv_bytes(rows), dataset_id)
 
-    store = get_store_locked(dataset_id)
-    partial_ark = get_controlled_ark(store, "Partiellement")
+    partial_ark = controlled_repo.get_controlled_ark_by_label(dataset_id, "Partiellement")
     assert partial_ark, "Expected controlled value for 'Partiellement'"
 
     uproot_manifestation(
@@ -131,8 +129,7 @@ def test_update_record_adds_740_and_keeps_existing_links():
     ]
     db.ingest_csv(_records_to_csv_bytes(rows), dataset_id)
 
-    store = get_store_locked(dataset_id)
-    partial_ark = get_controlled_ark(store, "Partiellement") or "Partiellement"
+    partial_ark = controlled_repo.get_controlled_ark_by_label(dataset_id, "Partiellement") or "Partiellement"
 
     payload_zones = [
         create_zone("001", [("a", "ark:/m1", None)]),

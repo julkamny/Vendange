@@ -805,6 +805,8 @@ Document how to run locally.
 * ✅ No dataset directory used for storage (only logs if you keep them)
 * ✅ All baseline corpus tests pass against Postgres+Ontop
 
+**Execution status (2025-12-15)**: Completed. Removed Oxigraph code paths (`db_store.py`, `db_query.py`, `db_ingest.py`), dropped `pyoxigraph/oxigraph` dependencies, rewired `db.py` facade to Postgres-only stats/records, and updated tests/docs accordingly.
+
 **Perfect engineer prompt**
 
 ```text

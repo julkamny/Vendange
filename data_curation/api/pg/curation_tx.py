@@ -107,7 +107,7 @@ def _refresh_projections(conn, dataset_id: str, entity_id: int, parsed: projecti
                 (
                     dataset_id,
                     entity_id,
-                    relation_predicate(edge["relation_code"]).value,
+                    relation_predicate(edge["relation_code"]),
                     edge["tgt_ark"],
                     tgt_lookup.get(edge["tgt_ark"]),
                 )

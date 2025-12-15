@@ -10,8 +10,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from data_curation.api import db, datasets
-from data_curation.api.db_shared import get_controlled_ark
-from data_curation.api.db_store import get_store_locked
+from data_curation.api.pg import controlled_repo
 from .utils import (
     _records_to_csv_bytes,
     _work_intermarc,
@@ -42,9 +41,8 @@ def test_update_record_adds_reciprocal_adaptation_links():
     ]
     db.ingest_csv(_records_to_csv_bytes(records), dataset_id)
 
-    store = get_store_locked(dataset_id)
-    has_adapt = get_controlled_ark(store, "A pour adaptation")
-    is_adapt_of = get_controlled_ark(store, "Est une adaptation de")
+    has_adapt = controlled_repo.get_controlled_ark_by_label(dataset_id, "A pour adaptation")
+    is_adapt_of = controlled_repo.get_controlled_ark_by_label(dataset_id, "Est une adaptation de")
     assert has_adapt and is_adapt_of
 
     payload = create_intermarc_json(

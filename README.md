@@ -127,3 +127,4 @@ uv run -- spacy download fr_dep_news_trf
 - Copy `.env.example` to `.env` and adjust `POSTGRES_DSN` if you run Postgres elsewhere.
 - Start the database locally: `docker compose -f db/docker-compose.postgres.yml up -d` (service `postgres`, port 5432).
 - The FastAPI backend now exposes `/api/health/db` and reads `POSTGRES_DSN` for pooled connections (defaults to `postgresql://vendange:vendange@localhost:5432/vendange`).
+- Apply the base schema once Postgres is up: `uv run python -m data_curation.api.pg.schema ensure-schema`. Create/drop dataset partitions with `create-partitions` / `drop-partitions --dataset <id>`.

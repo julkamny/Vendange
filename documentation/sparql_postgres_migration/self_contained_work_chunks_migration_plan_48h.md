@@ -119,6 +119,8 @@ No schema yet; just connectivity + minimal ergonomics.
 * ✅ Creating a dataset partitions the 4 partitioned tables for that dataset
 * ✅ Dropping a dataset removes partitions cleanly
 
+**Execution status (2025-12-15)**: Implemented. Added `db/schema.sql`, `data_curation/api/pg/schema.py` with CLI (`ensure-schema`, `create-partitions`, `drop-partitions`).
+
 **Perfect engineer prompt**
 
 ```text

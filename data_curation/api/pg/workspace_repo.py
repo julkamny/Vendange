@@ -167,7 +167,7 @@ def _build_entity_title(dataset_id: str, entity_row: Dict[str, Any]) -> Tuple[st
     return title, segments
 
 
-def list_works(dataset_id: str, limit: int = 200, offset: int = 0) -> WorkspaceWorksResponse:
+def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> WorkspaceWorksResponse:
     # Fetch clusters (anchor + members) first
     cluster_rows: List[dict] = []
     with db_session() as conn, statement_timeout(conn, 5000):
@@ -342,7 +342,7 @@ def list_works(dataset_id: str, limit: int = 200, offset: int = 0) -> WorkspaceW
     return WorkspaceWorksResponse(clusters=list(clusters.values()), unclustered_works=unclustered)
 
 
-def list_agents(dataset_id: str, limit: int = 200, offset: int = 0) -> WorkspaceAgentsResponse:
+def list_agents(dataset_id: str, limit: int = 9999999999999, offset: int = 0) -> WorkspaceAgentsResponse:
     cluster_rows: List[dict] = []
     with db_session() as conn, statement_timeout(conn, 5000):
         cluster_rows = conn.execute(

@@ -13,6 +13,10 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, AsyncIterator, List, Optional
+import sys
+import csv
+
+csv.field_size_limit(sys.maxsize)
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware

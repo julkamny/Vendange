@@ -18,6 +18,7 @@ from data_curation.api.schemas import (
     ExpressionAnchorGroupView,
     ExpressionClusterItemView,
     ExpressionItemView,
+    ManifestationItemView,
     RecordPayload,
     TitleSegment,
     WorkCluster,
@@ -121,6 +122,54 @@ def _counts_for_work_arks(dataset_id: str, work_arks: List[str]) -> Tuple[Dict[s
         for row in manif_rows:
             manif_counts[row["work_ark"]] = row["cnt"]
     return expr_counts, manif_counts
+
+
+def _manifestations_by_expression(dataset_id: str, expression_arks: List[str]) -> Dict[str, List[ManifestationItemView]]:
+    """Return manifestation view lists keyed by expression ark."""
+    if not expression_arks:
+        return {}
+    with db_session() as conn, statement_timeout(conn, 5000):
+        rows = conn.execute(
+            """
+            SELECT m.entity_id,
+                   m.record_id,
+                   m.ark,
+                   m.record,
+                   el.label,
+                   rel.tgt_ark AS expression_ark
+            FROM rel_edge rel
+            JOIN entity m ON m.dataset_id = rel.dataset_id AND m.entity_id = rel.src_entity_id
+            LEFT JOIN entity_label el ON el.dataset_id = m.dataset_id AND el.entity_id = m.entity_id
+            WHERE rel.dataset_id = %s
+              AND rel.predicate_iri = %s
+              AND rel.tgt_ark = ANY(%s)
+              AND m.type_norm = 'manifestation'
+            """,
+            (dataset_id, f"{RELATION_NS}740s3", expression_arks),
+        ).fetchall()
+    by_expr: Dict[str, List[ManifestationItemView]] = {}
+    for row in rows:
+        expr_ark = row["expression_ark"]
+        title, _ = _build_entity_title(
+            {
+                "record": row.get("record"),
+                "label": row.get("label"),
+                "ark": row.get("ark"),
+                "record_id": row.get("record_id"),
+                "entity_id": row.get("entity_id"),
+            }
+        )
+        man_view = ManifestationItemView(
+            id=row["record_id"] or str(row["entity_id"]),
+            ark=row.get("ark"),
+            title=title,
+            expression_ark=expr_ark,
+            expression_id=None,
+            original_expression_ark=None,
+            summary=None,
+        )
+        by_expr.setdefault(expr_ark, []).append(man_view)
+    return by_expr
 
 
 def _build_entity_title(entity_row: Dict[str, Any]) -> Tuple[str, List[TitleSegment]]:
@@ -517,6 +566,7 @@ def get_work_cluster(dataset_id: str, anchor_key: str) -> Optional[WorkCluster]:
             ).fetchall()
 
         expressions_by_ark = {row["ark"]: dict(row) for row in expr_rows if row.get("ark")}
+        manifestations_map = _manifestations_by_expression(dataset_id, list(expressions_by_ark.keys()))
 
         cluster_rows: List[dict] = []
         if expressions_by_ark:
@@ -591,12 +641,15 @@ def get_work_cluster(dataset_id: str, anchor_key: str) -> Optional[WorkCluster]:
                 title=expr_title,
                 work_ark=anchor_ark,
                 work_id=anchor.get("record_id") or str(anchor.get("entity_id")),
-                manifestations=[],
+                manifestations=manifestations_map.get(expr.get("ark"), []),
                 summary=None,
             )
 
             clustered = clustered_by_anchor.get(expr.get("ark") or "", [])
             if clustered:
+                for c in clustered:
+                    if c.ark:
+                        c.manifestations = manifestations_map.get(c.ark, [])
                 expression_groups.append(ExpressionAnchorGroupView(anchor=view, clustered=clustered))
             else:
                 independent_expressions.append(view)

@@ -57,6 +57,11 @@ def test_title_segments_resolve_ark_labels_for_work_and_agents() -> None:
     assert expr_record is not None
     assert expr_record.ark_labels.get(agent_ark) == "Victor Hugo 1802-1885"
 
+    agents = workspace_repo.list_agents(dataset_id, limit=50, offset=0)
+    found = {row.ark: row for row in agents.unclustered_agents if row.ark}
+    assert agent_ark in found
+    assert found[agent_ark].label == "Victor Hugo 1802-1885"
+
 
 def test_work_cluster_focus_tree_down_aggregates_expressions_over_cluster_works() -> None:
     dataset_id = f"pg-work-cluster-exprs-{uuid4().hex[:8]}"

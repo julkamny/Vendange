@@ -29,6 +29,7 @@ from data_curation.api.schemas import (
 )
 from data_curation.api.pg.ark_labeling_repo import resolve_ark_label_map_for_records
 from data_curation.api.pg.record_labeling import build_title_segments
+from data_curation.api.pg.record_labeling import build_label_from_record
 
 
 WORK_LINK_PREDICATE = f"{RELATION_NS}750s3"
@@ -41,14 +42,16 @@ def _title_zone_for_type(type_norm: str) -> str:
     norm = (type_norm or "").lower()
     if norm == "manifestation":
         return "245"
-    if norm in {"personne", "collectivite", "famille"}:
-        return {"personne": "100", "collectivite": "110", "famille": "120"}[norm]
+    if norm in {"personne", "identite publique de personne", "identité publique de personne"}:
+        return "100"
+    if norm in {"collectivite", "famille"}:
+        return {"collectivite": "110", "famille": "120"}[norm]
     return "150"
 
 
 def _allowed_title_subfields(type_norm: str) -> Optional[set[str]]:
     norm = (type_norm or "").lower()
-    if norm == "personne":
+    if norm in {"personne", "identite publique de personne", "identité publique de personne"}:
         return {"100$a", "100$m", "100$e"}
     if norm == "collectivite":
         return {"110$a", "110$q"}
@@ -58,7 +61,18 @@ def _allowed_title_subfields(type_norm: str) -> Optional[set[str]]:
 
 
 def _strip_pipes_in_title(type_norm: str) -> bool:
-    return (type_norm or "").lower() in {"personne", "collectivite", "famille"}
+    return (type_norm or "").lower() in {"personne", "identite publique de personne", "identité publique de personne", "collectivite", "famille"}
+
+
+AGENT_TYPE_NORMS = ("identite publique de personne", "personne", "collectivite", "famille")
+
+
+def _label_from_record(type_norm: str, record: Any, *, fallback: str) -> str:
+    if isinstance(record, dict):
+        label = build_label_from_record(type_raw=type_norm, type_norm=type_norm, record=record)
+        if label:
+            return label
+    return fallback
 
 
 def _counts_for_work_arks(dataset_id: str, work_arks: List[str]) -> Tuple[Dict[str, int], Dict[str, int]]:
@@ -177,7 +191,18 @@ def list_works(dataset_id: str, limit: int = 200, offset: int = 0) -> WorkspaceW
             LEFT JOIN entity m ON m.dataset_id = c.dataset_id AND m.ark = c.member_ark
             LEFT JOIN entity_label lm ON lm.dataset_id = c.dataset_id AND lm.entity_id = m.entity_id
             WHERE c.dataset_id = %s AND la.type_norm = 'oeuvre'
-            ORDER BY la.sort_key NULLS LAST, c.anchor_ark
+            ORDER BY
+                COALESCE(
+                    (
+                        SELECT replace(sub->>'valeur', '|', '')
+                        FROM jsonb_array_elements(a.record->'zones') z
+                        JOIN LATERAL jsonb_array_elements(COALESCE(z->'sousZones', '[]'::jsonb)) sub ON true
+                        WHERE z->>'code' = '150' AND sub->>'code' = '150$a'
+                        LIMIT 1
+                    ),
+                    la.sort_key
+                ) NULLS LAST,
+                c.anchor_ark
             LIMIT %s OFFSET %s
             """,
             (dataset_id, limit, offset),
@@ -273,7 +298,17 @@ def list_works(dataset_id: str, limit: int = 200, offset: int = 0) -> WorkspaceW
         FROM entity e
         JOIN entity_label el USING (dataset_id, entity_id)
         WHERE e.dataset_id=%s AND el.type_norm='oeuvre' AND (e.ark IS NULL OR e.ark <> ALL(%s))
-        ORDER BY el.sort_key NULLS LAST
+        ORDER BY
+            COALESCE(
+                (
+                    SELECT replace(sub->>'valeur', '|', '')
+                    FROM jsonb_array_elements(e.record->'zones') z
+                    JOIN LATERAL jsonb_array_elements(COALESCE(z->'sousZones', '[]'::jsonb)) sub ON true
+                    WHERE z->>'code' = '150' AND sub->>'code' = '150$a'
+                    LIMIT 1
+                ),
+                el.sort_key
+            ) NULLS LAST
         LIMIT %s OFFSET %s
     """.format(record_id=_record_id_expr())
     with db_session() as conn, statement_timeout(conn, 5000):
@@ -331,11 +366,11 @@ def list_agents(dataset_id: str, limit: int = 200, offset: int = 0) -> Workspace
             LEFT JOIN entity_label la ON la.dataset_id = c.dataset_id AND la.entity_id = a.entity_id
             LEFT JOIN entity m ON m.dataset_id = c.dataset_id AND m.ark = c.member_ark
             LEFT JOIN entity_label lm ON lm.dataset_id = c.dataset_id AND lm.entity_id = m.entity_id
-            WHERE c.dataset_id = %s AND la.type_norm IN ('personne','collectivite','famille')
+            WHERE c.dataset_id = %s AND la.type_norm = ANY(%s)
             ORDER BY la.sort_key NULLS LAST, c.anchor_ark
             LIMIT %s OFFSET %s
             """,
-            (dataset_id, limit, offset),
+            (dataset_id, list(AGENT_TYPE_NORMS), limit, offset),
         ).fetchall()
 
     clusters: dict[str, AgentCluster] = {}
@@ -372,7 +407,11 @@ def list_agents(dataset_id: str, limit: int = 200, offset: int = 0) -> Workspace
             cluster = AgentCluster(
                 anchor_id=anchor_id,
                 anchor_ark=row.get("anchor_ark"),
-                anchor_label=row.get("anchor_label") or anchor_id,
+                anchor_label=_label_from_record(
+                    type_norm,
+                    anchor_entity.get("record"),
+                    fallback=row.get("anchor_label") or row.get("anchor_ark") or anchor_id,
+                ),
                 anchor_type_norm=row.get("anchor_type_norm"),
                 anchor_title_segments=anchor_title_segments,
                 sort_key=row.get("anchor_sort_key"),
@@ -396,7 +435,11 @@ def list_agents(dataset_id: str, limit: int = 200, offset: int = 0) -> Workspace
                 ark=row["member_ark"],
                 id=row.get("member_record_id")
                 or (str(row.get("member_entity_id")) if row.get("member_entity_id") else None),
-                label=row.get("member_label") or row.get("member_ark"),
+                label=_label_from_record(
+                    type_norm,
+                    member_entity.get("record"),
+                    fallback=row.get("member_label") or row.get("member_ark") or "",
+                ),
                 origin=row.get("note") or "manual",
                 type_norm=row.get("member_type_norm"),
                 accepted=True,
@@ -416,17 +459,21 @@ def list_agents(dataset_id: str, limit: int = 200, offset: int = 0) -> Workspace
         SELECT e.entity_id, {record_id} as record_id, e.ark, el.label, el.sort_key, el.type_norm, e.record
         FROM entity e
         JOIN entity_label el USING (dataset_id, entity_id)
-        WHERE e.dataset_id=%s AND el.type_norm IN ('personne','collectivite','famille') AND (e.ark IS NULL OR e.ark <> ALL(%s))
+        WHERE e.dataset_id=%s AND el.type_norm = ANY(%s) AND (e.ark IS NULL OR e.ark <> ALL(%s))
         ORDER BY el.sort_key NULLS LAST
         LIMIT %s OFFSET %s
     """.format(record_id=_record_id_expr())
     with db_session() as conn, statement_timeout(conn, 5000):
-        rows = conn.execute(query, (dataset_id, anchor_arks or ['{}'], limit, offset)).fetchall()
+        rows = conn.execute(query, (dataset_id, list(AGENT_TYPE_NORMS), anchor_arks or ['{}'], limit, offset)).fetchall()
     unclustered = [
         AgentListRow(
             id=row["record_id"] or str(row["entity_id"]),
             ark=row["ark"],
-            label=row["label"],
+            label=_label_from_record(
+                row.get("type_norm") or "",
+                row.get("record"),
+                fallback=row.get("label") or row.get("ark") or row.get("record_id") or str(row.get("entity_id") or ""),
+            ),
             type_norm=row["type_norm"],
             title_segments=build_title_segments(
                 row.get("record") if isinstance(row.get("record"), dict) else {},

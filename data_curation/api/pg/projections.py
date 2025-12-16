@@ -2,18 +2,14 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import List, Optional
 
+import json
+
 from data_curation.api.db_shared import looks_like_ark, sanitize_subfield_code
-from data_curation.api.entity_labels import (
-    agent_primary_label,
-    manifestation_title,
-    normalize_type,
-    title_of,
-    extract_controlled_value_label,
-)
+from data_curation.api.entity_labels import normalize_type
+from data_curation.api.pg.record_labeling import build_label_from_record
 from data_curation.models import Intermarc
 from data_curation.utils.text_norm import fold_diacritics
 
@@ -28,28 +24,14 @@ class ParsedRecord:
     intermarc_raw: str
 
 
-def _entity_view(parsed: ParsedRecord):
-    class _View:
-        def __init__(self, p: ParsedRecord) -> None:
-            self.id_entitelrm = p.record_id
-            self.type_entite = p.type_raw
-            self.intermarc = p.intermarc
-
-    return _View(parsed)
-
-
 def compute_label(parsed: ParsedRecord) -> tuple[str, Optional[str]]:
-    view = _entity_view(parsed)
     label: Optional[str] = None
     type_norm = normalize_type(parsed.type_raw)
-    if type_norm in {"oeuvre", "expression"}:
-        label = title_of(view)
-    elif type_norm == "manifestation":
-        label = manifestation_title(view)
-    elif type_norm in {"personne", "collectivite", "famille"}:
-        label = agent_primary_label(view)
-    elif type_norm == "valeur controlee":
-        label = extract_controlled_value_label(view)
+    try:
+        record = json.loads(parsed.intermarc_raw)
+    except Exception:
+        record = {"zones": []}
+    label = build_label_from_record(type_raw=parsed.type_raw, type_norm=type_norm, record=record)
     label = label or parsed.ark or parsed.record_id
     sort_key = fold_diacritics(label).lower() if label else None
     return label, sort_key

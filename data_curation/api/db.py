@@ -99,7 +99,10 @@ def dataset_stats(dataset_id: str) -> Dict[str, int]:
         size_bytes = 0
         for part in partitions:
             row = conn.execute(
-                "SELECT coalesce(pg_total_relation_size(%s),0) AS sz",
+                # pg_total_relation_size(regclass) errors if the relation doesn't exist.
+                # Use to_regclass(text) to return NULL instead, so listing datasets
+                # doesn't crash when partitions are missing/out-of-sync in dev.
+                "SELECT coalesce(pg_total_relation_size(to_regclass(%s)),0) AS sz",
                 (part,),
             ).fetchone()
             size_bytes += row["sz"] if row else 0

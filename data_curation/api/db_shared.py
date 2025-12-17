@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 from urllib.parse import quote
 
 from ..utils.text_norm import fold_diacritics as _fold

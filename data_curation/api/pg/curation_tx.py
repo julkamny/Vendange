@@ -13,14 +13,13 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Sequence
 
-from psycopg import sql
 from psycopg.types.json import Json
 
 from data_curation.api.db_shared import canonical_type_key, relation_predicate
 from data_curation.api.pg import projections
 from data_curation.api.pg.datasets_repo import touch as touch_dataset_row
 from data_curation.api.pg.session import db_session, statement_timeout
-from data_curation.models import Entity, Intermarc
+from data_curation.models import Intermarc
 
 
 @dataclass

@@ -102,13 +102,13 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - The editing surface mirrors the pretty-printed view (colors, ARK label hover tooltips, highlighted background) and offers instant autocomplete for controlled values and entities—type the start of a label (e.g., `tex`) to pick the matching ARK, with suggestions restricted to the controlled lists and entity natures allowed in the current subfield.
 
 ### SPARQL searches
-- Open a SPARQL tab to explore the dataset. You can traverse W–E–M links, filter on MARC subfields, and join on `$3` relationships; see [`documentation/sparql_store.md`](documentation/sparql_store.md) for a quick vocabulary reference and example queries.
-- Each entity links to blank-node fields via `<https://vendange.bnf.fr/hasField>`; fields expose their `fieldCode` and either a `fieldCompactValue` literal (for storage zones 990/907/90H/901/991) or nested `hasSubfield` blank nodes with sanitised codes (`$` → `s`) and values—filter on those nodes directly to reach any MARC subfield.
+- Open a SPARQL tab to explore the dataset. You can traverse W–E–M links, filter on MARC subfields, and join on `$3` relationships.
+- SPARQL runs on Ontop over Postgres (no named-graph semantics). Backend scoping injects a dataset constraint into every query.
+- Each entity links to field nodes via `<https://vendange.bnf.fr/hasField>`; fields expose `fieldCode` and nested `hasSubfield` nodes with sanitised codes (`$` → `s`) and values—filter on those nodes to reach any MARC subfield.
 - The SPARQL tab also exposes a Sparnatural visual builder. Use it to assemble work → expression → manifestation hops, constrain MARC zones/subfields, and pick controlled values from a label-based list—the corresponding ARK is injected automatically into the generated query. The builder keeps the CodeMirror editor synchronised so you can start visually then finish by hand if needed.
 - Common text filters are now pre-wired: pick “Text (title)” on works/expressions/manifestations/agents to search directly in the right MARC subfields, or “Text (entity wide)” to match any subfield without building a field/subfield chain. When you open a Field node you can still filter by code, or choose “Text (field wide)” to match any of its subfields; type multiple values separated by commas or new lines to emit a `VALUES`-style OR filter.
 - Sparnatural reads a SHACL profile. Update `data_inspection/src/app/sparql/sparnaturalConfig.ts` when you need to expose a new node/property.
 - The builder also surfaces agent entities (person / collective / famille) with the 700/701/702/710/711/712 links, lets you pick relator codes from the controlled lists, and hides ARKs for agents in favour of their Intermarc label.
-- Vendange stores each record in its own named graph. The builder (and manual execution) rewrite Sparnatural output into one `GRAPH` block per entity (`GRAPH ?g_manifestation { … }`, `GRAPH ?g_expression { … }`, etc.) so W–E–M traversals span the right graphs out of the box. For custom logic you can still provide explicit `GRAPH` clauses—auto-wrapping steps aside as soon as it detects one.
 - From the SPARQL results, pick the columns that contain work or agent ARKs and apply them as a global filter: matched rows are highlighted, out-of-scope clusters collapse + dim, and the filter stays active across all workspace/agent tabs (inline or detached) until you clear it from the banner.
 
 ### Data exploration scripts
@@ -131,4 +131,7 @@ uv run -- spacy download fr_dep_news_trf
 - The FastAPI backend now exposes `/api/health/db` and reads `POSTGRES_DSN` for pooled connections (defaults to `postgresql://vendange:vendange@localhost:55432/vendange`).
 - Apply the base schema once Postgres is up: `uv run python -m data_curation.api.pg.schema ensure-schema`. Create/drop dataset partitions with `create-partitions` / `drop-partitions --dataset <id>`.
 - Dataset uploads now write directly to Postgres tables (`entity`, `entity_label`, `rel_edge`, `cluster`, `fts`); Oxigraph has been removed.
-- Ontop dev stack (SPARQL over Postgres): `docker compose -f docker-compose.ontop.yml up -d` (exposes `http://localhost:8080/sparql`, connects to Postgres on 55433). Configure `ONTOP_ENDPOINT_URL` in `.env` if you run it elsewhere.
+- Ontop endpoint (SPARQL over Postgres):
+  - Docker: `docker compose -f docker-compose.ontop.yml up -d` (exposes `http://localhost:8080/sparql`, connects to Postgres on 55433).
+  - CLI: `./scripts/install_ontop_cli.sh` then export `ONTOP_CLI=./.tools/ontop-cli/5.0.0/ontop` and run `"$ONTOP_CLI" endpoint -m ontop/mapping.obda -t ontop/ontology.ttl -p ontop/ontop.properties`.
+  - Tests: with Postgres running, run `ONTOP_CLI=... uv run pytest -q tests/ontop`.

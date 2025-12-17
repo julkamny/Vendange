@@ -4,19 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import csv
 import io
 import json
 import logging
 import shutil
+import sys
 import zipfile
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, AsyncIterator, List, Optional
-import sys
-import csv
-
-csv.field_size_limit(sys.maxsize)
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,6 +41,8 @@ from data_curation.curation.pipeline import (
 )
 from data_curation.api.manifestation_uproot import ManifestationUprootResult, uproot_manifestation
 from data_curation.utils.log_bundle import LOG_TEXT_FORMAT, LogBundle, activate_log_bundle, reset_log_bundle
+
+csv.field_size_limit(sys.maxsize)
 
 
 LOGGER = logging.getLogger(__name__)

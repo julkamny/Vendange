@@ -31,6 +31,9 @@ dist-ssr
 # Repomix
 Vendange_codebase.md
 
+# Local tooling
+.tools/
+
 # Oxigraph store (generated)
 data_curation/api/vendange_store/
 data_curation/api/datasets/

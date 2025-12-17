@@ -123,7 +123,7 @@ def ingest_csv(dataset_id: str, csv_bytes: bytes, *, dataset_label: Optional[str
     fts_rows: List[Tuple[str, int, str]] = []
 
     with db_session() as conn, conn.transaction():
-        with statement_timeout(conn, 30_000):
+        with statement_timeout(conn, 120_000):
             _clear_dataset(conn, dataset_id)
 
             entity_values = [

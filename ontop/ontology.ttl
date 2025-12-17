@@ -1,9 +1,30 @@
-@prefix vend: <http://vendange.bnf.fr/ontology#> .
+@prefix vend: <https://vendange.bnf.fr/> .
+@prefix vendclass: <https://vendange.bnf.fr/class/> .
+@prefix vendprop: <https://vendange.bnf.fr/property/> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
 
 vend:Entity a rdfs:Class .
-vend:datasetId a rdf:Property .
-vend:typeNorm a rdf:Property .
-vend:label a rdf:Property .
-vend:ark a rdf:Property .
+vend:Field a rdfs:Class .
+vend:Subfield a rdfs:Class .
+
+vendclass:Work a rdfs:Class ; rdfs:subClassOf vend:Entity .
+vendclass:Expression a rdfs:Class ; rdfs:subClassOf vend:Entity .
+vendclass:Manifestation a rdfs:Class ; rdfs:subClassOf vend:Entity .
+vendclass:PublicIdentity a rdfs:Class ; rdfs:subClassOf vend:Entity .
+vendclass:Collective a rdfs:Class ; rdfs:subClassOf vend:Entity .
+vendclass:Family a rdfs:Class ; rdfs:subClassOf vend:Entity .
+
+vend:hasField a rdf:Property .
+vend:hasSubfield a rdf:Property .
+vend:fieldCode a rdf:Property .
+vend:subfieldCode a rdf:Property .
+vend:subfieldValue a rdf:Property .
+
+vendprop:datasetId a rdf:Property .
+vendprop:typeNorm a rdf:Property .
+vendprop:label a rdf:Property .
+vendprop:ark a rdf:Property .
+
+vend:Ontology a owl:Ontology .

@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import json
-from contextlib import contextmanager
-from typing import Dict, Iterable, Iterator, List, Optional, Sequence
+from typing import Dict, Iterator, Sequence
 
-from data_curation.models import Entity, Intermarc
+from data_curation.models import Entity
 from data_curation.api.pg.session import db_session
 
 

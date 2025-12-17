@@ -1,29 +1,79 @@
 [PrefixDeclaration]
-:      http://vendange.bnf.fr/
+vend:  https://vendange.bnf.fr/
+vendclass: https://vendange.bnf.fr/class/
+vendprop: https://vendange.bnf.fr/property/
 owl:   http://www.w3.org/2002/07/owl#
 rdf:   http://www.w3.org/1999/02/22-rdf-syntax-ns#
 rdfs:  http://www.w3.org/2000/01/rdf-schema#
 xsd:   http://www.w3.org/2001/XMLSchema#
-vend:  http://vendange.bnf.fr/ontology#
-
-[SourceDeclaration]
-sourceUri      jdbc
-connectionUrl  jdbc:postgresql://postgres:5432/vendange
-username       vendange
-password       vendange
-driverClass    org.postgresql.Driver
 
 [MappingDeclaration] @collection [[
 mappingId entity-core
-target    :entity/{dataset_id}/{entity_id} a vend:Entity ;
-          vend:datasetId "{dataset_id}"^^xsd:string ;
-          vend:typeNorm "{type_norm}"^^xsd:string ;
-          vend:label "{label}"^^xsd:string ;
-          vend:ark "{ark}"^^xsd:string .
-source    SELECT dataset_id, entity_id, type_norm, COALESCE(ark,'') as ark, label
-          FROM entity_label
+target    vend:entity/{dataset_id}/{entity_id} rdf:type vend:Entity ; rdfs:label "{label}"^^xsd:string ; vendprop:label "{label}"^^xsd:string ; vendprop:datasetId "{dataset_id}"^^xsd:string ; vendprop:typeNorm "{type_norm}"^^xsd:string ; vendprop:ark "{ark}"^^xsd:string .
+source    SELECT
+            el.dataset_id,
+            el.entity_id,
+            el.type_norm,
+            COALESCE(e.ark,'') AS ark,
+            el.label
+          FROM entity_label el
+          JOIN entity e ON (e.dataset_id=el.dataset_id AND e.entity_id=el.entity_id)
+
+mappingId entity-type-work
+target    vend:entity/{dataset_id}/{entity_id} rdf:type vendclass:Work .
+source    SELECT dataset_id, entity_id FROM entity_label WHERE type_norm='oeuvre'
+
+mappingId entity-type-expression
+target    vend:entity/{dataset_id}/{entity_id} rdf:type vendclass:Expression .
+source    SELECT dataset_id, entity_id FROM entity_label WHERE type_norm='expression'
+
+mappingId entity-type-manifestation
+target    vend:entity/{dataset_id}/{entity_id} rdf:type vendclass:Manifestation .
+source    SELECT dataset_id, entity_id FROM entity_label WHERE type_norm='manifestation'
+
+mappingId entity-type-person
+target    vend:entity/{dataset_id}/{entity_id} rdf:type vendclass:PublicIdentity .
+source    SELECT dataset_id, entity_id FROM entity_label WHERE type_norm IN ('identite publique de personne','personne')
+
+mappingId entity-type-collective
+target    vend:entity/{dataset_id}/{entity_id} rdf:type vendclass:Collective .
+source    SELECT dataset_id, entity_id FROM entity_label WHERE type_norm IN ('collectivite','collectivité','collective')
+
+mappingId entity-type-family
+target    vend:entity/{dataset_id}/{entity_id} rdf:type vendclass:Family .
+source    SELECT dataset_id, entity_id FROM entity_label WHERE type_norm LIKE '%famille%'
+
+mappingId entity-field
+target    vend:entity/{dataset_id}/{entity_id} vend:hasField vend:field/{dataset_id}/{entity_id}/{field_idx} .
+source    SELECT dataset_id, entity_id, field_idx FROM v_field
+
+mappingId field-core
+target    vend:field/{dataset_id}/{entity_id}/{field_idx} rdf:type vend:Field ; vend:fieldCode "{tag}"^^xsd:string .
+source    SELECT dataset_id, entity_id, field_idx, tag FROM v_field
+
+mappingId field-subfield
+target    vend:field/{dataset_id}/{entity_id}/{field_idx} vend:hasSubfield vend:subfield/{dataset_id}/{entity_id}/{field_idx}/{sub_idx} .
+source    SELECT dataset_id, entity_id, field_idx, sub_idx FROM v_subfield
+
+mappingId subfield-core
+target    vend:subfield/{dataset_id}/{entity_id}/{field_idx}/{sub_idx} rdf:type vend:Subfield ; vend:subfieldCode "{code_norm}"^^xsd:string ; vend:subfieldValue "{value}"^^xsd:string .
+source    SELECT
+            dataset_id,
+            entity_id,
+            field_idx,
+            sub_idx,
+            REPLACE(code, '$', 's') AS code_norm,
+            COALESCE(value,'') AS value
+          FROM v_subfield
 
 mappingId rel-edge
-target    :entity/{dataset_id}/{src_entity_id} <{predicate_iri}> :ark/{tgt_ark} .
-source    SELECT dataset_id, src_entity_id, predicate_iri, tgt_ark FROM rel_edge WHERE tgt_ark IS NOT NULL
+target    vend:entity/{dataset_id}/{src_entity_id} <{predicate_iri}> vend:entity/{dataset_id}/{tgt_entity_id} .
+source    SELECT
+            r.dataset_id,
+            r.src_entity_id,
+            r.predicate_iri,
+            t.entity_id AS tgt_entity_id
+          FROM rel_edge r
+          JOIN entity t ON (t.dataset_id=r.dataset_id AND t.ark=r.tgt_ark)
+          WHERE r.tgt_ark <> '' AND t.entity_id IS NOT NULL
 ]]

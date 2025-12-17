@@ -92,3 +92,66 @@ def test_work_cluster_focus_tree_down_aggregates_expressions_over_cluster_works(
     assert cluster_from_member.anchor_ark == work_a
     assert {group.anchor.ark for group in cluster_from_member.expression_groups if group.anchor.ark} == {expr_a}
     assert {expr.ark for expr in cluster_from_member.independent_expressions if expr.ark} == {expr_b}
+
+
+def test_backlinks_group_by_source_and_resolve_work_title_arks() -> None:
+    dataset_id = f"pg-backlinks-grouped-{uuid4().hex[:8]}"
+    datasets.ensure_dataset(dataset_id, title="pg backlinks grouped")
+
+    agent_ark = "ark:/12148/cb99999999p"
+    work_ark = "ark:/12148/w-backlink"
+
+    agent_intermarc = _work_intermarc(
+        agent_ark,
+        title="should-not-be-used",
+        extra_zones=[create_zone("100", [("a", "Jane", None), ("m", "Doe", None)])],
+    )
+    # Work title starts with a $3 reference to the agent.
+    work_intermarc = _work_intermarc(
+        work_ark,
+        title="Some Work",
+        extra_zones=[
+            create_zone("150", [("3", agent_ark, None), ("a", "Some Work", None)]),
+            create_zone("700", [("3", agent_ark, None)]),
+            create_zone("701", [("3", agent_ark, None)]),
+        ],
+    )
+
+    rows = [
+        {"id": "a1", "type": "Identité publique de personne", "intermarc": agent_intermarc},
+        {"id": "w1", "type": "Œuvre", "intermarc": work_intermarc},
+    ]
+    db.ingest_csv(_records_to_csv_bytes(rows), dataset_id)
+
+    payload = workspace_repo.get_backlinks(dataset_id, agent_ark)
+    assert payload is not None
+    # Only one source entity (the work), but it referenced the target via multiple $3 fields.
+    assert len(payload.backlinks) == 1
+    backlink = payload.backlinks[0]
+    assert backlink.ark == work_ark
+    assert set(backlink.fields) == {"700s3", "701s3", "150s3"}
+    # Work title segments should substitute the $3 ARK with the agent label and preserve tooltip ARK.
+    assert any(seg.ark == agent_ark and seg.value == "Jane Doe" for seg in backlink.title_segments)
+
+
+def test_list_works_does_not_duplicate_cluster_members() -> None:
+    dataset_id = f"pg-work-dup-{uuid4().hex[:8]}"
+    datasets.ensure_dataset(dataset_id, title="pg work dup")
+
+    work_a = "ark:/12148/wA-dup"
+    work_b = "ark:/12148/wB-dup"
+    rows = [
+        {"id": "wA", "type": "Œuvre", "intermarc": _work_intermarc(work_a, "Work A", extra_zones=[_cluster_zone(work_b)])},
+        {"id": "wB", "type": "Œuvre", "intermarc": _work_intermarc(work_b, "Work B")},
+    ]
+    db.ingest_csv(_records_to_csv_bytes(rows), dataset_id)
+
+    workspace = workspace_repo.list_works(dataset_id, limit=100, offset=0)
+    assert len(workspace.clusters) == 1
+    cluster = workspace.clusters[0]
+    assert cluster.anchor_ark == work_a
+    assert {item.ark for item in cluster.items} == {work_b}
+
+    unclustered_arks = {row.ark for row in workspace.unclustered_works if row.ark}
+    assert work_a not in unclustered_arks
+    assert work_b not in unclustered_arks

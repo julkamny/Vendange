@@ -291,13 +291,21 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
                     )
                 )
 
-    # Fetch unclustered works (those not appearing in cluster table as anchor)
-    anchor_arks = [row["anchor_ark"] for row in cluster_rows if row.get("anchor_ark")]
+    # Fetch unclustered works (those not appearing anywhere in the cluster table as anchor or member)
     query = """
         SELECT e.entity_id, {record_id} as record_id, e.ark, el.label, el.sort_key, el.type_norm, e.record
         FROM entity e
         JOIN entity_label el USING (dataset_id, entity_id)
-        WHERE e.dataset_id=%s AND el.type_norm='oeuvre' AND (e.ark IS NULL OR e.ark <> ALL(%s))
+        WHERE e.dataset_id=%s
+          AND el.type_norm='oeuvre'
+          AND (
+                e.ark IS NULL OR NOT EXISTS (
+                    SELECT 1
+                    FROM cluster c
+                    WHERE c.dataset_id = e.dataset_id
+                      AND (c.anchor_ark = e.ark OR c.member_ark = e.ark)
+                )
+          )
         ORDER BY
             COALESCE(
                 (
@@ -312,7 +320,7 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
         LIMIT %s OFFSET %s
     """.format(record_id=_record_id_expr())
     with db_session() as conn, statement_timeout(conn, 5000):
-        rows = conn.execute(query, (dataset_id, anchor_arks or ["{}"], limit, offset)).fetchall()
+        rows = conn.execute(query, (dataset_id, limit, offset)).fetchall()
     unc_arks = [row["ark"] for row in rows if row.get("ark")]
     expr_unc, manif_unc = _counts_for_work_arks(dataset_id, unc_arks)
     unclustered = []
@@ -541,7 +549,14 @@ def get_backlinks(dataset_id: str, key: str) -> Optional[BacklinksPayload]:
     with db_session() as conn, statement_timeout(conn, 5000):
         rows = conn.execute(
             """
-            SELECT e.entity_id, e.ark, el.label, el.type_norm, re.predicate_iri, re.tgt_ark, e.record
+            SELECT e.entity_id,
+                   e.record_id,
+                   e.ark,
+                   e.type_raw,
+                   e.type_norm,
+                   el.label,
+                   re.predicate_iri,
+                   e.record
             FROM rel_edge re
             JOIN entity e ON e.dataset_id=re.dataset_id AND e.entity_id=re.src_entity_id
             LEFT JOIN entity_label el ON el.dataset_id=e.dataset_id AND el.entity_id=e.entity_id
@@ -549,21 +564,67 @@ def get_backlinks(dataset_id: str, key: str) -> Optional[BacklinksPayload]:
             """,
             (dataset_id, ark),
         ).fetchall()
-    backlinks: List[BacklinkItem] = []
+
+    # Group rows by source entity to avoid duplicate keys in the React table and
+    # to match the legacy backlink index behavior (fields aggregated per source).
+    grouped: Dict[str, Dict[str, Any]] = {}
     for row in rows:
-        field_code = _predicate_to_field(row["predicate_iri"])
-        record_id = row["record"].get("id_entitelrm") if isinstance(row["record"], dict) else None
+        src_id = row.get("record_id") or str(row.get("entity_id") or "")
+        if not src_id or src_id == (target.get("record_id") or str(target.get("entity_id") or "")):
+            continue
+        entry = grouped.get(src_id)
+        if not entry:
+            entry = dict(row)
+            entry["_fields"] = set()
+            grouped[src_id] = entry
+        entry["_fields"].add(_predicate_to_field(row["predicate_iri"]))
+
+    # Pre-resolve ARK labels used in title zones (primarily 150 for works).
+    work_records = [
+        entry.get("record")
+        for entry in grouped.values()
+        if (entry.get("type_norm") or "").lower() == "oeuvre" and isinstance(entry.get("record"), dict)
+    ]
+    work_title_ark_labels = resolve_ark_label_map_for_records(dataset_id, work_records, zone_codes={"150"})
+
+    backlinks: List[BacklinkItem] = []
+    for src_id, entry in grouped.items():
+        type_norm = (entry.get("type_norm") or "").lower()
+        record = entry.get("record") if isinstance(entry.get("record"), dict) else {}
+        title_segments: List[TitleSegment] = []
+        title_value: str = entry.get("label") or entry.get("ark") or src_id
+
+        if type_norm == "oeuvre":
+            title_segments = build_title_segments(record, zone_code="150", ark_labels=work_title_ark_labels)
+            title_value = " ".join(seg.value for seg in title_segments) or _label_from_record(type_norm, record, fallback=title_value)
+        elif type_norm == "manifestation":
+            title_value = _label_from_record(type_norm, record, fallback=title_value)
+        elif type_norm in AGENT_TYPE_NORMS:
+            zone = _title_zone_for_type(type_norm)
+            title_segments = build_title_segments(
+                record,
+                zone_code=zone,
+                ark_labels=resolve_ark_label_map_for_records(dataset_id, [record], zone_codes={zone}),
+                allowed_subfields=_allowed_title_subfields(type_norm),
+                strip_pipes=_strip_pipes_in_title(type_norm),
+            )
+            title_value = _label_from_record(type_norm, record, fallback=title_value)
+        else:
+            title_value = _label_from_record(type_norm, record, fallback=title_value)
+
         backlinks.append(
             BacklinkItem(
-                id=record_id or str(row["entity_id"]),
-                ark=row.get("ark"),
-                type=row.get("type_norm") or "",
-                type_norm=row.get("type_norm"),
-                title=row.get("label"),
-                title_segments=[],
-                fields=[field_code],
+                id=src_id,
+                ark=entry.get("ark"),
+                type=entry.get("type_raw") or entry.get("type_norm") or "",
+                type_norm=entry.get("type_norm"),
+                title=title_value,
+                title_segments=title_segments,
+                fields=sorted(entry["_fields"]),
             )
         )
+
+    backlinks.sort(key=lambda item: (item.type_norm or "", item.title or item.id, item.id))
     return BacklinksPayload(
         target_id=target["record_id"] or str(target["entity_id"]),
         target_ark=ark,

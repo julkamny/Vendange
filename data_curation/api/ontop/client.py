@@ -18,8 +18,8 @@ def _endpoint_url() -> str:
     return os.getenv("ONTOP_ENDPOINT_URL", DEFAULT_ENDPOINT)
 
 
-def execute_select(query: str, *, timeout_seconds: int = 10) -> Tuple[list[str], list[list[str]]]:
-    """Execute a SELECT query against Ontop and return columns + rows."""
+def execute_select(query: str, *, timeout_seconds: int = 60) -> Tuple[list[str], list[dict[str, str | None]]]:
+    """Execute a SELECT query against Ontop and return columns + rows (as dicts keyed by column)."""
     endpoint = _endpoint_url()
     try:
         resp = httpx.post(
@@ -35,14 +35,11 @@ def execute_select(query: str, *, timeout_seconds: int = 10) -> Tuple[list[str],
     payload = resp.json()
     head = payload.get("head", {})
     cols = head.get("vars", [])
-    rows = []
+    rows: list[dict[str, str | None]] = []
     for binding in payload.get("results", {}).get("bindings", []):
-        row = []
+        row: dict[str, str | None] = {}
         for col in cols:
             cell = binding.get(col)
-            if not cell:
-                row.append(None)
-            else:
-                row.append(cell.get("value"))
+            row[col] = cell.get("value") if cell else None
         rows.append(row)
     return cols, rows

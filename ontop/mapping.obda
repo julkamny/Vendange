@@ -45,15 +45,15 @@ source    SELECT dataset_id, entity_id FROM entity_label WHERE type_norm LIKE '%
 
 mappingId entity-field
 target    vend:entity/{dataset_id}/{entity_id} vend:hasField vend:field/{dataset_id}/{entity_id}/{field_idx} .
-source    SELECT dataset_id, entity_id, field_idx FROM v_field
+source    SELECT dataset_id, entity_id, field_idx FROM field
 
 mappingId field-core
 target    vend:field/{dataset_id}/{entity_id}/{field_idx} rdf:type vend:Field ; vend:fieldCode "{tag}"^^xsd:string .
-source    SELECT dataset_id, entity_id, field_idx, tag FROM v_field
+source    SELECT dataset_id, entity_id, field_idx, tag FROM field
 
 mappingId field-subfield
 target    vend:field/{dataset_id}/{entity_id}/{field_idx} vend:hasSubfield vend:subfield/{dataset_id}/{entity_id}/{field_idx}/{sub_idx} .
-source    SELECT dataset_id, entity_id, field_idx, sub_idx FROM v_subfield
+source    SELECT dataset_id, entity_id, field_idx, sub_idx FROM subfield
 
 mappingId subfield-core
 target    vend:subfield/{dataset_id}/{entity_id}/{field_idx}/{sub_idx} rdf:type vend:Subfield ; vend:subfieldCode "{code_norm}"^^xsd:string ; vend:subfieldValue "{value}"^^xsd:string .
@@ -62,18 +62,17 @@ source    SELECT
             entity_id,
             field_idx,
             sub_idx,
-            REPLACE(code, '$', 's') AS code_norm,
+            code_norm,
             COALESCE(value,'') AS value
-          FROM v_subfield
+          FROM subfield
 
 mappingId rel-edge
 target    vend:entity/{dataset_id}/{src_entity_id} <{predicate_iri}> vend:entity/{dataset_id}/{tgt_entity_id} .
 source    SELECT
-            r.dataset_id,
-            r.src_entity_id,
-            r.predicate_iri,
-            t.entity_id AS tgt_entity_id
-          FROM rel_edge r
-          JOIN entity t ON (t.dataset_id=r.dataset_id AND t.ark=r.tgt_ark)
-          WHERE r.tgt_ark <> '' AND t.entity_id IS NOT NULL
+            dataset_id,
+            src_entity_id,
+            predicate_iri,
+            tgt_entity_id
+          FROM rel_edge
+          WHERE tgt_entity_id IS NOT NULL
 ]]

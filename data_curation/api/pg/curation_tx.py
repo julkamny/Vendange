@@ -75,6 +75,8 @@ def _refresh_projections(conn, dataset_id: str, entity_id: int, parsed: projecti
     conn.execute("DELETE FROM rel_edge WHERE dataset_id=%s AND src_entity_id=%s", (dataset_id, entity_id))
     conn.execute("DELETE FROM cluster WHERE dataset_id=%s AND anchor_entity_id=%s", (dataset_id, entity_id))
     conn.execute("DELETE FROM fts WHERE dataset_id=%s AND entity_id=%s", (dataset_id, entity_id))
+    conn.execute("DELETE FROM field WHERE dataset_id=%s AND entity_id=%s", (dataset_id, entity_id))
+    conn.execute("DELETE FROM subfield WHERE dataset_id=%s AND entity_id=%s", (dataset_id, entity_id))
 
     label, sort_key = projections.compute_label(parsed)
     conn.execute(
@@ -148,6 +150,25 @@ def _refresh_projections(conn, dataset_id: str, entity_id: int, parsed: projecti
         "INSERT INTO fts (dataset_id, entity_id, document) VALUES (%s,%s,to_tsvector('simple', %s))",
         (dataset_id, entity_id, projections.compute_fts(parsed, label)),
     )
+
+    fields = projections.extract_field_rows(parsed)
+    if fields:
+        with conn.cursor() as cur:
+            cur.executemany(
+                "INSERT INTO field (dataset_id, entity_id, field_idx, tag) VALUES (%s,%s,%s,%s)",
+                [(dataset_id, entity_id, field_idx, tag) for field_idx, tag in fields],
+            )
+
+    subfields = projections.extract_subfield_rows(parsed)
+    if subfields:
+        with conn.cursor() as cur:
+            cur.executemany(
+                "INSERT INTO subfield (dataset_id, entity_id, field_idx, sub_idx, code_raw, code_norm, value) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                [
+                    (dataset_id, entity_id, field_idx, sub_idx, code_raw, code_norm, value)
+                    for field_idx, sub_idx, code_raw, code_norm, value in subfields
+                ],
+            )
 
 
 def update_entity_record(

@@ -95,7 +95,9 @@ def dataset_stats(dataset_id: str) -> Dict[str, int]:
             (dataset_id,),
         ).fetchone()["c"]
 
-        partitions = [_partition_name(t, dataset_id) for t in ("entity", "rel_edge", "entity_label", "cluster", "fts")]
+        partitions = [
+            _partition_name(t, dataset_id) for t in ("entity", "rel_edge", "entity_label", "cluster", "fts", "field", "subfield")
+        ]
         size_bytes = 0
         for part in partitions:
             row = conn.execute(

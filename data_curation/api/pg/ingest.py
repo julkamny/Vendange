@@ -102,7 +102,7 @@ def _parse_csv_bytes(data: bytes) -> List[projections.ParsedRecord]:
 
 
 def _clear_dataset(conn, dataset_id: str) -> None:
-    for table in ("rel_edge", "entity_label", "cluster", "fts", "entity"):
+    for table in ("rel_edge", "entity_label", "cluster", "fts", "subfield", "field", "entity"):
         conn.execute(sql.SQL("DELETE FROM {tbl} WHERE dataset_id=%s").format(tbl=sql.Identifier(table)), (dataset_id,))
 
 
@@ -118,9 +118,11 @@ def ingest_csv(dataset_id: str, csv_bytes: bytes, *, dataset_label: Optional[str
         return IngestionStats(records=0, quads=0)
 
     label_rows: List[Tuple[str, int, str, Optional[str], str]] = []
-    edge_rows: List[Tuple[str, int, str, str]] = []
-    cluster_rows: List[Tuple[str, int, str, str, Optional[str]]] = []
+    edge_rows: List[Tuple[str, int, str, str, Optional[int]]] = []
+    cluster_rows: List[Tuple[str, int, str, str, Optional[int], Optional[str]]] = []
     fts_rows: List[Tuple[str, int, str]] = []
+    field_rows: List[Tuple[str, int, int, str]] = []
+    subfield_rows: List[Tuple[str, int, int, int, str, str, str]] = []
 
     with db_session() as conn, conn.transaction():
         with statement_timeout(conn, 120_000):
@@ -138,6 +140,7 @@ def ingest_csv(dataset_id: str, csv_bytes: bytes, *, dataset_label: Optional[str
                 for rec in records
             ]
             inserted_ids: List[int] = []
+            ark_lookup: dict[str, int] = {}
             for chunk_start in range(0, len(entity_values), 500):
                 chunk = entity_values[chunk_start : chunk_start + 500]
                 result = conn.execute(
@@ -148,7 +151,12 @@ def ingest_csv(dataset_id: str, csv_bytes: bytes, *, dataset_label: Optional[str
                     " RETURNING entity_id, ark",
                     tuple(val for row in chunk for val in row),
                 ).fetchall()
-                inserted_ids.extend([row["entity_id"] for row in result])
+                for row in result:
+                    entity_id = row["entity_id"]
+                    inserted_ids.append(entity_id)
+                    ark = row.get("ark")
+                    if ark:
+                        ark_lookup[str(ark)] = entity_id
 
             for idx, entity_id in enumerate(inserted_ids):
                 rec = records[idx]
@@ -157,7 +165,7 @@ def ingest_csv(dataset_id: str, csv_bytes: bytes, *, dataset_label: Optional[str
 
                 for edge in projections.extract_edges(rec):
                     predicate_iri = relation_predicate(edge["relation_code"])
-                    edge_rows.append((dataset_id, entity_id, predicate_iri, edge["tgt_ark"]))
+                    edge_rows.append((dataset_id, entity_id, predicate_iri, edge["tgt_ark"], ark_lookup.get(edge["tgt_ark"])))
 
                 cluster_rows.extend(
                     [
@@ -166,6 +174,7 @@ def ingest_csv(dataset_id: str, csv_bytes: bytes, *, dataset_label: Optional[str
                             entity_id,
                             rec.ark or "",
                             row_data["member_ark"],
+                            ark_lookup.get(row_data["member_ark"]),
                             row_data["note"],
                         )
                         for row_data in projections.extract_cluster_memberships(rec, entity_id)
@@ -173,6 +182,12 @@ def ingest_csv(dataset_id: str, csv_bytes: bytes, *, dataset_label: Optional[str
                 )
 
                 fts_rows.append((dataset_id, entity_id, projections.compute_fts(rec, label)))
+
+                for field_idx, tag in projections.extract_field_rows(rec):
+                    field_rows.append((dataset_id, entity_id, field_idx, tag))
+
+                for field_idx, sub_idx, code_raw, code_norm, value in projections.extract_subfield_rows(rec):
+                    subfield_rows.append((dataset_id, entity_id, field_idx, sub_idx, code_raw, code_norm, value))
 
             if label_rows:
                 for chunk_start in range(0, len(label_rows), 1000):
@@ -189,7 +204,7 @@ def ingest_csv(dataset_id: str, csv_bytes: bytes, *, dataset_label: Optional[str
                     chunk = edge_rows[chunk_start : chunk_start + 1000]
                     with conn.cursor() as cur:
                         cur.executemany(
-                            "INSERT INTO rel_edge (dataset_id, src_entity_id, predicate_iri, tgt_ark) VALUES (%s,%s,%s,%s)",
+                            "INSERT INTO rel_edge (dataset_id, src_entity_id, predicate_iri, tgt_ark, tgt_entity_id) VALUES (%s,%s,%s,%s,%s)",
                             chunk,
                         )
 
@@ -199,7 +214,7 @@ def ingest_csv(dataset_id: str, csv_bytes: bytes, *, dataset_label: Optional[str
                     chunk = cluster_rows[chunk_start : chunk_start + 1000]
                     with conn.cursor() as cur:
                         cur.executemany(
-                            "INSERT INTO cluster (dataset_id, anchor_entity_id, anchor_ark, member_ark, note) VALUES (%s,%s,%s,%s,%s)",
+                            "INSERT INTO cluster (dataset_id, anchor_entity_id, anchor_ark, member_ark, member_entity_id, note) VALUES (%s,%s,%s,%s,%s,%s)",
                             chunk,
                         )
 
@@ -209,6 +224,24 @@ def ingest_csv(dataset_id: str, csv_bytes: bytes, *, dataset_label: Optional[str
                     with conn.cursor() as cur:
                         cur.executemany(
                             "INSERT INTO fts (dataset_id, entity_id, document) VALUES (%s,%s,to_tsvector('simple', %s))",
+                            chunk,
+                        )
+
+            if field_rows:
+                for chunk_start in range(0, len(field_rows), 2000):
+                    chunk = field_rows[chunk_start : chunk_start + 2000]
+                    with conn.cursor() as cur:
+                        cur.executemany(
+                            "INSERT INTO field (dataset_id, entity_id, field_idx, tag) VALUES (%s,%s,%s,%s)",
+                            chunk,
+                        )
+
+            if subfield_rows:
+                for chunk_start in range(0, len(subfield_rows), 4000):
+                    chunk = subfield_rows[chunk_start : chunk_start + 4000]
+                    with conn.cursor() as cur:
+                        cur.executemany(
+                            "INSERT INTO subfield (dataset_id, entity_id, field_idx, sub_idx, code_raw, code_norm, value) VALUES (%s,%s,%s,%s,%s,%s,%s)",
                             chunk,
                         )
 

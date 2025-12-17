@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 from typing import Callable
 
 import httpx
@@ -523,3 +524,129 @@ SELECT DISTINCT ?code WHERE {{
     _, rows = _run_select(endpoint, inject(query, ds), timeout_s=60)
     got = {r[0] for r in rows if r and r[0]}
     assert got == expected_codes
+
+
+def test_full_traversal_regex_manifestation_title_and_person_name(ontop_endpoint, ontop_dataset_id, pg_conn, inject):
+    """Stress a Sparnatural-style query: W→E→M traversal + field/subfield filters + regex on values + agent join."""
+
+    ds = ontop_dataset_id
+    endpoint = ontop_endpoint.sparql_url
+
+    sample = pg_conn.execute(
+        """
+        SELECT
+          w.entity_id AS work_id,
+          m.entity_id AS manifestation_id,
+          sf245.value AS manifestation_title,
+          sf100.value AS person_value
+        FROM entity_label w
+        JOIN rel_edge re750 ON (
+          re750.dataset_id=w.dataset_id
+          AND re750.predicate_iri='https://vendange.bnf.fr/relation/750s3'
+          AND re750.tgt_entity_id=w.entity_id
+        )
+        JOIN entity_label eexp ON (
+          eexp.dataset_id=w.dataset_id
+          AND eexp.entity_id=re750.src_entity_id
+          AND eexp.type_norm='expression'
+        )
+        JOIN rel_edge rm740 ON (
+          rm740.dataset_id=w.dataset_id
+          AND rm740.predicate_iri='https://vendange.bnf.fr/relation/740s3'
+          AND rm740.tgt_entity_id=eexp.entity_id
+        )
+        JOIN entity_label m ON (
+          m.dataset_id=w.dataset_id
+          AND m.entity_id=rm740.src_entity_id
+          AND m.type_norm='manifestation'
+        )
+        JOIN field f245 ON (f245.dataset_id=m.dataset_id AND f245.entity_id=m.entity_id AND f245.tag='245')
+        JOIN subfield sf245 ON (
+          sf245.dataset_id=f245.dataset_id
+          AND sf245.entity_id=f245.entity_id
+          AND sf245.field_idx=f245.field_idx
+          AND sf245.code_norm IN ('245sa','245se','245sf')
+          AND sf245.value <> ''
+        )
+        JOIN rel_edge rwp ON (
+          rwp.dataset_id=w.dataset_id
+          AND rwp.src_entity_id=w.entity_id
+          AND rwp.predicate_iri IN (
+            'https://vendange.bnf.fr/relation/700s3',
+            'https://vendange.bnf.fr/relation/701s3',
+            'https://vendange.bnf.fr/relation/702s3'
+          )
+          AND rwp.tgt_entity_id IS NOT NULL
+        )
+        JOIN entity_label p ON (
+          p.dataset_id=w.dataset_id
+          AND p.entity_id=rwp.tgt_entity_id
+          AND p.type_norm='identite publique de personne'
+        )
+        JOIN field f100 ON (f100.dataset_id=p.dataset_id AND f100.entity_id=p.entity_id AND f100.tag='100')
+        JOIN subfield sf100 ON (
+          sf100.dataset_id=f100.dataset_id
+          AND sf100.entity_id=f100.entity_id
+          AND sf100.field_idx=f100.field_idx
+          AND sf100.code_norm IN ('100sa','100sm','100sd')
+          AND sf100.value <> ''
+        )
+        WHERE w.dataset_id=%s AND w.type_norm='oeuvre'
+        LIMIT 1
+        """,
+        (ds,),
+    ).fetchone()
+    assert sample
+
+    title = re.sub(r"\s+", " ", str(sample["manifestation_title"]).strip())
+    person = re.sub(r"\s+", " ", str(sample["person_value"]).strip())
+    assert title
+    assert person
+
+    title_token = (title[:18].strip() or title)[:32]
+    person_token = (person[:18].strip() or person)[:32]
+    title_re = _sparql_regex_escape(title_token)
+    person_re = _sparql_regex_escape(person_token)
+
+    work_iri = _entity_iri(ds, sample["work_id"])
+    manifestation_iri = _entity_iri(ds, sample["manifestation_id"])
+
+    query = f"""{PREFIXES}
+SELECT DISTINCT ?Work_1 ?Manifestation_4 ?Text_6 WHERE {{
+  ?Work_1 rdf:type <https://vendange.bnf.fr/class/Work> ;
+    ^<https://vendange.bnf.fr/relation/750s3> ?Expression_2 .
+  ?Expression_2 rdf:type <https://vendange.bnf.fr/class/Expression> ;
+    ^<https://vendange.bnf.fr/relation/740s3> ?Manifestation_4 .
+  ?Manifestation_4 rdf:type <https://vendange.bnf.fr/class/Manifestation> ;
+    <https://vendange.bnf.fr/hasField> ?Field_1 .
+  ?Field_1 <https://vendange.bnf.fr/fieldCode> "245" ;
+    <https://vendange.bnf.fr/hasSubfield> ?Subfield_1 .
+  ?Subfield_1 <https://vendange.bnf.fr/subfieldCode> ?SubfieldCode_1 ;
+    <https://vendange.bnf.fr/subfieldValue> ?Text_6 .
+  FILTER(?SubfieldCode_1 IN("245sa", "245se", "245sf"))
+  FILTER(REGEX(STR(?Text_6), "{title_re}", "i"))
+  ?Work_1 (<https://vendange.bnf.fr/relation/700s3>|<https://vendange.bnf.fr/relation/701s3>|<https://vendange.bnf.fr/relation/702s3>) ?Person_10 .
+  ?Person_10 rdf:type <https://vendange.bnf.fr/class/PublicIdentity> ;
+    <https://vendange.bnf.fr/hasField> ?Field_2 .
+  ?Field_2 <https://vendange.bnf.fr/fieldCode> "100" ;
+    <https://vendange.bnf.fr/hasSubfield> ?Subfield_2 .
+  ?Subfield_2 <https://vendange.bnf.fr/subfieldCode> ?SubfieldCode_2 ;
+    <https://vendange.bnf.fr/subfieldValue> ?Text_12 .
+  FILTER(?SubfieldCode_2 IN("100sa", "100sm", "100sd"))
+  FILTER(REGEX(STR(?Text_12), "{person_re}", "i"))
+}}
+LIMIT 200
+"""
+
+    t0 = time.monotonic()
+    cols, rows = _run_select(endpoint, inject(query, ds), timeout_s=180)
+    elapsed = time.monotonic() - t0
+
+    assert "Work_1" in cols
+    assert "Manifestation_4" in cols
+    assert "Text_6" in cols
+    assert elapsed < 8.0
+
+    work_idx = cols.index("Work_1")
+    man_idx = cols.index("Manifestation_4")
+    assert any(r[work_idx] == work_iri and r[man_idx] == manifestation_iri for r in rows)

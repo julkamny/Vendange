@@ -139,3 +139,43 @@ uv run -- spacy download fr_dep_news_trf
     - Start endpoint: `"$ONTOP_CLI" endpoint -m ontop/mapping.obda -t ontop/ontology.ttl -p /tmp/ontop.properties --port 8080`.
   - Option B (Ontop + its own Postgres): `docker compose -f docker-compose.ontop.yml up -d` then point the backend to that DB by setting `POSTGRES_DSN=postgresql://vendange:vendange@localhost:55433/vendange`.
   - Tests: with Postgres running + Ontop CLI installed, run `ONTOP_CLI=... uv run pytest -q tests/ontop`.
+
+#### Materialized MARC projections (why `field` / `subfield` exist)
+
+Commit `6750e557` adds **materialized MARC projections** in Postgres to support “Sparnatural-style” SPARQL queries (field/subfield filters + regex) at interactive latency.
+
+**What changed**
+- We still store the full Intermarc JSON in `entity.record` (source of truth).
+- We now also maintain two *derived* tables (partitioned by `dataset_id`):
+  - `field(dataset_id, entity_id, field_idx, tag)` — one row per MARC field occurrence.
+  - `subfield(dataset_id, entity_id, field_idx, sub_idx, code_raw, code_norm, value)` — one row per MARC subfield occurrence.
+- `code_norm` applies the project convention `$ → s` (e.g. `245$a` becomes `245sa`). Case is preserved (e.g. `$a` vs `$A` remain distinct).
+- We also rely on `pg_trgm` to accelerate substring/regex-like searches on `subfield.value` via a GIN trigram index.
+
+**Rationale**
+Ontop can map Postgres tables to RDF terms efficiently, but repeatedly flattening JSON (`jsonb_array_elements(...)`) inside SQL views for every SPARQL query pushes a lot of work into the “hot path”. The worst offenders are:
+- MARC traversal patterns (`hasField/hasSubfield`) implemented via JSON lateral expansion.
+- Value filters (`regex`, case-insensitive substring searches) applied after expansion.
+- Multi-hop joins (W→E→M plus agent joins) that multiply the number of intermediate rows.
+
+Materializing the flattening step once at ingest/update time keeps SPARQL queries mostly in the “indexable relational” world.
+
+**Benefits**
+- Much faster SPARQL for common patterns:
+  - `fieldCode` / `subfieldCode` filters become simple indexed predicates.
+  - `subfieldValue` regex/substring searches can use trigram indexes.
+  - Complex Sparnatural traversals remain feasible (interactive or near-interactive).
+- More predictable query planning (less volatile row estimates than JSON-lateral expansion).
+- Ontop mappings become simpler (map to base tables rather than JSON views).
+
+**Downsides / trade-offs**
+- More storage: `field`/`subfield` can be large (they denormalize JSON into many rows).
+- Longer ingestion: we compute and insert the projections when uploading/importing a dataset.
+- More moving parts: updates must refresh derived projections (handled by the backend curation transaction helpers).
+- Requires `pg_trgm` extension: `ensure-schema` creates it (`db/schema.sql`), which requires sufficient privileges (the default local Docker user is fine).
+
+**Alternatives**
+- Keep JSON-lateral views (`v_field`, `v_subfield`) and “trust the planner”: simplest, but too slow for real-world Sparnatural queries.
+- Materialize RDF triples (e.g. precompute a graph store): fast at query time, but increases pipeline complexity and drifts away from “Postgres as the single source of truth”.
+- Use Postgres JSON indexes aggressively: helps some cases, but not enough for multi-join + regex workloads.
+- Push more “search” semantics into `fts`: great for broad text search, but it doesn’t replace structured “field/subfield + traversal” queries.

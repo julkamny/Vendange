@@ -87,3 +87,34 @@ def compute_fts(parsed: ParsedRecord, label: str) -> str:
     except Exception:
         pieces.append(parsed.intermarc_raw)
     return " ".join(pieces)
+
+
+def extract_field_rows(parsed: ParsedRecord) -> list[tuple[int, str]]:
+    """Extract (field_idx, tag) pairs from the Intermarc model.
+
+    field_idx and sub_idx are 1-based to match the legacy JSON view ordinality,
+    keeping the Ontop IRIs stable: vend:field/{dataset}/{entity}/{field_idx}.
+    """
+
+    rows: list[tuple[int, str]] = []
+    for field_idx, zone in enumerate(parsed.intermarc.zones, start=1):
+        if not zone.code:
+            continue
+        rows.append((field_idx, zone.code))
+    return rows
+
+
+def extract_subfield_rows(parsed: ParsedRecord) -> list[tuple[int, int, str, str, str]]:
+    """Extract (field_idx, sub_idx, code_raw, code_norm, value) rows for Ontop."""
+
+    rows: list[tuple[int, int, str, str, str]] = []
+    for field_idx, zone in enumerate(parsed.intermarc.zones, start=1):
+        if not zone.code:
+            continue
+        for sub_idx, sub in enumerate(zone.sousZones, start=1):
+            code_raw = sub.code or ""
+            if not code_raw:
+                continue
+            value = "" if sub.valeur is None else str(sub.valeur)
+            rows.append((field_idx, sub_idx, code_raw, sanitize_subfield_code(code_raw), value))
+    return rows

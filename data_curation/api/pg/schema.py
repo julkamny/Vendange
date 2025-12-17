@@ -21,7 +21,7 @@ LOGGER = logging.getLogger(__name__)
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "db" / "schema.sql"
 VIEWS_PATH = Path(__file__).resolve().parents[3] / "db" / "views.sql"
 
-PARTITIONED_TABLES: tuple[str, ...] = ("entity", "rel_edge", "entity_label", "cluster", "fts")
+PARTITIONED_TABLES: tuple[str, ...] = ("entity", "rel_edge", "entity_label", "cluster", "fts", "field", "subfield")
 
 
 def _partition_name(table: str, dataset_id: str) -> str:

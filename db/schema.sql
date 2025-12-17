@@ -1,6 +1,8 @@
 -- Base schema for Postgres migration (P1, Chunk 03)
 -- Partitioned by dataset_id to isolate workloads and indexes.
 
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 CREATE TABLE IF NOT EXISTS dataset (
     id          text PRIMARY KEY,
     title       text NOT NULL,
@@ -45,6 +47,8 @@ CREATE TABLE IF NOT EXISTS rel_edge (
 CREATE INDEX IF NOT EXISTS idx_rel_edge_src ON rel_edge (src_entity_id);
 CREATE INDEX IF NOT EXISTS idx_rel_edge_tgt_id ON rel_edge (tgt_entity_id);
 CREATE INDEX IF NOT EXISTS idx_rel_edge_tgt_ark ON rel_edge (tgt_ark);
+CREATE INDEX IF NOT EXISTS idx_rel_edge_predicate ON rel_edge (predicate_iri);
+CREATE INDEX IF NOT EXISTS idx_rel_edge_pred_src ON rel_edge (predicate_iri, src_entity_id);
 
 CREATE TABLE IF NOT EXISTS entity_label (
     dataset_id  text NOT NULL,
@@ -78,3 +82,30 @@ CREATE TABLE IF NOT EXISTS fts (
 ) PARTITION BY LIST (dataset_id);
 
 CREATE INDEX IF NOT EXISTS idx_fts_doc ON fts USING GIN (document);
+
+-- Materialized "field" / "subfield" projections for Ontop.
+-- These replace JSON-lateral views in performance-sensitive SPARQL queries.
+
+CREATE TABLE IF NOT EXISTS field (
+    dataset_id  text NOT NULL,
+    entity_id   bigint NOT NULL,
+    field_idx   integer NOT NULL,
+    tag         text NOT NULL,
+    PRIMARY KEY (dataset_id, entity_id, field_idx)
+) PARTITION BY LIST (dataset_id);
+
+CREATE INDEX IF NOT EXISTS idx_field_tag ON field (tag);
+
+CREATE TABLE IF NOT EXISTS subfield (
+    dataset_id  text NOT NULL,
+    entity_id   bigint NOT NULL,
+    field_idx   integer NOT NULL,
+    sub_idx     integer NOT NULL,
+    code_raw    text NOT NULL,
+    code_norm   text NOT NULL,
+    value       text NOT NULL,
+    PRIMARY KEY (dataset_id, entity_id, field_idx, sub_idx)
+) PARTITION BY LIST (dataset_id);
+
+CREATE INDEX IF NOT EXISTS idx_subfield_code_norm ON subfield (code_norm);
+CREATE INDEX IF NOT EXISTS idx_subfield_value_trgm ON subfield USING GIN (value gin_trgm_ops);

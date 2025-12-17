@@ -113,7 +113,21 @@ export function WorkspaceView({
     () => (workspaceWorks?.clusters ? workspaceWorks.clusters.map(mapWorkCluster) : []),
     [workspaceWorks?.clusters],
   )
-  const coverage = useMemo(() => computeClusterCoverage(mappedClusters), [mappedClusters])
+  const activeCluster = useMemo(() => (activeClusterDto ? mapWorkCluster(activeClusterDto) : null), [activeClusterDto])
+  const clustersForOps = useMemo(() => {
+    if (!activeCluster) return mappedClusters
+    let replaced = false
+    const merged = mappedClusters.map(cluster => {
+      if (cluster.anchorId === activeCluster.anchorId || (cluster.anchorArk && cluster.anchorArk === activeCluster.anchorArk)) {
+        replaced = true
+        return activeCluster
+      }
+      return cluster
+    })
+    return replaced ? merged : [...merged, activeCluster]
+  }, [activeCluster, mappedClusters])
+
+  const coverage = useMemo(() => computeClusterCoverage(clustersForOps), [clustersForOps])
   const unclusteredWorks: WorkListRowDto[] = useMemo(
     () => workspaceWorks?.unclustered_works ?? [],
     [workspaceWorks?.unclustered_works],
@@ -300,7 +314,7 @@ export function WorkspaceView({
 
   const clustering = useWorkspaceClustering({
     datasetId,
-    clusters: mappedClusters,
+    clusters: clustersForOps,
     getById,
     applyServerUpdates,
     applyServerWorkspaceUpdates,
@@ -363,7 +377,7 @@ export function WorkspaceView({
     cancelOriginalitySwap,
   } = useOriginalitySwap({
     datasetId,
-    clusters: mappedClusters,
+    clusters: clustersForOps,
     workClusterIndex,
     getById,
     applyServerUpdates,
@@ -375,7 +389,7 @@ export function WorkspaceView({
   })
 
   const handleIntermarcSave = useIntermarcSaveGuards({
-    clusters: mappedClusters,
+    clusters: clustersForOps,
     getByArk,
     getById,
     t,

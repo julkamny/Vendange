@@ -362,7 +362,8 @@ export async function prettyPrintIntermarc(
       lineText += displayCode
       const codeStart = lineText.length - displayCode.length
       const codeEnd = lineText.length
-      const highlight = curationClass(sz.affectedByCuration ?? z.affectedByCuration)
+      const zoneIsGrafting = (z.affectedByCuration ?? '').trim().toLowerCase() === 'clusterfieldgrafting'
+      const highlight = curationClass(zoneIsGrafting ? z.affectedByCuration : (sz.affectedByCuration ?? z.affectedByCuration))
       marks.push({ className: `intermarc-subfield-code${highlight}`, from: codeStart, to: codeEnd })
 
       if (shown && shown.length) {

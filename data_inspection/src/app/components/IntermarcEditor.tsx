@@ -213,12 +213,13 @@ function buildDecorations(
     const line = lines[lineIndex]
     const zoneMeta = options.curatedZones?.[lineIndex]
     const zoneFlag = curationClass(zoneMeta?.affectedByCuration)
+    const zoneIsGrafting = (zoneMeta?.affectedByCuration ?? '').trim().toLowerCase() === 'clusterfieldgrafting'
     builder.add(line.lineStart, line.lineStart, Decoration.line({ class: 'intermarc-line' }))
     builder.add(line.zoneStart, line.zoneEnd, Decoration.mark({ class: `intermarc-zone${zoneFlag}` }))
     for (let subIndex = 0; subIndex < line.subfields.length; subIndex += 1) {
       const subfield = line.subfields[subIndex]
       const subMeta = zoneMeta?.sousZones?.[subIndex]
-      const subFlag = curationClass(subMeta?.affectedByCuration ?? zoneMeta?.affectedByCuration)
+      const subFlag = curationClass(zoneIsGrafting ? zoneMeta?.affectedByCuration : (subMeta?.affectedByCuration ?? zoneMeta?.affectedByCuration))
       const subfieldClass = Decoration.mark({ class: `intermarc-subfield${subFlag}` })
       builder.add(subfield.codeStart, subfield.valueEnd, subfieldClass)
       builder.add(

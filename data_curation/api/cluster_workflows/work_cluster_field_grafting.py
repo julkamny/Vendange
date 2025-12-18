@@ -45,6 +45,16 @@ def _clone_zone(zone: Zone, *, new_tag: Optional[str] = None) -> Zone:
     )
 
 
+def _stamp_all(zone: Zone, *, flag: str) -> Zone:
+    """Set the same curation flag on the zone and all its subfields."""
+    return Zone(
+        code=zone.code,
+        field_compact_value=zone.field_compact_value,
+        affected_by_curation=flag,
+        sousZones=[SousZone(code=sub.code, valeur=sub.valeur, affected_by_curation=flag) for sub in zone.sousZones],
+    )
+
+
 def _exact_key(zone: Zone) -> tuple[str, tuple[tuple[str, str], ...]]:
     pairs = tuple((_sub_suffix(sz.code), _norm_ws(sz.valeur)) for sz in zone.sousZones)
     return zone.code, pairs
@@ -247,7 +257,7 @@ def _apply_040(anchor: _WorkCtx, members: List[_WorkCtx], zones: List[Zone]) -> 
         for z in kept:
             if _exact_key(z) in anchor_exact:
                 continue
-            additions.append(Zone(code="040", sousZones=z.sousZones, affected_by_curation=CLUSTER_FIELD_GRAFTING))
+            additions.append(_stamp_all(Zone(code="040", sousZones=z.sousZones), flag=CLUSTER_FIELD_GRAFTING))
 
     if not additions:
         return zones
@@ -263,7 +273,11 @@ def _apply_041(anchor: _WorkCtx, members: List[_WorkCtx], zones: List[Zone]) -> 
     if not member_041:
         return zones
     if not anchor_has_041:
-        additions = [Zone(code="041", sousZones=z.sousZones, affected_by_curation=CLUSTER_FIELD_GRAFTING) for z in member_041 if _exact_key(z) not in anchor_exact]
+        additions = [
+            _stamp_all(Zone(code="041", sousZones=z.sousZones), flag=CLUSTER_FIELD_GRAFTING)
+            for z in member_041
+            if _exact_key(z) not in anchor_exact
+        ]
         return [*zones, *_dedupe_zones_by_exact(additions)]
     moved = []
     for z in member_041:
@@ -282,7 +296,7 @@ def _apply_simple_graft(anchor: _WorkCtx, members: List[_WorkCtx], zones: List[Z
             key = _exact_key(z)
             if key in existing_keys:
                 continue
-            additions.append(Zone(code=tag, sousZones=_clone_zone(z).sousZones, affected_by_curation=CLUSTER_FIELD_GRAFTING))
+            additions.append(_stamp_all(Zone(code=tag, sousZones=_clone_zone(z).sousZones), flag=CLUSTER_FIELD_GRAFTING))
             existing_keys.add(key)
     if not additions:
         return zones
@@ -357,7 +371,7 @@ def _apply_150_450(anchor: _WorkCtx, members: List[_WorkCtx], zones: List[Zone])
             existing_match = next((orig for orig in anchor_450 if _exact_key(orig) == _exact_key(z)), None)
             replacement.append(_clone_zone(existing_match) if existing_match else _clone_zone(z))
         else:
-            replacement.append(Zone(code="450", sousZones=z.sousZones, affected_by_curation=CLUSTER_FIELD_GRAFTING))
+            replacement.append(_stamp_all(Zone(code="450", sousZones=z.sousZones), flag=CLUSTER_FIELD_GRAFTING))
 
     # remove old 450 and insert resolved
     no_450 = [z for z in zones if z.code != "450"]
@@ -393,7 +407,7 @@ def _apply_609(anchor: _WorkCtx, members: List[_WorkCtx], zones: List[Zone]) -> 
                 existing = next((orig for orig in zones if orig.code == "609" and _exact_key(orig) == _exact_key(z)), None)
                 replacement.append(_clone_zone(existing) if existing else _clone_zone(z))
             else:
-                replacement.append(Zone(code="609", sousZones=z.sousZones, affected_by_curation=CLUSTER_FIELD_GRAFTING))
+                replacement.append(_stamp_all(Zone(code="609", sousZones=z.sousZones), flag=CLUSTER_FIELD_GRAFTING))
         stripped = [z for z in zones if z.code != "609"]
         return _replace_tag_group(stripped, tag="609", replacement=replacement)
 
@@ -440,7 +454,7 @@ def _apply_629_or_62t(
         replacement_zone = _clone_zone(anchor_fields[0])
         replacement_zone.sousZones = ordered
     else:
-        replacement_zone = Zone(code=tag, sousZones=ordered, affected_by_curation=CLUSTER_FIELD_GRAFTING)
+        replacement_zone = _stamp_all(Zone(code=tag, sousZones=ordered), flag=CLUSTER_FIELD_GRAFTING)
 
     stripped = [z for z in zones if z.code != tag]
     return _replace_tag_group(stripped, tag=tag, replacement=[replacement_zone])
@@ -479,7 +493,7 @@ def _apply_680(anchor: _WorkCtx, members: List[_WorkCtx], zones: List[Zone]) -> 
     # anchor has no 680: pick highest-NNB work with 680 and copy its 680 into anchor
     chosen_work = max(works_with_680, key=lambda w: w.nnb)
     chosen_680 = [_clone_zone(z) for z in chosen_work.record.get_zone("680")]
-    inserted_680 = [Zone(code="680", sousZones=z.sousZones, affected_by_curation=CLUSTER_FIELD_GRAFTING) for z in chosen_680]
+    inserted_680 = [_stamp_all(Zone(code="680", sousZones=z.sousZones), flag=CLUSTER_FIELD_GRAFTING) for z in chosen_680]
 
     by_dewey: Dict[Optional[str], tuple[Zone, int]] = {}
     for w in works_with_680:
@@ -514,7 +528,7 @@ def _apply_685(anchor: _WorkCtx, members: List[_WorkCtx], zones: List[Zone]) -> 
                 existing = next((orig for orig in zones if orig.code == "685" and _exact_key(orig) == _exact_key(z)), None)
                 replacement.append(_clone_zone(existing) if existing else _clone_zone(z))
             else:
-                replacement.append(Zone(code="685", sousZones=z.sousZones, affected_by_curation=CLUSTER_FIELD_GRAFTING))
+                replacement.append(_stamp_all(Zone(code="685", sousZones=z.sousZones), flag=CLUSTER_FIELD_GRAFTING))
         stripped = [z for z in zones if z.code != "685"]
         return _replace_tag_group(stripped, tag="685", replacement=replacement)
 
@@ -586,7 +600,10 @@ def _apply_860(anchor: _WorkCtx, members: List[_WorkCtx], zones: List[Zone]) -> 
         return [*zones, *[_to_999(z, origin_tag="860") for z in moved]]
 
     chosen = max(works_with_860, key=lambda w: w.nnb)
-    inserted = [Zone(code="860", sousZones=_clone_zone(z).sousZones, affected_by_curation=CLUSTER_FIELD_GRAFTING) for z in chosen.record.get_zone("860")]
+    inserted = [
+        _stamp_all(Zone(code="860", sousZones=_clone_zone(z).sousZones), flag=CLUSTER_FIELD_GRAFTING)
+        for z in chosen.record.get_zone("860")
+    ]
     for w in works_with_860:
         if w.ark == chosen.ark:
             continue
@@ -615,7 +632,7 @@ def _apply_968(anchor: _WorkCtx, members: List[_WorkCtx], zones: List[Zone]) -> 
             existing = next((orig for orig in anchor_968 if _exact_key(orig) == _exact_key(z)), None)
             replacement.append(_clone_zone(existing) if existing else _clone_zone(z))
         else:
-            replacement.append(Zone(code="968", sousZones=z.sousZones, affected_by_curation=CLUSTER_FIELD_GRAFTING))
+            replacement.append(_stamp_all(Zone(code="968", sousZones=z.sousZones), flag=CLUSTER_FIELD_GRAFTING))
     stripped = [z for z in zones if z.code != "968"]
     return _replace_tag_group(stripped, tag="968", replacement=replacement)
 
@@ -691,7 +708,7 @@ def _apply_96x(anchor: _WorkCtx, members: List[_WorkCtx], zones: List[Zone]) -> 
         if kkey in anchor_map:
             replacement.append(_clone_zone(anchor_map[kkey]))
         else:
-            replacement.append(Zone(code=z.code, sousZones=z.sousZones, affected_by_curation=CLUSTER_FIELD_GRAFTING))
+            replacement.append(_stamp_all(Zone(code=z.code, sousZones=z.sousZones), flag=CLUSTER_FIELD_GRAFTING))
 
     stripped = [z for z in zones if not _tag_is_96x_excluding_968(z.code)]
     # insert all kept 96X at end (deterministic), then moved-to-999 at end

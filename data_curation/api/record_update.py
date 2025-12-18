@@ -70,21 +70,36 @@ def _merge_zone(new_zone: Zone, previous: Optional[Zone]) -> Zone:
     remaining_prior = prior_subs.copy()
     merged_subs: List[SousZone] = []
     for sub in new_zone.sousZones:
-        matched = next(
-            (s for s in remaining_prior if s.code == sub.code and s.valeur == sub.valeur),
-            None,
-        )
+        matched = next((s for s in remaining_prior if s.code == sub.code and s.valeur == sub.valeur), None)
         if matched and matched in remaining_prior:
             remaining_prior.remove(matched)
-        # If the user edits a curated subfield (value changes), keep the prior
-        # curation flag for that code when possible (notably for cluster workflows).
         if not matched:
-            fallback = next((s for s in remaining_prior if s.code == sub.code and s.affected_by_curation), None)
-            if fallback and fallback in remaining_prior:
-                remaining_prior.remove(fallback)
-            matched = fallback
-        sub_flag = matched.affected_by_curation if matched else "manual"
-        if workflow_flag and (not sub_flag or str(sub_flag).strip().lower() in {"manual", "edit", "created"}):
+            # Prefer preserving a cluster workflow flag even if the value changed.
+            grafted = next(
+                (
+                    s
+                    for s in remaining_prior
+                    if s.code == sub.code
+                    and s.affected_by_curation
+                    and str(s.affected_by_curation).strip().lower() == "clusterfieldgrafting"
+                ),
+                None,
+            )
+            if grafted:
+                remaining_prior.remove(grafted)
+                matched = grafted
+            else:
+                fallback = next((s for s in remaining_prior if s.code == sub.code and s.affected_by_curation), None)
+                if fallback:
+                    remaining_prior.remove(fallback)
+                matched = fallback
+
+        sub_flag = matched.affected_by_curation if matched and matched.affected_by_curation else "manual"
+        # If the previous subfield was workflow-tagged, keep it even when edited.
+        if matched and matched.affected_by_curation and str(matched.affected_by_curation).strip().lower() == "clusterfieldgrafting":
+            sub_flag = matched.affected_by_curation
+        # Zone-level workflow flag takes precedence over manual/edit/created.
+        if workflow_flag and str(sub_flag).strip().lower() in {"manual", "edit", "created"}:
             sub_flag = workflow_flag
         merged_subs.append(SousZone(code=sub.code, valeur=sub.valeur, affected_by_curation=sub_flag))
 
@@ -188,10 +203,13 @@ def _merge_non_special_zones(
     new_im: Intermarc, previous: Intermarc, special_codes: Sequence[str]
 ) -> List[Zone]:
     prev_pool: Dict[Tuple[str, Optional[str], Tuple[Tuple[str, str], ...]], List[Zone]] = {}
+    prev_by_code: Dict[str, List[Zone]] = {}
     for zone in previous.zones:
         if zone.code in special_codes:
             continue
-        prev_pool.setdefault(_zone_signature(zone), []).append(zone)
+        sig = _zone_signature(zone)
+        prev_pool.setdefault(sig, []).append(zone)
+        prev_by_code.setdefault(zone.code, []).append(zone)
 
     merged: List[Zone] = []
 
@@ -199,12 +217,29 @@ def _merge_non_special_zones(
         sig = _zone_signature(zone)
         bucket = prev_pool.get(sig, [])
         if bucket:
-            return bucket.pop(0)
+            picked = bucket.pop(0)
+            by_code_bucket = prev_by_code.get(picked.code, [])
+            if picked in by_code_bucket:
+                by_code_bucket.remove(picked)
+            return picked
         if zone.field_compact_value is None:
             fallback_sig = (zone.code, None, tuple((sub.code, sub.valeur) for sub in zone.sousZones))
             for key, bucket in prev_pool.items():
                 if key[0] == fallback_sig[0] and key[2] == fallback_sig[2] and bucket:
-                    return bucket.pop(0)
+                    picked = bucket.pop(0)
+                    by_code_bucket = prev_by_code.get(picked.code, [])
+                    if picked in by_code_bucket:
+                        by_code_bucket.remove(picked)
+                    return picked
+        # Fallback: align by tag to preserve flags when the user edits values.
+        by_code_bucket = prev_by_code.get(zone.code, [])
+        if by_code_bucket:
+            picked = by_code_bucket.pop(0)
+            picked_sig = _zone_signature(picked)
+            sig_bucket = prev_pool.get(picked_sig, [])
+            if picked in sig_bucket:
+                sig_bucket.remove(picked)
+            return picked
         return None
 
     for zone in new_im.zones:

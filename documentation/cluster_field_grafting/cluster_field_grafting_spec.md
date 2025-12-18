@@ -1,3 +1,11 @@
+---
+date: 2025-12-18
+nature:
+  - Génération
+models:
+  - ChatGPT 5.2 Thinking
+---
+
 # Cluster “grafting” specs (Intermarc NG) — formal rules
 
 This document formalizes how fields (“zones”) from **clustered works** are incorporated into the **anchor work** when the user clicks:

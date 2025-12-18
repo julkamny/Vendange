@@ -103,6 +103,8 @@ def _build_dataset() -> str:
             create_zone("609", [("a", "topic-609", None)]),
             create_zone("685", [("a", "topic-685", None)]),
             create_zone("700", [("3", "ark:/agent/a1", None), ("4", "role2", None)]),
+            # Grafting should bring this 552 into the anchor as a fully grafted zone (zone + subfields).
+            _adaptation_zone("ark:/12148/cb4000000000", qualifier=HAS_ADAPT_ARK, affected="created"),
             create_zone("680", [("da", "D1", None), ("dg", "G1", None), ("di", "I1", None)]),
             create_zone("960", [("3", "chainA", None)]),
             create_zone("960", [("3", "chainB", None)]),
@@ -212,6 +214,17 @@ def test_cluster_field_grafting_full_workflow_and_guards():
     role1 = [sz for sz in z700[0].sousZones if sz.code == "700$4" and sz.valeur == "role1"]
     assert role1 and role1[0].affected_by_curation is None
 
+    # 552 grafting: when a member has created/manual flags, the inserted 552 must be *fully* grafted.
+    grafted_552 = [
+        z
+        for z in anchor.get_zone("552")
+        if any(sz.code == "552$3" and sz.valeur == "ark:/12148/cb4000000000" for sz in z.sousZones)
+    ]
+    assert grafted_552
+    assert grafted_552[0].affected_by_curation == "clusterFieldGrafting"
+    assert grafted_552[0].sousZones
+    assert all(sz.affected_by_curation == "clusterFieldGrafting" for sz in grafted_552[0].sousZones)
+
     # 609: presence of any 96X moves all 609 to 999; anchor ends with no 609.
     assert not anchor.get_zone("609")
     assert any(z.code == "999" and any(sz.code == "999$et" and sz.valeur == "609" for sz in z.sousZones) for z in anchor.zones)
@@ -248,6 +261,45 @@ def test_cluster_field_grafting_full_workflow_and_guards():
 
     # Exception: originality swap remains allowed even while locked.
     db.swap_work_originality(dataset_id, original_id="a1", target_id="wNew")
+
+    # Subsequent user edits: grafting flag must take precedence over manual.
+    # - Editing a grafted 552 subfield must keep clusterFieldGrafting.
+    # - Editing the grafted 700$4 must keep clusterFieldGrafting.
+    latest = next(rec for rec in db.load_records(dataset_id) if rec["id"] == "a1")
+    im = Intermarc.from_json_string(latest["intermarc"])
+    for zone in im.zones:
+        if zone.code == "552":
+            sub3 = next(
+                (
+                    sz
+                    for sz in zone.sousZones
+                    if sz.code == "552$3" and sz.valeur == "ark:/12148/cb4000000000"
+                ),
+                None,
+            )
+            if sub3:
+                zone.sousZones.append(
+                    create_zone("552", [("z", "user-note", None)]).sousZones[0]
+                )
+        if zone.code == "700":
+            for sz in zone.sousZones:
+                if sz.code == "700$4" and sz.valeur == "role2":
+                    sz.valeur = "role2-edited"
+    db.update_record(dataset_id, "a1", type_raw="Oeuvre", intermarc_json=im.to_json_string())
+    edited = next(rec for rec in db.load_records(dataset_id) if rec["id"] == "a1")
+    edited_im = Intermarc.from_json_string(edited["intermarc"])
+    edited_552 = [
+        z
+        for z in edited_im.get_zone("552")
+        if any(sz.code == "552$3" and sz.valeur == "ark:/12148/cb4000000000" for sz in z.sousZones)
+    ]
+    assert edited_552
+    assert edited_552[0].affected_by_curation == "clusterFieldGrafting"
+    assert all(sz.affected_by_curation == "clusterFieldGrafting" for sz in edited_552[0].sousZones)
+    assert any(sz.code == "552$z" and sz.valeur == "user-note" for sz in edited_552[0].sousZones)
+    edited_700 = edited_im.get_zone("700")[0]
+    edited_role2 = [sz for sz in edited_700.sousZones if sz.code == "700$4" and sz.valeur == "role2-edited"]
+    assert edited_role2 and edited_role2[0].affected_by_curation == "clusterFieldGrafting"
 
     # Ungraft: removes all workflow-tagged fields/subfields but nothing else.
     updated2 = db.toggle_cluster_field_grafting(dataset_id, anchor_id="a1")

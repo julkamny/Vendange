@@ -30,6 +30,7 @@ from data_curation.api.schemas import (
 from data_curation.api.pg.ark_labeling_repo import resolve_ark_label_map_for_records
 from data_curation.api.pg.record_labeling import build_title_segments
 from data_curation.api.pg.record_labeling import build_label_from_record
+from data_curation.api.pg import cluster_workflow_repo
 
 
 WORK_LINK_PREDICATE = f"{RELATION_NS}750s3"
@@ -290,6 +291,13 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
                         manifestations=manif_counts.get(item.ark, 0),
                     )
                 )
+
+    workflow_state_by_anchor = cluster_workflow_repo.get_applied_by_anchor(
+        dataset_id,
+        [cluster.anchor_ark for cluster in clusters.values() if cluster.anchor_ark],
+    )
+    for cluster in clusters.values():
+        cluster.workflows = workflow_state_by_anchor.get(cluster.anchor_ark or "", {}) if cluster.anchor_ark else {}
 
     # Fetch unclustered works (those not appearing anywhere in the cluster table as anchor or member)
     query = """
@@ -921,12 +929,15 @@ def get_work_cluster(dataset_id: str, anchor_key: str) -> Optional[WorkCluster]:
                 )
             )
 
+    workflows = cluster_workflow_repo.get_applied_workflows(dataset_id, anchor_ark) if anchor_ark else {}
+
     return WorkCluster(
         anchor_id=anchor["record_id"] or str(anchor["entity_id"]),
         anchor_ark=anchor_ark,
         anchor_title=anchor_title,
         anchor_title_segments=anchor_title_segments,
         anchor_summary=anchor_summary,
+        workflows=workflows,
         items=items,
         expression_groups=expression_groups,
         independent_expressions=independent_expressions,

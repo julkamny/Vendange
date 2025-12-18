@@ -4,7 +4,13 @@ from typing import List, Optional, Sequence, Set, Tuple
 
 from .pg import controlled_repo, entities_repo
 from .pg.curation_tx import dataset_transaction, update_entity_record
-from .db_guards import _extract_cluster_targets, _is_expression_anchor, _is_work_anchor
+from .db_guards import (
+    _extract_cluster_targets,
+    _ensure_cluster_workflow_unlocked,
+    _is_expression_anchor,
+    _is_work_anchor,
+)
+from .cluster_workflows.constants import CLUSTER_FIELD_GRAFTING
 from ..models import Entity, Intermarc, SousZone, Zone
 
 
@@ -193,6 +199,14 @@ def swap_cluster_anchor(dataset_id: str, *, anchor_id: str, target_id: str) -> L
         target_ark = target_entity.ark()
         if not anchor_ark or not target_ark:
             raise ValueError("Ancre et cible doivent avoir un ARK.")
+
+        if kind_anchor in {"œuvre", "oeuvre", "work"}:
+            _ensure_cluster_workflow_unlocked(
+                conn,
+                dataset_id=dataset_id,
+                anchor_ark=anchor_ark,
+                workflow_name=CLUSTER_FIELD_GRAFTING,
+            )
 
         link_has_adaptation_ark = controlled_repo.get_controlled_ark_by_label(dataset_id, "A pour adaptation", conn=conn)
         link_is_adaptation_of_ark = controlled_repo.get_controlled_ark_by_label(

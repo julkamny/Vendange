@@ -83,6 +83,7 @@ class WorkCluster(BaseModel):
     anchor_title: Optional[str] = None
     anchor_title_segments: List[TitleSegment] = Field(default_factory=list)
     anchor_summary: Optional[EntitySummary] = None
+    workflows: Dict[str, bool] = Field(default_factory=dict)
     items: List[WorkClusterItem] = Field(default_factory=list)
     expression_groups: List[ExpressionAnchorGroupView] = Field(default_factory=list)
     independent_expressions: List[ExpressionItemView] = Field(default_factory=list)

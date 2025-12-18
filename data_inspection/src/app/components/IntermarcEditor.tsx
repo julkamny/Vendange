@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import CodeMirror from '@uiw/react-codemirror'
 import type { Completion } from '@codemirror/autocomplete'
@@ -325,9 +325,10 @@ type IntermarcEditorProps = {
   baselineRecord?: RecordRow
   onCancel: () => void
   onSave: (next: Intermarc) => void
+  extraActions?: ReactNode
 }
 
-export function IntermarcEditor({ record, baselineRecord, onCancel, onSave }: IntermarcEditorProps) {
+export function IntermarcEditor({ record, baselineRecord, onCancel, onSave, extraActions }: IntermarcEditorProps) {
   const { t, language } = useTranslation()
   const { showToast } = useToast()
   const { datasetId } = useAppData()
@@ -514,6 +515,7 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave }: In
         <button type="button" onClick={onCancel}>
           {t('buttons.closeEditor')}
         </button>
+        {extraActions}
       </div>
       {error ? <p className="record-editor__error">{error}</p> : null}
     </div>

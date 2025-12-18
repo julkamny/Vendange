@@ -7,8 +7,10 @@ from .db_guards import (
     _ensure_unique_expression_clusters,
     _ensure_unique_work_clusters,
     _ensure_unique_agent_clusters,
+    _ensure_cluster_workflow_unlocked,
     _is_agent_type,
 )
+from .cluster_workflows.constants import CLUSTER_FIELD_GRAFTING
 from .pg import entities_repo
 from .pg.curation_tx import dataset_transaction, update_entity_record
 from ..models import Entity, Intermarc
@@ -78,6 +80,13 @@ def update_manual_cluster(
         anchor_ark = anchor_entity.ark()
         if not anchor_ark:
             raise ValueError("Ancre sans ARK : impossible de clustériser.")
+        if is_work:
+            _ensure_cluster_workflow_unlocked(
+                conn,
+                dataset_id=dataset_id,
+                anchor_ark=anchor_ark,
+                workflow_name=CLUSTER_FIELD_GRAFTING,
+            )
 
         target_entity: Optional[Entity] = None
         if accepted:

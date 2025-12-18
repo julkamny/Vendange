@@ -8,6 +8,7 @@ from typing import Dict, List
 from .anchor_swap import swap_cluster_anchor
 from .manual_cluster import update_manual_cluster
 from .originality_swap import swap_work_originality
+from .cluster_field_grafting import toggle_cluster_field_grafting
 from .pg.ingest import ingest_csv as ingest_csv_postgres
 from .pg.session import db_session, statement_timeout
 from .pg.schema import ensure_schema, _partition_name
@@ -27,6 +28,7 @@ __all__ = [
     "swap_cluster_anchor",
     "swap_work_originality",
     "update_manual_cluster",
+    "toggle_cluster_field_grafting",
 ]
 
 

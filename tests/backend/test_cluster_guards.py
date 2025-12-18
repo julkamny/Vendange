@@ -116,8 +116,10 @@ def test_work_removal_blocked_when_expressions_clustered_elsewhere(dataset_build
 
     # Removing w2 from the work cluster should be blocked because e2 is clustered under e1 (different work)
     removal_attempt = _work_intermarc("w1")
-    db.update_record(dataset_id, "w1", type_raw="Oeuvre", intermarc_json=removal_attempt)
-    # Ensure cluster was removed as requested
+    with pytest.raises(ValueError):
+        db.update_record(dataset_id, "w1", type_raw="Oeuvre", intermarc_json=removal_attempt)
+
+    # Ensure cluster is still present
     w1_record = next(rec for rec in db.load_records(dataset_id) if rec["id"] == "w1")
     zones = [z for z in json.loads(w1_record["intermarc"]).get("zones", []) if z.get("code") == "90F"]
-    assert zones == []
+    assert zones

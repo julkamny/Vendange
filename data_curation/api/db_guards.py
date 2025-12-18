@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Dict, Iterable, Set
 
 from data_curation.api.db_shared import RELATION_NS
+from data_curation.api.pg import cluster_workflow_repo
 from data_curation.utils.text_norm import fold_diacritics
 from data_curation.models import Intermarc
 
@@ -10,6 +11,28 @@ CLUSTER_NOTE_VALUES = {"Clusterisation manuelle", "Clusterisation script"}
 CLUSTER_NOTE_VALUES_LOWER = {val.lower() for val in CLUSTER_NOTE_VALUES}
 
 WORK_LINK_PREDICATE = f"{RELATION_NS}750s3"
+
+CLUSTER_WORKFLOW_LOCKED_MESSAGE = (
+    "Opération impossible : ce cluster est verrouillé car un workflow de greffe est appliqué sur l'ancre."
+)
+
+
+def _ensure_cluster_workflow_unlocked(
+    conn,
+    *,
+    dataset_id: str,
+    anchor_ark: str,
+    workflow_name: str,
+) -> None:
+    """Block cluster membership operations when a workflow is applied on the anchor.
+
+    This guard is intentionally independent from record contents, so it cannot be
+    bypassed by manually deleting workflow-tagged fields.
+    """
+    if not anchor_ark:
+        return
+    if cluster_workflow_repo.get_any_applied(dataset_id, anchor_ark, workflow_name=workflow_name, conn=conn):
+        raise ValueError(CLUSTER_WORKFLOW_LOCKED_MESSAGE)
 
 
 def _is_agent_type(type_raw: str) -> bool:

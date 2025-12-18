@@ -74,6 +74,17 @@ CREATE TABLE IF NOT EXISTS cluster (
 
 CREATE INDEX IF NOT EXISTS idx_cluster_member ON cluster (member_ark);
 
+CREATE TABLE IF NOT EXISTS cluster_workflow_state (
+    dataset_id      text NOT NULL,
+    anchor_ark      text NOT NULL,
+    workflow_name   text NOT NULL,
+    applied         boolean NOT NULL DEFAULT false,
+    applied_at      timestamptz,
+    PRIMARY KEY (dataset_id, anchor_ark, workflow_name)
+) PARTITION BY LIST (dataset_id);
+
+CREATE INDEX IF NOT EXISTS idx_cluster_workflow_anchor ON cluster_workflow_state (anchor_ark);
+
 CREATE TABLE IF NOT EXISTS fts (
     dataset_id  text NOT NULL,
     entity_id   bigint NOT NULL,

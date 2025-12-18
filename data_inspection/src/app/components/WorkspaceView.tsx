@@ -10,6 +10,7 @@ import { useToast } from '../providers/ToastContext'
 import { useWorkspaceClustering } from './workspace/useWorkspaceClustering'
 import { useAnchorSwap } from './workspace/useAnchorSwap'
 import { useOriginalitySwap } from './workspace/useOriginalitySwap'
+import { useClusterFieldGrafting } from './workspace/useClusterFieldGrafting'
 import { useIntermarcSaveGuards } from './workspace/useIntermarcSaveGuards'
 import { useWorkspaceInteractions } from './workspace/useWorkspaceInteractions'
 import { WorkspaceViewLayout } from './workspace/WorkspaceViewLayout'
@@ -108,6 +109,7 @@ export function WorkspaceView({
     return state.selectedEntity?.workArk ?? state.highlightedWorkArk ?? null
   }, [anchorLookup, inferredAnchorFromSelection, state.activeWorkAnchorId, state.highlightedWorkArk, state.selectedEntity])
   const { data: activeClusterDto } = useWorkCluster(datasetId, activeAnchorKey)
+  const clusterFieldGraftingApplied = Boolean(activeClusterDto?.workflows?.clusterFieldGrafting)
 
   const mappedClusters: Cluster[] = useMemo(
     () => (workspaceWorks?.clusters ? workspaceWorks.clusters.map(mapWorkCluster) : []),
@@ -220,6 +222,21 @@ export function WorkspaceView({
     },
     [record],
   )
+
+  const { toggleClusterFieldGrafting, clusterFieldGraftingBusy } = useClusterFieldGrafting({
+    datasetId,
+    applyServerUpdates,
+    applyServerWorkspaceUpdates,
+    showToast,
+    t,
+  })
+
+  const canShowClusterFieldGraftingButton =
+    Boolean(record) &&
+    record?.typeNorm === 'oeuvre' &&
+    Boolean(activeClusterDto) &&
+    activeClusterDto?.anchor_id === record?.id &&
+    (activeClusterDto?.items?.length ?? 0) > 0
   const backlinks = backlinksQuery.backlinks
   const backlinksLoading = backlinksQuery.isFetching || backlinksQuery.isLoading
   const workspaceContext = useMemo(
@@ -767,6 +784,14 @@ export function WorkspaceView({
       editingRecord={editingRecord}
       setEditingRecord={setEditingRecord}
       canEditRecord={canEditRecord}
+      clusterFieldGraftingEnabled={canShowClusterFieldGraftingButton}
+      clusterFieldGraftingApplied={clusterFieldGraftingApplied}
+      clusterFieldGraftingBusy={clusterFieldGraftingBusy}
+      clusterFieldGraftingGraftLabel={t('works.clusterFieldGrafting.graft', { defaultValue: 'Greffer les zones des œuvres mises en grappe' })}
+      clusterFieldGraftingUngraftLabel={t('works.clusterFieldGrafting.ungraft', { defaultValue: 'Retirer les zones des œuvres mises en grappe' })}
+      toggleClusterFieldGrafting={() => {
+        if (record) toggleClusterFieldGrafting(record.id)
+      }}
       readOnlyReason={readOnlyReason}
       backlinks={backlinks}
       backlinksLoading={backlinksLoading}

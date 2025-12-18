@@ -193,6 +193,19 @@ export async function updateManualCluster(
   return parseJson<WorkspaceUpdatePayload>(response)
 }
 
+export async function toggleClusterFieldGrafting(
+  datasetId: string,
+  payload: { anchorId: string },
+): Promise<WorkspaceUpdatePayload> {
+  const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/work_clusters/${encodeURIComponent(payload.anchorId)}/cluster_field_grafting/toggle`
+  const response = await fetch(url, { method: 'POST' })
+  if (!response.ok) {
+    const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
+    throw new Error(detail.detail || 'Failed to toggle cluster field grafting')
+  }
+  return parseJson<WorkspaceUpdatePayload>(response)
+}
+
 export async function uprootManifestation(
   datasetId: string,
   payload: {

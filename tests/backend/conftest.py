@@ -38,3 +38,8 @@ def dataset_builder():
         return dataset_id
 
     return _build
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_pg_schema():
+    db.initialize_storage()

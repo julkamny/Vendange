@@ -170,6 +170,7 @@ export type WorkClusterDto = {
   anchor_title?: string | null
   anchor_title_segments?: EntityTitleSegment[]
   anchor_summary?: EntitySummary | null
+  workflows?: Record<string, boolean>
   items: WorkClusterItemDto[]
   expression_groups: ExpressionAnchorGroupViewDto[]
   independent_expressions: ExpressionItemViewDto[]

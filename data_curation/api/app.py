@@ -474,6 +474,21 @@ def manual_cluster(dataset_id: str, payload: ManualClusterPayload) -> dict[str, 
     }
 
 
+@app.post("/api/datasets/{dataset_id}/work_clusters/{anchor_id}/cluster_field_grafting/toggle")
+def toggle_cluster_field_grafting(dataset_id: str, anchor_id: str) -> dict[str, object]:
+    _ensure_dataset(dataset_id)
+    try:
+        updated = db.toggle_cluster_field_grafting(dataset_id, anchor_id=anchor_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "updatedRecords": updated,
+        "updatedClusters": [],
+        "removedClusterIds": [],
+        "updatedWorkRows": [],
+    }
+
+
 @app.post("/api/datasets/{dataset_id}/manifestations/uproot")
 def uproot_manifestation_endpoint(dataset_id: str, payload: ManifestationUprootPayload) -> dict[str, object]:
     _ensure_dataset(dataset_id)

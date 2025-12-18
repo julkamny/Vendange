@@ -33,6 +33,12 @@ type Props = {
   editingRecord: boolean
   setEditingRecord: (next: boolean) => void
   canEditRecord: boolean
+  clusterFieldGraftingEnabled: boolean
+  clusterFieldGraftingApplied: boolean
+  clusterFieldGraftingBusy: boolean
+  clusterFieldGraftingGraftLabel: string
+  clusterFieldGraftingUngraftLabel: string
+  toggleClusterFieldGrafting: () => void
   readOnlyReason: string | null
   backlinks: BacklinkItem[]
   backlinksLoading?: boolean
@@ -132,6 +138,12 @@ export function WorkspaceViewLayout(props: Props) {
     editingRecord,
     setEditingRecord,
     canEditRecord,
+    clusterFieldGraftingEnabled,
+    clusterFieldGraftingApplied,
+    clusterFieldGraftingBusy,
+    clusterFieldGraftingGraftLabel,
+    clusterFieldGraftingUngraftLabel,
+    toggleClusterFieldGrafting,
     readOnlyReason,
     backlinks,
     backlinksLoading,
@@ -296,6 +308,18 @@ export function WorkspaceViewLayout(props: Props) {
                       baselineRecord={getCuratedBaselineRecord(record.id) ?? undefined}
                       onSave={next => handleIntermarcSave(record, next)}
                       onCancel={() => setEditingRecord(false)}
+                      extraActions={
+                        clusterFieldGraftingEnabled ? (
+                          <button
+                            id="clusterFieldGrafting"
+                            type="button"
+                            onClick={toggleClusterFieldGrafting}
+                            disabled={clusterFieldGraftingBusy}
+                          >
+                            {clusterFieldGraftingApplied ? clusterFieldGraftingUngraftLabel : clusterFieldGraftingGraftLabel}
+                          </button>
+                        ) : null
+                      }
                     />
                   ) : (
                     <>

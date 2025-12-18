@@ -38,12 +38,11 @@ type Props = {
   clusterFieldGraftingBusy: boolean
   clusterFieldGraftingGraftLabel: string
   clusterFieldGraftingUngraftLabel: string
-  toggleClusterFieldGrafting: () => void
+  toggleClusterFieldGrafting: () => Promise<void>
   readOnlyReason: string | null
   backlinks: BacklinkItem[]
   backlinksLoading?: boolean
   openRecordForArk: (ark: string, options?: { detach?: boolean }) => void
-  getCuratedBaselineRecord: (id: string) => RecordRow | null
   listCollapsed: boolean
   intermarcFullView: boolean
   backlinksExpanded: boolean
@@ -148,7 +147,6 @@ export function WorkspaceViewLayout(props: Props) {
     backlinks,
     backlinksLoading,
     openRecordForArk,
-    getCuratedBaselineRecord,
     listCollapsed,
     intermarcFullView,
     backlinksExpanded,
@@ -305,7 +303,6 @@ export function WorkspaceViewLayout(props: Props) {
                   {editingRecord && canEditRecord ? (
                     <IntermarcEditor
                       record={record}
-                      baselineRecord={getCuratedBaselineRecord(record.id) ?? undefined}
                       onSave={next => handleIntermarcSave(record, next)}
                       onCancel={() => setEditingRecord(false)}
                       extraActions={
@@ -313,7 +310,16 @@ export function WorkspaceViewLayout(props: Props) {
                           <button
                             id="clusterFieldGrafting"
                             type="button"
-                            onClick={toggleClusterFieldGrafting}
+                            onClick={() => {
+                              void (async () => {
+                                try {
+                                  await toggleClusterFieldGrafting()
+                                  setEditingRecord(false)
+                                } catch {
+                                  // keep editor open on failure
+                                }
+                              })()
+                            }}
                             disabled={clusterFieldGraftingBusy}
                           >
                             {clusterFieldGraftingApplied ? clusterFieldGraftingUngraftLabel : clusterFieldGraftingGraftLabel}

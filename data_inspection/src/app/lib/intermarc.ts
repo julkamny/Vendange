@@ -303,12 +303,14 @@ type PrettyPrintOptions = {
   labelResolver?: (ark: string) => string | undefined
 }
 
-function curationClass(flag?: string): string {
+export function curationClass(flag?: string): string {
   if (!flag) return ''
   const normalized = flag.toLowerCase()
   if (normalized === 'manual') return ' curation-created'
+  if (normalized === 'edit') return ' curation-created'
   if (normalized === 'created') return ' curation-created'
   if (normalized === 'deleted') return ' curation-deleted'
+  if (normalized === 'clusterfieldgrafting') return ' curation-grafting'
   return ''
 }
 

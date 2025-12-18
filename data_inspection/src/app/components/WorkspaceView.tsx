@@ -66,7 +66,6 @@ export function WorkspaceView({
     updateRecordIntermarc,
     applyServerUpdates,
     applyServerWorkspaceUpdates,
-    getCuratedBaselineRecord,
   } = useAppData()
   const { t } = useTranslation()
   const { showToast } = useToast()
@@ -223,7 +222,7 @@ export function WorkspaceView({
     [record],
   )
 
-  const { toggleClusterFieldGrafting, clusterFieldGraftingBusy } = useClusterFieldGrafting({
+  const { toggleClusterFieldGrafting: toggleClusterFieldGraftingWorkflow, clusterFieldGraftingBusy } = useClusterFieldGrafting({
     datasetId,
     applyServerUpdates,
     applyServerWorkspaceUpdates,
@@ -789,14 +788,18 @@ export function WorkspaceView({
       clusterFieldGraftingBusy={clusterFieldGraftingBusy}
       clusterFieldGraftingGraftLabel={t('works.clusterFieldGrafting.graft', { defaultValue: 'Greffer les zones des œuvres mises en grappe' })}
       clusterFieldGraftingUngraftLabel={t('works.clusterFieldGrafting.ungraft', { defaultValue: 'Retirer les zones des œuvres mises en grappe' })}
-      toggleClusterFieldGrafting={() => {
-        if (record) toggleClusterFieldGrafting(record.id)
+      toggleClusterFieldGrafting={async () => {
+        if (!record) return
+        await toggleClusterFieldGraftingWorkflow({
+          anchorId: record.id,
+          appliedBefore: clusterFieldGraftingApplied,
+          beforeIntermarc: record.intermarcStr,
+        })
       }}
       readOnlyReason={readOnlyReason}
       backlinks={backlinks}
       backlinksLoading={backlinksLoading}
       openRecordForArk={openRecordForArk}
-      getCuratedBaselineRecord={getCuratedBaselineRecord}
       listCollapsed={listCollapsed}
       intermarcFullView={intermarcFullView}
       backlinksExpanded={backlinksExpanded}

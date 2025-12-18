@@ -6,7 +6,7 @@ import { autocompletion, CompletionContext } from '@codemirror/autocomplete'
 import { EditorState, RangeSetBuilder, StateField, type Extension, type Text } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import type { Intermarc } from '../lib/intermarc'
-import { prettyPrintIntermarc, parsePrettyPrintedIntermarc, labelFromRecord } from '../lib/intermarc'
+import { prettyPrintIntermarc, parsePrettyPrintedIntermarc, labelFromRecord, curationClass } from '../lib/intermarc'
 import type { RecordRow } from '../types'
 import type { AutocompleteSuggestionDto } from '../types'
 import { INTERMARC_THEME } from './intermarcTheme'
@@ -201,20 +201,30 @@ function recordDisplayLabel(record: RecordRow): string {
 
 function buildDecorations(
   doc: Text,
-  options: { getLabelForArk: (ark: string) => string | undefined; arkLabels?: Record<string, string> },
+  options: {
+    getLabelForArk: (ark: string) => string | undefined
+    arkLabels?: Record<string, string>
+    curatedZones?: Intermarc['zones']
+  },
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>()
   const lines = parseIntermarcLines(doc)
-  for (const line of lines) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex]
+    const zoneMeta = options.curatedZones?.[lineIndex]
+    const zoneFlag = curationClass(zoneMeta?.affectedByCuration)
     builder.add(line.lineStart, line.lineStart, Decoration.line({ class: 'intermarc-line' }))
-    builder.add(line.zoneStart, line.zoneEnd, Decoration.mark({ class: 'intermarc-zone' }))
-    for (const subfield of line.subfields) {
-      const subfieldClass = Decoration.mark({ class: 'intermarc-subfield' })
+    builder.add(line.zoneStart, line.zoneEnd, Decoration.mark({ class: `intermarc-zone${zoneFlag}` }))
+    for (let subIndex = 0; subIndex < line.subfields.length; subIndex += 1) {
+      const subfield = line.subfields[subIndex]
+      const subMeta = zoneMeta?.sousZones?.[subIndex]
+      const subFlag = curationClass(subMeta?.affectedByCuration ?? zoneMeta?.affectedByCuration)
+      const subfieldClass = Decoration.mark({ class: `intermarc-subfield${subFlag}` })
       builder.add(subfield.codeStart, subfield.valueEnd, subfieldClass)
       builder.add(
         subfield.codeStart,
         subfield.codeEnd,
-        Decoration.mark({ class: 'intermarc-subfield-code' }),
+        Decoration.mark({ class: `intermarc-subfield-code${subFlag}` }),
       )
       const rawValue = subfield.value.trim()
       if (looksLikeArk(rawValue)) {
@@ -253,6 +263,7 @@ function buildDecorations(
 function createIntermarcDecorationField(options: {
   getLabelForArk: (ark: string) => string | undefined
   arkLabels?: Record<string, string>
+  curatedZones?: Intermarc['zones']
 }): StateField<DecorationSet> {
   return StateField.define<DecorationSet>({
     create(state) {
@@ -322,13 +333,12 @@ function createIntermarcCompletionSource(params: {
 
 type IntermarcEditorProps = {
   record: RecordRow
-  baselineRecord?: RecordRow
   onCancel: () => void
   onSave: (next: Intermarc) => void
   extraActions?: ReactNode
 }
 
-export function IntermarcEditor({ record, baselineRecord, onCancel, onSave, extraActions }: IntermarcEditorProps) {
+export function IntermarcEditor({ record, onCancel, onSave, extraActions }: IntermarcEditorProps) {
   const { t, language } = useTranslation()
   const { showToast } = useToast()
   const { datasetId } = useAppData()
@@ -336,7 +346,6 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave, extr
   const queryClient = useQueryClient()
   const [doc, setDoc] = useState('')
   const [recordDoc, setRecordDoc] = useState('')
-  const [baselineDoc, setBaselineDoc] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const statusResetRef = useRef<number | null>(null)
@@ -355,8 +364,8 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave, extr
   )
 
   const decorationExtension = useMemo<Extension>(
-    () => createIntermarcDecorationField({ getLabelForArk, arkLabels: record.arkLabels }),
-    [getLabelForArk, record.arkLabels],
+    () => createIntermarcDecorationField({ getLabelForArk, arkLabels: record.arkLabels, curatedZones: record.intermarc.zones }),
+    [getLabelForArk, record.arkLabels, record.intermarc.zones],
   )
 
   const completionSource = useMemo(() => createIntermarcCompletionSource({ datasetId, language, queryClient }), [datasetId, language, queryClient])
@@ -388,31 +397,6 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave, extr
       cancelled = true
     }
   }, [record])
-
-  useEffect(() => {
-    let cancelled = false
-    if (!baselineRecord) {
-      setBaselineDoc(null)
-      return () => {
-        cancelled = true
-      }
-    }
-
-    prettyPrintIntermarc(baselineRecord.intermarc, {
-      resolveLabels: false,
-      arkLabels: baselineRecord.arkLabels,
-    })
-      .then(res => {
-        if (!cancelled) setBaselineDoc(res.text)
-      })
-      .catch(err => {
-        if (!cancelled) console.error('Failed to render baseline intermarc', err)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [baselineRecord])
 
   useEffect(() => {
     return () => {
@@ -463,15 +447,6 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave, extr
     }
   }
 
-  const handleReset = () => {
-    const target = baselineDoc ?? recordDoc
-    setDoc(target)
-    setError(null)
-    resetStatusTimer()
-    setSaveStatus('idle')
-    showToast(t('notifications.recordReset'), { tone: 'info' })
-  }
-
   const handleDocChange = (value: string) => {
     setDoc(value)
     if (error) setError(null)
@@ -480,7 +455,6 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave, extr
   }
 
   const isDirty = doc !== recordDoc
-  const canReset = baselineDoc !== null ? doc !== baselineDoc : doc !== recordDoc
   const saveButtonClassName = `save-button${saveStatus === 'success' ? ' is-success' : saveStatus === 'error' ? ' is-error' : ''
     }`
   const statusSymbol = saveStatus === 'success' ? '✓' : saveStatus === 'error' ? '!' : null
@@ -508,9 +482,6 @@ export function IntermarcEditor({ record, baselineRecord, onCancel, onSave, extr
         <button type="button" onClick={handleSave} disabled={!isDirty} className={saveButtonClassName}>
           {t('buttons.save')}
           {statusSymbol ? <span className="button-status" aria-hidden="true">{statusSymbol}</span> : null}
-        </button>
-        <button type="button" onClick={handleReset} disabled={!canReset}>
-          {t('buttons.reset')}
         </button>
         <button type="button" onClick={onCancel}>
           {t('buttons.closeEditor')}

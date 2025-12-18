@@ -1617,6 +1617,12 @@ button:focus-visible {
 .ark-link.curation-created {
   background: color-mix(in srgb, #4caf50 32%, transparent);
 }
+.intermarc-zone.curation-grafting,
+.intermarc-subfield.curation-grafting,
+.intermarc-subfield-code.curation-grafting,
+.ark-link.curation-grafting {
+  background: color-mix(in srgb, #8e24aa 26%, transparent);
+}
 .intermarc-zone.curation-modified,
 .intermarc-subfield.curation-modified,
 .intermarc-subfield-code.curation-modified,

@@ -103,6 +103,9 @@ def toggle_work_cluster_workflow(
                 ClusterAnchorContext(entity=anchor_entity, ark=anchor_ark),
                 members,
             )
+            if next_intermarc.to_json_string() == anchor_entity.intermarc.to_json_string():
+                # No net change: do not lock the cluster.
+                return []
             cluster_workflow_repo.set_workflow_applied(
                 dataset_id,
                 anchor_ark=anchor_ark,
@@ -110,6 +113,9 @@ def toggle_work_cluster_workflow(
                 applied=True,
                 conn=conn,
             )
+
+        if next_intermarc.to_json_string() == anchor_entity.intermarc.to_json_string():
+            return []
 
         updated_anchor = update_entity_record(
             dataset_id,

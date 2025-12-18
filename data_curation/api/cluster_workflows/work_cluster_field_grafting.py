@@ -409,6 +409,8 @@ def _apply_629_or_62t(
     *,
     tag: str,
 ) -> List[Zone]:
+    if not any(m.record.get_zone(tag) for m in members):
+        return zones
     anchor_fields = [z for z in zones if z.code == tag]
     anchor_subs_in_order: List[SousZone] = []
     for z in anchor_fields:

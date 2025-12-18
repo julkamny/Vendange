@@ -59,7 +59,7 @@ export function AgentView({
 }: AgentViewProps) {
   const { t } = useTranslation()
   const { showToast } = useToast()
-  const { datasetId, updateRecordIntermarc, getCuratedBaselineRecord, applyServerWorkspaceUpdates } = useAppData()
+  const { datasetId, updateRecordIntermarc, applyServerWorkspaceUpdates } = useAppData()
   const recordCacheRef = useRef<Map<string, RecordRow>>(new Map())
   const { data: agentsDto } = useWorkspaceAgents(datasetId)
   const { data: workspaceWorks } = useWorkspaceWorks(datasetId)
@@ -705,7 +705,6 @@ export function AgentView({
                 {editing ? (
                   <IntermarcEditor
                     record={selectedRecord}
-                    baselineRecord={getCuratedBaselineRecord(selectedRecord.id) ?? undefined}
                     onSave={next => updateRecordIntermarc(selectedRecord.id, next)}
                     onCancel={() => setEditing(false)}
                   />

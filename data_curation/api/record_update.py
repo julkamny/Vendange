@@ -61,17 +61,32 @@ def _merge_zone(new_zone: Zone, previous: Optional[Zone]) -> Zone:
     if previous and _zone_signature(previous) == _zone_signature(new_zone):
         return _clone_zone_preserve(previous)
 
+    workflow_flag = None
+    if previous and previous.affected_by_curation:
+        if str(previous.affected_by_curation).strip().lower() == "clusterfieldgrafting":
+            workflow_flag = previous.affected_by_curation
+
     prior_subs = list(previous.sousZones) if previous else []
+    remaining_prior = prior_subs.copy()
     merged_subs: List[SousZone] = []
     for sub in new_zone.sousZones:
-        matched = next((s for s in prior_subs if s.code == sub.code and s.valeur == sub.valeur), None)
-        merged_subs.append(
-            SousZone(
-                code=sub.code,
-                valeur=sub.valeur,
-                affected_by_curation=(matched.affected_by_curation if matched and matched.affected_by_curation else "manual"),
-            )
+        matched = next(
+            (s for s in remaining_prior if s.code == sub.code and s.valeur == sub.valeur),
+            None,
         )
+        if matched and matched in remaining_prior:
+            remaining_prior.remove(matched)
+        # If the user edits a curated subfield (value changes), keep the prior
+        # curation flag for that code when possible (notably for cluster workflows).
+        if not matched:
+            fallback = next((s for s in remaining_prior if s.code == sub.code and s.affected_by_curation), None)
+            if fallback and fallback in remaining_prior:
+                remaining_prior.remove(fallback)
+            matched = fallback
+        sub_flag = matched.affected_by_curation if matched else "manual"
+        if workflow_flag and (not sub_flag or str(sub_flag).strip().lower() in {"manual", "edit", "created"}):
+            sub_flag = workflow_flag
+        merged_subs.append(SousZone(code=sub.code, valeur=sub.valeur, affected_by_curation=sub_flag))
 
     zone_flag = "manual"
     if previous and previous.affected_by_curation:

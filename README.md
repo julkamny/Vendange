@@ -142,7 +142,7 @@ uv run -- spacy download fr_dep_news_trf
 
 #### Materialized MARC projections (why `field` / `subfield` exist)
 
-Commit `6750e557` adds **materialized MARC projections** in Postgres to support “Sparnatural-style” SPARQL queries (field/subfield filters + regex) at interactive latency.
+Commit `cee72411` adds **materialized MARC projections** in Postgres to support “Sparnatural-style” SPARQL queries (field/subfield filters + regex) at interactive latency.
 
 **What changed**
 - We still store the full Intermarc JSON in `entity.record` (source of truth).

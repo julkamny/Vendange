@@ -10,8 +10,6 @@ export type Zone = {
 }
 export type Intermarc = { zones: Zone[] }
 
-export const COMPACT_FIELD_CODES = new Set(['990', '907', '90H', '901', '991'])
-
 const ARK_PREFIX = 'ark:/'
 
 export type PrettyIntermarcLineMark = {
@@ -329,11 +327,13 @@ export async function prettyPrintIntermarc(
     }
 
     let subZones: SousZone[] = z.sousZones
+    let compactParsedToSubzones = false
     if ((!subZones || subZones.length === 0) && z.fieldCompactValue) {
       try {
         type CompactEntry = { code?: unknown; valeur?: unknown; affectedByCuration?: unknown }
         const parsed = JSON.parse(z.fieldCompactValue) as { sousZones?: CompactEntry[] }
         if (parsed && Array.isArray(parsed.sousZones)) {
+          compactParsedToSubzones = true
           subZones = parsed.sousZones.map(entry => ({
             code: String(entry.code ?? ''),
             valeur: entry.valeur != null ? String(entry.valeur) : '',
@@ -342,8 +342,13 @@ export async function prettyPrintIntermarc(
           }))
         }
       } catch {
-        // fall back to empty
+        // fall back to showing the raw compact value (if any)
       }
+    }
+
+    if ((!subZones || subZones.length === 0) && z.fieldCompactValue && !compactParsedToSubzones) {
+      if (lineText.length) lineText += ' '
+      lineText += String(z.fieldCompactValue)
     }
 
     for (const sz of subZones) {
@@ -415,7 +420,7 @@ export function parsePrettyPrintedIntermarc(text: string): Intermarc {
     const remainder = match[2]?.trim() ?? ''
     const sousZones: SousZone[] = []
     let fieldCompactValue: string | undefined
-    if (remainder && COMPACT_FIELD_CODES.has(zoneCode) && !remainder.includes('$')) {
+    if (remainder && !remainder.includes('$')) {
       fieldCompactValue = remainder
     } else if (remainder) {
       const segments = remainder.split(' $')

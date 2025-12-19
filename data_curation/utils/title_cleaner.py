@@ -8,13 +8,13 @@ import tempfile
 from functools import lru_cache
 from io import StringIO
 from pathlib import Path
-from typing import Dict, List, Sequence, Tuple, TYPE_CHECKING
+from typing import Dict, List, Mapping, Sequence, Tuple, TYPE_CHECKING, Iterable
 
 import spacy
 from spacy import displacy
 from spacy.language import Language
 from spacy.tokens import Doc, Span, Token
-from spacy.symbols import agent, appos, NOUN, nmod, PROPN, VERB
+from spacy.symbols import agent, appos, NOUN, nmod, PROPN, VERB  # type: ignore[import-not-found]
 
 from rich import box
 from rich.console import Console, Group
@@ -535,17 +535,20 @@ def _render_cleaning_summary(
     return _export_rich(composite)
 
 
-def match_variants_in_title(title: str, variants: Sequence[str]) -> List[Tuple[int, int]]:
+def match_variants_in_title(title: str, variants: Iterable[str]) -> List[Tuple[int, int]]:
     """Return spans in the original title that match any of the provided variants."""
 
-    if not title or not variants:
+    if not title:
+        return []
+    variants_list = list(variants)
+    if not variants_list:
         return []
 
     folded_title, pos_map = build_folded_with_map(title)
     spans: List[Tuple[int, int]] = []
     seen: set[Tuple[int, int]] = set()
 
-    for variant in variants:
+    for variant in variants_list:
         normalized_variant = normalize_for_match(variant)
         if not normalized_variant:
             continue
@@ -569,7 +572,7 @@ def match_variants_in_title(title: str, variants: Sequence[str]) -> List[Tuple[i
     return spans
 
 
-def debug_match_targets(context: str, title: str, ark2variants: Dict[str, Sequence[str]]) -> None:
+def debug_match_targets(context: str, title: str, ark2variants: Mapping[str, Sequence[str]]) -> None:
     """Emit detailed debug info and optional debugger breakpoints for variant matching."""
 
     if not ark2variants:

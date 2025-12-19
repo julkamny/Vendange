@@ -144,14 +144,15 @@ def ingest_csv(dataset_id: str, csv_bytes: bytes, *, dataset_label: Optional[str
             ark_lookup: dict[str, int] = {}
             for chunk_start in range(0, len(entity_values), 500):
                 chunk = entity_values[chunk_start : chunk_start + 500]
-                result = conn.execute(
+                values_clause = sql.SQL(",").join([sql.SQL("(%s,%s,%s,%s,%s,%s,%s)")] * len(chunk))
+                query = sql.SQL(
                     """
                     INSERT INTO entity (dataset_id, record_id, ark, type_raw, type_norm, record, original_record)
-                    VALUES """ +
-                    ",".join(["(%s,%s,%s,%s,%s,%s,%s)"] * len(chunk)) +
-                    " RETURNING entity_id, ark",
-                    tuple(val for row in chunk for val in row),
-                ).fetchall()
+                    VALUES {values}
+                    RETURNING entity_id, ark
+                    """
+                ).format(values=values_clause)
+                result = conn.execute(query, tuple(val for row in chunk for val in row)).fetchall()
                 for row in result:
                     entity_id = row["entity_id"]
                     inserted_ids.append(entity_id)

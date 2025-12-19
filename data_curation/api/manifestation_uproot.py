@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Sequence, Set
+from typing import Iterable, List, Optional, Sequence, Set
 
 from .pg import controlled_repo, entities_repo
 from .pg.curation_tx import dataset_transaction, update_entity_record
@@ -19,7 +19,7 @@ class ManifestationUprootResult:
 
 
 def _work_arks_for_expression_arks(
-    conn, dataset_id: str, expression_arks: Sequence[str]
+    conn, dataset_id: str, expression_arks: Iterable[str]
 ) -> Set[str]:
     work_arks: Set[str] = set()
     for expr_ark in expression_arks:

@@ -14,7 +14,7 @@ import zipfile
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, AsyncIterator, List, Optional
+from typing import Any, AsyncIterator, List, Optional, cast
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -105,7 +105,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Vendange Search API", lifespan=lifespan)
 
 app.add_middleware(
-    CORSMiddleware,
+    cast(Any, CORSMiddleware),
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -173,7 +173,7 @@ class _QueueLogHandler(logging.Handler):
             message=message,
             exception=exception_text,
         )
-        payload = {
+        payload: dict[str, Any] = {
             "event": "log",
             "data": {
                 "datasetId": self.dataset_id,

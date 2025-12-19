@@ -899,7 +899,9 @@ def cluster_works_by_title_responsibilities(
             cluster_edges: Dict[str, Set[str]] = {}
             for idx, left in enumerate(same_title_members):
                 for right in same_title_members[idx + 1 :]:
-                    pair_key = tuple(sorted((left.id_entitelrm, right.id_entitelrm)))
+                    left_id = left.id_entitelrm
+                    right_id = right.id_entitelrm
+                    pair_key = (left_id, right_id) if left_id <= right_id else (right_id, left_id)
                     evaluated_pairs.add(pair_key)
 
                     relation = _determine_relation(left, right)

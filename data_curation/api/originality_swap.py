@@ -189,7 +189,7 @@ def swap_work_originality(dataset_id: str, *, original_id: str, target_id: str) 
                 {
                     "id": ent.id_entitelrm,
                     "type": ent.type_entite,
-                    "ark": ent.ark(),
+                    "ark": ent.ark() or "",
                     "intermarc": ent.intermarc.to_json_string(),
                 }
             )

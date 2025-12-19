@@ -35,7 +35,7 @@ class UpdatedEntity:
         return {
             "id": self.record_id,
             "type": self.type_raw,
-            "ark": self.ark,
+            "ark": self.ark or "",
             "intermarc": self.intermarc.to_json_string(),
         }
 

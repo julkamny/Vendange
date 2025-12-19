@@ -11,7 +11,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Iterator, cast
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -175,8 +175,15 @@ def ontop_endpoint(pg_dsn: str) -> Iterator[OntopEndpoint]:
     if not ontop_cmd:
         pytest.skip("Ontop CLI not found (set ONTOP_CLI or install `ontop` in PATH)")
 
+    assert ontop_cmd is not None
     try:
-        subprocess.run([ontop_cmd, "help"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, check=True)
+        subprocess.run(
+            [ontop_cmd, "help"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            check=True,
+        )
     except Exception as exc:
         pytest.skip(f"Ontop CLI not runnable ({ontop_cmd}): {exc}")
 
@@ -229,6 +236,7 @@ def ontop_endpoint(pg_dsn: str) -> Iterator[OntopEndpoint]:
             stdout=log_file,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
         )
         endpoint = OntopEndpoint(sparql_url=sparql_url, process=proc, workdir=tmpdir)
         try:
@@ -250,7 +258,7 @@ def ontop_endpoint(pg_dsn: str) -> Iterator[OntopEndpoint]:
 
 @pytest.fixture(scope="session")
 def pg_conn(pg_dsn: str) -> Iterator[psycopg.Connection]:
-    conn = psycopg.connect(pg_dsn, row_factory=dict_row, autocommit=True)
+    conn = psycopg.connect(pg_dsn, row_factory=cast(Any, dict_row), autocommit=True)
     try:
         yield conn
     finally:

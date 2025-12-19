@@ -116,7 +116,7 @@ def _merge_zone(new_zone: Zone, previous: Optional[Zone]) -> Zone:
 
 
 def _build_adaptation_lookup(
-    intermarc: Intermarc, qualifiers: Sequence[str]
+    intermarc: Intermarc, qualifiers: Iterable[str]
 ) -> Dict[Tuple[str, str], Zone]:
     lookup: Dict[Tuple[str, str], Zone] = {}
     for zone in intermarc.get_zone("552"):
@@ -448,7 +448,7 @@ def update_record(dataset_id: str, record_id: str, *, type_raw: str, intermarc_j
                 {
                     "id": ent.id_entitelrm,
                     "type": ent.type_entite,
-                    "ark": ent.ark(),
+                    "ark": ent.ark() or "",
                     "intermarc": ent.intermarc.to_json_string(),
                 }
             )

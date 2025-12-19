@@ -45,6 +45,13 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _iso_or_none(value: object) -> Optional[str]:
+    """Return ISO 8601 string for datetimes; otherwise None."""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return None
+
+
 def _slugify(value: str) -> str:
     value = value.strip().lower()
     value = re.sub(r"[^\w\s-]", "", value)
@@ -71,7 +78,7 @@ def list_datasets() -> List[DatasetMetadata]:
             created_at=row["created_at"].isoformat(),
             updated_at=row["updated_at"].isoformat(),
             source_filename=row.get("source_filename"),
-            last_clustered_at=row.get("last_clustered_at").isoformat() if row.get("last_clustered_at") else None,
+            last_clustered_at=_iso_or_none(row.get("last_clustered_at")),
         )
         for row in rows
     ]
@@ -86,7 +93,7 @@ def get_dataset(dataset_id: str) -> DatasetMetadata:
         created_at=row["created_at"].isoformat(),
         updated_at=row["updated_at"].isoformat(),
         source_filename=row.get("source_filename"),
-        last_clustered_at=row.get("last_clustered_at").isoformat() if row.get("last_clustered_at") else None,
+        last_clustered_at=_iso_or_none(row.get("last_clustered_at")),
     )
 
 

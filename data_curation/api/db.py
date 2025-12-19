@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, TypedDict
+
+from psycopg import sql
 
 from .anchor_swap import swap_cluster_anchor
 from .manual_cluster import update_manual_cluster
@@ -60,21 +62,32 @@ def ingest_csv(content: bytes, dataset_id: str, *, dataset_label: str | None = N
     return stats_pg
 
 
-def load_records(dataset_id: str) -> List[dict[str, object]]:
+class LoadedRecord(TypedDict):
+    id: str
+    type: str
+    ark: str | None
+    intermarc: str
+
+
+def load_records(dataset_id: str) -> List[LoadedRecord]:
     """Return records (id/type/ark/intermarc JSON string) from Postgres."""
     with db_session() as conn, statement_timeout(conn, 5000):
         rows = conn.execute(
             "SELECT record_id, type_raw, type_norm, ark, record FROM entity WHERE dataset_id=%s",
             (dataset_id,),
         ).fetchall()
-    records: List[dict[str, object]] = []
+    records: List[LoadedRecord] = []
     for row in rows:
         payload = row["record"] or {}
+        record_id = str(row["record_id"])
+        type_value = row.get("type_raw") or row.get("type_norm") or ""
+        record_type = str(type_value)
+        ark_value = row.get("ark")
         records.append(
             {
-                "id": row["record_id"],
-                "type": row.get("type_raw") or row.get("type_norm"),
-                "ark": row.get("ark"),
+                "id": record_id,
+                "type": record_type,
+                "ark": str(ark_value) if ark_value is not None else None,
                 "intermarc": json_dumps(payload),
             }
         )
@@ -84,18 +97,16 @@ def load_records(dataset_id: str) -> List[dict[str, object]]:
 def dataset_stats(dataset_id: str) -> Dict[str, int]:
     """Approximate dataset stats using Postgres partitions."""
     with db_session() as conn, statement_timeout(conn, 5000):
-        entity_count = conn.execute(
-            "SELECT count(*) AS c FROM entity WHERE dataset_id=%s",
-            (dataset_id,),
-        ).fetchone()["c"]
-        rel_count = conn.execute(
-            "SELECT count(*) AS c FROM rel_edge WHERE dataset_id=%s",
-            (dataset_id,),
-        ).fetchone()["c"]
-        cluster_count = conn.execute(
-            "SELECT count(*) AS c FROM cluster WHERE dataset_id=%s",
-            (dataset_id,),
-        ).fetchone()["c"]
+        def _fetch_count(query: sql.SQL) -> int:
+            row = conn.execute(query, (dataset_id,)).fetchone()
+            if not row:
+                return 0
+            value = row.get("c")
+            return int(value) if value is not None else 0
+
+        entity_count = _fetch_count(sql.SQL("SELECT count(*) AS c FROM entity WHERE dataset_id=%s"))
+        rel_count = _fetch_count(sql.SQL("SELECT count(*) AS c FROM rel_edge WHERE dataset_id=%s"))
+        cluster_count = _fetch_count(sql.SQL("SELECT count(*) AS c FROM cluster WHERE dataset_id=%s"))
 
         partitions = [
             _partition_name(t, dataset_id) for t in ("entity", "rel_edge", "entity_label", "cluster", "fts", "field", "subfield")

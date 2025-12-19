@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, LiteralString, Optional, Tuple
+
+from psycopg import sql
 
 from data_curation.api.db_shared import RELATION_NS
 from data_curation.api.pg.session import db_session, statement_timeout
@@ -36,8 +38,16 @@ from data_curation.api.pg import cluster_workflow_repo
 WORK_LINK_PREDICATE = f"{RELATION_NS}750s3"
 
 
-def _record_id_expr() -> str:
-    return "record_id"
+RECORD_ID_EXPR: LiteralString = "record_id"
+
+
+def _record_id_expr() -> LiteralString:
+    return RECORD_ID_EXPR
+
+
+def _record_dicts(records: Iterable[object]) -> List[dict]:
+    """Return only dict-like records for ark label resolution."""
+    return [record for record in records if isinstance(record, dict)]
 
 def _title_zone_for_type(type_norm: str) -> str:
     norm = (type_norm or "").lower()
@@ -152,13 +162,14 @@ def _manifestations_by_expression(dataset_id: str, expression_arks: List[str]) -
 
 
 def _build_entity_title(dataset_id: str, entity_row: Dict[str, Any]) -> Tuple[str, List[TitleSegment]]:
-    record = entity_row.get("record") or {}
+    record = entity_row.get("record")
+    record_dict = record if isinstance(record, dict) else None
     type_norm = entity_row.get("type_norm") or ""
     zone = _title_zone_for_type(type_norm)
     allowed = _allowed_title_subfields(type_norm)
-    labels = resolve_ark_label_map_for_records(dataset_id, [record]) if record else {}
+    labels = resolve_ark_label_map_for_records(dataset_id, _record_dicts([record_dict])) if record_dict else {}
     segments = build_title_segments(
-        record,
+        record_dict,
         zone_code=zone,
         ark_labels=labels,
         allowed_subfields=allowed,
@@ -212,7 +223,7 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
     clusters: dict[str, WorkCluster] = {}
     page_ark_labels = resolve_ark_label_map_for_records(
         dataset_id,
-        [row.get("anchor_record") for row in cluster_rows] + [row.get("member_record") for row in cluster_rows],
+        _record_dicts([row.get("anchor_record") for row in cluster_rows] + [row.get("member_record") for row in cluster_rows]),
         zone_codes={"150"},
     )
 
@@ -222,16 +233,9 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
             continue
         cluster = clusters.get(anchor_id)
         if not cluster:
-            anchor_entity = {
-                "record": row.get("anchor_record"),
-                "label": row.get("anchor_label"),
-                "ark": row.get("anchor_ark"),
-                "record_id": row.get("anchor_record_id"),
-                "entity_id": row.get("anchor_entity_id"),
-                "type_norm": "oeuvre",
-            }
-            anchor_record = anchor_entity.get("record") if isinstance(anchor_entity.get("record"), dict) else {}
-            anchor_segments = build_title_segments(anchor_record, zone_code="150", ark_labels=page_ark_labels)
+            anchor_record = row.get("anchor_record")
+            anchor_record_dict = anchor_record if isinstance(anchor_record, dict) else None
+            anchor_segments = build_title_segments(anchor_record_dict, zone_code="150", ark_labels=page_ark_labels)
             anchor_title = row.get("anchor_label") or " ".join(seg.value for seg in anchor_segments) or row.get("anchor_ark") or anchor_id
             cluster = WorkCluster(
                 anchor_id=anchor_id,
@@ -246,16 +250,9 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
             clusters[anchor_id] = cluster
 
         # member row
-        member_entity = {
-            "record": row.get("member_record"),
-            "label": row.get("member_label"),
-            "ark": row.get("member_ark"),
-            "record_id": row.get("member_record_id"),
-            "entity_id": row.get("member_entity_id"),
-            "type_norm": "oeuvre",
-        }
-        member_record = member_entity.get("record") if isinstance(member_entity.get("record"), dict) else {}
-        member_segments = build_title_segments(member_record, zone_code="150", ark_labels=page_ark_labels)
+        member_record = row.get("member_record")
+        member_record_dict = member_record if isinstance(member_record, dict) else None
+        member_segments = build_title_segments(member_record_dict, zone_code="150", ark_labels=page_ark_labels)
         member_title = row.get("member_label") or " ".join(seg.value for seg in member_segments) or row.get("member_ark") or ""
         cluster.items.append(
             WorkClusterItem(
@@ -300,7 +297,8 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
         cluster.workflows = workflow_state_by_anchor.get(cluster.anchor_ark or "", {}) if cluster.anchor_ark else {}
 
     # Fetch unclustered works (those not appearing anywhere in the cluster table as anchor or member)
-    query = """
+    query = sql.SQL(
+        """
         SELECT e.entity_id, {record_id} as record_id, e.ark, el.label, el.sort_key, el.type_norm, e.record
         FROM entity e
         JOIN entity_label el USING (dataset_id, entity_id)
@@ -326,18 +324,20 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
                 el.sort_key
             ) NULLS LAST
         LIMIT %s OFFSET %s
-    """.format(record_id=_record_id_expr())
+        """
+    ).format(record_id=sql.SQL(_record_id_expr()))
     with db_session() as conn, statement_timeout(conn, 5000):
         rows = conn.execute(query, (dataset_id, limit, offset)).fetchall()
     unc_arks = [row["ark"] for row in rows if row.get("ark")]
     expr_unc, manif_unc = _counts_for_work_arks(dataset_id, unc_arks)
     unclustered = []
     page_ark_labels.update(
-        resolve_ark_label_map_for_records(dataset_id, [row.get("record") for row in rows], zone_codes={"150"})
+        resolve_ark_label_map_for_records(dataset_id, _record_dicts([row.get("record") for row in rows]), zone_codes={"150"})
     )
     for row in rows:
         ark = row["ark"]
-        rec = row.get("record") if isinstance(row.get("record"), dict) else {}
+        record = row.get("record")
+        rec = record if isinstance(record, dict) else None
         unclustered.append(
             WorkListRow(
                 id=row["record_id"] or str(row["entity_id"]),
@@ -392,7 +392,7 @@ def list_agents(dataset_id: str, limit: int = 9999999999999, offset: int = 0) ->
     clusters: dict[str, AgentCluster] = {}
     page_ark_labels = resolve_ark_label_map_for_records(
         dataset_id,
-        [row.get("anchor_record") for row in cluster_rows] + [row.get("member_record") for row in cluster_rows],
+        _record_dicts([row.get("anchor_record") for row in cluster_rows] + [row.get("member_record") for row in cluster_rows]),
         zone_codes={"100", "110", "120"},
     )
     for row in cluster_rows:
@@ -413,8 +413,9 @@ def list_agents(dataset_id: str, limit: int = 9999999999999, offset: int = 0) ->
             zone = _title_zone_for_type(type_norm)
             allowed = _allowed_title_subfields(type_norm)
             strip_pipes = _strip_pipes_in_title(type_norm)
+            anchor_record = anchor_entity.get("record")
             anchor_title_segments = build_title_segments(
-                anchor_entity.get("record") if isinstance(anchor_entity.get("record"), dict) else {},
+                anchor_record if isinstance(anchor_record, dict) else None,
                 zone_code=zone,
                 ark_labels=page_ark_labels,
                 allowed_subfields=allowed,
@@ -446,6 +447,7 @@ def list_agents(dataset_id: str, limit: int = 9999999999999, offset: int = 0) ->
         zone = _title_zone_for_type(type_norm)
         allowed = _allowed_title_subfields(type_norm)
         strip_pipes = _strip_pipes_in_title(type_norm)
+        member_record = member_entity.get("record")
         cluster.items.append(
             AgentClusterItem(
                 ark=row["member_ark"],
@@ -460,7 +462,7 @@ def list_agents(dataset_id: str, limit: int = 9999999999999, offset: int = 0) ->
                 type_norm=row.get("member_type_norm"),
                 accepted=True,
                 title_segments=build_title_segments(
-                    member_entity.get("record") if isinstance(member_entity.get("record"), dict) else {},
+                    member_record if isinstance(member_record, dict) else None,
                     zone_code=zone,
                     ark_labels=page_ark_labels,
                     allowed_subfields=allowed,
@@ -471,14 +473,16 @@ def list_agents(dataset_id: str, limit: int = 9999999999999, offset: int = 0) ->
         )
 
     anchor_arks = [row["anchor_ark"] for row in cluster_rows if row.get("anchor_ark")]
-    query = """
+    query = sql.SQL(
+        """
         SELECT e.entity_id, {record_id} as record_id, e.ark, el.label, el.sort_key, el.type_norm, e.record
         FROM entity e
         JOIN entity_label el USING (dataset_id, entity_id)
         WHERE e.dataset_id=%s AND el.type_norm = ANY(%s) AND (e.ark IS NULL OR e.ark <> ALL(%s))
         ORDER BY el.sort_key NULLS LAST
         LIMIT %s OFFSET %s
-    """.format(record_id=_record_id_expr())
+        """
+    ).format(record_id=sql.SQL(_record_id_expr()))
     with db_session() as conn, statement_timeout(conn, 5000):
         rows = conn.execute(query, (dataset_id, list(AGENT_TYPE_NORMS), anchor_arks or ['{}'], limit, offset)).fetchall()
     unclustered = [
@@ -507,21 +511,21 @@ def list_agents(dataset_id: str, limit: int = 9999999999999, offset: int = 0) ->
 
 def get_entity_by_key(dataset_id: str, key: str) -> Optional[Dict[str, Any]]:
     """Accept entity_id (int) or ark string or record id."""
+    query = sql.SQL(
+        """
+        SELECT e.entity_id, {record_id} as record_id, e.ark, el.label, el.type_norm, e.record
+        FROM entity e
+        LEFT JOIN entity_label el USING (dataset_id, entity_id)
+        WHERE e.dataset_id=%s AND (
+            e.ark = %s OR
+            {record_id} = %s OR
+            e.entity_id::text = %s
+        )
+        LIMIT 1
+        """
+    ).format(record_id=sql.SQL(_record_id_expr()))
     with db_session() as conn, statement_timeout(conn, 5000):
-        row = conn.execute(
-            f"""
-            SELECT e.entity_id, { _record_id_expr() } as record_id, e.ark, el.label, el.type_norm, e.record
-            FROM entity e
-            LEFT JOIN entity_label el USING (dataset_id, entity_id)
-            WHERE e.dataset_id=%s AND (
-                e.ark = %s OR
-                { _record_id_expr() } = %s OR
-                e.entity_id::text = %s
-            )
-            LIMIT 1
-            """,
-            (dataset_id, key, key, key),
-        ).fetchone()
+        row = conn.execute(query, (dataset_id, key, key, key)).fetchone()
     if not row:
         return None
     return dict(row)
@@ -531,7 +535,7 @@ def record_payload(dataset_id: str, key: str) -> Optional[RecordPayload]:
     row = get_entity_by_key(dataset_id, key)
     if not row:
         return None
-    ark_labels = resolve_ark_label_map_for_records(dataset_id, [row.get("record") or {}])
+    ark_labels = resolve_ark_label_map_for_records(dataset_id, _record_dicts([row.get("record")]))
     return RecordPayload(
         id=row["record_id"] or str(row["entity_id"]),
         type=row.get("type_norm") or "",
@@ -588,37 +592,40 @@ def get_backlinks(dataset_id: str, key: str) -> Optional[BacklinksPayload]:
         entry["_fields"].add(_predicate_to_field(row["predicate_iri"]))
 
     # Pre-resolve ARK labels used in title zones (primarily 150 for works).
-    work_records = [
-        entry.get("record")
-        for entry in grouped.values()
-        if (entry.get("type_norm") or "").lower() == "oeuvre" and isinstance(entry.get("record"), dict)
-    ]
+    work_records = _record_dicts(
+        [
+            entry.get("record")
+            for entry in grouped.values()
+            if (entry.get("type_norm") or "").lower() == "oeuvre"
+        ]
+    )
     work_title_ark_labels = resolve_ark_label_map_for_records(dataset_id, work_records, zone_codes={"150"})
 
     backlinks: List[BacklinkItem] = []
     for src_id, entry in grouped.items():
         type_norm = (entry.get("type_norm") or "").lower()
-        record = entry.get("record") if isinstance(entry.get("record"), dict) else {}
+        record = entry.get("record")
+        record_dict = record if isinstance(record, dict) else None
         title_segments: List[TitleSegment] = []
         title_value: str = entry.get("label") or entry.get("ark") or src_id
 
         if type_norm == "oeuvre":
-            title_segments = build_title_segments(record, zone_code="150", ark_labels=work_title_ark_labels)
-            title_value = " ".join(seg.value for seg in title_segments) or _label_from_record(type_norm, record, fallback=title_value)
+            title_segments = build_title_segments(record_dict, zone_code="150", ark_labels=work_title_ark_labels)
+            title_value = " ".join(seg.value for seg in title_segments) or _label_from_record(type_norm, record_dict, fallback=title_value)
         elif type_norm == "manifestation":
-            title_value = _label_from_record(type_norm, record, fallback=title_value)
+            title_value = _label_from_record(type_norm, record_dict, fallback=title_value)
         elif type_norm in AGENT_TYPE_NORMS:
             zone = _title_zone_for_type(type_norm)
             title_segments = build_title_segments(
-                record,
+                record_dict,
                 zone_code=zone,
-                ark_labels=resolve_ark_label_map_for_records(dataset_id, [record], zone_codes={zone}),
+                ark_labels=resolve_ark_label_map_for_records(dataset_id, _record_dicts([record_dict]), zone_codes={zone}),
                 allowed_subfields=_allowed_title_subfields(type_norm),
                 strip_pipes=_strip_pipes_in_title(type_norm),
             )
-            title_value = _label_from_record(type_norm, record, fallback=title_value)
+            title_value = _label_from_record(type_norm, record_dict, fallback=title_value)
         else:
-            title_value = _label_from_record(type_norm, record, fallback=title_value)
+            title_value = _label_from_record(type_norm, record_dict, fallback=title_value)
 
         backlinks.append(
             BacklinkItem(
@@ -672,25 +679,29 @@ def get_work_cluster(dataset_id: str, anchor_key: str) -> Optional[WorkCluster]:
     anchor = requested
     if cluster_anchor_ark and cluster_anchor_ark != requested_ark:
         with db_session() as conn, statement_timeout(conn, 3000):
-            row = conn.execute(
+            query = sql.SQL(
                 """
                 SELECT e.entity_id, {record_id} as record_id, e.ark, el.label, el.type_norm, e.record
                 FROM entity e
                 LEFT JOIN entity_label el USING (dataset_id, entity_id)
                 WHERE e.dataset_id=%s AND e.ark=%s
                 LIMIT 1
-                """.format(record_id=_record_id_expr()),
-                (dataset_id, cluster_anchor_ark),
-            ).fetchone()
+                """
+            ).format(record_id=sql.SQL(_record_id_expr()))
+            row = conn.execute(query, (dataset_id, cluster_anchor_ark)).fetchone()
         if row:
             anchor = dict(row)
 
     anchor_ark = anchor.get("ark")
     anchor_title = anchor.get("label")
-    anchor_record = anchor.get("record") or {}
+    anchor_record = anchor.get("record")
     # Resolve ARK labels for the anchor title in one shot.
-    anchor_labels = resolve_ark_label_map_for_records(dataset_id, [anchor_record]) if isinstance(anchor_record, dict) else {}
-    anchor_title_segments = build_title_segments(anchor_record, zone_code="150", ark_labels=anchor_labels)
+    anchor_labels = resolve_ark_label_map_for_records(dataset_id, _record_dicts([anchor_record])) if isinstance(anchor_record, dict) else {}
+    anchor_title_segments = build_title_segments(
+        anchor_record if isinstance(anchor_record, dict) else None,
+        zone_code="150",
+        ark_labels=anchor_labels,
+    )
 
     items: List[WorkClusterItem] = []
     member_entities: Dict[str, Dict[str, Any]] = {}
@@ -708,11 +719,12 @@ def get_work_cluster(dataset_id: str, anchor_key: str) -> Optional[WorkCluster]:
             ).fetchall()
         for row in rows:
             member_entities[row["member_ark"]] = dict(row)
-            member_record = row.get("record") if isinstance(row.get("record"), dict) else {}
+            record = row.get("record")
+            member_record = record if isinstance(record, dict) else None
             member_segments = build_title_segments(
                 member_record,
                 zone_code="150",
-                ark_labels=resolve_ark_label_map_for_records(dataset_id, [member_record]),
+                ark_labels=resolve_ark_label_map_for_records(dataset_id, _record_dicts([member_record])),
             )
             member_title = row.get("label") or " ".join(seg.value for seg in member_segments) or row.get("member_ark") or ""
             items.append(
@@ -804,6 +816,8 @@ def get_work_cluster(dataset_id: str, anchor_key: str) -> Optional[WorkCluster]:
         clustered_by_anchor: Dict[str, List[ExpressionClusterItemView]] = {}
         for row in cluster_rows:
             anchor_ark_row = row.get("anchor_ark")
+            if not anchor_ark_row:
+                continue
             member_ark = row.get("member_ark")
             if anchor_ark_row and member_ark:
                 clustered_by.setdefault(member_ark, anchor_ark_row)
@@ -818,12 +832,14 @@ def get_work_cluster(dataset_id: str, anchor_key: str) -> Optional[WorkCluster]:
                 "entity_id": row.get("member_entity_id"),
             }
             member_title = row.get("member_label") or row.get("member_ark")
+            member_id = member_entity.get("record_id") or (
+                str(member_entity.get("entity_id")) if member_entity.get("entity_id") else ""
+            )
             clustered_by_anchor.setdefault(anchor_ark_row, []).append(
                 ExpressionClusterItemView(
                     anchor_expression_id=anchor_expr.get("record_id")
                     or (str(anchor_expr.get("entity_id")) if anchor_expr.get("entity_id") else ""),
-                    id=member_entity.get("record_id")
-                    or (str(member_entity.get("entity_id")) if member_entity.get("entity_id") else None),
+                    id=member_id,
                     ark=member_entity.get("ark"),
                     title=member_title,
                     work_ark=expressions_by_ark.get(member_entity.get("ark") or "", {}).get("work_ark"),

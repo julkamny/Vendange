@@ -66,6 +66,10 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - The tests ingest fixture CSVs into Postgres partitions keyed by dataset_id (work/expression/manifestation fixtures with 150/140/245/750/740 fields) and intentionally leave datasets registered for inspection after a run.
 - Routing now uses TanStack Router. Deep-linking to `http://localhost:5173/<dataset_slug>` loads the dataset via the route loader (with a friendly error screen when the slug is invalid) and back/forward navigation keeps the dashboard/inspection views in sync.
 
+### Linting & typing
+- Backend lint: `uv run ruff check`.
+- Typing pass: `ty check .` (current `data_exploration/` scripts require optional `pyoxigraph` and are not part of the main typing gate).
+
 ### Debug & Fixtures
 - **Styled debug logs** — use `-vv` to unlock Rich-powered logs: the CLI renders colourful panels, syntax-highlighted titles, and tables for matched variants and removed segments.
 

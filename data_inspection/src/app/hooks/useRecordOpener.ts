@@ -115,15 +115,20 @@ export function useRecordOpener({
       })
     }
 
-    const addWork = (id: string | undefined, ark?: string | null, title?: string | null) => {
+    const addWork = (
+      id: string | undefined,
+      ark?: string | null,
+      title?: string | null,
+      titleSegments?: RecordRow['titleSegments'],
+    ) => {
       if (!id && !ark) return
-      const workRow = stubWorkRecord(id ?? ark ?? '', ark ?? undefined, title ?? null)
+      const workRow = stubWorkRecord(id ?? ark ?? '', ark ?? undefined, title ?? null, titleSegments)
       if (workRow.id) worksById.set(workRow.id, workRow)
       if (workRow.ark) worksByArk.set(workRow.ark, workRow)
     }
 
-    addWork(cluster.anchorId, cluster.anchorArk, cluster.anchorTitle ?? null)
-    cluster.items.forEach(item => addWork(item.id, item.ark, item.title ?? null))
+    addWork(cluster.anchorId, cluster.anchorArk, cluster.anchorTitle ?? null, cluster.anchorTitleSegments)
+    cluster.items.forEach(item => addWork(item.id, item.ark, item.title ?? null, item.titleSegments))
 
     cluster.expressionGroups?.forEach(group => {
       addExpression(group.anchor, cluster.anchorArk)

@@ -29,8 +29,10 @@ export function useRecordLookup(): RecordLookup {
     const acc: RecordRow[] = []
 
     mappedClusters.forEach(cluster => {
-      acc.push(stubWorkRecord(cluster.anchorId, cluster.anchorArk, cluster.anchorTitle ?? null))
-      cluster.items.forEach(item => acc.push(stubWorkRecord(item.id ?? item.ark ?? '', item.ark, item.title ?? null)))
+      acc.push(stubWorkRecord(cluster.anchorId, cluster.anchorArk, cluster.anchorTitle ?? null, cluster.anchorTitleSegments))
+      cluster.items.forEach(item =>
+        acc.push(stubWorkRecord(item.id ?? item.ark ?? '', item.ark, item.title ?? null, item.titleSegments)),
+      )
       cluster.expressionGroups.forEach(group => {
         const exprRow = stubExpressionRecord(group.anchor, cluster.anchorArk)
         acc.push(exprRow)
@@ -47,7 +49,7 @@ export function useRecordLookup(): RecordLookup {
     })
 
     ;(workspaceWorks?.unclustered_works ?? []).forEach(work => {
-      acc.push(stubWorkRecord(work.id, work.ark ?? undefined, work.title ?? null))
+      acc.push(stubWorkRecord(work.id, work.ark ?? undefined, work.title ?? null, work.title_segments ?? undefined))
     })
 
     return acc

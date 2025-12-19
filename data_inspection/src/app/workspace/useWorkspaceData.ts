@@ -37,7 +37,10 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
   const unclusteredWorkRows = useMemo<WorkListRowDto[]>(() => workspaceData?.unclustered_works ?? [], [workspaceData?.unclustered_works])
 
   const unclusteredWorks = useMemo(
-    () => (workspaceData?.unclustered_works ?? []).map(entry => stubWorkRecord(entry.id, entry.ark ?? undefined, entry.title ?? null)),
+    () =>
+      (workspaceData?.unclustered_works ?? []).map(entry =>
+        stubWorkRecord(entry.id, entry.ark ?? undefined, entry.title ?? null, entry.title_segments ?? undefined),
+      ),
     [workspaceData?.unclustered_works],
   )
 
@@ -74,15 +77,20 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
         })
       }
 
-      const addWork = (id: string | undefined, ark?: string, title?: string | null) => {
-        if (!id && !ark) return
-        const workRow = stubWorkRecord(id ?? ark ?? '', ark, title ?? null)
-        worksById.set(workRow.id, workRow)
-        if (workRow.ark) worksByArk.set(workRow.ark, workRow)
-      }
+    const addWork = (
+      id: string | undefined,
+      ark?: string,
+      title?: string | null,
+      titleSegments?: RecordRow['titleSegments'],
+    ) => {
+      if (!id && !ark) return
+      const workRow = stubWorkRecord(id ?? ark ?? '', ark, title ?? null, titleSegments)
+      worksById.set(workRow.id, workRow)
+      if (workRow.ark) worksByArk.set(workRow.ark, workRow)
+    }
 
-      addWork(cluster.anchorId, cluster.anchorArk, cluster.anchorTitle ?? null)
-      cluster.items.forEach(item => addWork(item.id, item.ark, item.title ?? null))
+    addWork(cluster.anchorId, cluster.anchorArk, cluster.anchorTitle ?? null, cluster.anchorTitleSegments)
+    cluster.items.forEach(item => addWork(item.id, item.ark, item.title ?? null, item.titleSegments))
       cluster.expressionGroups.forEach(group => {
         addExpression(group.anchor)
         group.clustered.forEach(expr => addExpression(expr))
@@ -91,7 +99,7 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
     })
 
     unclusteredWorkRows.forEach(entry => {
-      const workRow = stubWorkRecord(entry.id, entry.ark ?? undefined, entry.title ?? null)
+      const workRow = stubWorkRecord(entry.id, entry.ark ?? undefined, entry.title ?? null, entry.title_segments ?? undefined)
       worksById.set(workRow.id, workRow)
       if (workRow.ark) worksByArk.set(workRow.ark, workRow)
     })

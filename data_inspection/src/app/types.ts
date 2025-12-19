@@ -42,6 +42,7 @@ export type ClusterItem = {
   ark: string
   id?: string
   title?: string
+  titleSegments?: EntityTitleSegment[]
   accepted: boolean
   date?: string
   origin: 'script' | 'manual'
@@ -112,6 +113,7 @@ export type Cluster = {
   anchorId: string
   anchorArk: string
   anchorTitle?: string
+  anchorTitleSegments?: EntityTitleSegment[]
   anchor_summary?: EntitySummary | null
   anchorSummary?: EntitySummary | null
   items: ClusterItem[]

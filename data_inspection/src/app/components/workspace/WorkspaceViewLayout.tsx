@@ -1,4 +1,4 @@
-import type { ReactNode, RefObject } from 'react'
+import { type ReactNode, type RefObject, useMemo } from 'react'
 import { IntermarcEditor } from '../../components/IntermarcEditor'
 import { IntermarcView } from '../../components/IntermarcView'
 import { BacklinksPanel } from '../../components/BacklinksPanel'
@@ -214,6 +214,8 @@ export function WorkspaceViewLayout(props: Props) {
     headerBanner,
   } = props
 
+  const arkLabelResolver = useMemo(() => makeArkLabelResolver(getByArk), [getByArk])
+
   const buildClusterAction = (target: RecordRow): MenuAction | null => {
     const clusterLocked =
       target.typeNorm === 'oeuvre'
@@ -332,7 +334,7 @@ export function WorkspaceViewLayout(props: Props) {
                       <IntermarcView
                         record={record}
                         onArkClick={handleArkClick}
-                        labelResolver={makeArkLabelResolver(getByArk)}
+                        labelResolver={arkLabelResolver}
                       />
                       {readOnlyReason ? <p className="record-editor__note">{readOnlyReason}</p> : null}
                       {canEditRecord ? (

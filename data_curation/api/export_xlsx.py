@@ -6,10 +6,9 @@ import json
 from collections import Counter
 from dataclasses import dataclass
 from io import BytesIO
-from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
-from openpyxl import load_workbook
+from openpyxl import Workbook
 
 from data_curation.api.pg.session import db_session, statement_timeout
 from data_curation.models import Intermarc, Zone
@@ -18,10 +17,8 @@ from data_curation.models import Intermarc, Zone
 CLUSTER_NOTES = {"Clusterisation manuelle", "Clusterisation script"}
 CLUSTER_FLAGS = {"manual", "script"}
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
-TEMPLATE_DIR = ROOT_DIR / "documentation" / "export_templates"
-DEDUP_TEMPLATE = TEMPLATE_DIR / "templateDedoublonnage.xlsx"
-MOD_TEMPLATE = TEMPLATE_DIR / "templateModification.xlsx"
+DEDUP_HEADERS = ["Action", "identifiant entité cible", "identifiant entité remplacée"]
+MOD_HEADERS = ["Identifiant", "Action", "Etiquette", "valeur initiale", "valeur finale", "Position"]
 
 
 @dataclass(frozen=True)
@@ -177,11 +174,10 @@ def _match_zone_pairs(
     return matches, remaining_left, remaining_right
 
 
-def _prepare_template(path: Path):
-    workbook = load_workbook(path)
+def _prepare_workbook(headers: Sequence[str]):
+    workbook = Workbook()
     sheet = workbook.active
-    if sheet.max_row > 1:
-        sheet.delete_rows(2, sheet.max_row - 1)
+    sheet.append(list(headers))
     return workbook, sheet
 
 
@@ -211,7 +207,7 @@ def build_dedoublonnage_xlsx(dataset_id: str) -> bytes:
         else:
             rows.append(["RemplacementMultiple", str(anchor_id), ",".join(targets)])
 
-    workbook, sheet = _prepare_template(DEDUP_TEMPLATE)
+    workbook, sheet = _prepare_workbook(DEDUP_HEADERS)
     for line in rows:
         sheet.append(line)
     output = BytesIO()
@@ -285,7 +281,7 @@ def build_modification_xlsx(dataset_id: str) -> bytes:
                     ]
                 )
 
-    workbook, sheet = _prepare_template(MOD_TEMPLATE)
+    workbook, sheet = _prepare_workbook(MOD_HEADERS)
     for line in modifications:
         sheet.append(line)
     output = BytesIO()

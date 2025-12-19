@@ -95,7 +95,7 @@ export function ManifestationPanel({
             counts={{ expressionLinks }}
             agentNames={undefined}
             relationships={relationships}
-            titleSegments={undefined}
+            titleSegments={manifestation.title_segments ?? undefined}
             mediaKinds={mediaKinds}
           />
         </button>

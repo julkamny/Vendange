@@ -49,6 +49,7 @@ export type ManifestationItem = {
   id: string
   ark: string
   title?: string
+  titleSegments?: EntityTitleSegment[]
   expressionArk: string
   expressionId?: string
   originalExpressionArk: string
@@ -126,6 +127,7 @@ export type ManifestationItemViewDto = {
   id: string
   ark?: string | null
   title?: string | null
+  title_segments?: EntityTitleSegment[]
   expression_ark?: string | null
   expression_id?: string | null
   original_expression_ark?: string | null

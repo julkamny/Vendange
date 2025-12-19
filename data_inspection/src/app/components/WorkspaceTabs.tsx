@@ -269,7 +269,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
           if (candidates.length) workArk = candidates[0]
         }
         const workRecord = findByArk(workArk)
-        const label = labelForTabRecord(workRecord) ?? labelForTabRecord(expressionRecord)
+        const label = labelForTabRecord(expressionRecord) ?? labelForTabRecord(workRecord)
         if (label) return label
         return entity.expressionId ?? entity.id
       }

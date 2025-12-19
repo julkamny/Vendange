@@ -12,6 +12,7 @@ function mapManifestation(view: ManifestationItemViewDto): import('../types').Ma
     id: view.id,
     ark: view.ark || view.id,
     title: view.title || view.id,
+    titleSegments: view.title_segments ?? undefined,
     expressionArk: view.expression_ark || view.original_expression_ark || '',
     expressionId: view.expression_id || undefined,
     originalExpressionArk: view.original_expression_ark || view.expression_ark || '',

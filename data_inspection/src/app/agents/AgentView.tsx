@@ -144,6 +144,12 @@ export function AgentView({
     if (selectedRecord) rememberRecord(selectedRecord)
   }, [rememberRecord, selectedRecord])
   useEffect(() => {
+    const defaultTitle = t('workspace.agentsTabDefault', { defaultValue: 'Agents' })
+    const desiredTitle = selectedRecord ? (labelFromRecord(selectedRecord) || selectedRecord.id) : defaultTitle
+    if (desiredTitle === state.title) return
+    onStateChange(prev => ({ ...prev, title: desiredTitle }))
+  }, [onStateChange, selectedRecord, state.title, t])
+  useEffect(() => {
     if (pendingSourceRecord) rememberRecord(pendingSourceRecord)
     if (pendingAnchorRecord) rememberRecord(pendingAnchorRecord)
   }, [pendingAnchorRecord, pendingSourceRecord, rememberRecord])

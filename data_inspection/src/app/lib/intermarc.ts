@@ -126,6 +126,12 @@ export function labelFromRecord(record: RecordRow): string | undefined {
     const direct = record.arkLabels[ark] ?? record.arkLabels[ark.toLowerCase()]
     if (direct) return direct
   }
+  if (record.typeNorm === 'oeuvre') {
+    return buildIntermarcWorkLabel(record.intermarc, record.arkLabels) ?? buildLabelFromIntermarc(record.intermarc, record.type)
+  }
+  if (record.typeNorm === 'expression') {
+    return buildIntermarcExpressionLabel(record.intermarc, record.arkLabels) ?? buildLabelFromIntermarc(record.intermarc, record.type)
+  }
   return buildLabelFromIntermarc(record.intermarc, record.type)
 }
 

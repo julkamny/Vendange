@@ -144,14 +144,23 @@ def _manifestations_by_expression(dataset_id: str, expression_arks: List[str]) -
             """,
             (dataset_id, f"{RELATION_NS}740s3", expression_arks),
         ).fetchall()
+    manifest_records = _record_dicts([row.get("record") for row in rows])
+    manifest_title_ark_labels = resolve_ark_label_map_for_records(
+        dataset_id, manifest_records, zone_codes={"245"}
+    )
     by_expr: Dict[str, List[ManifestationItemView]] = {}
     for row in rows:
         expr_ark = row["expression_ark"]
-        title = row.get("label") or row.get("ark") or str(row.get("record_id") or row.get("entity_id"))
+        record = row.get("record")
+        record_dict = record if isinstance(record, dict) else None
+        title_segments = build_title_segments(record_dict, zone_code="245", ark_labels=manifest_title_ark_labels)
+        fallback = row.get("label") or row.get("ark") or str(row.get("record_id") or row.get("entity_id"))
+        title = " ".join(seg.value for seg in title_segments) or _label_from_record("manifestation", record_dict, fallback=fallback)
         man_view = ManifestationItemView(
             id=row["record_id"] or str(row["entity_id"]),
             ark=row.get("ark"),
             title=title,
+            title_segments=title_segments,
             expression_ark=expr_ark,
             expression_id=None,
             original_expression_ark=None,

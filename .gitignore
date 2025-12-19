@@ -34,9 +34,8 @@ Vendange_codebase.md
 # Local tooling
 .tools/
 
-# Oxigraph store (generated)
-data_curation/api/vendange_store/
-data_curation/api/datasets/
-
 # Marimo
 **/__marimo__
+
+# BNF production DB samples
+sample_data/**.csv

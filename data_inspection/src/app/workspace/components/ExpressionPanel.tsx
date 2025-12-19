@@ -2,7 +2,7 @@ import { useMemo, type MouseEvent } from 'react'
 import type { WorkClusterDto, ExpressionClusterItemViewDto, ExpressionItemViewDto } from '../../types'
 import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
-import { EntityPill, CountBadge, AgentBadge, RelationshipBadge } from '../../components/EntityLabel'
+import { EntityLabel } from '../../components/EntityLabel'
 import type { MediaKind } from '../../core/media'
 
 type SummaryLike = { mediaKinds?: MediaKind[]; media_kinds?: MediaKind[]; counts?: { manifestations?: number }; relationships?: { outgoing: number; incoming: number } }
@@ -53,41 +53,26 @@ export function ExpressionGroupLabel({
 }: ExpressionGroupLabelProps) {
   const label = expression.title || expression.id
   const tooltip = label?.trim()
+  const titleSegments = expression.title_segments?.length ? expression.title_segments : undefined
+  const badges = [
+    { type: 'expression' as const, text: expression.id, tooltip: expression.ark || undefined },
+  ]
+  if ('work_id' in expression && expression.work_id) {
+    badges.push({ type: 'work', text: expression.work_id, tooltip: expression.work_ark || undefined })
+  }
   return (
-    <span
-      className={`entity-label expression-group-label${tooltip ? ' has-tooltip' : ''}`}
-      data-tooltip={tooltip || undefined}
-      aria-label={tooltip || undefined}
-    >
+    <span className="expression-group-label">
       <span className="expression-marker">{isAnchor ? '⚓︎' : '🍇'}</span>
-      <EntityPill type="expression" text={expression.id} tooltip={expression.ark} />
-      {'work_id' in expression && expression.work_id ? (
-        <EntityPill
-          type="work"
-          text={expression.work_id}
-          tooltip={expression.work_ark || undefined}
-        />
-      ) : null}
-      {manifestationCount > 0 ? <CountBadge kind="manifestations" count={manifestationCount} /> : null}
-      {relationships.outgoing > 0 || relationships.incoming > 0 ? (
-        <RelationshipBadge outgoing={relationships.outgoing} incoming={relationships.incoming} />
-      ) : null}
-      {agentNames.length ? <AgentBadge names={agentNames} /> : null}
-      {mediaKinds?.length ? (
-        <span className="entity-media-emojis">
-          {mediaKinds.map(kind => (
-            <span
-              key={kind.emoji}
-              className="entity-media-emoji"
-              role="img"
-              aria-label={kind.label}
-              title={kind.label}
-            >
-              {kind.emoji}
-            </span>
-          ))}
-        </span>
-      ) : null}
+      <EntityLabel
+        title={label}
+        titleSegments={titleSegments}
+        titleTooltip={tooltip}
+        badges={badges}
+        counts={{ manifestations: manifestationCount }}
+        relationships={relationships}
+        agentNames={agentNames}
+        mediaKinds={mediaKinds}
+      />
     </span>
   )
 }

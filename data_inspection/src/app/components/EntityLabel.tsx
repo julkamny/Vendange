@@ -74,6 +74,7 @@ export type EntityLabelProps = {
   className?: string
   onClick?: MouseEventHandler<HTMLSpanElement>
   titleSegments?: EntityTitleSegment[]
+  titleTooltip?: string
   mediaKinds?: MediaKind[]
 }
 
@@ -86,6 +87,7 @@ export function EntityLabel({
   className,
   onClick,
   titleSegments,
+  titleTooltip,
   mediaKinds,
 }: EntityLabelProps) {
   const decoratedTitle = useArkDecoratedText(title)
@@ -118,17 +120,24 @@ export function EntityLabel({
 
   const segments = titleSegments?.filter(segment => segment?.value && segment.value.trim().length > 0)
   const media = useMemo(() => mediaKinds ?? [], [mediaKinds])
+  const titleTooltipText = titleTooltip?.trim()
+  const titleProps = titleTooltipText
+    ? { className: 'entity-title has-tooltip', 'data-tooltip': titleTooltipText, 'aria-label': titleTooltipText }
+    : { className: 'entity-title' }
+  const segmentedTitleProps = titleTooltipText
+    ? { className: 'entity-title entity-title--segmented has-tooltip', 'data-tooltip': titleTooltipText, 'aria-label': titleTooltipText }
+    : { className: 'entity-title entity-title--segmented' }
 
   return (
     <span className={classes} onClick={onClick}>
       {segments && segments.length ? (
-        <span className="entity-title entity-title--segmented">
+        <span {...segmentedTitleProps}>
           {segments.map((segment, index) => (
             <TitleSegmentChip key={`${segment.code}-${index}`} segment={segment} />
           ))}
         </span>
       ) : (
-        <span className="entity-title">{decoratedTitle}</span>
+        <span {...titleProps}>{decoratedTitle}</span>
       )}
       {hasBadges ? (
         <span className="entity-badges">

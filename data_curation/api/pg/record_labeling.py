@@ -151,6 +151,58 @@ def build_title_segments(
     return segments
 
 
+def build_expression_title_segments(
+    record: Optional[Dict[str, Any]],
+    *,
+    ark_labels: Optional[Dict[str, str]] = None,
+) -> List[TitleSegment]:
+    """Build expression title chips from 140, with the 140$3 label first."""
+
+    if not record:
+        return []
+    zone_140 = next((z for z in _iter_zones(record) if str(z.get("code")) == "140"), None)
+    if not zone_140:
+        return []
+
+    parent_segment: Optional[TitleSegment] = None
+    modifier_segments: List[TitleSegment] = []
+    for sub in _subzones(zone_140):
+        raw_code = str(sub.get("code", "") or "")
+        code = _subfield_code(raw_code)
+        if code == "9":
+            continue
+        value = str(sub.get("valeur", "") or "").strip()
+        if not value:
+            continue
+        if code == "3" and parent_segment is None:
+            shown = value
+            if ark_labels:
+                mapped = ark_labels.get(value) or ark_labels.get(value.lower())
+                if mapped:
+                    shown = mapped
+            parent_segment = TitleSegment(
+                code=raw_code,
+                label=_segment_label(raw_code),
+                value=shown,
+                ark=value if looks_like_ark(value) else None,
+            )
+            continue
+        modifier_segments.append(
+            TitleSegment(
+                code=raw_code,
+                label=_segment_label(raw_code),
+                value=value,
+                ark=value if looks_like_ark(value) else None,
+            )
+        )
+
+    segments: List[TitleSegment] = []
+    if parent_segment:
+        segments.append(parent_segment)
+    segments.extend(modifier_segments)
+    return segments
+
+
 def build_label_from_record(
     *,
     type_raw: str,
@@ -310,4 +362,3 @@ def resolve_ark_labels(
         if lower != ark:
             labels[lower] = label
     return labels
-

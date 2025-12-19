@@ -25,6 +25,7 @@ function mapExpression(view: ExpressionItemViewDto): import('../types').Expressi
     id: view.id,
     ark: view.ark || view.id,
     title: view.title || view.id,
+    titleSegments: view.title_segments ?? undefined,
     workArk: view.work_ark || '',
     workId: view.work_id || undefined,
     manifestations,

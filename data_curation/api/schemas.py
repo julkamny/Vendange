@@ -48,6 +48,7 @@ class ExpressionItemView(BaseModel):
     id: str
     ark: Optional[str] = None
     title: Optional[str] = None
+    title_segments: List[TitleSegment] = Field(default_factory=list)
     work_ark: Optional[str] = None
     work_id: Optional[str] = None
     manifestations: List[ManifestationItemView] = Field(default_factory=list)

@@ -30,7 +30,7 @@ from data_curation.api.schemas import (
     WorkspaceWorksResponse,
 )
 from data_curation.api.pg.ark_labeling_repo import resolve_ark_label_map_for_records
-from data_curation.api.pg.record_labeling import build_title_segments
+from data_curation.api.pg.record_labeling import build_expression_title_segments, build_title_segments
 from data_curation.api.pg.record_labeling import build_label_from_record
 from data_curation.api.pg import cluster_workflow_repo
 
@@ -165,6 +165,12 @@ def _build_entity_title(dataset_id: str, entity_row: Dict[str, Any]) -> Tuple[st
     record = entity_row.get("record")
     record_dict = record if isinstance(record, dict) else None
     type_norm = entity_row.get("type_norm") or ""
+    if type_norm == "expression":
+        labels = resolve_ark_label_map_for_records(dataset_id, _record_dicts([record_dict]), zone_codes={"140"}) if record_dict else {}
+        segments = build_expression_title_segments(record_dict, ark_labels=labels)
+        title = entity_row.get("label") or " ".join(seg.value for seg in segments) or entity_row.get("ark") or ""
+        return title, segments
+
     zone = _title_zone_for_type(type_norm)
     allowed = _allowed_title_subfields(type_norm)
     labels = resolve_ark_label_map_for_records(dataset_id, _record_dicts([record_dict])) if record_dict else {}
@@ -600,6 +606,16 @@ def get_backlinks(dataset_id: str, key: str) -> Optional[BacklinksPayload]:
         ]
     )
     work_title_ark_labels = resolve_ark_label_map_for_records(dataset_id, work_records, zone_codes={"150"})
+    expression_records = _record_dicts(
+        [
+            entry.get("record")
+            for entry in grouped.values()
+            if (entry.get("type_norm") or "").lower() == "expression"
+        ]
+    )
+    expression_title_ark_labels = resolve_ark_label_map_for_records(
+        dataset_id, expression_records, zone_codes={"140"}
+    )
 
     backlinks: List[BacklinkItem] = []
     for src_id, entry in grouped.items():
@@ -612,6 +628,9 @@ def get_backlinks(dataset_id: str, key: str) -> Optional[BacklinksPayload]:
         if type_norm == "oeuvre":
             title_segments = build_title_segments(record_dict, zone_code="150", ark_labels=work_title_ark_labels)
             title_value = " ".join(seg.value for seg in title_segments) or _label_from_record(type_norm, record_dict, fallback=title_value)
+        elif type_norm == "expression":
+            title_segments = build_expression_title_segments(record_dict, ark_labels=expression_title_ark_labels)
+            title_value = " ".join(seg.value for seg in title_segments) or entry.get("label") or entry.get("ark") or src_id
         elif type_norm == "manifestation":
             title_value = _label_from_record(type_norm, record_dict, fallback=title_value)
         elif type_norm in AGENT_TYPE_NORMS:
@@ -830,8 +849,9 @@ def get_work_cluster(dataset_id: str, anchor_key: str) -> Optional[WorkCluster]:
                 "ark": row.get("member_ark"),
                 "record_id": row.get("member_record_id"),
                 "entity_id": row.get("member_entity_id"),
+                "type_norm": "expression",
             }
-            member_title = row.get("member_label") or row.get("member_ark")
+            member_title, member_segments = _build_entity_title(dataset_id, member_entity)
             member_id = member_entity.get("record_id") or (
                 str(member_entity.get("entity_id")) if member_entity.get("entity_id") else ""
             )
@@ -842,6 +862,7 @@ def get_work_cluster(dataset_id: str, anchor_key: str) -> Optional[WorkCluster]:
                     id=member_id,
                     ark=member_entity.get("ark"),
                     title=member_title,
+                    title_segments=member_segments,
                     work_ark=expressions_by_ark.get(member_entity.get("ark") or "", {}).get("work_ark"),
                     work_id=work_id_by_ark.get(
                         expressions_by_ark.get(member_entity.get("ark") or "", {}).get("work_ark") or ""
@@ -864,7 +885,7 @@ def get_work_cluster(dataset_id: str, anchor_key: str) -> Optional[WorkCluster]:
                 "entity_id": expr.get("entity_id"),
                 "type_norm": "expression",
             }
-            expr_title, _ = _build_entity_title(dataset_id, expr_entity)
+            expr_title, expr_segments = _build_entity_title(dataset_id, expr_entity)
             expr_id = expr.get("record_id") or str(expr.get("entity_id"))
             expr_ark = expr.get("ark")
             expr_work_ark = expr.get("work_ark")
@@ -875,6 +896,7 @@ def get_work_cluster(dataset_id: str, anchor_key: str) -> Optional[WorkCluster]:
                 id=expr_id,
                 ark=expr_ark,
                 title=expr_title,
+                title_segments=expr_segments,
                 work_ark=expr_work_ark,
                 work_id=work_id_by_ark.get(expr_work_ark or ""),
                 manifestations=manifestations_map.get(expr_ark, []) if expr_ark else [],
@@ -908,7 +930,7 @@ def get_work_cluster(dataset_id: str, anchor_key: str) -> Optional[WorkCluster]:
                 "entity_id": expr.get("entity_id"),
                 "type_norm": "expression",
             }
-            expr_title, _ = _build_entity_title(dataset_id, expr_entity)
+            expr_title, expr_segments = _build_entity_title(dataset_id, expr_entity)
             expr_id = expr.get("record_id") or str(expr.get("entity_id"))
             expr_work_ark = expr.get("work_ark")
             independent_expressions.append(
@@ -916,6 +938,7 @@ def get_work_cluster(dataset_id: str, anchor_key: str) -> Optional[WorkCluster]:
                     id=expr_id,
                     ark=expr_ark,
                     title=expr_title,
+                    title_segments=expr_segments,
                     work_ark=expr_work_ark,
                     work_id=work_id_by_ark.get(expr_work_ark or ""),
                     manifestations=manifestations_map.get(expr_ark, []),

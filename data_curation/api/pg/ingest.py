@@ -136,6 +136,7 @@ def ingest_csv(dataset_id: str, csv_bytes: bytes, *, dataset_label: Optional[str
                     rec.type_raw,
                     rec.type_norm,
                     Json(json.loads(rec.intermarc_raw)),
+                    Json(json.loads(rec.intermarc_raw)),
                 )
                 for rec in records
             ]
@@ -145,9 +146,9 @@ def ingest_csv(dataset_id: str, csv_bytes: bytes, *, dataset_label: Optional[str
                 chunk = entity_values[chunk_start : chunk_start + 500]
                 result = conn.execute(
                     """
-                    INSERT INTO entity (dataset_id, record_id, ark, type_raw, type_norm, record)
+                    INSERT INTO entity (dataset_id, record_id, ark, type_raw, type_norm, record, original_record)
                     VALUES """ +
-                    ",".join(["(%s,%s,%s,%s,%s,%s)"] * len(chunk)) +
+                    ",".join(["(%s,%s,%s,%s,%s,%s,%s)"] * len(chunk)) +
                     " RETURNING entity_id, ark",
                     tuple(val for row in chunk for val in row),
                 ).fetchall()

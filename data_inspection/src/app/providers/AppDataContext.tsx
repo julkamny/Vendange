@@ -4,7 +4,14 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Cluster, RecordRow } from '../types'
 import type { Intermarc } from '../lib/intermarc'
 import { resetArkLabelCache } from '../lib/intermarc'
-import { fetchDatasets, syncRecordUpdate, type DatasetSummary, type DatasetRecordPayload, type WorkspaceUpdatePayload } from '../lib/api'
+import {
+  fetchDatasets,
+  fetchDatasetExport,
+  syncRecordUpdate,
+  type DatasetSummary,
+  type DatasetRecordPayload,
+  type WorkspaceUpdatePayload,
+} from '../lib/api'
 import { useToast } from './ToastContext'
 import { getBroadcastClientId, postBroadcastEvent, subscribeToBroadcast } from '../lib/broadcast'
 
@@ -161,7 +168,28 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setExpressionAccepted: () => console.warn('setExpressionAccepted deprecated; use backend mutations.'),
       moveManifestation: () => console.warn('moveManifestation deprecated; use backend mutations.'),
       exportCurated: async () => {
-        showToast('Export indisponible : les données sont chargées à la demande.', { tone: 'info' })
+        const datasetId = datasetIdRef.current
+        if (!datasetId) return
+        const triggerDownload = (blob: Blob, filename: string) => {
+          const url = URL.createObjectURL(blob)
+          const anchor = document.createElement('a')
+          anchor.href = url
+          anchor.download = filename
+          document.body.appendChild(anchor)
+          anchor.click()
+          anchor.remove()
+          URL.revokeObjectURL(url)
+        }
+        try {
+          const dedup = await fetchDatasetExport(datasetId, 'dedoublonnage')
+          triggerDownload(dedup.blob, dedup.filename)
+          const modifications = await fetchDatasetExport(datasetId, 'modifications')
+          triggerDownload(modifications.blob, modifications.filename)
+          showToast('Exports générés.', { tone: 'success' })
+        } catch (err) {
+          console.error('Failed to export dataset', err)
+          showToast("Impossible de générer l'export.", { tone: 'error' })
+        }
       },
       clearData,
     }),

@@ -483,6 +483,24 @@ function parseFilenameFromContentDisposition(header: string | null): string | un
   }
 }
 
+type ExportKind = 'dedoublonnage' | 'modifications'
+
+export async function fetchDatasetExport(
+  datasetId: string,
+  kind: ExportKind,
+): Promise<{ blob: Blob; filename: string }> {
+  const url = `${API_BASE_URL}/api/datasets/${encodeURIComponent(datasetId)}/exports/${kind}`
+  const response = await fetch(url)
+  if (!response.ok) {
+    const detail = await parseJson<{ detail?: string }>(response).catch(() => ({ detail: response.statusText }))
+    throw new Error(detail.detail || 'Failed to download export')
+  }
+  const blob = await response.blob()
+  const fallbackName = `${datasetId}-${kind}.xlsx`
+  const filename = parseFilenameFromContentDisposition(response.headers.get('Content-Disposition')) ?? fallbackName
+  return { blob, filename }
+}
+
 type FetchClusterLogOptions = {
   logFile?: string
   logUrl?: string

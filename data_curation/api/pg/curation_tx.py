@@ -209,11 +209,19 @@ def update_entity_record(
         else:
             res = db_conn.execute(
                 """
-                INSERT INTO entity (dataset_id, record_id, ark, type_raw, type_norm, record)
-                VALUES (%s,%s,%s,%s,%s,%s)
+                INSERT INTO entity (dataset_id, record_id, ark, type_raw, type_norm, record, original_record)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
                 RETURNING entity_id
                 """,
-                (dataset_id, record_id, ark, type_raw, parsed.type_norm, Json(json.loads(intermarc_json))),
+                (
+                    dataset_id,
+                    record_id,
+                    ark,
+                    type_raw,
+                    parsed.type_norm,
+                    Json(json.loads(intermarc_json)),
+                    Json(json.loads(intermarc_json)),
+                ),
             ).fetchone()
             entity_id = res["entity_id"]
 

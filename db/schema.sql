@@ -23,12 +23,14 @@ CREATE TABLE IF NOT EXISTS entity (
     type_raw    text,
     type_norm   text NOT NULL,
     record      jsonb NOT NULL,
+    original_record jsonb,
     updated_at  timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (dataset_id, entity_id)
 ) PARTITION BY LIST (dataset_id);
 
 ALTER TABLE entity ADD COLUMN IF NOT EXISTS record_id text;
 ALTER TABLE entity ADD COLUMN IF NOT EXISTS type_raw text;
+ALTER TABLE entity ADD COLUMN IF NOT EXISTS original_record jsonb;
 
 CREATE INDEX IF NOT EXISTS idx_entity_ark ON entity (ark);
 CREATE INDEX IF NOT EXISTS idx_entity_record_id ON entity (record_id);

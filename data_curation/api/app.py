@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from data_curation.api import db, datasets
+from data_curation.api import db, datasets, export_xlsx
 from data_curation.api.schemas import (
     AutocompleteSuggestion,
     BacklinksPayload,
@@ -383,6 +383,30 @@ async def create_dataset(title: str = Form(None), file: UploadFile = File(...)) 
 def fetch_dataset(dataset_id: str) -> dict[str, Any]:
     meta = _ensure_dataset(dataset_id)
     return {"dataset": _serialize_dataset(meta)}
+
+
+@app.get("/api/datasets/{dataset_id}/exports/dedoublonnage")
+def export_dedoublonnage(dataset_id: str) -> Response:
+    _ensure_dataset(dataset_id)
+    payload = export_xlsx.build_dedoublonnage_xlsx(dataset_id)
+    filename = f"{dataset_id}-dedoublonnage.xlsx"
+    return Response(
+        content=payload,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/datasets/{dataset_id}/exports/modifications")
+def export_modifications(dataset_id: str) -> Response:
+    _ensure_dataset(dataset_id)
+    payload = export_xlsx.build_modification_xlsx(dataset_id)
+    filename = f"{dataset_id}-modifications.xlsx"
+    return Response(
+        content=payload,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.patch("/api/datasets/{dataset_id}")

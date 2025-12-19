@@ -105,7 +105,7 @@ type AppShellProps = {
 
 function AppShell({ onBack, dataset }: AppShellProps) {
   const { t } = useTranslation()
-  const { clusters, exportCurated } = useAppData()
+  const { exportCurated } = useAppData()
   const [toolbarVisible, setToolbarVisible] = useState(false)
   const [atTop, setAtTop] = useState(true)
   const [shortcutOpen, setShortcutOpen] = useState(false)
@@ -134,7 +134,7 @@ function AppShell({ onBack, dataset }: AppShellProps) {
         onToggleVisible={() => setToolbarVisible(prev => !prev)}
         onOpenShortcuts={() => setShortcutOpen(true)}
         onExport={exportCurated}
-        exportDisabled={!clusters.length}
+        exportDisabled={!dataset}
         onNavigateHome={onBack}
       />
       <main className="app-main">

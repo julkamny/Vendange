@@ -118,8 +118,7 @@ export function curationClass(flag?: string): string {
   if (!flag) return ''
   const normalized = flag.toLowerCase()
   if (normalized === 'manual') return ' curation-created'
-  if (normalized === 'edit') return ' curation-created'
-  if (normalized === 'created') return ' curation-created'
+  if (normalized === 'script') return ' curation-created'
   if (normalized === 'deleted') return ' curation-deleted'
   if (normalized === 'clusterfieldgrafting') return ' curation-grafting'
   return ''
@@ -294,7 +293,7 @@ export function isClusterAnchorCreated(im: Intermarc): boolean {
       zone.affectedByCuration,
       ...zone.sousZones.map(sz => sz.affectedByCuration),
     ].filter((flag): flag is string => typeof flag === 'string' && flag.length > 0)
-    if (flags.some(flag => ['created', 'manual'].includes(flag.toLowerCase()))) return true
+    if (flags.some(flag => ['script', 'manual'].includes(flag.toLowerCase()))) return true
   }
   return false
 }

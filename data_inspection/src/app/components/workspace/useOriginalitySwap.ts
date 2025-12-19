@@ -52,7 +52,7 @@ export function useOriginalitySwap({
 
   const hasManualOrCreatedFlag = useCallback((zone: Zone) => {
     const flags = [zone.affectedByCuration, ...(zone.sousZones?.map(sz => sz.affectedByCuration).filter(Boolean) ?? [])]
-    return flags.some(flag => typeof flag === 'string' && ['manual', 'created'].includes(flag.toLowerCase()))
+    return flags.some(flag => typeof flag === 'string' && ['manual', 'script'].includes(flag.toLowerCase()))
   }, [])
 
   const hasQualifier = useCallback((zone: Zone, qualifier: string | null, label: string) => {

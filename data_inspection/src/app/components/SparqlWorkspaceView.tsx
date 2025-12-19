@@ -20,7 +20,7 @@ import { deriveInternalIdFromArk } from '../lib/ark'
 import { SparnaturalBuilder, type ControlledValueOption } from './SparnaturalBuilder'
 import { buildSparnaturalConfig } from '../sparql/sparnaturalConfig'
 import { ensureGraphWrapping } from '../sparql/queryUtils'
-import { labelFromRecord } from '../lib/intermarc'
+import { labelForRecord } from '../lib/labels'
 import { WorkspaceContextMenu } from './WorkspaceContextMenu'
 import { isAgentRecord } from '../agents/useAgentData'
 import { ARK_REGEX, extractArksFromResult, normalizeArk as normalizeArkValue, matchArksInText } from '../lib/arkFilters'
@@ -92,7 +92,7 @@ export function SparqlWorkspaceView({
       }
       if (!record) return null
       if (!['identite publique de personne', 'collectivite', 'famille'].includes(record.typeNorm)) return null
-      return labelFromRecord(record) ?? null
+      return labelForRecord(record) ?? null
     },
     [getByArk, getById],
   )

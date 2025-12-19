@@ -14,10 +14,10 @@ import { useShortcuts } from '../providers'
 import { useWorkspaceData } from '../workspace/useWorkspaceData'
 import { useAppData } from '../providers'
 import { useWorkspaceAgents } from '../hooks/useWorkspaceQueries'
-import { manifestationTitle, titleOf, expressionWorkArks } from '../core/entities'
+import { expressionWorkArks } from '../core/entities'
 import { useDetachedWindows } from '../providers'
 import { useToast } from '../providers'
-import { labelFromRecord } from '../lib/intermarc'
+import { labelForRecord } from '../lib/labels'
 import { AgentView } from '../agents/AgentView'
 import { WorkspaceTabButton } from './workspaceTabs/WorkspaceTabButton'
 import { DetachedTabPlaceholder } from './workspaceTabs/DetachedTabPlaceholder'
@@ -217,8 +217,7 @@ export function WorkspaceTabs({ shortcutModalOpen }: WorkspaceTabsProps) {
 
   const labelForTabRecord = useCallback((record: RecordRow | null) => {
     if (!record) return null
-    const intermarcLabel = labelFromRecord(record)
-    return intermarcLabel || titleOf(record) || manifestationTitle(record) || record.id
+    return labelForRecord(record)
   }, [])
 
   const getWorkspaceLabel = useCallback(

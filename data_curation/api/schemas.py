@@ -145,6 +145,8 @@ class RecordPayload(BaseModel):
     id: str
     type: str
     ark: Optional[str] = None
+    label: Optional[str] = None
+    title_segments: List[TitleSegment] = Field(default_factory=list)
     intermarc: str
     ark_labels: Dict[str, str] = Field(default_factory=dict)
 

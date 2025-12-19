@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { expressionWorkArks, manifestationTitle, titleOf } from '../../core/entities'
+import { expressionWorkArks } from '../../core/entities'
+import { labelForRecord } from '../../lib/labels'
 import type { RecordRow } from '../../types'
 import type { WorkspaceTabStateWorkspace } from '../../workspace/types'
 
@@ -20,13 +21,8 @@ export function useWorkspaceBreadcrumbs(
       items.push(trimmed)
     }
 
-    const labelFromRecord = (rec?: RecordRow | null, fallback?: string) => {
-      if (!rec) return fallback
-      if (rec.typeNorm === 'manifestation') {
-        return manifestationTitle(rec) || rec.id
-      }
-      return titleOf(rec) || rec.id
-    }
+    const labelFromRecord = (rec?: RecordRow | null, fallback?: string) =>
+      labelForRecord(rec) || fallback
 
     const selected = state.selectedEntity
     if (!selected) return items

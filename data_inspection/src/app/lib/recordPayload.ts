@@ -9,6 +9,8 @@ export function buildRecordRowFromPayload(payload: WorkRecordPayload): RecordRow
     type: payload.type,
     typeNorm: normalizeType(payload.type),
     ark: payload.ark ?? undefined,
+    label: payload.label ?? null,
+    titleSegments: payload.title_segments ?? [],
     arkLabels: payload.arkLabels ?? payload.ark_labels ?? {},
     rowIndex: 0,
     intermarcStr: payload.intermarc,

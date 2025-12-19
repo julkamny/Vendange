@@ -5,7 +5,7 @@ import type { EntityBadgeSpec, RecordRow } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useAppData } from '../providers/AppDataContext'
 import { useToast } from '../providers/ToastContext'
-import { labelFromRecord } from '../lib/intermarc'
+import { labelForRecord } from '../lib/labels'
 import { IntermarcView } from '../components/IntermarcView'
 import { IntermarcEditor } from '../components/IntermarcEditor'
 import { BacklinksPanel } from '../components/BacklinksPanel'
@@ -145,7 +145,7 @@ export function AgentView({
   }, [rememberRecord, selectedRecord])
   useEffect(() => {
     const defaultTitle = t('workspace.agentsTabDefault', { defaultValue: 'Agents' })
-    const desiredTitle = selectedRecord ? (labelFromRecord(selectedRecord) || selectedRecord.id) : defaultTitle
+    const desiredTitle = selectedRecord ? labelForRecord(selectedRecord) || selectedRecord.id : defaultTitle
     if (desiredTitle === state.title) return
     onStateChange(prev => ({ ...prev, title: desiredTitle }))
   }, [onStateChange, selectedRecord, state.title, t])
@@ -705,7 +705,7 @@ export function AgentView({
             {selectedRecord ? (
               <div className="record-details" onContextMenu={handleContextMenu}>
                 <header className="record-details__header">
-                  <h3>{labelFromRecord(selectedRecord) || selectedRecord.id}</h3>
+                  <h3>{labelForRecord(selectedRecord) || selectedRecord.id}</h3>
                   <span>{selectedRecord.type}</span>
                 </header>
                 {editing ? (

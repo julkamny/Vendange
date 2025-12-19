@@ -7,6 +7,8 @@ export type RecordRow = {
   type: string
   typeNorm: string
   ark?: string
+  label?: string | null
+  titleSegments?: EntityTitleSegment[]
   arkLabels?: Record<string, string>
   rowIndex: number
   intermarcStr: string
@@ -234,6 +236,8 @@ export type WorkRecordPayload = {
   id: string
   type: string
   ark?: string | null
+  label?: string | null
+  title_segments?: EntityTitleSegment[]
   intermarc: string
   arkLabels?: Record<string, string>
   ark_labels?: Record<string, string>

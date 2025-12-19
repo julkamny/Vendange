@@ -550,11 +550,52 @@ def record_payload(dataset_id: str, key: str) -> Optional[RecordPayload]:
     row = get_entity_by_key(dataset_id, key)
     if not row:
         return None
-    ark_labels = resolve_ark_label_map_for_records(dataset_id, _record_dicts([row.get("record")]))
+    record = row.get("record")
+    record_dict = record if isinstance(record, dict) else None
+    type_norm = (row.get("type_norm") or "").lower()
+    ark_labels = resolve_ark_label_map_for_records(dataset_id, _record_dicts([record_dict]))
+    title_segments: List[TitleSegment] = []
+    if type_norm == "oeuvre":
+        title_segments = build_title_segments(
+            record_dict,
+            zone_code="150",
+            ark_labels=resolve_ark_label_map_for_records(dataset_id, _record_dicts([record_dict]), zone_codes={"150"}),
+        )
+    elif type_norm == "expression":
+        title_segments = build_expression_title_segments(
+            record_dict,
+            ark_labels=resolve_ark_label_map_for_records(dataset_id, _record_dicts([record_dict]), zone_codes={"140"}),
+        )
+    elif type_norm == "manifestation":
+        title_segments = build_title_segments(
+            record_dict,
+            zone_code="245",
+            ark_labels=resolve_ark_label_map_for_records(dataset_id, _record_dicts([record_dict]), zone_codes={"245"}),
+        )
+    elif type_norm in AGENT_TYPE_NORMS:
+        zone = _title_zone_for_type(type_norm)
+        title_segments = build_title_segments(
+            record_dict,
+            zone_code=zone,
+            ark_labels=resolve_ark_label_map_for_records(dataset_id, _record_dicts([record_dict]), zone_codes={zone}),
+            allowed_subfields=_allowed_title_subfields(type_norm),
+            strip_pipes=_strip_pipes_in_title(type_norm),
+        )
+    label = (
+        row.get("label")
+        or " ".join(seg.value for seg in title_segments)
+        or _label_from_record(
+            type_norm,
+            record_dict,
+            fallback=row.get("ark") or row.get("record_id") or str(row.get("entity_id") or ""),
+        )
+    )
     return RecordPayload(
         id=row["record_id"] or str(row["entity_id"]),
         type=row.get("type_norm") or "",
         ark=row.get("ark"),
+        label=label,
+        title_segments=title_segments,
         intermarc=json_dumps(row["record"]),
         ark_labels=ark_labels,
     )

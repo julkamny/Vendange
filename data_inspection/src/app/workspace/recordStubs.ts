@@ -5,12 +5,19 @@ function buildTitleZone(title?: string | null, fieldCode: string = '150'): { cod
   return [{ code: fieldCode, sousZones: [{ code: `${fieldCode}$a`, valeur: title }] }]
 }
 
-export function stubWorkRecord(id: string, ark?: string | null, title?: string | null): RecordRow {
+export function stubWorkRecord(
+  id: string,
+  ark?: string | null,
+  title?: string | null,
+  titleSegments?: RecordRow['titleSegments'],
+): RecordRow {
   return {
     id,
     type: 'Oeuvre',
     typeNorm: 'oeuvre',
     ark: ark ?? undefined,
+    label: title ?? null,
+    titleSegments,
     intermarc: { zones: buildTitleZone(title) },
     intermarcStr: '',
     raw: [],
@@ -31,6 +38,8 @@ export function stubExpressionRecord(
     type: 'Expression',
     typeNorm: 'expression',
     ark: expr.ark ?? undefined,
+    label: expr.title ?? null,
+    titleSegments: expr.titleSegments,
     intermarc: { zones: [...buildTitleZone(expr.title, '140'), ...linkZones] },
     intermarcStr: '',
     raw: [],
@@ -48,6 +57,8 @@ export function stubManifestationRecord(man: ManifestationItem, expressionArk?: 
     type: 'Manifestation',
     typeNorm: 'manifestation',
     ark: man.ark ?? undefined,
+    label: man.title ?? null,
+    titleSegments: man.titleSegments,
     intermarc: { zones: [...buildTitleZone(man.title, '245'), ...linkZones] },
     intermarcStr: '',
     raw: [],

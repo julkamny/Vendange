@@ -1,24 +1,11 @@
 import { findZones } from '../lib/intermarc'
 import { CLUSTER_NOTE } from './constants'
 import { MANUAL_CLUSTER_NOTE } from './constants'
-import { buildIntermarcWorkLabel } from '../lib/intermarc'
+import { labelForRecord } from '../lib/labels'
 import type { Cluster, ExpressionItem, ExpressionClusterItem, ManifestationItem, RecordRow } from '../types'
 
-export function zoneText(zone: { sousZones: Array<{ valeur?: unknown }> }): string {
-  const parts = zone.sousZones
-    .map(sz => (sz.valeur ? String(sz.valeur).trim() : ''))
-    .filter(part => part.length > 0)
-  return parts.join(' ').replace(/\s+/g, ' ').trim()
-}
-
 export function titleOf(rec: RecordRow): string | undefined {
-  if (rec.typeNorm === 'oeuvre') {
-    const workLabel = buildIntermarcWorkLabel(rec.intermarc, rec.arkLabels)
-    if (workLabel) return workLabel
-  }
-  const zone = findZones(rec.intermarc, '150')[0]
-  const text = zone ? zoneText(zone) : undefined
-  return text && text.length ? text : undefined
+  return labelForRecord(rec)
 }
 
 export function expressionWorkArks(rec: RecordRow): string[] {
@@ -60,9 +47,7 @@ export function manifestationExpressionArks(rec: RecordRow): string[] {
 }
 
 export function manifestationTitle(rec: RecordRow): string | undefined {
-  const zone = findZones(rec.intermarc, '245')[0]
-  const text = zone ? zoneText(zone) : undefined
-  return text && text.length ? text : undefined
+  return labelForRecord(rec)
 }
 
 export function countExpressionWorkLinks(rec: RecordRow): number {

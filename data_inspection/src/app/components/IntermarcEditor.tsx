@@ -6,7 +6,8 @@ import { autocompletion, CompletionContext } from '@codemirror/autocomplete'
 import { EditorState, RangeSetBuilder, StateField, type Extension, type Text } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import type { Intermarc } from '../lib/intermarc'
-import { prettyPrintIntermarc, parsePrettyPrintedIntermarc, labelFromRecord, curationClass } from '../lib/intermarc'
+import { prettyPrintIntermarc, parsePrettyPrintedIntermarc, curationClass } from '../lib/intermarc'
+import { labelForRecord } from '../lib/labels'
 import type { RecordRow } from '../types'
 import type { AutocompleteSuggestionDto } from '../types'
 import { INTERMARC_THEME } from './intermarcTheme'
@@ -14,9 +15,6 @@ import { useTranslation } from '../hooks/useTranslation'
 import { useToast } from '../providers/ToastContext'
 import { useRecordLookup } from '../hooks/useRecordLookup'
 import { useAppData } from '../providers/AppDataContext'
-import { titleOf, manifestationTitle } from '../core/entities'
-import { extractControlledValueLabel } from '../core/controlledValues'
-import { labelForAgentRecord } from '../core/agents'
 import { fetchEntityAutocomplete } from '../lib/api'
 
 const ARK_PREFIX = 'ark:/'
@@ -187,16 +185,7 @@ function looksLikeArk(value: string): boolean {
 }
 
 function recordDisplayLabel(record: RecordRow): string {
-  const normalized = record.typeNorm.toLowerCase()
-  const providedLabel = labelFromRecord(record)
-  if (providedLabel) return providedLabel
-  if (normalized === 'identite publique de personne' || normalized === 'collectivite') {
-    const agentLabel = labelForAgentRecord(record)
-    if (agentLabel) return agentLabel
-  }
-  if (normalized === 'manifestation') return manifestationTitle(record) || record.id
-  if (normalized === 'valeur controlee') return extractControlledValueLabel(record) || record.id
-  return titleOf(record) || record.id
+  return labelForRecord(record) || record.id
 }
 
 function buildDecorations(

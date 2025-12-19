@@ -11,7 +11,7 @@ import { ManifestationUprootModal } from './ManifestationUprootModal'
 import type { WorkspaceTabStateWorkspace } from '../../workspace/types'
 import type { RecordRow, BacklinkItem } from '../../types'
 import type { WorkspaceContextMenuState } from './types'
-import { makeArkLabelResolver } from '../../lib/intermarc'
+import { labelForRecord } from '../../lib/labels'
 
 type Props = {
   mode: 'inline' | 'detached'
@@ -214,7 +214,10 @@ export function WorkspaceViewLayout(props: Props) {
     headerBanner,
   } = props
 
-  const arkLabelResolver = useMemo(() => makeArkLabelResolver(getByArk), [getByArk])
+  const arkLabelResolver = useMemo(
+    () => (ark: string) => labelForRecord(getByArk(ark)),
+    [getByArk],
+  )
 
   const buildClusterAction = (target: RecordRow): MenuAction | null => {
     const clusterLocked =

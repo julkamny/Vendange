@@ -186,10 +186,10 @@ def _ensure_relationship_zone(entity: Entity, target_ark: str, qualifier_ark: st
     new_zone = Zone(
         code="552",
         sousZones=[
-            SousZone(code="552$3", valeur=target_ark, affected_by_curation="created"),
-            SousZone(code="552$q", valeur=qualifier_ark, affected_by_curation="created"),
+            SousZone(code="552$3", valeur=target_ark, affected_by_curation="script"),
+            SousZone(code="552$q", valeur=qualifier_ark, affected_by_curation="script"),
         ],
-        affected_by_curation="created",
+        affected_by_curation="script",
     )
     new_intermarc.add_zone(new_zone)
     return entity.clone_with_new_intermarc(new_intermarc)
@@ -963,11 +963,11 @@ def cluster_works_by_title_responsibilities(
                     zone = Zone(
                         code="90F",
                         sousZones=[
-                            SousZone(code="90F$3", valeur=ark, affected_by_curation="created"),
-                            SousZone(code="90F$q", valeur="Clusterisation script", affected_by_curation="created"),
-                            SousZone(code="90F$d", valeur=today, affected_by_curation="created"),
+                            SousZone(code="90F$3", valeur=ark, affected_by_curation="script"),
+                            SousZone(code="90F$q", valeur="Clusterisation script", affected_by_curation="script"),
+                            SousZone(code="90F$d", valeur=today, affected_by_curation="script"),
                         ],
-                        affected_by_curation="created",
+                        affected_by_curation="script",
                     )
                     new_inter.add_zone(zone)
                     if ark:
@@ -1136,11 +1136,11 @@ def cluster_expressions_by_051_and_041(
                     new_zone = Zone(
                         code="90F",
                         sousZones=[
-                            SousZone(code="90F$3", valeur=candidate_ark, affected_by_curation="created"),
-                            SousZone(code="90F$q", valeur="Clusterisation script", affected_by_curation="created"),
-                            SousZone(code="90F$d", valeur=today, affected_by_curation="created"),
+                            SousZone(code="90F$3", valeur=candidate_ark, affected_by_curation="script"),
+                            SousZone(code="90F$q", valeur="Clusterisation script", affected_by_curation="script"),
+                            SousZone(code="90F$d", valeur=today, affected_by_curation="script"),
                         ],
-                        affected_by_curation="created",
+                        affected_by_curation="script",
                     )
                     new_intermarc.add_zone(new_zone)
 

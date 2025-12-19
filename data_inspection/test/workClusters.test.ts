@@ -25,7 +25,7 @@ test('script cluster anchor is protected when any field is marked as created', (
         code: '90F',
         sousZones: [
           { code: '90F$3', valeur: 'ark:/script/target' },
-          { code: '90F$q', valeur: 'Clusterisation script', affectedByCuration: 'created' },
+          { code: '90F$q', valeur: 'Clusterisation script', affectedByCuration: 'script' },
           { code: '90F$d', valeur: '2025-01-01' },
         ],
       },

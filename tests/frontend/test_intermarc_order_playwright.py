@@ -60,7 +60,7 @@ def _build_dataset() -> str:
             ],
         ),
         create_zone("909", [("a", "zone-909", None)]),
-        create_zone("90F", [("q", "Clusterisation script", "created"), ("3", "ark:/target-work", "created")], affected="created"),
+        create_zone("90F", [("q", "Clusterisation script", "script"), ("3", "ark:/target-work", "script")], affected="script"),
         create_zone("981", [("a", "zone-981", None)]),
     ]
 

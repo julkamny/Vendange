@@ -13,7 +13,7 @@ def _has_manual_or_created_flag(zone: Zone) -> bool:
     for sub in zone.sousZones:
         if sub.affected_by_curation:
             flags.append(sub.affected_by_curation)
-    return any(str(flag).lower() in {"manual", "created"} for flag in flags)
+    return any(str(flag).lower() in {"manual", "script"} for flag in flags)
 
 
 def _collect_adaptation_targets(zone: Zone, *, qualifier_ark: str) -> Optional[str]:

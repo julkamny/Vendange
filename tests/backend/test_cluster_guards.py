@@ -41,7 +41,7 @@ def test_work_target_is_anchor(dataset_builder):
     anchor_flagged = _work_intermarc(
         "w2",
         [
-            _cluster_zone(WORKS["w3"]["ark"], note="Clusterisation manuelle", affected="created"),
+            _cluster_zone(WORKS["w3"]["ark"], note="Clusterisation manuelle", affected="manual"),
         ],
     )
     db.update_record(dataset_id, "w2", type_raw="Oeuvre", intermarc_json=anchor_flagged)
@@ -87,7 +87,7 @@ def test_expression_target_is_anchor(dataset_builder):
 
     protected_target = _expression_intermarc(
         "e3",
-        [_cluster_zone(EXPRESSIONS["e4"]["ark"], note="Clusterisation manuelle", affected="created")],
+        [_cluster_zone(EXPRESSIONS["e4"]["ark"], note="Clusterisation manuelle", affected="manual")],
     )
     db.update_record(dataset_id, "e3", type_raw="Expression", intermarc_json=protected_target)
 

@@ -70,7 +70,7 @@ def _build_dataset() -> str:
     ]
 
     # Cluster linkage (90F) lives on the anchor record.
-    cluster_links = [_cluster_zone(ark, affected="created") for ark in member_arks]
+    cluster_links = [_cluster_zone(ark, affected="script") for ark in member_arks]
 
     anchor_zones = [
         create_zone("001", [("a", anchor_ark, None)]),
@@ -82,7 +82,7 @@ def _build_dataset() -> str:
         create_zone("62T", [("a", "base-62t", None)]),
         create_zone("960", [("3", "chainA", None)]),
         create_zone("960", [("3", "chainB", None)]),
-        _adaptation_zone("ark:/12148/cb2000000000", qualifier=HAS_ADAPT_ARK, affected="created"),
+        _adaptation_zone("ark:/12148/cb2000000000", qualifier=HAS_ADAPT_ARK, affected="script"),
         *cluster_links,
     ]
 
@@ -104,7 +104,7 @@ def _build_dataset() -> str:
             create_zone("685", [("a", "topic-685", None)]),
             create_zone("700", [("3", "ark:/agent/a1", None), ("4", "role2", None)]),
             # Grafting should bring this 552 into the anchor as a fully grafted zone (zone + subfields).
-            _adaptation_zone("ark:/12148/cb4000000000", qualifier=HAS_ADAPT_ARK, affected="created"),
+            _adaptation_zone("ark:/12148/cb4000000000", qualifier=HAS_ADAPT_ARK, affected="script"),
             create_zone("680", [("da", "D1", None), ("dg", "G1", None), ("di", "I1", None)]),
             create_zone("960", [("3", "chainA", None)]),
             create_zone("960", [("3", "chainB", None)]),
@@ -158,7 +158,7 @@ def _build_dataset() -> str:
         "wA",
         "ark:/12148/cb2000000000",
         "Adaptation Target",
-        [_adaptation_zone(anchor_ark, qualifier=IS_ADAPT_OF_ARK, affected="created")],
+        [_adaptation_zone(anchor_ark, qualifier=IS_ADAPT_OF_ARK, affected="script")],
     )
     new_original = work_record("wNew", "ark:/12148/cb3000000000", "New Original", [])
 

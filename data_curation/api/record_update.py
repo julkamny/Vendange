@@ -99,7 +99,7 @@ def _merge_zone(new_zone: Zone, previous: Optional[Zone]) -> Zone:
         if matched and matched.affected_by_curation and str(matched.affected_by_curation).strip().lower() == "clusterfieldgrafting":
             sub_flag = matched.affected_by_curation
         # Zone-level workflow flag takes precedence over manual/edit/created.
-        if workflow_flag and str(sub_flag).strip().lower() in {"manual", "edit", "created"}:
+        if workflow_flag and str(sub_flag).strip().lower() in {"manual", "script"}:
             sub_flag = workflow_flag
         merged_subs.append(SousZone(code=sub.code, valeur=sub.valeur, affected_by_curation=sub_flag))
 

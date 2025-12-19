@@ -71,11 +71,11 @@ def _manifestation_intermarc(ark: str, expression: str, title: str, extra_zones:
         zones.extend(extra_zones)
     return create_intermarc_json(zones)
 
-def _cluster_zone(target: str, *, note: str = "Clusterisation manuelle", affected: str = "created", target_suffix: Optional[str] = None) -> Zone:
+def _cluster_zone(target: str, *, note: str = "Clusterisation manuelle", affected: str = "manual", target_suffix: Optional[str] = None) -> Zone:
     suffix = "3"
     return create_zone("90F", [("q", note, affected), (suffix, target, affected)], affected)
 
-def _adaptation_zone(target: str, *, qualifier: str, affected: str = "created") -> Zone:
+def _adaptation_zone(target: str, *, qualifier: str, affected: str = "manual") -> Zone:
     return create_zone("552", [("q", qualifier, affected), ("3", target, affected)], affected)
 
 def _records_to_csv_bytes(records) -> bytes:

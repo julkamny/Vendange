@@ -70,7 +70,7 @@ def test_export_dedoublonnage_rows_match_cluster_flags():
                 zones=[
                     create_zone("001", [("a", "ark:/12148/cb1000000003", None)]),
                     _cluster_zone("ark:/12148/cb2000000004", note="Autre note", affected="manual"),
-                    _cluster_zone("ark:/12148/cb2000000005", note="Clusterisation manuelle", affected="created"),
+                    _cluster_zone("ark:/12148/cb2000000005", note="Clusterisation manuelle", affected=""),
                 ]
             ).to_json_string(),
         },

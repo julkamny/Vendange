@@ -85,7 +85,7 @@ def test_update_record_removes_reciprocal_adaptation_links():
                 [
                     create_zone("001", [("a", "ark:/w1", None)]),
                     create_zone("150", [("a", "Original", None)]),
-                    create_zone("552", [("q", "ark:/cv/adapt", "created"), ("3", "ark:/w2", "created")], "created"),
+                    create_zone("552", [("q", "ark:/cv/adapt", "script"), ("3", "ark:/w2", "script")], "script"),
                 ]
             ),
         },
@@ -96,7 +96,7 @@ def test_update_record_removes_reciprocal_adaptation_links():
                 [
                     create_zone("001", [("a", "ark:/w2", None)]),
                     create_zone("150", [("a", "Adaptation", None)]),
-                    create_zone("552", [("q", "ark:/cv/is-adapt", "created"), ("3", "ark:/w1", "created")], "created"),
+                    create_zone("552", [("q", "ark:/cv/is-adapt", "script"), ("3", "ark:/w1", "script")], "script"),
                 ]
             ),
         },

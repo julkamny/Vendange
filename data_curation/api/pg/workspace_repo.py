@@ -487,19 +487,27 @@ def list_agents(dataset_id: str, limit: int = 9999999999999, offset: int = 0) ->
             )
         )
 
-    anchor_arks = [row["anchor_ark"] for row in cluster_rows if row.get("anchor_ark")]
     query = sql.SQL(
         """
         SELECT e.entity_id, {record_id} as record_id, e.ark, el.label, el.sort_key, el.type_norm, e.record
         FROM entity e
         JOIN entity_label el USING (dataset_id, entity_id)
-        WHERE e.dataset_id=%s AND el.type_norm = ANY(%s) AND (e.ark IS NULL OR e.ark <> ALL(%s))
+        WHERE e.dataset_id=%s
+          AND el.type_norm = ANY(%s)
+          AND (
+                e.ark IS NULL OR NOT EXISTS (
+                    SELECT 1
+                    FROM cluster c
+                    WHERE c.dataset_id = e.dataset_id
+                      AND (c.anchor_ark = e.ark OR c.member_ark = e.ark)
+                )
+          )
         ORDER BY el.sort_key NULLS LAST
         LIMIT %s OFFSET %s
         """
     ).format(record_id=sql.SQL(_record_id_expr()))
     with db_session() as conn, statement_timeout(conn, 5000):
-        rows = conn.execute(query, (dataset_id, list(AGENT_TYPE_NORMS), anchor_arks or ['{}'], limit, offset)).fetchall()
+        rows = conn.execute(query, (dataset_id, list(AGENT_TYPE_NORMS), limit, offset)).fetchall()
     unclustered = [
         AgentListRow(
             id=row["record_id"] or str(row["entity_id"]),

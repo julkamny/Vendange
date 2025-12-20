@@ -10,6 +10,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from data_curation.api import db, datasets
+from data_curation.api.pg import workspace_repo
 from .utils import (
     create_zone,
     create_intermarc_json,
@@ -135,6 +136,34 @@ def test_agent_clustering_lifecycle():
         if sz.get("code") == "90F$3"
     }
     assert targets_a1 == {"ark:/12148/a3", "ark:/12148/a4"}
+
+
+def test_list_agents_does_not_duplicate_cluster_members() -> None:
+    a1 = "ark:/12148/a1"
+    a2 = "ark:/12148/a2"
+    records = [
+        {
+            "id": "a1",
+            "type": "Identite publique de personne",
+            "intermarc": _agent_intermarc(a1, "Agent One", extra_zones=[_cluster_zone(a2)]),
+        },
+        {
+            "id": "a2",
+            "type": "Identite publique de personne",
+            "intermarc": _agent_intermarc(a2, "Agent Two"),
+        },
+    ]
+    dataset_id = _build_dataset(records, "agent-unclustered-dedup")
+
+    workspace = workspace_repo.list_agents(dataset_id, limit=100, offset=0)
+    assert len(workspace.clusters) == 1
+    cluster = workspace.clusters[0]
+    assert cluster.anchor_ark == a1
+    assert {item.ark for item in cluster.items} == {a2}
+
+    unclustered_arks = {row.ark for row in workspace.unclustered_agents if row.ark}
+    assert a1 not in unclustered_arks
+    assert a2 not in unclustered_arks
 
     # 4. Remove W3 (A3) from cluster
     cluster_zones_minus_a3 = [

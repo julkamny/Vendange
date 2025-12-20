@@ -193,9 +193,16 @@ export type WorkListRowDto = {
   summary?: EntitySummary | null
 }
 
+export type WorkspaceWorkEntryDto = {
+  kind: 'cluster' | 'unclustered'
+  id: string
+  ark?: string | null
+}
+
 export type WorkspaceWorksResponse = {
   clusters: WorkClusterDto[]
   unclustered_works: WorkListRowDto[]
+  ordered_work_entries?: WorkspaceWorkEntryDto[]
 }
 
 export type AgentClusterItemDto = {

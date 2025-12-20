@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type UIEvent } from 'react'
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
-import type { WorkClusterDto, WorkListRowDto } from '../../types'
+import type { WorkClusterDto, WorkListRowDto, WorkspaceWorkEntryDto } from '../../types'
 import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
 import { EntityLabel } from '../../components/EntityLabel'
@@ -9,6 +9,7 @@ import { buildArkAndIdSets, normalizeArk as normalizeArkValue } from '../../lib/
 type WorkListPanelProps = {
   clusters: WorkClusterDto[]
   unclusteredWorks: WorkListRowDto[]
+  orderedEntries?: WorkspaceWorkEntryDto[] | null
   state: WorkspaceTabStateWorkspace
   onSelectWork: (payload: { workId: string; workArk?: string | null }) => void
   onOpenExpressions: (payload: { workId: string; workArk?: string | null }) => void
@@ -23,6 +24,7 @@ type WorkListPanelProps = {
 export function WorkListPanel({
   clusters,
   unclusteredWorks,
+  orderedEntries,
   state,
   onSelectWork,
   onOpenExpressions,
@@ -82,11 +84,26 @@ export function WorkListPanel({
     type ListEntry =
       | { kind: 'cluster'; cluster: WorkClusterDto }
       | { kind: 'unclustered'; work: WorkListRowDto }
-    return [
-      ...clusters.map(cluster => ({ kind: 'cluster', cluster }) as const),
-      ...unclusteredWorks.map(work => ({ kind: 'unclustered', work }) as const),
-    ] as ListEntry[]
-  }, [clusters, unclusteredWorks])
+    if (!orderedEntries || orderedEntries.length === 0) {
+      return [
+        ...clusters.map(cluster => ({ kind: 'cluster', cluster }) as const),
+        ...unclusteredWorks.map(work => ({ kind: 'unclustered', work }) as const),
+      ] as ListEntry[]
+    }
+    const clustersById = new Map(clusters.map(cluster => [cluster.anchor_id, cluster]))
+    const unclusteredById = new Map(unclusteredWorks.map(work => [work.id, work]))
+    const merged: ListEntry[] = []
+    orderedEntries.forEach(entry => {
+      if (entry.kind === 'cluster') {
+        const cluster = clustersById.get(entry.id)
+        if (cluster) merged.push({ kind: 'cluster', cluster })
+        return
+      }
+      const work = unclusteredById.get(entry.id)
+      if (work) merged.push({ kind: 'unclustered', work })
+    })
+    return merged
+  }, [clusters, orderedEntries, unclusteredWorks])
 
   const isEmpty = !clusters.length && !unclusteredWorks.length
 

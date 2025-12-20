@@ -9,8 +9,8 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 ### Overview
 - Python CLI to run modular data-curation operations directly against the Postgres-backed corpus (SPARQL served via Ontop).
 - Web UI to review, approve/reject/alter merges and export curated datasets as XLSX files.
-- Workspace endpoints are Postgres-backed (SQL lists/records/backlinks/autocomplete); the former in-memory `WorkspaceViewBuilder` cache has been removed.
-- Curation operations (update record, manual clustering, anchor/originality swap, manifestation uproot) now write directly to Postgres under dataset-scoped advisory locks; Oxigraph has been removed from the backend stack.
+- Workspace endpoints are Postgres-backed (SQL lists/records/backlinks/autocomplete).
+- Curation operations (update record, manual clustering, anchor/originality swap, manifestation uproot) write directly to Postgres under dataset-scoped advisory locks.
 
 ### Getting Started
 
@@ -43,15 +43,13 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
   - Inserted fields/subfields are tagged with `affectedByCuration="clusterFieldGrafting"` so they can be removed on ungraft.
   - While applied, work cluster membership operations (add/remove/anchor swap) are blocked via DB guards; lock state is persisted in Postgres (`cluster_workflow_state`).
 - Manual clustering: `POST /api/datasets/<dataset_id>/manual_cluster` toggles a work/expression membership under an anchor (payload: `anchorId`, optional `targetId`, `targetArk`, `accepted`) and returns `updatedRecords`, `updatedClusters`, `removedClusterIds`, and `updatedWorkRows` for cache patching.
-- Record edits: `POST /api/datasets/<dataset_id>/update_record` patches the in-memory `WorkspaceViewBuilder` (same shape as swap_originality) instead of flushing the cache; it rejects 750 additions/removals, blocks 740 removals, and reuses the manifestation uprooting flow when adding 740 links. Added/edited fields are stamped `affectedByCuration="manual"` and curated 552 links stay reciprocal (`A pour adaptation` ↔ `Est une adaptation de`). Controlled value lookup for partial uprooting is resolved server-side via `get_controlled_ark`, falling back to a readable placeholder if absent.
+- Record edits: `POST /api/datasets/<dataset_id>/update_record`. It rejects 750 additions/removals, blocks 740 removals, and reuses the manifestation uprooting flow when adding 740 links. Added/edited fields are stamped `affectedByCuration="manual"` and curated 552 links stay reciprocal (`A pour adaptation` ↔ `Est une adaptation de`). Controlled value lookup for partial uprooting is resolved server-side via `get_controlled_ark`, falling back to a readable placeholder if absent.
 
 #### Workspace & clustering API
 - `GET /api/datasets/{dataset_id}/workspace/works` returns work clusters plus pre-computed badges (counts, 5XX relationships, media kinds), the sorted list of unclustered works, and an `ordered_work_entries` array that interleaves clusters/unclustered works for display (including relation-aware ordering for 501/552 links).
 - `GET /api/datasets/{dataset_id}/workspace/work/{anchor_id_or_ark}` resolves a single work cluster for focus-down views (expressions + manifestations included). The path parameter accepts full ARKs with slashes and colons, whether raw or URL-encoded, and it resolves clusters when you pass the ARK/ID of a clustered member or even an unclustered standalone work.
 - `GET /api/datasets/{dataset_id}/workspace/agents` returns Postgres-backed agent clusters (anchors with 90F$q “Clusterisation script/manuelle” plus their 90F$3 targets) and the remaining unclustered agents, excluding any ARK that already appears in a cluster as anchor or member.
-- Cluster-affecting mutations (`swap_anchor`, `swap_originality`) also return `updatedClusters`, `removedClusterIds`, and `updatedWorkRows` so the UI can patch caches without recomputing. {++Currently, the client-side cache is never cached: clean-up after permutations flushes it and the updated server-side cached WorkspaceViewBuilder instance is fetched.++}
-- Workspace endpoints reuse an in-memory `WorkspaceViewBuilder` cache keyed per dataset; anchor/originality swaps patch the cached builder in place so follow-up requests avoid a full rebuild.
-- The React workspace consumes these DTO endpoints end-to-end (lists, expression/manifestation panels, agent view) and doesn't depend on client-side clustering.
+- Cluster-affecting mutations (`swap_anchor`, `swap_originality`) also return `updatedClusters`, `removedClusterIds`, and `updatedWorkRows` so the UI can patch caches without recomputing. {++Currently, the client-side cache is never updated: clean-up after permutations flushes it and the `workspace/works` API endpoint is hit again.++}
 - `GET /api/datasets/{dataset_id}/workspace/record/{record_key}` returns a single record (id or ARK, with slashes/colons allowed, raw or URL-encoded) for just-in-time Intermarc loading, including an `ark_labels` map (ARK → label) so the UI can render tooltips without extra lookups. Expression ARKs are resolved from their 140 field: the parent work label (150 with agent $3 resolved) followed by the modifier subfields in order.
 - `GET /api/datasets/{dataset_id}/workspace/backlinks/{record_key}` computes backlinks on demand for any work, expression, manifestation, or agent, returning source entities plus the Intermarc fields where they point to the requested ARK.
 - `POST /api/datasets/{dataset_id}/autocomplete/entities` serves CodeMirror autocomplete with server-side routing rules: send the current field/subfield + prefix, get back compact `{ark,label,type}` suggestions already filtered by allowed kinds and controlled lists. Responses are react-query cached in the editor; the old client-side routing tables have been removed.
@@ -65,10 +63,6 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - End-to-end guards between the React UI and FastAPI are covered in `data_curation/tests/test_cluster_guards.py`. Run them with `uv run pytest data_curation/tests/test_cluster_guards.py`.
 - The tests ingest fixture CSVs into Postgres partitions keyed by dataset_id (work/expression/manifestation fixtures with 150/140/245/750/740 fields) and intentionally leave datasets registered for inspection after a run.
 - Routing now uses TanStack Router. Deep-linking to `http://localhost:5173/<dataset_slug>` loads the dataset via the route loader (with a friendly error screen when the slug is invalid) and back/forward navigation keeps the dashboard/inspection views in sync.
-
-### Linting & typing
-- Backend lint: `uv run ruff check`.
-- Typing pass: `ty check .` (current `data_exploration/` scripts require optional `pyoxigraph` and are not part of the main typing gate).
 
 ### Debug & Fixtures
 - **Styled debug logs** — use `-vv` to unlock Rich-powered logs: the CLI renders colourful panels, syntax-highlighted titles, and tables for matched variants and removed segments.
@@ -99,7 +93,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 ### Manifestation uprooting / reattachment
 - Right-click a manifestation row to “Prepare for uprooting”, then right-click any expression row to “Attach selected manifestation to this expression”. The confirmation modal lists the current 740$3 links (pre-selected when there is only one) so you can decide which expressions to uproot before adding a new 740 pointing to the target expression. The curated dataset and UI stay in sync and the action works from any workspace tab or detached window.
 - Only one manual operation (work/expression clustering, anchor swap, originality swap, manifestation uprooting) can be active at a time: the pending entity is dimmed and other context-menu actions stay disabled until the current operation is confirmed or cancelled.
-- Backend mutation `POST /api/datasets/{dataset_id}/manifestations/uproot` rewrites the manifestation’s 740$3 links, marks them as manual, patches the cached `WorkspaceViewBuilder`, and returns `updatedRecords`, `updatedClusters`, and `updatedWorkRows` for cache-aware UI refreshes (used by `applyServerWorkspaceUpdates` + `applyServerUpdates`).
+- Backend mutation `POST /api/datasets/{dataset_id}/manifestations/uproot` rewrites the manifestation’s 740$3 links, marks them as manual, and returns `updatedRecords`, `updatedClusters`, and `updatedWorkRows` for future cache-aware UI refreshes (used by `applyServerWorkspaceUpdates` + `applyServerUpdates`).
 
 ### Windows & tabs management
 - Workspace tabs can be “unmoored” into their own windows; Intermarc panes in those windows remain synced and offer a full-window toggle for multi-monitor comparisons.
@@ -139,7 +133,7 @@ uv run -- spacy download fr_dep_news_trf
 - Start the database locally: `docker compose -f db/docker-compose.postgres.yml up -d` (service `postgres`, port 55432 -> container 5432).
 - The FastAPI backend now exposes `/api/health/db` and reads `POSTGRES_DSN` for pooled connections (defaults to `postgresql://vendange:vendange@localhost:55432/vendange`).
 - Apply the base schema once Postgres is up: `uv run python -m data_curation.api.pg.schema ensure-schema`. Create/drop dataset partitions with `create-partitions` / `drop-partitions --dataset <id>`.
-- Dataset uploads now write directly to Postgres tables (`entity`, `entity_label`, `rel_edge`, `cluster`, `fts`); Oxigraph has been removed.
+- Dataset uploads write directly to Postgres tables (`entity`, `entity_label`, `rel_edge`, `cluster`, `fts`).
 - Upload ingest keeps a copy of each entity's original Intermarc JSON in `entity.original_record` so the export endpoints can compare original vs current content.
 - Ontop endpoint (SPARQL over Postgres): the backend calls Ontop (default `ONTOP_ENDPOINT_URL=http://localhost:8080/sparql`) and Ontop must be configured to use the *same* Postgres database as `POSTGRES_DSN`.
   - Option A (single Postgres, recommended): run Postgres via `db/docker-compose.postgres.yml` and start Ontop via CLI.

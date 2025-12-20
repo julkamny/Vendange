@@ -585,6 +585,7 @@ export function WorkspaceView({
         <WorkListPanel
           clusters={workspaceWorks?.clusters ?? []}
           unclusteredWorks={unclusteredWorks}
+          orderedEntries={workspaceWorks?.ordered_work_entries ?? null}
           state={state}
           onSelectWork={handleSelectWork}
           onOpenExpressions={handleOpenExpressions}

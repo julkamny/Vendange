@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Literal
 
 from pydantic import BaseModel, Field
 
@@ -100,6 +100,12 @@ class WorkListRow(BaseModel):
     summary: Optional[EntitySummary] = None
 
 
+class WorkspaceWorkEntry(BaseModel):
+    kind: Literal["cluster", "unclustered"]
+    id: str
+    ark: Optional[str] = None
+
+
 class AgentClusterItem(BaseModel):
     ark: str
     id: Optional[str] = None
@@ -134,6 +140,7 @@ class AgentListRow(BaseModel):
 class WorkspaceWorksResponse(BaseModel):
     clusters: List[WorkCluster] = Field(default_factory=list)
     unclustered_works: List[WorkListRow] = Field(default_factory=list)
+    ordered_work_entries: List[WorkspaceWorkEntry] = Field(default_factory=list)
 
 
 class WorkspaceAgentsResponse(BaseModel):

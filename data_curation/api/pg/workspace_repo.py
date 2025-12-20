@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Iterable, List, LiteralString, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, Iterable, List, Literal, LiteralString, Optional, Tuple
 
 from psycopg import sql
 
@@ -26,13 +27,15 @@ from data_curation.api.schemas import (
     WorkCluster,
     WorkClusterItem,
     WorkListRow,
+    WorkspaceWorkEntry,
     WorkspaceAgentsResponse,
     WorkspaceWorksResponse,
 )
 from data_curation.api.pg.ark_labeling_repo import resolve_ark_label_map_for_records
 from data_curation.api.pg.record_labeling import build_expression_title_segments, build_title_segments
 from data_curation.api.pg.record_labeling import build_label_from_record
-from data_curation.api.pg import cluster_workflow_repo
+from data_curation.api.pg import cluster_workflow_repo, controlled_repo
+from data_curation.utils.text_norm import fold_diacritics
 
 
 WORK_LINK_PREDICATE = f"{RELATION_NS}750s3"
@@ -76,6 +79,137 @@ def _strip_pipes_in_title(type_norm: str) -> bool:
 
 
 AGENT_TYPE_NORMS = ("identite publique de personne", "personne", "collectivite", "famille")
+
+
+@dataclass(frozen=True)
+class WorkSortRelation:
+    field_code: str
+    label: str
+
+
+WORK_SORT_RELATIONS: tuple[WorkSortRelation, ...] = (
+    WorkSortRelation(field_code="501", label="Est une partie de"),
+    WorkSortRelation(field_code="552", label="Est une adaptation de"),
+)
+
+
+@dataclass(frozen=True)
+class WorkListEntry:
+    kind: Literal["cluster", "unclustered"]
+    id: str
+    ark: Optional[str]
+    sort_key: str
+    record: Optional[dict]
+
+
+def _normalize_sort_key(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    return fold_diacritics(value).lower().strip()
+
+
+def _first_subfield_value(record: Optional[dict], zone_code: str, subfield_suffix: str) -> Optional[str]:
+    if not record:
+        return None
+    target_code = f"{zone_code}${subfield_suffix}"
+    for zone in record.get("zones", []) or []:
+        if zone.get("code") != zone_code:
+            continue
+        for sub in zone.get("sousZones", []) or []:
+            if sub.get("code") != target_code:
+                continue
+            value = sub.get("valeur")
+            if isinstance(value, str):
+                stripped = value.strip()
+                if stripped:
+                    return stripped
+    return None
+
+
+def _work_title_sort_key(record: Optional[dict], fallback: Optional[str]) -> str:
+    title = _first_subfield_value(record, "150", "a")
+    if title:
+        return _normalize_sort_key(title.replace("|", ""))
+    return _normalize_sort_key(fallback)
+
+
+def _extract_relation_target(record: Optional[dict], field_code: str, qualifier_ark: str, candidate_arks: set[str]) -> Optional[str]:
+    if not record:
+        return None
+    q_code = f"{field_code}$q"
+    t_code = f"{field_code}$3"
+    for zone in record.get("zones", []) or []:
+        if zone.get("code") != field_code:
+            continue
+        subfields = zone.get("sousZones", []) or []
+        q_values = [sub.get("valeur") for sub in subfields if sub.get("code") == q_code]
+        if qualifier_ark not in q_values:
+            continue
+        for sub in subfields:
+            if sub.get("code") != t_code:
+                continue
+            target = sub.get("valeur")
+            if isinstance(target, str) and target in candidate_arks:
+                return target
+    return None
+
+
+def _work_parent_ark(record: Optional[dict], relation_specs: List[WorkSortRelation], qualifier_arks: dict[str, str], candidate_arks: set[str]) -> Optional[str]:
+    """Return the first related parent ARK based on the ordered relation specs."""
+    for relation in relation_specs:
+        qualifier_ark = qualifier_arks.get(relation.label)
+        if not qualifier_ark:
+            continue
+        target = _extract_relation_target(record, relation.field_code, qualifier_ark, candidate_arks)
+        if target:
+            return target
+    return None
+
+
+def _order_work_entries(
+    entries: List[WorkListEntry],
+    relation_specs: List[WorkSortRelation],
+    qualifier_arks: dict[str, str],
+) -> List[WorkListEntry]:
+    """Sort work entries with relation-aware overrides while keeping anchors unique."""
+    candidate_arks = {entry.ark for entry in entries if entry.ark}
+    children_by_parent: dict[str, list[WorkListEntry]] = {}
+    child_keys: set[str] = set()
+
+    for entry in entries:
+        if not entry.ark:
+            continue
+        parent_ark = _work_parent_ark(entry.record, relation_specs, qualifier_arks, candidate_arks)
+        if not parent_ark or parent_ark == entry.ark:
+            continue
+        children_by_parent.setdefault(parent_ark, []).append(entry)
+        child_keys.add(entry.ark)
+
+    entries_sorted = sorted(entries, key=lambda item: (item.sort_key, item.id))
+    ordered: list[WorkListEntry] = []
+    visited: set[str] = set()
+
+    def add_entry(entry: WorkListEntry) -> None:
+        key = entry.ark or entry.id
+        if key in visited:
+            return
+        visited.add(key)
+        ordered.append(entry)
+        if entry.ark:
+            children = children_by_parent.get(entry.ark, [])
+            for child in sorted(children, key=lambda item: (item.sort_key, item.id)):
+                add_entry(child)
+
+    for entry in entries_sorted:
+        key = entry.ark or entry.id
+        if key in child_keys:
+            continue
+        add_entry(entry)
+
+    for entry in entries_sorted:
+        add_entry(entry)
+
+    return ordered
 
 
 def _label_from_record(type_norm: str, record: Any, *, fallback: str) -> str:
@@ -197,6 +331,8 @@ def _build_entity_title(dataset_id: str, entity_row: Dict[str, Any]) -> Tuple[st
 def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> WorkspaceWorksResponse:
     # Fetch clusters (anchor + members) first
     cluster_rows: List[dict] = []
+    anchor_records: dict[str, Optional[dict]] = {}
+    member_buffers: dict[str, list[tuple[str, WorkClusterItem]]] = {}
     with db_session() as conn, statement_timeout(conn, 5000):
         cluster_rows = conn.execute(
             """
@@ -250,6 +386,7 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
         if not cluster:
             anchor_record = row.get("anchor_record")
             anchor_record_dict = anchor_record if isinstance(anchor_record, dict) else None
+            anchor_records[anchor_id] = anchor_record_dict
             anchor_segments = build_title_segments(anchor_record_dict, zone_code="150", ark_labels=page_ark_labels)
             anchor_title = row.get("anchor_label") or " ".join(seg.value for seg in anchor_segments) or row.get("anchor_ark") or anchor_id
             cluster = WorkCluster(
@@ -263,24 +400,25 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
                 independent_expressions=[],
             )
             clusters[anchor_id] = cluster
+            member_buffers[anchor_id] = []
 
         # member row
         member_record = row.get("member_record")
         member_record_dict = member_record if isinstance(member_record, dict) else None
         member_segments = build_title_segments(member_record_dict, zone_code="150", ark_labels=page_ark_labels)
         member_title = row.get("member_label") or " ".join(seg.value for seg in member_segments) or row.get("member_ark") or ""
-        cluster.items.append(
-            WorkClusterItem(
-                ark=row["member_ark"],
-                id=row.get("member_record_id") or (str(row.get("member_entity_id")) if row.get("member_entity_id") else None),
-                title=member_title,
-                title_segments=member_segments,
-                accepted=True,
-                date=None,
-                origin=row.get("note") or "manual",
-                summary=None,
-            )
+        member_item = WorkClusterItem(
+            ark=row["member_ark"],
+            id=row.get("member_record_id") or (str(row.get("member_entity_id")) if row.get("member_entity_id") else None),
+            title=member_title,
+            title_segments=member_segments,
+            accepted=True,
+            date=None,
+            origin=row.get("note") or "manual",
+            summary=None,
         )
+        member_sort_key = _work_title_sort_key(member_record_dict, member_title)
+        member_buffers.setdefault(anchor_id, []).append((member_sort_key, member_item))
 
     # Compute summary counts for anchors and members
     work_arks = [row["anchor_ark"] for row in cluster_rows if row.get("anchor_ark")] + [
@@ -288,6 +426,10 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
     ]
     expr_counts, manif_counts = _counts_for_work_arks(dataset_id, work_arks)
     for cluster in clusters.values():
+        if cluster.anchor_id in member_buffers:
+            member_entries = member_buffers[cluster.anchor_id]
+            member_entries.sort(key=lambda item: (item[0], item[1].title or "", item[1].ark or ""))
+            cluster.items = [item for _, item in member_entries]
         if cluster.anchor_ark:
             cluster.anchor_summary = EntitySummary(
                 counts=CountStats(
@@ -346,6 +488,7 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
     unc_arks = [row["ark"] for row in rows if row.get("ark")]
     expr_unc, manif_unc = _counts_for_work_arks(dataset_id, unc_arks)
     unclustered = []
+    unclustered_records: dict[str, Optional[dict]] = {}
     page_ark_labels.update(
         resolve_ark_label_map_for_records(dataset_id, _record_dicts([row.get("record") for row in rows]), zone_codes={"150"})
     )
@@ -353,9 +496,11 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
         ark = row["ark"]
         record = row.get("record")
         rec = record if isinstance(record, dict) else None
+        row_id = row["record_id"] or str(row["entity_id"])
+        unclustered_records[row_id] = rec
         unclustered.append(
             WorkListRow(
-                id=row["record_id"] or str(row["entity_id"]),
+                id=row_id,
                 ark=ark,
                 title=row["label"],
                 title_segments=build_title_segments(rec, zone_code="150", ark_labels=page_ark_labels),
@@ -370,7 +515,43 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
                 else None,
             )
         )
-    return WorkspaceWorksResponse(clusters=list(clusters.values()), unclustered_works=unclustered)
+    relation_specs = list(WORK_SORT_RELATIONS)
+    qualifier_arks: dict[str, str] = {}
+    with db_session() as conn, statement_timeout(conn, 5000):
+        for relation in relation_specs:
+            ark = controlled_repo.get_controlled_ark_by_label(dataset_id, relation.label, conn=conn)
+            if ark:
+                qualifier_arks[relation.label] = ark
+
+    entries: list[WorkListEntry] = []
+    for cluster in clusters.values():
+        record = anchor_records.get(cluster.anchor_id)
+        sort_key = _work_title_sort_key(record, cluster.anchor_title)
+        entries.append(
+            WorkListEntry(
+                kind="cluster",
+                id=cluster.anchor_id,
+                ark=cluster.anchor_ark,
+                sort_key=sort_key,
+                record=record,
+            )
+        )
+    for work in unclustered:
+        record = unclustered_records.get(work.id)
+        sort_key = _work_title_sort_key(record, work.title)
+        entries.append(
+            WorkListEntry(
+                kind="unclustered",
+                id=work.id,
+                ark=work.ark,
+                sort_key=sort_key,
+                record=record,
+            )
+        )
+
+    ordered = _order_work_entries(entries, relation_specs, qualifier_arks)
+    ordered_payload = [WorkspaceWorkEntry(kind=entry.kind, id=entry.id, ark=entry.ark) for entry in ordered]
+    return WorkspaceWorksResponse(clusters=list(clusters.values()), unclustered_works=unclustered, ordered_work_entries=ordered_payload)
 
 
 def list_agents(dataset_id: str, limit: int = 9999999999999, offset: int = 0) -> WorkspaceAgentsResponse:

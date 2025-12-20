@@ -35,6 +35,7 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
   const coverage = useMemo(() => computeClusterCoverage(clusters), [clusters])
 
   const unclusteredWorkRows = useMemo<WorkListRowDto[]>(() => workspaceData?.unclustered_works ?? [], [workspaceData?.unclustered_works])
+  const orderedWorkEntries = useMemo(() => workspaceData?.ordered_work_entries ?? null, [workspaceData?.ordered_work_entries])
 
   const unclusteredWorks = useMemo(
     () =>
@@ -203,6 +204,7 @@ export function useWorkspaceData(state: WorkspaceTabStateWorkspace) {
     clusters,
     unclusteredWorks,
     unclusteredWorkRows,
+    orderedWorkEntries,
     coverage,
     activeCluster: activeContext.cluster,
     activeClusterSource: activeContext.source,

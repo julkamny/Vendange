@@ -64,6 +64,45 @@ export function useWorkspaceTabShortcuts({
 }: UseWorkspaceTabShortcutsParams) {
   const buildWorkspaceWorkCandidates = useCallback(() => {
     const candidates: Array<{ id: string; ark?: string | null; anchorId?: string | null; containerIndex: number }> = []
+    if (workspace.orderedWorkEntries && workspace.orderedWorkEntries.length) {
+      const clustersById = new Map(workspace.clusters.map(cluster => [cluster.anchorId, cluster]))
+      const unclusteredSource =
+        workspace.unclusteredWorkRows && workspace.unclusteredWorkRows.length
+          ? workspace.unclusteredWorkRows
+          : workspace.unclusteredWorks
+      const unclusteredById = new Map(unclusteredSource.map(work => [work.id, work]))
+      workspace.orderedWorkEntries.forEach((entry, containerIndex) => {
+        if (entry.kind === 'cluster') {
+          const cluster = clustersById.get(entry.id)
+          if (!cluster) return
+          candidates.push({
+            id: cluster.anchorId,
+            ark: cluster.anchorArk,
+            anchorId: cluster.anchorId,
+            containerIndex,
+          })
+          cluster.items.forEach(item => {
+            if (!item.id) return
+            candidates.push({
+              id: String(item.id),
+              ark: item.ark,
+              anchorId: cluster.anchorId,
+              containerIndex,
+            })
+          })
+          return
+        }
+        const work = unclusteredById.get(entry.id)
+        if (!work) return
+        candidates.push({
+          id: work.id,
+          ark: work.ark,
+          anchorId: null,
+          containerIndex,
+        })
+      })
+      return candidates
+    }
     workspace.clusters.forEach((cluster, clusterIndex) => {
       candidates.push({
         id: cluster.anchorId,
@@ -95,7 +134,7 @@ export function useWorkspaceTabShortcuts({
       })
     })
     return candidates
-  }, [workspace.clusters, workspace.unclusteredWorkRows, workspace.unclusteredWorks])
+  }, [workspace.clusters, workspace.orderedWorkEntries, workspace.unclusteredWorkRows, workspace.unclusteredWorks])
 
   const buildAgentEntries = useCallback(() => {
     if (!workspaceAgents) return [] as Array<{ kind: 'cluster'; anchorId: string; sortKey: string } | { kind: 'single'; agentId: string; sortKey: string }>

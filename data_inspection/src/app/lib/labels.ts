@@ -30,15 +30,17 @@ function joinSegments(
 }
 
 export function labelForRecord(
-  record?: Pick<RecordRow, 'label' | 'titleSegments' | 'id' | 'arkLabels'> | null,
+  record?: Pick<RecordRow, 'label' | 'titleSegments' | 'id' | 'arkLabels' | 'ark'> | null,
 ): string | undefined {
   if (!record) return undefined
+  /** Prefer title segments when the label is missing or only repeats the record identifier. */
+  const segmentLabel = joinSegments(record.titleSegments, record.arkLabels)
   const label = record.label?.trim()
   if (label) {
     const decorated = decorateArks(label, record.arkLabels)
-    if (!decorated.includes('ark:/')) return decorated
-    const segmentLabel = joinSegments(record.titleSegments, record.arkLabels)
+    const isIdentifierOnly = decorated === record.id || (!!record.ark && decorated === record.ark)
+    if (!decorated.includes('ark:/') && !isIdentifierOnly) return decorated
     return segmentLabel ?? decorated
   }
-  return joinSegments(record.titleSegments, record.arkLabels) ?? record.id
+  return segmentLabel ?? record.id
 }

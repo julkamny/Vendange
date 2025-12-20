@@ -1,14 +1,15 @@
-import { useCallback, useMemo, useEffect, useRef } from 'react'
+import { useCallback, useMemo, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAppData } from '../providers/AppDataContext'
 import { useWorkspaceWorks } from './useWorkspaceQueries'
 import { mapWorkClusters } from '../lib/mapWorkClusters'
 import { buildRecordRowFromPayload } from '../lib/recordPayload'
 import { stubExpressionRecord, stubManifestationRecord, stubWorkRecord } from '../workspace/recordStubs'
-import type { RecordRow, WorkRecordPayload } from '../types'
+import type { Cluster, RecordRow, WorkClusterDto, WorkRecordPayload } from '../types'
 import { extractAgentNames } from '../core/agents'
 import { countGeneralRelationships } from '../core/generalRelationships'
 import { extractMediaKinds, type MediaKind } from '../core/media'
+import { mapWorkCluster } from '../lib/mapWorkClusters'
 
 type RecordLookup = {
   getById: (id?: string | null) => RecordRow | undefined
@@ -22,13 +23,31 @@ export function useRecordLookup(): RecordLookup {
   const { datasetId } = useAppData()
   const queryClient = useQueryClient()
   const { data: workspaceWorks } = useWorkspaceWorks(datasetId)
+  const [cacheVersion, setCacheVersion] = useState(0)
+
+  /** Refresh cache snapshots when react-query data changes (e.g. work clusters/records). */
+  useEffect(() => {
+    const unsubscribe = queryClient.getQueryCache().subscribe(() => {
+      setCacheVersion(version => version + 1)
+    })
+    return unsubscribe
+  }, [queryClient])
+
+  const cachedClusters = useMemo<Cluster[]>(() => {
+    void cacheVersion
+    if (!datasetId) return []
+    const queries = queryClient.getQueriesData({ queryKey: ['workspace', 'work', datasetId] })
+    return queries
+      .map(([, payload]) => (payload ? mapWorkCluster(payload as WorkClusterDto) : null))
+      .filter((cluster): cluster is Cluster => Boolean(cluster))
+  }, [datasetId, queryClient, cacheVersion])
 
   const stubbedRecords = useMemo<RecordRow[]>(() => {
-    if (!workspaceWorks?.clusters && !workspaceWorks?.unclustered_works) return []
+    if (!workspaceWorks?.clusters && !workspaceWorks?.unclustered_works && !cachedClusters.length) return []
     const mappedClusters = mapWorkClusters(workspaceWorks?.clusters ?? [])
     const acc: RecordRow[] = []
 
-    mappedClusters.forEach(cluster => {
+    const addClusterRecords = (cluster: Cluster) => {
       acc.push(stubWorkRecord(cluster.anchorId, cluster.anchorArk, cluster.anchorTitle ?? null, cluster.anchorTitleSegments))
       cluster.items.forEach(item =>
         acc.push(stubWorkRecord(item.id ?? item.ark ?? '', item.ark, item.title ?? null, item.titleSegments)),
@@ -46,19 +65,23 @@ export function useRecordLookup(): RecordLookup {
         acc.push(stubExpressionRecord(expr, cluster.anchorArk))
         expr.manifestations.forEach(man => acc.push(stubManifestationRecord(man, expr.ark ?? cluster.anchorArk)))
       })
-    })
+    }
+
+    mappedClusters.forEach(addClusterRecords)
+    cachedClusters.forEach(addClusterRecords)
 
     ;(workspaceWorks?.unclustered_works ?? []).forEach(work => {
       acc.push(stubWorkRecord(work.id, work.ark ?? undefined, work.title ?? null, work.title_segments ?? undefined))
     })
 
     return acc
-  }, [workspaceWorks?.clusters, workspaceWorks?.unclustered_works])
+  }, [workspaceWorks?.clusters, workspaceWorks?.unclustered_works, cachedClusters])
 
   const cachedRecords = useMemo<RecordRow[]>(() => {
+    void cacheVersion
     const queries = queryClient.getQueriesData({ queryKey: ['workspace', 'record', datasetId] })
     return queries.map(([, payload]) => (payload ? buildRecordRowFromPayload(payload as unknown as WorkRecordPayload) : null)).filter((rec): rec is RecordRow => Boolean(rec))
-  }, [datasetId, queryClient])
+  }, [datasetId, queryClient, cacheVersion])
 
   const records = useMemo<RecordRow[]>(() => {
     const byId = new Map<string, RecordRow>()

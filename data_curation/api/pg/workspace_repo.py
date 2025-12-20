@@ -608,6 +608,7 @@ def _predicate_to_field(predicate_iri: str) -> str:
 
 
 def get_backlinks(dataset_id: str, key: str) -> Optional[BacklinksPayload]:
+    """Build backlinks payload with WEM title segments when available."""
     target = get_entity_by_key(dataset_id, key)
     if not target:
         return None
@@ -666,6 +667,16 @@ def get_backlinks(dataset_id: str, key: str) -> Optional[BacklinksPayload]:
     expression_title_ark_labels = resolve_ark_label_map_for_records(
         dataset_id, expression_records, zone_codes={"140"}
     )
+    manifestation_records = _record_dicts(
+        [
+            entry.get("record")
+            for entry in grouped.values()
+            if (entry.get("type_norm") or "").lower() == "manifestation"
+        ]
+    )
+    manifestation_title_ark_labels = resolve_ark_label_map_for_records(
+        dataset_id, manifestation_records, zone_codes={"245"}
+    )
 
     backlinks: List[BacklinkItem] = []
     for src_id, entry in grouped.items():
@@ -682,7 +693,12 @@ def get_backlinks(dataset_id: str, key: str) -> Optional[BacklinksPayload]:
             title_segments = build_expression_title_segments(record_dict, ark_labels=expression_title_ark_labels)
             title_value = " ".join(seg.value for seg in title_segments) or entry.get("label") or entry.get("ark") or src_id
         elif type_norm == "manifestation":
-            title_value = _label_from_record(type_norm, record_dict, fallback=title_value)
+            title_segments = build_title_segments(
+                record_dict,
+                zone_code="245",
+                ark_labels=manifestation_title_ark_labels,
+            )
+            title_value = " ".join(seg.value for seg in title_segments) or _label_from_record(type_norm, record_dict, fallback=title_value)
         elif type_norm in AGENT_TYPE_NORMS:
             zone = _title_zone_for_type(type_norm)
             title_segments = build_title_segments(

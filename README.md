@@ -121,7 +121,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - From the SPARQL results, pick the columns that contain work or agent ARKs and apply them as a global filter: matched rows are highlighted, out-of-scope clusters collapse + dim, and the filter stays active across all workspace/agent tabs (inline or detached) until you clear it from the banner.
 
 ### Data exploration scripts
-- `data_exploration/subset_by_150.py` — builds a new Oxigraph store containing works whose `150` subfields match a needle, optionally pulling linked expressions (`750s3`), manifestations (`740s3`), and agents; controlled values referenced by the kept records are always copied. The script registers the subset in `data_curation/api/datasets/datasets.json` so FastAPI/React can open it; output lives under `data_curation/api/datasets/<dataset>-subset-<needle-slug>`. Example:  
+- `data_exploration/subset_by_150.py` — builds a Postgres-backed subset containing works whose `150` subfields match a needle (regex), optionally pulling linked expressions (`750s3`), manifestations (`740s3`), and agents; controlled values referenced by the kept records are always copied. The script registers the subset as a new Postgres dataset partition (and still creates a local dataset directory for logs) so FastAPI/React can open it. Example:  
   `uv run python data_exploration/subset_by_150.py current-exportcsv "petites filles modèles" --include-expressions --include-manifestations --include-agents`
 
 ### Installation

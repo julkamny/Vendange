@@ -139,7 +139,14 @@ uv run -- spacy download fr_dep_news_trf
   - Option A (single Postgres, recommended): run Postgres via `db/docker-compose.postgres.yml` and start Ontop via CLI.
     - Install Ontop CLI: `bash scripts/install_ontop_cli.sh` and export `ONTOP_CLI=./.tools/ontop-cli/5.0.0/ontop`.
     - Create a local properties file (make sure `jdbc.url` matches your `POSTGRES_DSN`):
-      - `cat > /tmp/ontop.properties <<'EOF'\njdbc.url=jdbc:postgresql://localhost:55432/vendange\njdbc.user=vendange\njdbc.password=vendange\njdbc.driver=org.postgresql.Driver\nEOF`
+      - ```bash
+        cat > /tmp/ontop.properties <<'EOF'
+        jdbc.url=jdbc:postgresql://localhost:55432/vendange
+        jdbc.user=vendange
+        jdbc.password=vendange
+        jdbc.driver=org.postgresql.Driver
+        EOF
+        ```
     - Start endpoint: `"$ONTOP_CLI" endpoint -m ontop/mapping.obda -t ontop/ontology.ttl -p /tmp/ontop.properties --port 8080`.
   - Option B (Ontop + its own Postgres): `docker compose -f docker-compose.ontop.yml up -d` then point the backend to that DB by setting `POSTGRES_DSN=postgresql://vendange:vendange@localhost:55433/vendange`.
   - Tests: with Postgres running + Ontop CLI installed, run `ONTOP_CLI=... uv run pytest -q tests/ontop`.

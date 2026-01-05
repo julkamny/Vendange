@@ -190,7 +190,6 @@ export function SparnaturalBuilder({
         distinct="true"
         prefixes={`vend:${BASE_PREFIX} vendrel:${REL_PREFIX} vendprop:${PROP_PREFIX}`}
       />
-      {disabled ? <div className="sparql-builder__overlay" /> : null}
     </div>
   )
 }

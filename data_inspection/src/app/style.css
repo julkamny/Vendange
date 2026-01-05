@@ -2019,7 +2019,6 @@ body.modal-open {
 }
 
 .sparql-builder__canvas {
-  position: relative;
   border: 1px solid var(--color-border);
   border-radius: 12px;
   background: var(--color-bg);
@@ -2035,13 +2034,6 @@ body.modal-open {
 .sparql-builder__canvas--disabled {
   opacity: 0.45;
   pointer-events: none;
-}
-
-.sparql-builder__overlay {
-  position: absolute;
-  inset: 0;
-  border-radius: 12px;
-  background: linear-gradient(135deg, rgba(5, 8, 15, 0.75), rgba(10, 15, 24, 0.55));
 }
 
 .sparql-builder__status {

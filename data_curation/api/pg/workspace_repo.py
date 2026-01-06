@@ -17,7 +17,6 @@ from data_curation.api.schemas import (
     BacklinkItem,
     BacklinksPayload,
     CountStats,
-    EntitySummary,
     ExpressionAnchorGroupView,
     ExpressionClusterItemView,
     ExpressionItemView,
@@ -34,6 +33,12 @@ from data_curation.api.schemas import (
 from data_curation.api.pg.ark_labeling_repo import resolve_ark_label_map_for_records
 from data_curation.api.pg.record_labeling import build_expression_title_segments, build_title_segments
 from data_curation.api.pg.record_labeling import build_label_from_record
+from data_curation.api.pg.record_summaries import (
+    build_entity_summary,
+    collect_media_reference_arks,
+    fetch_controlled_value_labels,
+    incoming_relationship_counts,
+)
 from data_curation.api.pg import cluster_workflow_repo, controlled_repo
 from data_curation.utils.text_norm import fold_diacritics
 
@@ -255,10 +260,12 @@ def _counts_for_work_arks(dataset_id: str, work_arks: List[str]) -> Tuple[Dict[s
     return expr_counts, manif_counts
 
 
-def _manifestations_by_expression(dataset_id: str, expression_arks: List[str]) -> Dict[str, List[ManifestationItemView]]:
-    """Return manifestation view lists keyed by expression ark."""
+def _manifestations_by_expression(
+    dataset_id: str, expression_arks: List[str]
+) -> Tuple[Dict[str, List[ManifestationItemView]], Dict[str, dict], Dict[str, dict]]:
+    """Return manifestation view lists keyed by expression ark, plus record maps."""
     if not expression_arks:
-        return {}
+        return {}, {}, {}
     with db_session() as conn, statement_timeout(conn, 5000):
         rows = conn.execute(
             """
@@ -283,6 +290,8 @@ def _manifestations_by_expression(dataset_id: str, expression_arks: List[str]) -
         dataset_id, manifest_records, zone_codes={"245"}
     )
     by_expr: Dict[str, List[ManifestationItemView]] = {}
+    records_by_id: Dict[str, dict] = {}
+    records_by_ark: Dict[str, dict] = {}
     for row in rows:
         expr_ark = row["expression_ark"]
         record = row.get("record")
@@ -301,7 +310,11 @@ def _manifestations_by_expression(dataset_id: str, expression_arks: List[str]) -
             summary=None,
         )
         by_expr.setdefault(expr_ark, []).append(man_view)
-    return by_expr
+        if record_dict:
+            records_by_id[man_view.id] = record_dict
+            if man_view.ark:
+                records_by_ark[man_view.ark] = record_dict
+    return by_expr, records_by_id, records_by_ark
 
 
 def _build_entity_title(dataset_id: str, entity_row: Dict[str, Any]) -> Tuple[str, List[TitleSegment]]:
@@ -333,6 +346,8 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
     cluster_rows: List[dict] = []
     anchor_records: dict[str, Optional[dict]] = {}
     member_buffers: dict[str, list[tuple[str, WorkClusterItem]]] = {}
+    work_records_by_ark: dict[str, dict] = {}
+    work_records_by_id: dict[str, dict] = {}
     with db_session() as conn, statement_timeout(conn, 5000):
         cluster_rows = conn.execute(
             """
@@ -387,6 +402,10 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
             anchor_record = row.get("anchor_record")
             anchor_record_dict = anchor_record if isinstance(anchor_record, dict) else None
             anchor_records[anchor_id] = anchor_record_dict
+            if anchor_record_dict:
+                work_records_by_id[anchor_id] = anchor_record_dict
+                if row.get("anchor_ark"):
+                    work_records_by_ark[row["anchor_ark"]] = anchor_record_dict
             anchor_segments = build_title_segments(anchor_record_dict, zone_code="150", ark_labels=page_ark_labels)
             anchor_title = row.get("anchor_label") or " ".join(seg.value for seg in anchor_segments) or row.get("anchor_ark") or anchor_id
             cluster = WorkCluster(
@@ -407,9 +426,10 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
         member_record_dict = member_record if isinstance(member_record, dict) else None
         member_segments = build_title_segments(member_record_dict, zone_code="150", ark_labels=page_ark_labels)
         member_title = row.get("member_label") or " ".join(seg.value for seg in member_segments) or row.get("member_ark") or ""
+        member_id = row.get("member_record_id") or (str(row.get("member_entity_id")) if row.get("member_entity_id") else None)
         member_item = WorkClusterItem(
             ark=row["member_ark"],
-            id=row.get("member_record_id") or (str(row.get("member_entity_id")) if row.get("member_entity_id") else None),
+            id=member_id,
             title=member_title,
             title_segments=member_segments,
             accepted=True,
@@ -417,6 +437,11 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
             origin=row.get("note") or "manual",
             summary=None,
         )
+        if member_record_dict:
+            if member_id:
+                work_records_by_id[member_id] = member_record_dict
+            if row.get("member_ark"):
+                work_records_by_ark[row["member_ark"]] = member_record_dict
         member_sort_key = _work_title_sort_key(member_record_dict, member_title)
         member_buffers.setdefault(anchor_id, []).append((member_sort_key, member_item))
 
@@ -430,21 +455,6 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
             member_entries = member_buffers[cluster.anchor_id]
             member_entries.sort(key=lambda item: (item[0], item[1].title or "", item[1].ark or ""))
             cluster.items = [item for _, item in member_entries]
-        if cluster.anchor_ark:
-            cluster.anchor_summary = EntitySummary(
-                counts=CountStats(
-                    expressions=expr_counts.get(cluster.anchor_ark, 0),
-                    manifestations=manif_counts.get(cluster.anchor_ark, 0),
-                )
-            )
-        for item in cluster.items:
-            if item.ark:
-                item.summary = EntitySummary(
-                    counts=CountStats(
-                        expressions=expr_counts.get(item.ark, 0),
-                        manifestations=manif_counts.get(item.ark, 0),
-                    )
-                )
 
     workflow_state_by_anchor = cluster_workflow_repo.get_applied_by_anchor(
         dataset_id,
@@ -487,7 +497,6 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
         rows = conn.execute(query, (dataset_id, limit, offset)).fetchall()
     unc_arks = [row["ark"] for row in rows if row.get("ark")]
     expr_unc, manif_unc = _counts_for_work_arks(dataset_id, unc_arks)
-    unclustered = []
     unclustered_records: dict[str, Optional[dict]] = {}
     page_ark_labels.update(
         resolve_ark_label_map_for_records(dataset_id, _record_dicts([row.get("record") for row in rows]), zone_codes={"150"})
@@ -498,21 +507,81 @@ def list_works(dataset_id: str, limit: int = 999999999, offset: int = 0) -> Work
         rec = record if isinstance(record, dict) else None
         row_id = row["record_id"] or str(row["entity_id"])
         unclustered_records[row_id] = rec
+        if rec:
+            work_records_by_id[row_id] = rec
+            if ark:
+                work_records_by_ark[ark] = rec
+
+    controlled_labels = fetch_controlled_value_labels(
+        dataset_id,
+        sorted(collect_media_reference_arks(work_records_by_id.values())),
+    )
+    incoming_counts = incoming_relationship_counts(dataset_id, list(work_records_by_ark.keys()))
+
+    for cluster in clusters.values():
+        if cluster.anchor_ark or work_records_by_id.get(cluster.anchor_id):
+            counts = (
+                CountStats(
+                    expressions=expr_counts.get(cluster.anchor_ark, 0),
+                    manifestations=manif_counts.get(cluster.anchor_ark, 0),
+                )
+                if cluster.anchor_ark
+                else None
+            )
+            record = work_records_by_id.get(cluster.anchor_id) or (
+                work_records_by_ark.get(cluster.anchor_ark or "") if cluster.anchor_ark else None
+            )
+            cluster.anchor_summary = build_entity_summary(
+                record=record,
+                type_norm="oeuvre",
+                ark=cluster.anchor_ark,
+                counts=counts,
+                incoming_counts=incoming_counts,
+                controlled_labels=controlled_labels,
+            )
+        for item in cluster.items:
+            record = work_records_by_id.get(item.id) if item.id else None
+            if not record and item.ark:
+                record = work_records_by_ark.get(item.ark)
+            counts = (
+                CountStats(expressions=expr_counts.get(item.ark, 0), manifestations=manif_counts.get(item.ark, 0))
+                if item.ark
+                else None
+            )
+            item.summary = build_entity_summary(
+                record=record,
+                type_norm="oeuvre",
+                ark=item.ark,
+                counts=counts,
+                incoming_counts=incoming_counts,
+                controlled_labels=controlled_labels,
+            )
+
+    unclustered: List[WorkListRow] = []
+    for row in rows:
+        ark = row["ark"]
+        row_id = row["record_id"] or str(row["entity_id"])
+        record = unclustered_records.get(row_id)
+        counts = (
+            CountStats(expressions=expr_unc.get(ark, 0), manifestations=manif_unc.get(ark, 0))
+            if ark
+            else None
+        )
         unclustered.append(
             WorkListRow(
                 id=row_id,
                 ark=ark,
                 title=row["label"],
-                title_segments=build_title_segments(rec, zone_code="150", ark_labels=page_ark_labels),
+                title_segments=build_title_segments(record, zone_code="150", ark_labels=page_ark_labels),
                 type_norm=row["type_norm"],
-                summary=EntitySummary(
-                    counts=CountStats(
-                        expressions=expr_unc.get(ark, 0),
-                        manifestations=manif_unc.get(ark, 0),
-                    )
-                )
-                if ark
-                else None,
+                summary=build_entity_summary(
+                    record=record,
+                    type_norm="oeuvre",
+                    ark=ark,
+                    counts=counts,
+                    incoming_counts=incoming_counts,
+                    controlled_labels=controlled_labels,
+                ),
             )
         )
     relation_specs = list(WORK_SORT_RELATIONS)
@@ -1019,10 +1088,20 @@ def get_work_cluster(dataset_id: str, anchor_key: str) -> Optional[WorkCluster]:
     for item in items:
         if item.ark and item.id:
             work_id_by_ark[item.ark] = item.id
+    work_records_by_ark: Dict[str, dict] = {}
+    if anchor_ark and isinstance(anchor_record, dict):
+        work_records_by_ark[anchor_ark] = anchor_record
+    for member_ark, member in member_entities.items():
+        record = member.get("record")
+        if member_ark and isinstance(record, dict):
+            work_records_by_ark[member_ark] = record
 
     # Build expression groups: expressions that reference any work in the cluster (750$3)
     expression_groups: List[ExpressionAnchorGroupView] = []
     independent_expressions: List[ExpressionItemView] = []
+    expression_records_by_ark: Dict[str, dict] = {}
+    manifest_records_by_id: Dict[str, dict] = {}
+    manifest_records_by_ark: Dict[str, dict] = {}
     if cluster_work_arks:
         with db_session() as conn, statement_timeout(conn, 5000):
             expr_rows = conn.execute(
@@ -1058,7 +1137,15 @@ def get_work_cluster(dataset_id: str, anchor_key: str) -> Optional[WorkCluster]:
             payload = dict(row)
             expressions_by_ark[ark] = payload
             ordered_expr_rows.append(payload)
-        manifestations_map = _manifestations_by_expression(dataset_id, list(expressions_by_ark.keys()))
+        for ark, payload in expressions_by_ark.items():
+            record = payload.get("record")
+            if isinstance(record, dict):
+                expression_records_by_ark[ark] = record
+        (
+            manifestations_map,
+            manifest_records_by_id,
+            manifest_records_by_ark,
+        ) = _manifestations_by_expression(dataset_id, list(expressions_by_ark.keys()))
 
         cluster_rows: List[dict] = []
         if expressions_by_ark:
@@ -1201,27 +1288,89 @@ def get_work_cluster(dataset_id: str, anchor_key: str) -> Optional[WorkCluster]:
                 )
             )
 
+    all_records = [
+        *work_records_by_ark.values(),
+        *expression_records_by_ark.values(),
+        *manifest_records_by_id.values(),
+    ]
+    controlled_labels = fetch_controlled_value_labels(
+        dataset_id,
+        sorted(collect_media_reference_arks(all_records)),
+    )
+    all_arks = [
+        *work_records_by_ark.keys(),
+        *expression_records_by_ark.keys(),
+        *manifest_records_by_ark.keys(),
+    ]
+    incoming_counts = incoming_relationship_counts(dataset_id, all_arks)
+
     # summaries for anchor and clustered works
     expr_counts, manif_counts = _counts_for_work_arks(dataset_id, [ark for ark in cluster_work_arks if ark])
 
-    anchor_summary = (
-        EntitySummary(
-            counts=CountStats(
+    anchor_summary = build_entity_summary(
+        record=work_records_by_ark.get(anchor_ark or ""),
+        type_norm="oeuvre",
+        ark=anchor_ark,
+        counts=(
+            CountStats(
                 expressions=expr_counts.get(anchor_ark, 0),
                 manifestations=manif_counts.get(anchor_ark, 0),
             )
-        )
-        if anchor_ark
-        else None
+            if anchor_ark
+            else None
+        ),
+        incoming_counts=incoming_counts,
+        controlled_labels=controlled_labels,
     )
     for item in items:
-        if item.ark:
-            item.summary = EntitySummary(
-                counts=CountStats(
+        item.summary = build_entity_summary(
+            record=work_records_by_ark.get(item.ark or "") if item.ark else None,
+            type_norm="oeuvre",
+            ark=item.ark,
+            counts=(
+                CountStats(
                     expressions=expr_counts.get(item.ark, 0),
                     manifestations=manif_counts.get(item.ark, 0),
                 )
-            )
+                if item.ark
+                else None
+            ),
+            incoming_counts=incoming_counts,
+            controlled_labels=controlled_labels,
+        )
+
+    def _apply_manifestation_summary(manifestation: ManifestationItemView) -> None:
+        record = manifest_records_by_id.get(manifestation.id)
+        if not record and manifestation.ark:
+            record = manifest_records_by_ark.get(manifestation.ark)
+        manifestation.summary = build_entity_summary(
+            record=record,
+            type_norm="manifestation",
+            ark=manifestation.ark,
+            counts=None,
+            incoming_counts=incoming_counts,
+            controlled_labels=controlled_labels,
+        )
+
+    def _apply_expression_summary(expression: ExpressionItemView | ExpressionClusterItemView) -> None:
+        record = expression_records_by_ark.get(expression.ark or "")
+        expression.summary = build_entity_summary(
+            record=record,
+            type_norm="expression",
+            ark=expression.ark,
+            counts=None,
+            incoming_counts=incoming_counts,
+            controlled_labels=controlled_labels,
+        )
+        for manifestation in expression.manifestations:
+            _apply_manifestation_summary(manifestation)
+
+    for group in expression_groups:
+        _apply_expression_summary(group.anchor)
+        for clustered in group.clustered:
+            _apply_expression_summary(clustered)
+    for expression in independent_expressions:
+        _apply_expression_summary(expression)
 
     workflows = cluster_workflow_repo.get_applied_workflows(dataset_id, anchor_ark) if anchor_ark else {}
 

@@ -124,7 +124,14 @@ export type Cluster = {
 export type EntitySummary = {
   counts?: { expressions?: number; manifestations?: number }
   relationships?: { outgoing: number; incoming: number }
-  mediaKinds?: { emoji: string; label: string; kindCode: string }[]
+  mediaKinds?: MediaKind[]
+}
+
+export type MediaKind = {
+  emoji: string
+  label: string
+  kindCode?: string
+  kind_code?: string
 }
 
 export type ManifestationItemViewDto = {

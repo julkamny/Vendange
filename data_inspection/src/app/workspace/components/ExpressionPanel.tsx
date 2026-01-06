@@ -1,10 +1,8 @@
 import { useMemo, type MouseEvent } from 'react'
-import type { WorkClusterDto, ExpressionClusterItemViewDto, ExpressionItemViewDto } from '../../types'
+import type { WorkClusterDto, ExpressionClusterItemViewDto, ExpressionItemViewDto, MediaKind } from '../../types'
 import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
 import { EntityLabel } from '../../components/EntityLabel'
-import type { MediaKind } from '../../core/media'
-
 type SummaryLike = { mediaKinds?: MediaKind[]; media_kinds?: MediaKind[]; counts?: { manifestations?: number }; relationships?: { outgoing: number; incoming: number } }
 
 const pickMediaKinds = (summary?: SummaryLike | null) => summary?.mediaKinds ?? summary?.media_kinds

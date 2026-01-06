@@ -1,4 +1,4 @@
-import type { WorkClusterDto, ExpressionItemViewDto, ExpressionClusterItemViewDto, ManifestationItemViewDto, EntityBadgeSpec } from '../../types'
+import type { WorkClusterDto, ExpressionItemViewDto, ExpressionClusterItemViewDto, ManifestationItemViewDto, EntityBadgeSpec, MediaKind } from '../../types'
 import type { WorkspaceTabStateWorkspace } from '../types'
 import { useTranslation } from '../../hooks/useTranslation'
 import { EntityLabel } from '../../components/EntityLabel'

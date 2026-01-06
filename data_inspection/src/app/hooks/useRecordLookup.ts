@@ -7,16 +7,12 @@ import { buildRecordRowFromPayload } from '../lib/recordPayload'
 import { stubExpressionRecord, stubManifestationRecord, stubWorkRecord } from '../workspace/recordStubs'
 import type { Cluster, RecordRow, WorkClusterDto, WorkRecordPayload } from '../types'
 import { extractAgentNames } from '../core/agents'
-import { countGeneralRelationships } from '../core/generalRelationships'
-import { extractMediaKinds, type MediaKind } from '../core/media'
 import { mapWorkCluster } from '../lib/mapWorkClusters'
 
 type RecordLookup = {
   getById: (id?: string | null) => RecordRow | undefined
   getByArk: (ark?: string | null) => RecordRow | undefined
   getAgentNames: (id?: string | null, ark?: string | null) => string[]
-  getGeneralRelationshipCount: (id?: string | null, ark?: string | null) => number
-  getMediaKinds: (id?: string | null, ark?: string | null) => MediaKind[]
 }
 
 export function useRecordLookup(): RecordLookup {
@@ -94,8 +90,6 @@ export function useRecordLookup(): RecordLookup {
     return Array.from(byId.values())
   }, [cachedRecords, stubbedRecords])
   const agentCache = useRef(new Map<string, string[]>())
-  const relationshipCache = useRef(new Map<string, number>())
-  const mediaCache = useRef(new Map<string, MediaKind[]>())
 
   const index = useMemo(() => {
     const byId = new Map<string, RecordRow>()
@@ -110,8 +104,6 @@ export function useRecordLookup(): RecordLookup {
 
   useEffect(() => {
     agentCache.current.clear()
-    relationshipCache.current.clear()
-    mediaCache.current.clear()
   }, [records])
 
   const getById = useCallback(
@@ -147,36 +139,5 @@ export function useRecordLookup(): RecordLookup {
     [index],
   )
 
-  const getGeneralRelationshipCount = useCallback(
-    (id?: string | null, ark?: string | null) => {
-      const record =
-        (id && index.byId.get(id)) ||
-        (typeof ark === 'string' ? index.byArk.get(ark.toLowerCase()) : undefined)
-      if (!record) return 0
-      if (relationshipCache.current.has(record.id)) return relationshipCache.current.get(record.id)!
-      const count = countGeneralRelationships(record)
-      relationshipCache.current.set(record.id, count)
-      return count
-    },
-    [index],
-  )
-
-  const getMediaKinds = useCallback(
-    (id?: string | null, ark?: string | null) => {
-      const record =
-        (id && index.byId.get(id)) ||
-        (typeof ark === 'string' ? index.byArk.get(ark.toLowerCase()) : undefined)
-      if (!record) return []
-      if (mediaCache.current.has(record.id)) return mediaCache.current.get(record.id)!
-      const kinds = extractMediaKinds(record, {
-        lookupRecordByArk: value =>
-          typeof value === 'string' ? index.byArk.get(value.toLowerCase()) : undefined,
-      })
-      mediaCache.current.set(record.id, kinds)
-      return kinds
-    },
-    [index],
-  )
-
-  return { getById, getByArk, getAgentNames, getGeneralRelationshipCount, getMediaKinds }
+  return { getById, getByArk, getAgentNames }
 }

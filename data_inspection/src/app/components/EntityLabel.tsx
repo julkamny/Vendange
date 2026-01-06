@@ -2,7 +2,7 @@ import { useMemo, type MouseEventHandler } from 'react'
 import type { EntityBadgeSpec, CountBadgeKind, EntityTitleSegment } from '../types'
 import { useTranslation } from '../hooks/useTranslation'
 import { useArkDecoratedText } from '../hooks/useArkDecoratedText'
-import type { MediaKind } from '../core/media'
+import type { MediaKind } from '../types'
 
 export type EntityPillProps = EntityBadgeSpec
 

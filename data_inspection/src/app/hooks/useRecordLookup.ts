@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useEffect, useRef, useState } from 'react'
+import { useCallback, useMemo, useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAppData } from '../providers/AppDataContext'
 import { useWorkspaceWorks } from './useWorkspaceQueries'
@@ -6,13 +6,11 @@ import { mapWorkClusters } from '../lib/mapWorkClusters'
 import { buildRecordRowFromPayload } from '../lib/recordPayload'
 import { stubExpressionRecord, stubManifestationRecord, stubWorkRecord } from '../workspace/recordStubs'
 import type { Cluster, RecordRow, WorkClusterDto, WorkRecordPayload } from '../types'
-import { extractAgentNames } from '../core/agents'
 import { mapWorkCluster } from '../lib/mapWorkClusters'
 
 type RecordLookup = {
   getById: (id?: string | null) => RecordRow | undefined
   getByArk: (ark?: string | null) => RecordRow | undefined
-  getAgentNames: (id?: string | null, ark?: string | null) => string[]
 }
 
 export function useRecordLookup(): RecordLookup {
@@ -89,7 +87,6 @@ export function useRecordLookup(): RecordLookup {
     cachedRecords.forEach(add)
     return Array.from(byId.values())
   }, [cachedRecords, stubbedRecords])
-  const agentCache = useRef(new Map<string, string[]>())
 
   const index = useMemo(() => {
     const byId = new Map<string, RecordRow>()
@@ -100,10 +97,6 @@ export function useRecordLookup(): RecordLookup {
     }
     records.forEach(ingest)
     return { byId, byArk }
-  }, [records])
-
-  useEffect(() => {
-    agentCache.current.clear()
   }, [records])
 
   const getById = useCallback(
@@ -122,22 +115,5 @@ export function useRecordLookup(): RecordLookup {
     [index],
   )
 
-  const getAgentNames = useCallback(
-    (id?: string | null, ark?: string | null) => {
-      const record =
-        (id && index.byId.get(id)) ||
-        (typeof ark === 'string' ? index.byArk.get(ark.toLowerCase()) : undefined)
-      if (!record) return []
-      if (agentCache.current.has(record.id)) return agentCache.current.get(record.id)!
-      const names = extractAgentNames(record, {
-        lookupRecordByArk: value =>
-          typeof value === 'string' ? index.byArk.get(value.toLowerCase()) : undefined,
-      })
-      agentCache.current.set(record.id, names)
-      return names
-    },
-    [index],
-  )
-
-  return { getById, getByArk, getAgentNames }
+  return { getById, getByArk }
 }

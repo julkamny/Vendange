@@ -359,7 +359,9 @@
     "workLinks_other": "{{count}} links to works",
     "expressionLinks_one": "{{count}} link to an expression",
     "expressionLinks_other": "{{count}} links to expressions",
-    "relationshipsDetailed": "{{outgoing}} outgoing · {{incoming}} incoming"
+    "relationshipsDetailed": "{{outgoing}} outgoing · {{incoming}} incoming",
+    "agents_one": "{{count}} agent",
+    "agents_other": "{{count}} agents"
   },
   "backlinks": {
     "title": "Incoming links",

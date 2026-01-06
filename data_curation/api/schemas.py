@@ -19,6 +19,7 @@ class RelationshipStats(BaseModel):
 class CountStats(BaseModel):
     expressions: int = 0
     manifestations: int = 0
+    agents: int = 0
 
 
 class EntitySummary(BaseModel):

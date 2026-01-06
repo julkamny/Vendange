@@ -41,12 +41,12 @@ export function CountBadge({ kind, count }: { kind: CountBadgeKind; count: numbe
   )
 }
 
-export function AgentBadge({ names }: { names: string[] }) {
+export function AgentBadge({ names, count }: { names?: string[]; count: number }) {
   const { t } = useTranslation()
-  const tooltip = names.length ? names.join('\n') : t('messages.noAgents')
+  const tooltip = names && names.length ? names.join('\n') : t('badges.agents', { count })
   return (
     <span className="entity-pill entity-pill-agent agent-badge has-tooltip" data-tooltip={tooltip} aria-label={tooltip}>
-      {names.length}
+      {count}
     </span>
   )
 }
@@ -107,9 +107,10 @@ export function EntityLabel({
     if (badges && badges.length) return true
     if (visibleCounts.length) return true
     if (agentNames && agentNames.length > 0) return true
+    if (counts?.agents && counts.agents > 0) return true
     if (relationships && (relationships.outgoing > 0 || relationships.incoming > 0)) return true
     return false
-  }, [agentNames, badges, relationships, visibleCounts])
+  }, [agentNames, badges, counts?.agents, relationships, visibleCounts])
 
   const classes = useMemo(() => {
     const values = ['entity-label']
@@ -150,7 +151,11 @@ export function EntityLabel({
           {relationships && (relationships.outgoing > 0 || relationships.incoming > 0) ? (
             <RelationshipBadge outgoing={relationships.outgoing} incoming={relationships.incoming} />
           ) : null}
-          {agentNames && agentNames.length ? <AgentBadge names={agentNames} /> : null}
+          {agentNames && agentNames.length ? (
+            <AgentBadge names={agentNames} count={agentNames.length} />
+          ) : counts?.agents && counts.agents > 0 ? (
+            <AgentBadge count={counts.agents} />
+          ) : null}
         </span>
       ) : null}
       {media.length ? (

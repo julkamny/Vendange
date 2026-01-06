@@ -64,6 +64,7 @@ def _normalize_label(value: str) -> str:
 
 AGGREGATE_CONTROLLED_LABEL = _normalize_label("agrégat éditorial")
 AGGREGATE_MEDIA_KIND = {"emoji": "🧺", "label": "Agrégat éditorial"}
+AGENT_FIELD_CODES: Set[str] = {"700", "701", "702", "710", "711", "712"}
 
 
 def _first_controlled_label(record: Optional[dict]) -> Optional[str]:
@@ -89,6 +90,24 @@ def count_general_relationships(record: Optional[dict], type_norm: str) -> int:
     related: Set[str] = set()
     for zone_code, sub_code, value in iter_record_subfields(record):
         if zone_code not in codes:
+            continue
+        if sub_code not in {f"{zone_code}$3", f"{zone_code}s3"}:
+            continue
+        if not isinstance(value, str):
+            continue
+        trimmed = value.strip()
+        if trimmed:
+            related.add(trimmed)
+    return len(related)
+
+
+def count_agent_links(record: Optional[dict]) -> int:
+    """Count distinct agent $3 targets across 7XX fields."""
+    if not record:
+        return 0
+    related: Set[str] = set()
+    for zone_code, sub_code, value in iter_record_subfields(record):
+        if zone_code not in AGENT_FIELD_CODES:
             continue
         if sub_code not in {f"{zone_code}$3", f"{zone_code}s3"}:
             continue
@@ -235,7 +254,18 @@ def build_entity_summary(
     """Build an EntitySummary with counts + relationship/media badges when possible."""
     if not record and counts is None:
         return None
-    summary = EntitySummary(counts=counts)
+    summary_counts = counts
+    if record:
+        agent_count = count_agent_links(record)
+        if summary_counts is None and agent_count > 0:
+            summary_counts = CountStats(agents=agent_count)
+        elif summary_counts is not None:
+            summary_counts = CountStats(
+                expressions=summary_counts.expressions,
+                manifestations=summary_counts.manifestations,
+                agents=agent_count,
+            )
+    summary = EntitySummary(counts=summary_counts)
     if record:
         summary.relationships = RelationshipStats(
             outgoing=count_general_relationships(record, type_norm),

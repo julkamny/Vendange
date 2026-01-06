@@ -122,7 +122,7 @@ export type Cluster = {
 }
 
 export type EntitySummary = {
-  counts?: { expressions?: number; manifestations?: number }
+  counts?: { expressions?: number; manifestations?: number; agents?: number }
   relationships?: { outgoing: number; incoming: number }
   mediaKinds?: MediaKind[]
 }

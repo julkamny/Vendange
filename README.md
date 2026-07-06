@@ -12,6 +12,12 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - Workspace endpoints are Postgres-backed (SQL lists/records/backlinks/autocomplete).
 - Curation operations (update record, manual clustering, anchor/originality swap, manifestation uproot) write directly to Postgres under dataset-scoped advisory locks.
 
+#### Key commands
+- `uv run -- spacy download fr_dep_news_trf` to install a spaCy pipeline for the French language, used for automated clustering of works and expressions.
+- `docker compose -f db/docker-compose.postgres.yml up -d`: see [Postgres dev stack](#postgres-dev-stack) below, which also contains instructions to launch Ontop.
+- `uv run fastapi dev data_curation/api/app.py`: see [Running data curation operations](#running-data-curation-operations) below.
+- `npm run dev`: see [Review in the Web UI](#review-in-the-web-ui) below.
+
 ### Getting Started
 
 #### Data sources
@@ -59,15 +65,8 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - Clustering workflows refresh Postgres projections after updates so labels/backlinks stay consistent.
 - The React UI opens on a dashboard that lets you upload CSV snapshots, launch clustering (with or without expression propagation) while streaming script logs, jump into the inspection workspace, or delete a dataset. Every upload is stored in Postgres partitions keyed by dataset_id.
 
-### Testing backend guardrails
-- End-to-end guards between the React UI and FastAPI are covered in `data_curation/tests/test_cluster_guards.py`. Run them with `uv run pytest data_curation/tests/test_cluster_guards.py`.
-- The tests ingest fixture CSVs into Postgres partitions keyed by dataset_id (work/expression/manifestation fixtures with 150/140/245/750/740 fields) and intentionally leave datasets registered for inspection after a run.
-- Routing now uses TanStack Router. Deep-linking to `http://localhost:5173/<dataset_slug>` loads the dataset via the route loader (with a friendly error screen when the slug is invalid) and back/forward navigation keeps the dashboard/inspection views in sync.
-
-### Debug & Fixtures
-- **Styled debug logs** — use `-vv` to unlock Rich-powered logs: the CLI renders colourful panels, syntax-highlighted titles, and tables for matched variants and removed segments.
-
 ### Review in the Web UI
+- Launch the review UI in the browser with `npm run dev` in `data_inspection/`.
 - Pristine snapshots are captured per record only when you edit it, keeping load time and memory footprint low while still allowing per-record reset.
 - Three tab kinds are available from the “+” dropdown: WEM workspace, Agents workspace (people/collectives/families), and SPARQL query tabs; the dropdown supports keyboard navigation (Enter/Space to open, arrows to move, Escape to close) and closes reliably on outside clicks.
 - The UI detects clusters by scanning for `90F$q = "Clusterisation script"` in works.
@@ -84,6 +83,9 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - Side panel: prettified Intermarc of selected record. ARK labels keep the human-readable title in the text and surface the identifier on hover, and 140/750/740 links are clickable to open the targeted entity in a new workspace tab. Field lines respect the numeric order of their blank nodes and, when a zone has no `sousZones`, fall back to rendering its `fieldCompactValue` (JSON-encoded `sousZones` or raw text) instead of leaving it empty.
 - Below or beside the record viewer, a backlinks panel lists every work/expression/manifestation that references the selected entity, with segmented titles, a direct ARK shortcut, and the fields where the reference lives; expand it into its own third column when you want the entity list, Intermarc, and backlinks side by side.
 - Bottom-right hover toolbar: unfold it to access the pop-out/dock/full-width Intermarc controls and a backlinks toggle. Expanded backlinks reshape the workspace into three equal columns; folding tucks the backlinks panel back under the record. A fourth button hides or shows the list of entities on the left.
+
+#### Sparnatural/Vite compatibility
+- The Vite frontend loads Sparnatural's self-contained browser distribution as a managed asset, avoiding the Node-only transitive modules exposed by its raw package entry point. Keep the runtime loader in sync when upgrading Sparnatural.
 
 ### Manual clustering
 - Works, agents, expressions support the same manual clustering workflow: add `90F$q Clusterisation manuelle` + `90F$3` in a entity's Intermarc (or right-click an entity then “Prepare for clustering” → “Cluster selected {entity} here”) to group it under an anchor. Checkboxes are binary: unchecking removes the entity from the cluster and rewrites the anchor’s 90F entries. An entity ARK can belong to only one cluster, and any entity already an anchor (90F marked created/manual) cannot be targeted.
@@ -118,17 +120,7 @@ While the ideas behind Vendange's clustering operations and its UI are the resul
 - `data_exploration/subset_by_150.py` — builds a Postgres-backed subset containing works whose `150` subfields match a needle (regex), optionally pulling linked expressions (`750s3`), manifestations (`740s3`), and agents; controlled values referenced by the kept records are always copied. The script registers the subset as a new Postgres dataset partition (and still creates a local dataset directory for logs) so FastAPI/React can open it. Example:  
   `uv run python data_exploration/subset_by_150.py current-exportcsv "petites filles modèles" --include-expressions --include-manifestations --include-agents`
 
-### Installation
-On MacOS Monterey 12.6.7, use Python 3.11 to install spaCy:
-
-```
-uv venv --python 3.11
-uv sync
-uv run -- spacy download fr_dep_news_trf
-```
-
 ### Postgres dev stack
-
 - Copy `.env.example` to `.env` and adjust `POSTGRES_DSN` if you run Postgres elsewhere (defaults to port 55432 to avoid conflicts).
 - Start the database locally: `docker compose -f db/docker-compose.postgres.yml up -d` (service `postgres`, port 55432 -> container 5432).
 - The FastAPI backend now exposes `/api/health/db` and reads `POSTGRES_DSN` for pooled connections (defaults to `postgresql://vendange:vendange@localhost:55432/vendange`).
@@ -190,3 +182,8 @@ Materializing the flattening step once at ingest/update time keeps SPARQL querie
 - Materialize RDF triples (e.g. precompute a graph store): fast at query time, but increases pipeline complexity and drifts away from “Postgres as the single source of truth”.
 - Use Postgres JSON indexes aggressively: helps some cases, but not enough for multi-join + regex workloads.
 - Push more “search” semantics into `fts`: great for broad text search, but it doesn’t replace structured “field/subfield + traversal” queries.
+
+### Testing backend guardrails
+- End-to-end guards between the React UI and FastAPI are covered in `data_curation/tests/test_cluster_guards.py`. Run them with `uv run pytest data_curation/tests/test_cluster_guards.py`.
+- The tests ingest fixture CSVs into Postgres partitions keyed by dataset_id (work/expression/manifestation fixtures with 150/140/245/750/740 fields) and intentionally leave datasets registered for inspection after a run.
+- Routing now uses TanStack Router. Deep-linking to `http://localhost:5173/<dataset_slug>` loads the dataset via the route loader (with a friendly error screen when the slug is invalid) and back/forward navigation keeps the dashboard/inspection views in sync.

@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SparnaturalElement, SparnaturalQueryIfc, RDFTerm } from 'sparnatural'
 import '../vendor/jquery-global'
 import '../vendor/select2'
 import '../assets/sparnatural.css'
+import { sparnaturalRuntimeReady } from '../vendor/sparnatural-runtime'
 
-import 'sparnatural'
 import {
   BASE_NS,
   PROP_NS,
@@ -51,6 +51,7 @@ export function SparnaturalBuilder({
   onSubmit,
   onReset,
 }: SparnaturalBuilderProps) {
+  const [runtimeReady, setRuntimeReady] = useState(() => Boolean(customElements.get('spar-natural')))
   const elementRef = useRef<SparnaturalElement | null>(null)
   const lastQueryRef = useRef<string>('')
 
@@ -103,6 +104,19 @@ export function SparnaturalBuilder({
     }
     return union
   }, [controlledItems, relatorItems])
+
+  useEffect(() => {
+    if (runtimeReady) return
+    let active = true
+    void sparnaturalRuntimeReady
+      .then(() => {
+        if (active) setRuntimeReady(true)
+      })
+      .catch(error => console.error('Failed to initialize Sparnatural', error))
+    return () => {
+      active = false
+    }
+  }, [runtimeReady])
 
   useEffect(() => {
     if (!datasetId) {
@@ -178,8 +192,11 @@ export function SparnaturalBuilder({
     }
   }, [datasetId, disabled, onQueryChange, onSubmit, onReset])
 
+  const canvasClassName = `sparql-builder__canvas${disabled ? ' sparql-builder__canvas--disabled' : ''}`
+  if (!runtimeReady) return <div className={canvasClassName} aria-busy="true" />
+
   return (
-    <div className={`sparql-builder__canvas${disabled ? ' sparql-builder__canvas--disabled' : ''}`}>
+    <div className={canvasClassName}>
       <spar-natural
         ref={handleRef}
         src={config}
